@@ -31,6 +31,7 @@ using std::shared_ptr;
 using std::string;
 using std::string_view;
 using std::to_string;
+using std::unique_ptr;
 using std::vector;
 
 namespace asio      = boost::asio;
@@ -93,6 +94,16 @@ const map<string, sql_type> sql_types = {
     {"bytes", {"bytea", bin_to_sql_bytes}},
 };
 
+struct variant_header_zero {};
+
+bool bin_to_native(variant_header_zero&, bin_to_native_state& state, bool) {
+    if (read_varuint32(state.bin))
+        throw std::runtime_error("unexpected variant value");
+    return true;
+}
+
+bool json_to_native(variant_header_zero&, json_to_native_state&, event_type, bool) { return true; }
+
 struct block_position {
     uint32_t    block_num = 0;
     checksum256 block_id  = {};
@@ -143,6 +154,159 @@ template <typename F>
 constexpr void for_each_field(table_delta_v0*, F f) {
     f("name", member_ptr<&table_delta_v0::name>{});
     f("rows", member_ptr<&table_delta_v0::rows>{});
+}
+
+struct permission_level {
+    name actor;
+    name permission;
+};
+
+template <typename F>
+constexpr void for_each_field(permission_level*, F f) {
+    f("actor", member_ptr<&permission_level::actor>{});
+    f("permission", member_ptr<&permission_level::permission>{});
+}
+
+struct account_auth_sequence {
+    name     account;
+    uint64_t sequence;
+};
+
+template <typename F>
+constexpr void for_each_field(account_auth_sequence*, F f) {
+    f("account", member_ptr<&account_auth_sequence::account>{});
+    f("sequence", member_ptr<&account_auth_sequence::sequence>{});
+}
+
+struct action_receipt {
+    variant_header_zero           dummy;
+    name                          receiver;
+    checksum256                   act_digest;
+    uint64_t                      global_sequence;
+    uint64_t                      recv_sequence;
+    vector<account_auth_sequence> auth_sequence;
+    varuint32                     code_sequence;
+    varuint32                     abi_sequence;
+};
+
+template <typename F>
+constexpr void for_each_field(action_receipt*, F f) {
+    f("dummy", member_ptr<&action_receipt::dummy>{});
+    f("receiver", member_ptr<&action_receipt::receiver>{});
+    f("act_digest", member_ptr<&action_receipt::act_digest>{});
+    f("global_sequence", member_ptr<&action_receipt::global_sequence>{});
+    f("recv_sequence", member_ptr<&action_receipt::recv_sequence>{});
+    f("auth_sequence", member_ptr<&action_receipt::auth_sequence>{});
+    f("code_sequence", member_ptr<&action_receipt::code_sequence>{});
+    f("abi_sequence", member_ptr<&action_receipt::abi_sequence>{});
+}
+
+struct action {
+    name                     account;
+    name                     name;
+    vector<permission_level> authorization;
+    input_buffer             data;
+};
+
+template <typename F>
+constexpr void for_each_field(action*, F f) {
+    f("account", member_ptr<&action::account>{});
+    f("name", member_ptr<&action::name>{});
+    f("authorization", member_ptr<&action::authorization>{});
+    f("data", member_ptr<&action::data>{});
+}
+
+struct account_delta {
+    name    account;
+    int64_t delta;
+};
+
+template <typename F>
+constexpr void for_each_field(account_delta*, F f) {
+    f("account", member_ptr<&account_delta::account>{});
+    f("delta", member_ptr<&account_delta::delta>{});
+}
+
+struct recurse_action_trace;
+
+struct action_trace {
+    variant_header_zero          dummy;
+    action_receipt               receipt;
+    action                       act;
+    bool                         context_free;
+    int64_t                      elapsed;
+    string                       console;
+    vector<account_delta>        account_ram_deltas;
+    optional<string>             except;
+    vector<recurse_action_trace> inline_traces;
+};
+
+template <typename F>
+constexpr void for_each_field(action_trace*, F f) {
+    f("dummy", member_ptr<&action_trace::dummy>{});
+    f("receipt", member_ptr<&action_trace::receipt>{});
+    f("act", member_ptr<&action_trace::act>{});
+    f("context_free", member_ptr<&action_trace::context_free>{});
+    f("elapsed", member_ptr<&action_trace::elapsed>{});
+    f("console", member_ptr<&action_trace::console>{});
+    f("account_ram_deltas", member_ptr<&action_trace::account_ram_deltas>{});
+    f("except", member_ptr<&action_trace::except>{});
+    f("inline_traces", member_ptr<&action_trace::inline_traces>{});
+}
+
+struct recurse_action_trace : action_trace {};
+
+bool bin_to_native(recurse_action_trace& obj, bin_to_native_state& state, bool start) {
+    action_trace& o = obj;
+    return bin_to_native(o, state, start);
+}
+
+bool json_to_native(recurse_action_trace& obj, json_to_native_state& state, event_type event, bool start) {
+    action_trace& o = obj;
+    return json_to_native(o, state, event, start);
+}
+
+struct recurse_transaction_trace;
+
+struct transaction_trace {
+    variant_header_zero               dummy;
+    checksum256                       id;
+    uint8_t                           status;
+    uint32_t                          cpu_usage_us;
+    varuint32                         net_usage_words;
+    int64_t                           elapsed;
+    uint64_t                          net_usage;
+    bool                              scheduled;
+    vector<action_trace>              action_traces;
+    optional<string>                  except;
+    vector<recurse_transaction_trace> failed_dtrx_trace;
+};
+
+template <typename F>
+constexpr void for_each_field(transaction_trace*, F f) {
+    f("dummy", member_ptr<&transaction_trace::dummy>{});
+    f("id", member_ptr<&transaction_trace::id>{});
+    f("status", member_ptr<&transaction_trace::status>{});
+    f("cpu_usage_us", member_ptr<&transaction_trace::cpu_usage_us>{});
+    f("net_usage_words", member_ptr<&transaction_trace::net_usage_words>{});
+    f("elapsed", member_ptr<&transaction_trace::elapsed>{});
+    f("net_usage", member_ptr<&transaction_trace::net_usage>{});
+    f("scheduled", member_ptr<&transaction_trace::scheduled>{});
+    f("action_traces", member_ptr<&transaction_trace::action_traces>{});
+    f("except", member_ptr<&transaction_trace::except>{});
+    f("failed_dtrx_trace", member_ptr<&transaction_trace::failed_dtrx_trace>{});
+}
+
+struct recurse_transaction_trace : transaction_trace {};
+
+bool bin_to_native(recurse_transaction_trace& obj, bin_to_native_state& state, bool start) {
+    transaction_trace& o = obj;
+    return bin_to_native(o, state, start);
+}
+
+bool json_to_native(recurse_transaction_trace& obj, json_to_native_state& state, event_type event, bool start) {
+    transaction_trace& o = obj;
+    return json_to_native(o, state, event, start);
 }
 
 std::vector<char> zlib_decompress(input_buffer data) {
@@ -279,6 +443,8 @@ struct session : enable_shared_from_this<session> {
         pqxx::pipeline pipeline(t);
         if (result.deltas)
             receive_deltas(result.this_block->block_num, *result.deltas, t, pipeline);
+        if (result.traces)
+            receive_traces(result.this_block->block_num, *result.traces, t, pipeline);
         pipeline.complete();
         t.commit();
     }
@@ -347,7 +513,19 @@ struct session : enable_shared_from_this<session> {
             numRows += table_delta.rows.size();
         }
         // printf("    numRows: %u\n", numRows);
-    }
+    } // receive_deltas
+
+    void receive_traces(uint32_t block_num, input_buffer buf, pqxx::work& t, pqxx::pipeline& pipeline) {
+        auto         data = zlib_decompress(buf);
+        input_buffer bin{data.data(), data.data() + data.size()};
+        auto         num = read_varuint32(bin);
+        for (uint32_t i = 0; i < num; ++i) {
+            transaction_trace ttrace;
+            if (!bin_to_native(ttrace, bin))
+                throw runtime_error("transaction_trace conversion error (1)");
+            printf("trace\n");
+        }
+    } // receive_traces
 
     void send_request() {
         send(jvalue{jarray{{"get_blocks_request_v0"s},

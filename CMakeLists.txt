@@ -11,7 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_executable(fill-postgresql src/fill-postgresql.cpp)
 target_include_directories(fill-postgresql PUBLIC external/abieos/src external/abieos/external/rapidjson/include PRIVATE ${Boost_INCLUDE_DIR})
-target_link_libraries(fill-postgresql Boost::date_time Boost::system Boost::iostreams)
+target_link_libraries(fill-postgresql Boost::date_time Boost::system Boost::iostreams pqxx pq)
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(fill-postgresql PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics)

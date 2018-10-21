@@ -13,6 +13,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <pqxx/pqxx>
 #include <string>
 #include <string_view>
 
@@ -39,6 +40,57 @@ namespace websocket = boost::beast::websocket;
 using asio::ip::tcp;
 using boost::beast::flat_buffer;
 using boost::system::error_code;
+
+struct sql_type {
+    const char* type                    = "";
+    string (*bin_to_sql)(input_buffer&) = nullptr;
+};
+
+string bin_to_sql_bool(input_buffer& bin) {
+    if (read_bin<bool>(bin))
+        return "t";
+    else
+        return "f";
+}
+
+template <typename T>
+string bin_to_sql_int(input_buffer& bin) {
+    return to_string(read_bin<T>(bin));
+}
+
+string bin_to_sql_bytes(input_buffer& bin) {
+    auto size = read_varuint32(bin);
+    if (size > bin.end - bin.pos)
+        throw error("invalid bytes size");
+    string result = "\\x";
+    boost::algorithm::hex(bin.pos, bin.pos + size, back_inserter(result));
+    bin.pos += size;
+    return result;
+}
+
+const map<string, sql_type> sql_types = {
+    {"bool", {"bool", bin_to_sql_bool}},
+    {"varuint", {"bigint", [](auto& bin) { return to_string(read_varuint32(bin)); }}},
+    {"varint", {"integer", [](auto& bin) { return to_string(read_varint32(bin)); }}},
+    {"uint8", {"smallint", bin_to_sql_int<uint8_t>}},
+    {"uint16", {"integer", bin_to_sql_int<uint16_t>}},
+    {"uint32", {"bigint", bin_to_sql_int<uint32_t>}},
+    {"uint64", {"decimal", bin_to_sql_int<uint64_t>}},
+    {"uint128", {"decimal", [](auto& bin) { return (string)read_bin<uint128>(bin); }}},
+    {"int8", {"smallint", bin_to_sql_int<int8_t>}},
+    {"int16", {"smallint", bin_to_sql_int<int16_t>}},
+    {"int32", {"integer", bin_to_sql_int<int32_t>}},
+    {"int64", {"bigint", bin_to_sql_int<int64_t>}},
+    {"int128", {"decimal", [](auto& bin) { return (string)read_bin<int128>(bin); }}},
+    {"float64", {"float8", bin_to_sql_int<double>}},
+    {"float128", {"bytea", [](auto& bin) { return string(read_bin<float128>(bin)); }}},
+    {"name", {"varchar(13)", [](auto& bin) { return "\"" + name_to_string(read_bin<uint64_t>(bin)) + "\""; }}},
+    {"time_point", {"varchar", [](auto& bin) { return string(read_bin<time_point>(bin)); }}},
+    {"time_point_sec", {"varchar", [](auto& bin) { return string(read_bin<time_point_sec>(bin)); }}},
+    {"block_timestamp_type", {"varchar", [](auto& bin) { return string(read_bin<block_timestamp>(bin)); }}},
+    {"checksum256", {"varchar(64)", [](auto& bin) { return string(read_bin<checksum256>(bin)); }}},
+    {"bytes", {"bytea", bin_to_sql_bytes}},
+};
 
 struct block_position {
     uint32_t    block_num = 0;
@@ -107,15 +159,17 @@ struct session : enable_shared_from_this<session> {
     websocket::stream<tcp::socket> stream;
     string                         host;
     string                         port;
+    string                         schema;
     bool                           received_abi = false;
     abi_def                        abi{};
     map<string, abi_type>          abi_types;
 
-    explicit session(asio::io_context& ioc, string host, string port)
+    explicit session(asio::io_context& ioc, string host, string port, string schema)
         : resolver(ioc)
         , stream(ioc)
         , host(move(host))
-        , port(move(port)) {
+        , port(move(port))
+        , schema(move(schema)) {
         stream.binary(true);
     }
 
@@ -159,10 +213,54 @@ struct session : enable_shared_from_this<session> {
         check_abi_version(abi.version);
         abi_types    = create_contract(abi).abi_types;
         received_abi = true;
+        create_tables();
         send_request();
     }
 
+    void create_tables() {
+        pqxx::connection c;
+        pqxx::work       t(c);
+
+        t.exec("drop schema if exists " + schema + " cascade");
+        t.exec("create schema " + schema);
+        t.exec(
+            "create table " + schema +
+            R"(.received_blocks ("block_index" bigint, "block_id" varchar(64), primary key("block_index")))");
+        t.exec("create table " + schema + R"(.status ("head" bigint, "irreversible" bigint))");
+        t.exec("create unique index on " + schema + R"(.status ((true)))");
+        t.exec("insert into " + schema + R"(.status values (0, 0))");
+
+        for (auto& table : abi.tables) {
+            auto& variant_type = get_type(table.type);
+            if (!variant_type.filled_variant || variant_type.fields.size() != 1 ||
+                !variant_type.fields[0].type->filled_struct)
+                throw std::runtime_error("don't know how to proccess " + variant_type.name);
+            auto& type = *variant_type.fields[0].type;
+
+            string fields;
+            for (auto& f : type.fields) {
+                if (f.type->filled_struct || f.type->filled_variant)
+                    continue; // todo
+                auto abi_type = f.type->name;
+                if (abi_type.size() >= 1 && abi_type.back() == '?')
+                    abi_type.resize(abi_type.size() - 1);
+                auto it = sql_types.find(abi_type);
+                if (it == sql_types.end())
+                    throw std::runtime_error("don't know sql type for abi type: " + abi_type);
+                if (!fields.empty())
+                    fields += ", ";
+                fields += t.quote_name(f.name) + " " + it->second.type;
+            }
+
+            // todo: PK
+            t.exec("create table " + schema + "." + table.type + "(" + fields + ")");
+        }
+
+        t.commit();
+    }
+
     void receive_result(const shared_ptr<flat_buffer>& p) {
+        return;
         auto   data = p->data();
         string json;
 
@@ -214,7 +312,7 @@ struct session : enable_shared_from_this<session> {
                            }}}});
     }
 
-    const abi_type& get_type(const char* name) {
+    const abi_type& get_type(const string& name) {
         auto it = abi_types.find(name);
         if (it == abi_types.end())
             throw runtime_error("unknown type "s + name);
@@ -274,17 +372,18 @@ struct session : enable_shared_from_this<session> {
 }; // session
 
 int main(int argc, char** argv) {
-    if (argc != 3) {
-        cerr << "Usage: websocket-client-async <host> <port>\n"
+    if (argc != 4) {
+        cerr << "Usage: websocket-client-async <host> <port> <schema>\n"
              << "Example:\n"
              << "    websocket-client-async localhost 8080\n";
         return EXIT_FAILURE;
     }
-    auto const host = argv[1];
-    auto const port = argv[2];
+    auto host   = argv[1];
+    auto port   = argv[2];
+    auto schema = argv[3];
 
     asio::io_context ioc;
-    make_shared<session>(ioc, host, port)->start();
+    make_shared<session>(ioc, host, port, schema)->start();
     ioc.run();
 
     return EXIT_SUCCESS;

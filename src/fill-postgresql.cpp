@@ -272,14 +272,18 @@ struct session : enable_shared_from_this<session> {
             return;
         if (!(result.this_block->block_num % 100))
             printf("block %d\n", result.this_block->block_num);
+        // if (result.this_block->block_num == 1000000)
+        //     throw std::runtime_error("stop");
 
-        pqxx::work t(sql_connection);
+        pqxx::work     t(sql_connection);
+        pqxx::pipeline pipeline(t);
         if (result.deltas)
-            receive_deltas(result.this_block->block_num, *result.deltas, t);
+            receive_deltas(result.this_block->block_num, *result.deltas, t, pipeline);
+        pipeline.complete();
         t.commit();
     }
 
-    void receive_deltas(uint32_t block_num, input_buffer buf, pqxx::work& t) {
+    void receive_deltas(uint32_t block_num, input_buffer buf, pqxx::work& t, pqxx::pipeline& pipeline) {
         auto         data = zlib_decompress(buf);
         input_buffer bin{data.data(), data.data() + data.size()};
 
@@ -338,7 +342,7 @@ struct session : enable_shared_from_this<session> {
                 }
 
                 // printf("%s\n", ("insert into " + schema + "." + table_delta.name + "(" + fields + ") values (" + values + ")").c_str());
-                t.exec("insert into " + schema + "." + table_delta.name + "(" + fields + ") values (" + values + ")");
+                pipeline.insert("insert into " + schema + "." + table_delta.name + "(" + fields + ") values (" + values + ")");
             }
             numRows += table_delta.rows.size();
         }

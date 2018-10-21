@@ -48,9 +48,9 @@ struct sql_type {
 
 string bin_to_sql_bool(input_buffer& bin) {
     if (read_bin<bool>(bin))
-        return "t";
+        return "true";
     else
-        return "f";
+        return "false";
 }
 
 template <typename T>
@@ -62,9 +62,10 @@ string bin_to_sql_bytes(input_buffer& bin) {
     auto size = read_varuint32(bin);
     if (size > bin.end - bin.pos)
         throw error("invalid bytes size");
-    string result = "\\x";
+    string result = "'\\x";
     boost::algorithm::hex(bin.pos, bin.pos + size, back_inserter(result));
     bin.pos += size;
+    result += "'";
     return result;
 }
 
@@ -83,12 +84,12 @@ const map<string, sql_type> sql_types = {
     {"int64", {"bigint", bin_to_sql_int<int64_t>}},
     {"int128", {"decimal", [](auto& bin) { return (string)read_bin<int128>(bin); }}},
     {"float64", {"float8", bin_to_sql_int<double>}},
-    {"float128", {"bytea", [](auto& bin) { return string(read_bin<float128>(bin)); }}},
-    {"name", {"varchar(13)", [](auto& bin) { return "\"" + name_to_string(read_bin<uint64_t>(bin)) + "\""; }}},
-    {"time_point", {"varchar", [](auto& bin) { return string(read_bin<time_point>(bin)); }}},
-    {"time_point_sec", {"varchar", [](auto& bin) { return string(read_bin<time_point_sec>(bin)); }}},
-    {"block_timestamp_type", {"varchar", [](auto& bin) { return string(read_bin<block_timestamp>(bin)); }}},
-    {"checksum256", {"varchar(64)", [](auto& bin) { return string(read_bin<checksum256>(bin)); }}},
+    {"float128", {"bytea", [](auto& bin) { return "'\\x" + string(read_bin<float128>(bin)) + "'"; }}},
+    {"name", {"varchar(13)", [](auto& bin) { return "'" + name_to_string(read_bin<uint64_t>(bin)) + "'"; }}},
+    {"time_point", {"timestamp", [](auto& bin) { return "'" + string(read_bin<time_point>(bin)) + "'"; }}},
+    {"time_point_sec", {"timestamp", [](auto& bin) { return "'" + string(read_bin<time_point_sec>(bin)) + "'"; }}},
+    {"block_timestamp_type", {"timestamp", [](auto& bin) { return "'" + string(read_bin<block_timestamp>(bin)) + "'"; }}},
+    {"checksum256", {"varchar(64)", [](auto& bin) { return "'" + string(read_bin<checksum256>(bin)) + "'"; }}},
     {"bytes", {"bytea", bin_to_sql_bytes}},
 };
 
@@ -155,6 +156,7 @@ std::vector<char> zlib_decompress(input_buffer data) {
 }
 
 struct session : enable_shared_from_this<session> {
+    pqxx::connection               sql_connection;
     tcp::resolver                  resolver;
     websocket::stream<tcp::socket> stream;
     string                         host;
@@ -174,22 +176,20 @@ struct session : enable_shared_from_this<session> {
     }
 
     void start() {
-        resolver.async_resolve(
-            host, port, [self = shared_from_this(), this](error_code ec, tcp::resolver::results_type results) {
-                callback(ec, "resolve", [&] {
-                    asio::async_connect(
-                        stream.next_layer(), results.begin(), results.end(),
-                        [self = shared_from_this(), this](error_code ec, auto&) {
-                            callback(ec, "connect", [&] {
-                                stream.async_handshake(host, "/", [self = shared_from_this(), this](error_code ec) {
-                                    callback(ec, "handshake", [&] { //
-                                        start_read();
-                                    });
+        resolver.async_resolve(host, port, [self = shared_from_this(), this](error_code ec, tcp::resolver::results_type results) {
+            callback(ec, "resolve", [&] {
+                asio::async_connect(
+                    stream.next_layer(), results.begin(), results.end(), [self = shared_from_this(), this](error_code ec, auto&) {
+                        callback(ec, "connect", [&] {
+                            stream.async_handshake(host, "/", [self = shared_from_this(), this](error_code ec) {
+                                callback(ec, "handshake", [&] { //
+                                    start_read();
                                 });
                             });
                         });
-                });
+                    });
             });
+        });
     }
 
     void start_read() {
@@ -218,8 +218,7 @@ struct session : enable_shared_from_this<session> {
     }
 
     void create_tables() {
-        pqxx::connection c;
-        pqxx::work       t(c);
+        pqxx::work t(sql_connection);
 
         t.exec("drop schema if exists " + schema + " cascade");
         t.exec("create schema " + schema);
@@ -232,8 +231,7 @@ struct session : enable_shared_from_this<session> {
 
         for (auto& table : abi.tables) {
             auto& variant_type = get_type(table.type);
-            if (!variant_type.filled_variant || variant_type.fields.size() != 1 ||
-                !variant_type.fields[0].type->filled_struct)
+            if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
                 throw std::runtime_error("don't know how to proccess " + variant_type.name);
             auto& type = *variant_type.fields[0].type;
 
@@ -260,7 +258,6 @@ struct session : enable_shared_from_this<session> {
     }
 
     void receive_result(const shared_ptr<flat_buffer>& p) {
-        return;
         auto   data = p->data();
         string json;
 
@@ -273,29 +270,79 @@ struct session : enable_shared_from_this<session> {
 
         if (!result.this_block)
             return;
-        printf("block %d\n", result.this_block->block_num);
+        if (!(result.this_block->block_num % 100))
+            printf("block %d\n", result.this_block->block_num);
+
+        pqxx::work t(sql_connection);
         if (result.deltas)
-            receive_deltas(result.this_block->block_num, *result.deltas);
+            receive_deltas(result.this_block->block_num, *result.deltas, t);
+        t.commit();
     }
 
-    void receive_deltas(uint32_t block_num, input_buffer buf) {
+    void receive_deltas(uint32_t block_num, input_buffer buf, pqxx::work& t) {
         auto         data = zlib_decompress(buf);
         input_buffer bin{data.data(), data.data() + data.size()};
 
         auto num = read_varuint32(bin);
-        printf("    %u\n", num);
+        // printf("    %u\n", num);
         unsigned numRows = 0;
         for (uint32_t i = 0; i < num; ++i) {
             check_variant(bin, get_type("table_delta"), "table_delta_v0");
             table_delta_v0 table_delta;
             if (!bin_to_native(table_delta, bin))
-                throw runtime_error("table_delta conversion error");
-            printf("        %s %u\n", table_delta.name.c_str(), (unsigned)table_delta.rows.size());
-            for (auto& r : table_delta.rows)
-                printf("            present:%u row bytes:%u\n", r.present, unsigned(r.data.end - r.data.pos));
+                throw runtime_error("table_delta conversion error (1)");
+            // printf("        %s %u\n", table_delta.name.c_str(), (unsigned)table_delta.rows.size());
+
+            auto& variant_type = get_type(table_delta.name);
+            if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
+                throw std::runtime_error("don't know how to proccess " + variant_type.name);
+            auto& type = *variant_type.fields[0].type;
+
+            for (auto& row : table_delta.rows) {
+                // printf("            present:%u row bytes:%u\n", row.present, unsigned(row.data.end - row.data.pos));
+
+                check_variant(row.data, variant_type, 0u);
+
+                string fields;
+                string values;
+                for (auto& f : type.fields) {
+                    if (f.type->filled_struct || f.type->filled_variant) {
+                        string dummy;
+                        if (!bin_to_json(row.data, f.type, dummy))
+                            throw runtime_error("table_delta conversion error (2)");
+                        // printf("                %s\n", dummy.c_str());
+                        continue;
+                    }
+
+                    auto abi_type    = f.type->name;
+                    bool is_optional = false;
+                    if (abi_type.size() >= 1 && abi_type.back() == '?') {
+                        is_optional = true;
+                        abi_type.resize(abi_type.size() - 1);
+                    }
+                    auto it = sql_types.find(abi_type);
+                    if (it == sql_types.end())
+                        throw std::runtime_error("don't know sql type for abi type: " + abi_type);
+                    if (!it->second.bin_to_sql)
+                        throw std::runtime_error("don't know how to process " + f.type->name);
+
+                    if (!fields.empty()) {
+                        fields += ", ";
+                        values += ", ";
+                    }
+                    fields += t.quote_name(f.name);
+                    if (!is_optional || read_bin<bool>(row.data))
+                        values += it->second.bin_to_sql(row.data);
+                    else
+                        values += "null";
+                }
+
+                // printf("%s\n", ("insert into " + schema + "." + table_delta.name + "(" + fields + ") values (" + values + ")").c_str());
+                t.exec("insert into " + schema + "." + table_delta.name + "(" + fields + ") values (" + values + ")");
+            }
             numRows += table_delta.rows.size();
         }
-        printf("    numRows: %u\n", numRows);
+        // printf("    numRows: %u\n", numRows);
     }
 
     void send_request() {
@@ -324,15 +371,24 @@ struct session : enable_shared_from_this<session> {
         if (!json_to_bin(*bin, &get_type("request"), value))
             throw runtime_error("failed to convert during send");
 
-        stream.async_write(asio::buffer(*bin), [self = shared_from_this(), bin, this](error_code ec, size_t) {
-            callback(ec, "async_write", [&] {});
-        });
+        stream.async_write(
+            asio::buffer(*bin), [self = shared_from_this(), bin, this](error_code ec, size_t) { callback(ec, "async_write", [&] {}); });
+    }
+
+    void check_variant(input_buffer& bin, const abi_type& type, uint32_t expected) {
+        auto index = read_varuint32(bin);
+        if (!type.filled_variant)
+            throw runtime_error(type.name + " is not a variant"s);
+        if (index >= type.fields.size())
+            throw runtime_error("expected "s + type.fields[expected].name + " got " + to_string(index));
+        if (index != expected)
+            throw runtime_error("expected "s + type.fields[expected].name + " got " + type.fields[index].name);
     }
 
     void check_variant(input_buffer& bin, const abi_type& type, const char* expected) {
         auto index = read_varuint32(bin);
         if (!type.filled_variant)
-            throw runtime_error(expected + " is type"s);
+            throw runtime_error(type.name + " is not a variant"s);
         if (index >= type.fields.size())
             throw runtime_error("expected "s + expected + " got " + to_string(index));
         if (type.fields[index].name != expected)

@@ -42,24 +42,110 @@ using asio::ip::tcp;
 using boost::beast::flat_buffer;
 using boost::system::error_code;
 
+// clang-format off
+/*
+create table chain3."permission_level"(block_index bigint, "actor" varchar(13), "permission" varchar(13))
+create table chain3."account_auth_sequence"(block_index bigint, "account" varchar(13), "sequence" decimal)
+create table chain3."action_receipt"(block_index bigint, "receiver" varchar(13), "act_digest" varchar(64), "global_sequence" decimal, "recv_sequence" decimal, "code_sequence" bigint, "abi_sequence" bigint)
+create table chain3."action"(block_index bigint, "account" varchar(13), "name" varchar(13), "data" bytea)
+create table chain3."account_delta"(block_index bigint, "account" varchar(13), "delta" bigint)
+create table chain3."action_trace"(block_index bigint, transaction_id varchar(64), action_index integer, parent_action_index integer, "context_free" bool, "elapsed" bigint, "console" varchar, "except" varchar)
+create table chain3."transaction_trace"(block_index bigint, "transaction_id" varchar(64), "status" smallint, "cpu_usage_us" bigint, "net_usage_words" bigint, "elapsed" bigint, "net_usage" decimal, "scheduled" bool, "except" varchar)
+*/
+// clang-format on
+
 struct sql_type {
-    const char* type                    = "";
-    string (*bin_to_sql)(input_buffer&) = nullptr;
+    const char* type                                        = "";
+    string (*bin_to_sql)(pqxx::connection&, input_buffer&)  = nullptr;
+    string (*native_to_sql)(pqxx::connection&, const void*) = nullptr;
 };
 
-string bin_to_sql_bool(input_buffer& bin) {
-    if (read_bin<bool>(bin))
-        return "true";
-    else
-        return "false";
+template <typename T>
+struct unknown_type {};
+
+inline constexpr bool is_known_type(sql_type) { return true; }
+
+template <typename T>
+inline constexpr bool is_known_type(unknown_type<T>) {
+    return false;
 }
 
 template <typename T>
-string bin_to_sql_int(input_buffer& bin) {
-    return to_string(read_bin<T>(bin));
+inline constexpr unknown_type<T> sql_type_for;
+
+template <typename T>
+string sql_str(pqxx::connection& c, const T& obj);
+
+string sql_str(pqxx::connection& c, const std::string& s) {
+    try {
+        return "'" + c.esc(s) + "'";
+    } catch (...) {
+        string result = "'";
+        boost::algorithm::hex(s.begin(), s.end(), back_inserter(result));
+        result += "'";
+        return result;
+    }
 }
 
-string bin_to_sql_bytes(input_buffer& bin) {
+// clang-format off
+string sql_str(pqxx::connection&, bool v)               { return v ? "true" : "false"; }
+string sql_str(pqxx::connection&, varuint32 v)          { return string(v); }
+string sql_str(pqxx::connection&, varint32 v)           { return string(v); }
+string sql_str(pqxx::connection&, int128 v)             { return string(v); }
+string sql_str(pqxx::connection&, uint128 v)            { return string(v); }
+string sql_str(pqxx::connection&, float128 v)           { return "'\\x" + string(v) + "'"; }
+string sql_str(pqxx::connection&, name v)               { return "'" + string(v) + "'"; }
+string sql_str(pqxx::connection&, time_point v)         { return "'" + string(v) + "'"; }
+string sql_str(pqxx::connection&, time_point_sec v)     { return "'" + string(v) + "'"; }
+string sql_str(pqxx::connection&, block_timestamp v)    { return "'" + string(v) + "'"; }
+string sql_str(pqxx::connection&, checksum256 v)        { return "'" + string(v) + "'"; }
+// clang-format on
+
+template <typename T>
+string sql_str(pqxx::connection& c, const T& obj) {
+    if constexpr (is_optional_v<T>) {
+        if (obj)
+            return sql_str(c, *obj);
+        else if (is_string_v<typename T::value_type>)
+            return "''"s;
+        else
+            return "null"s;
+    } else {
+        return to_string(obj);
+    }
+}
+
+template <typename T>
+string bin_to_sql(pqxx::connection& c, input_buffer& bin) {
+    if constexpr (is_optional_v<T>) {
+        if (read_bin<bool>(bin))
+            return bin_to_sql<typename T::value_type>(c, bin);
+        else if (is_string_v<typename T::value_type>)
+            return "''"s;
+        else
+            return "null"s;
+    } else {
+        return sql_str(c, read_bin<T>(bin));
+    }
+}
+
+template <typename T>
+string native_to_sql(pqxx::connection& c, const void* p) {
+    return sql_str(c, *reinterpret_cast<const T*>(p));
+}
+
+template <typename T>
+constexpr sql_type make_sql_type_for(const char* name) {
+    return sql_type{name, bin_to_sql<T>, native_to_sql<T>};
+}
+
+template <>
+string bin_to_sql<string>(pqxx::connection& c, input_buffer& bin) {
+    return sql_str(c, read_string(bin));
+}
+
+template <>
+string bin_to_sql<bytes>(pqxx::connection&, input_buffer& bin) {
     auto size = read_varuint32(bin);
     if (size > bin.end - bin.pos)
         throw error("invalid bytes size");
@@ -70,29 +156,82 @@ string bin_to_sql_bytes(input_buffer& bin) {
     return result;
 }
 
-const map<string, sql_type> sql_types = {
-    {"bool", {"bool", bin_to_sql_bool}},
-    {"varuint", {"bigint", [](auto& bin) { return to_string(read_varuint32(bin)); }}},
-    {"varint", {"integer", [](auto& bin) { return to_string(read_varint32(bin)); }}},
-    {"uint8", {"smallint", bin_to_sql_int<uint8_t>}},
-    {"uint16", {"integer", bin_to_sql_int<uint16_t>}},
-    {"uint32", {"bigint", bin_to_sql_int<uint32_t>}},
-    {"uint64", {"decimal", bin_to_sql_int<uint64_t>}},
-    {"uint128", {"decimal", [](auto& bin) { return (string)read_bin<uint128>(bin); }}},
-    {"int8", {"smallint", bin_to_sql_int<int8_t>}},
-    {"int16", {"smallint", bin_to_sql_int<int16_t>}},
-    {"int32", {"integer", bin_to_sql_int<int32_t>}},
-    {"int64", {"bigint", bin_to_sql_int<int64_t>}},
-    {"int128", {"decimal", [](auto& bin) { return (string)read_bin<int128>(bin); }}},
-    {"float64", {"float8", bin_to_sql_int<double>}},
-    {"float128", {"bytea", [](auto& bin) { return "'\\x" + string(read_bin<float128>(bin)) + "'"; }}},
-    {"name", {"varchar(13)", [](auto& bin) { return "'" + name_to_string(read_bin<uint64_t>(bin)) + "'"; }}},
-    {"time_point", {"timestamp", [](auto& bin) { return "'" + string(read_bin<time_point>(bin)) + "'"; }}},
-    {"time_point_sec", {"timestamp", [](auto& bin) { return "'" + string(read_bin<time_point_sec>(bin)) + "'"; }}},
-    {"block_timestamp_type", {"timestamp", [](auto& bin) { return "'" + string(read_bin<block_timestamp>(bin)) + "'"; }}},
-    {"checksum256", {"varchar(64)", [](auto& bin) { return "'" + string(read_bin<checksum256>(bin)) + "'"; }}},
-    {"bytes", {"bytea", bin_to_sql_bytes}},
+template <>
+string native_to_sql<bytes>(pqxx::connection&, const void* p) {
+    auto&  obj    = reinterpret_cast<const bytes*>(p)->data;
+    string result = "'\\x";
+    boost::algorithm::hex(obj.data(), obj.data() + obj.size(), back_inserter(result));
+    result += "'";
+    return result;
+}
+
+template <>
+string bin_to_sql<input_buffer>(pqxx::connection&, input_buffer& bin) {
+    throw error("bin_to_sql: input_buffer unsupported");
+}
+
+template <>
+string native_to_sql<input_buffer>(pqxx::connection&, const void* p) {
+    auto&  obj    = *reinterpret_cast<const input_buffer*>(p);
+    string result = "'\\x";
+    boost::algorithm::hex(obj.pos, obj.end, back_inserter(result));
+    result += "'";
+    return result;
+}
+
+// clang-format off
+template<> inline constexpr sql_type sql_type_for<bool>            = make_sql_type_for<bool>(            "bool"        );
+template<> inline constexpr sql_type sql_type_for<varuint32>       = make_sql_type_for<varuint32>(       "bigint"      );
+template<> inline constexpr sql_type sql_type_for<varint32>        = make_sql_type_for<varint32>(        "integer"     );
+template<> inline constexpr sql_type sql_type_for<uint8_t>         = make_sql_type_for<uint8_t>(         "smallint"    );
+template<> inline constexpr sql_type sql_type_for<uint16_t>        = make_sql_type_for<uint16_t>(        "integer"     );
+template<> inline constexpr sql_type sql_type_for<uint32_t>        = make_sql_type_for<uint32_t>(        "bigint"      );
+template<> inline constexpr sql_type sql_type_for<uint64_t>        = make_sql_type_for<uint64_t>(        "decimal"     );
+template<> inline constexpr sql_type sql_type_for<uint128>         = make_sql_type_for<uint128>(         "decimal"     );
+template<> inline constexpr sql_type sql_type_for<int8_t>          = make_sql_type_for<int8_t>(          "smallint"    );
+template<> inline constexpr sql_type sql_type_for<int16_t>         = make_sql_type_for<int16_t>(         "smallint"    );
+template<> inline constexpr sql_type sql_type_for<int32_t>         = make_sql_type_for<int32_t>(         "integer"     );
+template<> inline constexpr sql_type sql_type_for<int64_t>         = make_sql_type_for<int64_t>(         "bigint"      );
+template<> inline constexpr sql_type sql_type_for<int128>          = make_sql_type_for<int128>(          "decimal"     );
+template<> inline constexpr sql_type sql_type_for<double>          = make_sql_type_for<double>(          "float8"      );
+template<> inline constexpr sql_type sql_type_for<float128>        = make_sql_type_for<float128>(        "bytea"       );
+template<> inline constexpr sql_type sql_type_for<name>            = make_sql_type_for<name>(            "varchar(13)" );
+template<> inline constexpr sql_type sql_type_for<string>          = make_sql_type_for<string>(          "varchar"     );
+template<> inline constexpr sql_type sql_type_for<time_point>      = make_sql_type_for<time_point>(      "timestamp"   );
+template<> inline constexpr sql_type sql_type_for<time_point_sec>  = make_sql_type_for<time_point_sec>(  "timestamp"   );
+template<> inline constexpr sql_type sql_type_for<block_timestamp> = make_sql_type_for<block_timestamp>( "timestamp"   );
+template<> inline constexpr sql_type sql_type_for<checksum256>     = make_sql_type_for<checksum256>(     "varchar(64)" );
+template<> inline constexpr sql_type sql_type_for<bytes>           = make_sql_type_for<bytes>(           "bytea"       );
+template<> inline constexpr sql_type sql_type_for<input_buffer>    = make_sql_type_for<input_buffer>(    "bytea"       );
+
+template <typename T>
+inline constexpr sql_type sql_type_for<std::optional<T>> = make_sql_type_for<std::optional<T>>(sql_type_for<T>.type);
+
+const map<string, sql_type> abi_type_to_sql_type = {
+    {"bool",                    sql_type_for<bool>},
+    {"varuint",                 sql_type_for<varuint32>},
+    {"varint",                  sql_type_for<varint32>},
+    {"uint8",                   sql_type_for<uint8_t>},
+    {"uint16",                  sql_type_for<uint16_t>},
+    {"uint32",                  sql_type_for<uint32_t>},
+    {"uint64",                  sql_type_for<uint64_t>},
+    {"uint128",                 sql_type_for<uint128>},
+    {"int8",                    sql_type_for<int8_t>},
+    {"int16",                   sql_type_for<int16_t>},
+    {"int32",                   sql_type_for<int32_t>},
+    {"int64",                   sql_type_for<int64_t>},
+    {"int128",                  sql_type_for<int128>},
+    {"float64",                 sql_type_for<double>},
+    {"float128",                sql_type_for<float128>},
+    {"name",                    sql_type_for<name>},
+    {"string",                  sql_type_for<string>},
+    {"time_point",              sql_type_for<time_point>},
+    {"time_point_sec",          sql_type_for<time_point_sec>},
+    {"block_timestamp_type",    sql_type_for<block_timestamp>},
+    {"checksum256",             sql_type_for<checksum256>},
+    {"bytes",                   sql_type_for<bytes>},
 };
+// clang-format on
 
 struct variant_header_zero {};
 
@@ -184,7 +323,7 @@ struct action_receipt {
     checksum256                   act_digest;
     uint64_t                      global_sequence;
     uint64_t                      recv_sequence;
-    vector<account_auth_sequence> auth_sequence;
+    vector<account_auth_sequence> auth_sequence; // !!!
     varuint32                     code_sequence;
     varuint32                     abi_sequence;
 };
@@ -204,7 +343,7 @@ constexpr void for_each_field(action_receipt*, F f) {
 struct action {
     name                     account;
     name                     name;
-    vector<permission_level> authorization;
+    vector<permission_level> authorization; // !!!
     input_buffer             data;
 };
 
@@ -231,12 +370,12 @@ struct recurse_action_trace;
 
 struct action_trace {
     variant_header_zero          dummy;
-    action_receipt               receipt;
-    action                       act;
+    action_receipt               receipt; // !!!
+    action                       act;     // !!!
     bool                         context_free;
     int64_t                      elapsed;
     string                       console;
-    vector<account_delta>        account_ram_deltas;
+    vector<account_delta>        account_ram_deltas; // !!!
     optional<string>             except;
     vector<recurse_action_trace> inline_traces;
 };
@@ -279,13 +418,13 @@ struct transaction_trace {
     bool                              scheduled;
     vector<action_trace>              action_traces;
     optional<string>                  except;
-    vector<recurse_transaction_trace> failed_dtrx_trace;
+    vector<recurse_transaction_trace> failed_dtrx_trace; // !!!
 };
 
 template <typename F>
 constexpr void for_each_field(transaction_trace*, F f) {
     f("dummy", member_ptr<&transaction_trace::dummy>{});
-    f("id", member_ptr<&transaction_trace::id>{});
+    f("transaction_id", member_ptr<&transaction_trace::id>{});
     f("status", member_ptr<&transaction_trace::status>{});
     f("cpu_usage_us", member_ptr<&transaction_trace::cpu_usage_us>{});
     f("net_usage_words", member_ptr<&transaction_trace::net_usage_words>{});
@@ -381,6 +520,22 @@ struct session : enable_shared_from_this<session> {
         send_request();
     }
 
+    template <typename T>
+    void create_table(pqxx::work& t, const std::string& name, string fields) {
+        for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
+            using type              = typename decltype(member_ptr)::member_type;
+            constexpr auto sql_type = sql_type_for<type>;
+            if constexpr (is_known_type(sql_type)) {
+                fields += ", "s + t.quote_name(field_name) + " " + sql_type.type;
+            }
+        });
+
+        // todo: PK
+        string query = "create table " + schema + "." + t.quote_name(name) + "(" + fields + ")";
+        printf("%s\n", query.c_str());
+        t.exec(query);
+    }
+
     void create_tables() {
         pqxx::work t(sql_connection);
 
@@ -393,25 +548,33 @@ struct session : enable_shared_from_this<session> {
         t.exec("create unique index on " + schema + R"(.status ((true)))");
         t.exec("insert into " + schema + R"(.status values (0, 0))");
 
+        // clang-format off
+        create_table<permission_level>(         t, "permission_level",      "block_index bigint");
+        create_table<account_auth_sequence>(    t, "account_auth_sequence", "block_index bigint");
+        create_table<action_receipt>(           t, "action_receipt",        "block_index bigint");
+        create_table<action>(                   t, "action",                "block_index bigint");
+        create_table<account_delta>(            t, "account_delta",         "block_index bigint");
+        create_table<action_trace>(             t, "action_trace",          "block_index bigint, transaction_id varchar(64), action_index integer, parent_action_index integer");
+        create_table<transaction_trace>(        t, "transaction_trace",     "block_index bigint");
+        // clang-format on
+
         for (auto& table : abi.tables) {
             auto& variant_type = get_type(table.type);
             if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
                 throw std::runtime_error("don't know how to proccess " + variant_type.name);
             auto& type = *variant_type.fields[0].type;
 
-            string fields;
+            string fields = "block_index bigint, present bool";
             for (auto& f : type.fields) {
                 if (f.type->filled_struct || f.type->filled_variant)
                     continue; // todo
                 auto abi_type = f.type->name;
                 if (abi_type.size() >= 1 && abi_type.back() == '?')
                     abi_type.resize(abi_type.size() - 1);
-                auto it = sql_types.find(abi_type);
-                if (it == sql_types.end())
+                auto it = abi_type_to_sql_type.find(abi_type);
+                if (it == abi_type_to_sql_type.end())
                     throw std::runtime_error("don't know sql type for abi type: " + abi_type);
-                if (!fields.empty())
-                    fields += ", ";
-                fields += t.quote_name(f.name) + " " + it->second.type;
+                fields += ", " + t.quote_name(f.name) + " " + it->second.type;
             }
 
             // todo: PK
@@ -436,8 +599,8 @@ struct session : enable_shared_from_this<session> {
             return;
         if (!(result.this_block->block_num % 100))
             printf("block %d\n", result.this_block->block_num);
-        // if (result.this_block->block_num == 1000000)
-        //     throw std::runtime_error("stop");
+        if (result.this_block->block_num == 1'000)
+            throw std::runtime_error("stop");
 
         pqxx::work     t(sql_connection);
         pqxx::pipeline pipeline(t);
@@ -453,15 +616,13 @@ struct session : enable_shared_from_this<session> {
         auto         data = zlib_decompress(buf);
         input_buffer bin{data.data(), data.data() + data.size()};
 
-        auto num = read_varuint32(bin);
-        // printf("    %u\n", num);
+        auto     num     = read_varuint32(bin);
         unsigned numRows = 0;
         for (uint32_t i = 0; i < num; ++i) {
             check_variant(bin, get_type("table_delta"), "table_delta_v0");
             table_delta_v0 table_delta;
             if (!bin_to_native(table_delta, bin))
                 throw runtime_error("table_delta conversion error (1)");
-            // printf("        %s %u\n", table_delta.name.c_str(), (unsigned)table_delta.rows.size());
 
             auto& variant_type = get_type(table_delta.name);
             if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
@@ -469,18 +630,14 @@ struct session : enable_shared_from_this<session> {
             auto& type = *variant_type.fields[0].type;
 
             for (auto& row : table_delta.rows) {
-                // printf("            present:%u row bytes:%u\n", row.present, unsigned(row.data.end - row.data.pos));
-
                 check_variant(row.data, variant_type, 0u);
-
-                string fields;
-                string values;
+                string fields = "block_index, present";
+                string values = to_string(block_num) + ", " + (row.present ? "true" : "false");
                 for (auto& f : type.fields) {
                     if (f.type->filled_struct || f.type->filled_variant) {
                         string dummy;
                         if (!bin_to_json(row.data, f.type, dummy))
                             throw runtime_error("table_delta conversion error (2)");
-                        // printf("                %s\n", dummy.c_str());
                         continue;
                     }
 
@@ -490,29 +647,23 @@ struct session : enable_shared_from_this<session> {
                         is_optional = true;
                         abi_type.resize(abi_type.size() - 1);
                     }
-                    auto it = sql_types.find(abi_type);
-                    if (it == sql_types.end())
+                    auto it = abi_type_to_sql_type.find(abi_type);
+                    if (it == abi_type_to_sql_type.end())
                         throw std::runtime_error("don't know sql type for abi type: " + abi_type);
                     if (!it->second.bin_to_sql)
                         throw std::runtime_error("don't know how to process " + f.type->name);
 
-                    if (!fields.empty()) {
-                        fields += ", ";
-                        values += ", ";
-                    }
-                    fields += t.quote_name(f.name);
+                    fields += ", " + t.quote_name(f.name);
                     if (!is_optional || read_bin<bool>(row.data))
-                        values += it->second.bin_to_sql(row.data);
+                        values += ", " + it->second.bin_to_sql(sql_connection, row.data);
                     else
-                        values += "null";
+                        values += ", null";
                 }
 
-                // printf("%s\n", ("insert into " + schema + "." + table_delta.name + "(" + fields + ") values (" + values + ")").c_str());
                 pipeline.insert("insert into " + schema + "." + table_delta.name + "(" + fields + ") values (" + values + ")");
             }
             numRows += table_delta.rows.size();
         }
-        // printf("    numRows: %u\n", numRows);
     } // receive_deltas
 
     void receive_traces(uint32_t block_num, input_buffer buf, pqxx::work& t, pqxx::pipeline& pipeline) {
@@ -520,12 +671,48 @@ struct session : enable_shared_from_this<session> {
         input_buffer bin{data.data(), data.data() + data.size()};
         auto         num = read_varuint32(bin);
         for (uint32_t i = 0; i < num; ++i) {
-            transaction_trace ttrace;
-            if (!bin_to_native(ttrace, bin))
+            transaction_trace trace;
+            if (!bin_to_native(trace, bin))
                 throw runtime_error("transaction_trace conversion error (1)");
-            printf("trace\n");
+            write_transaction_trace(block_num, trace, t, pipeline);
         }
-    } // receive_traces
+    }
+
+    void write_transaction_trace(uint32_t block_num, transaction_trace& ttrace, pqxx::work& t, pqxx::pipeline& pipeline) {
+        write("transaction_trace", ttrace, "block_index", to_string(block_num), t, pipeline);
+        int32_t num_actions = 0;
+        for (auto& atrace : ttrace.action_traces)
+            write_action_trace(block_num, ttrace, num_actions, 0, atrace, t, pipeline);
+    }
+
+    void write_action_trace(
+        uint32_t block_num, transaction_trace& ttrace, int32_t& num_actions, int32_t parent_action_index, action_trace& atrace,
+        pqxx::work& t, pqxx::pipeline& pipeline) {
+
+        const auto action_index = ++num_actions;
+        write(
+            "action_trace", atrace, "block_index, transaction_id, action_index, parent_action_index",
+            to_string(block_num) + ", '" + (string)ttrace.id + "', " + to_string(action_index) + ", " + to_string(parent_action_index), t,
+            pipeline);
+        for (auto& child : atrace.inline_traces)
+            write_action_trace(block_num, ttrace, num_actions, action_index, child, t, pipeline);
+    }
+
+    template <typename T>
+    void write(const std::string& name, T& obj, std::string fields, std::string values, pqxx::work& t, pqxx::pipeline& pipeline) {
+        for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
+            using type              = typename decltype(member_ptr)::member_type;
+            constexpr auto sql_type = sql_type_for<type>;
+            if constexpr (is_known_type(sql_type)) {
+                fields += ", " + t.quote_name(field_name);
+                values += ", " + sql_type.native_to_sql(sql_connection, &member_from_void(member_ptr, &obj));
+            }
+        });
+
+        string query = "insert into " + schema + "." + t.quote_name(name) + "(" + fields + ") values (" + values + ")";
+        // printf("%s\n", query.c_str());
+        pipeline.insert(query);
+    }
 
     void send_request() {
         send(jvalue{jarray{{"get_blocks_request_v0"s},
@@ -536,7 +723,7 @@ struct session : enable_shared_from_this<session> {
                                {{"have_positions"s}, {jarray{}}},
                                {{"irreversible_only"s}, {false}},
                                {{"fetch_block"s}, {false}},
-                               {{"fetch_traces"s}, {false}},
+                               {{"fetch_traces"s}, {true}},
                                {{"fetch_deltas"s}, {true}},
                            }}}});
     }

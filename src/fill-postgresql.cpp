@@ -42,18 +42,6 @@ using asio::ip::tcp;
 using boost::beast::flat_buffer;
 using boost::system::error_code;
 
-// clang-format off
-/*
-create table chain3."permission_level"(block_index bigint, "actor" varchar(13), "permission" varchar(13))
-create table chain3."account_auth_sequence"(block_index bigint, "account" varchar(13), "sequence" decimal)
-create table chain3."action_receipt"(block_index bigint, "receiver" varchar(13), "act_digest" varchar(64), "global_sequence" decimal, "recv_sequence" decimal, "code_sequence" bigint, "abi_sequence" bigint)
-create table chain3."action"(block_index bigint, "account" varchar(13), "name" varchar(13), "data" bytea)
-create table chain3."account_delta"(block_index bigint, "account" varchar(13), "delta" bigint)
-create table chain3."action_trace"(block_index bigint, transaction_id varchar(64), action_index integer, parent_action_index integer, "context_free" bool, "elapsed" bigint, "console" varchar, "except" varchar)
-create table chain3."transaction_trace"(block_index bigint, "transaction_id" varchar(64), "status" smallint, "cpu_usage_us" bigint, "net_usage_words" bigint, "elapsed" bigint, "net_usage" decimal, "scheduled" bool, "except" varchar)
-*/
-// clang-format on
-
 struct sql_type {
     const char* type                                        = "";
     string (*bin_to_sql)(pqxx::connection&, input_buffer&)  = nullptr;
@@ -295,96 +283,78 @@ constexpr void for_each_field(table_delta_v0*, F f) {
     f("rows", member_ptr<&table_delta_v0::rows>{});
 }
 
-struct permission_level {
+struct action_trace_authorization {
     name actor;
     name permission;
 };
 
 template <typename F>
-constexpr void for_each_field(permission_level*, F f) {
-    f("actor", member_ptr<&permission_level::actor>{});
-    f("permission", member_ptr<&permission_level::permission>{});
+constexpr void for_each_field(action_trace_authorization*, F f) {
+    f("actor", member_ptr<&action_trace_authorization::actor>{});
+    f("permission", member_ptr<&action_trace_authorization::permission>{});
 }
 
-struct account_auth_sequence {
+struct action_trace_auth_sequence {
     name     account;
     uint64_t sequence;
 };
 
 template <typename F>
-constexpr void for_each_field(account_auth_sequence*, F f) {
-    f("account", member_ptr<&account_auth_sequence::account>{});
-    f("sequence", member_ptr<&account_auth_sequence::sequence>{});
+constexpr void for_each_field(action_trace_auth_sequence*, F f) {
+    f("account", member_ptr<&action_trace_auth_sequence::account>{});
+    f("sequence", member_ptr<&action_trace_auth_sequence::sequence>{});
 }
 
-struct action_receipt {
-    variant_header_zero           dummy;
-    name                          receiver;
-    checksum256                   act_digest;
-    uint64_t                      global_sequence;
-    uint64_t                      recv_sequence;
-    vector<account_auth_sequence> auth_sequence; // !!!
-    varuint32                     code_sequence;
-    varuint32                     abi_sequence;
-};
-
-template <typename F>
-constexpr void for_each_field(action_receipt*, F f) {
-    f("dummy", member_ptr<&action_receipt::dummy>{});
-    f("receiver", member_ptr<&action_receipt::receiver>{});
-    f("act_digest", member_ptr<&action_receipt::act_digest>{});
-    f("global_sequence", member_ptr<&action_receipt::global_sequence>{});
-    f("recv_sequence", member_ptr<&action_receipt::recv_sequence>{});
-    f("auth_sequence", member_ptr<&action_receipt::auth_sequence>{});
-    f("code_sequence", member_ptr<&action_receipt::code_sequence>{});
-    f("abi_sequence", member_ptr<&action_receipt::abi_sequence>{});
-}
-
-struct action {
-    name                     account;
-    name                     name;
-    vector<permission_level> authorization; // !!!
-    input_buffer             data;
-};
-
-template <typename F>
-constexpr void for_each_field(action*, F f) {
-    f("account", member_ptr<&action::account>{});
-    f("name", member_ptr<&action::name>{});
-    f("authorization", member_ptr<&action::authorization>{});
-    f("data", member_ptr<&action::data>{});
-}
-
-struct account_delta {
+struct action_trace_ram_delta {
     name    account;
     int64_t delta;
 };
 
 template <typename F>
-constexpr void for_each_field(account_delta*, F f) {
-    f("account", member_ptr<&account_delta::account>{});
-    f("delta", member_ptr<&account_delta::delta>{});
+constexpr void for_each_field(action_trace_ram_delta*, F f) {
+    f("account", member_ptr<&action_trace_ram_delta::account>{});
+    f("delta", member_ptr<&action_trace_ram_delta::delta>{});
 }
 
 struct recurse_action_trace;
 
 struct action_trace {
-    variant_header_zero          dummy;
-    action_receipt               receipt; // !!!
-    action                       act;     // !!!
-    bool                         context_free;
-    int64_t                      elapsed;
-    string                       console;
-    vector<account_delta>        account_ram_deltas; // !!!
-    optional<string>             except;
-    vector<recurse_action_trace> inline_traces;
+    variant_header_zero                dummy;
+    variant_header_zero                receipt_dummy;
+    name                               receipt_receiver;
+    checksum256                        receipt_act_digest;
+    uint64_t                           receipt_global_sequence;
+    uint64_t                           receipt_recv_sequence;
+    vector<action_trace_auth_sequence> receipt_auth_sequence;
+    varuint32                          receipt_code_sequence;
+    varuint32                          receipt_abi_sequence;
+    name                               account;
+    name                               name;
+    vector<action_trace_authorization> authorization;
+    input_buffer                       data;
+    bool                               context_free;
+    int64_t                            elapsed;
+    string                             console;
+    vector<action_trace_ram_delta>     account_ram_deltas;
+    optional<string>                   except;
+    vector<recurse_action_trace>       inline_traces;
 };
 
 template <typename F>
 constexpr void for_each_field(action_trace*, F f) {
     f("dummy", member_ptr<&action_trace::dummy>{});
-    f("receipt", member_ptr<&action_trace::receipt>{});
-    f("act", member_ptr<&action_trace::act>{});
+    f("receipt_dummy", member_ptr<&action_trace::receipt_dummy>{});
+    f("receipt_receiver", member_ptr<&action_trace::receipt_receiver>{});
+    f("receipt_act_digest", member_ptr<&action_trace::receipt_act_digest>{});
+    f("receipt_global_sequence", member_ptr<&action_trace::receipt_global_sequence>{});
+    f("receipt_recv_sequence", member_ptr<&action_trace::receipt_recv_sequence>{});
+    f("receipt_auth_sequence", member_ptr<&action_trace::receipt_auth_sequence>{});
+    f("receipt_code_sequence", member_ptr<&action_trace::receipt_code_sequence>{});
+    f("receipt_abi_sequence", member_ptr<&action_trace::receipt_abi_sequence>{});
+    f("account", member_ptr<&action_trace::account>{});
+    f("name", member_ptr<&action_trace::name>{});
+    f("authorization", member_ptr<&action_trace::authorization>{});
+    f("data", member_ptr<&action_trace::data>{});
     f("context_free", member_ptr<&action_trace::context_free>{});
     f("elapsed", member_ptr<&action_trace::elapsed>{});
     f("console", member_ptr<&action_trace::console>{});
@@ -521,7 +491,7 @@ struct session : enable_shared_from_this<session> {
     }
 
     template <typename T>
-    void create_table(pqxx::work& t, const std::string& name, string fields) {
+    void create_table(pqxx::work& t, const std::string& name, const std::string& pk, string fields) {
         for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
             using type              = typename decltype(member_ptr)::member_type;
             constexpr auto sql_type = sql_type_for<type>;
@@ -530,8 +500,7 @@ struct session : enable_shared_from_this<session> {
             }
         });
 
-        // todo: PK
-        string query = "create table " + schema + "." + t.quote_name(name) + "(" + fields + ")";
+        string query = "create table " + schema + "." + t.quote_name(name) + "(" + fields + ", primary key (" + pk + "))";
         printf("%s\n", query.c_str());
         t.exec(query);
     }
@@ -549,13 +518,11 @@ struct session : enable_shared_from_this<session> {
         t.exec("insert into " + schema + R"(.status values (0, 0))");
 
         // clang-format off
-        create_table<permission_level>(         t, "permission_level",      "block_index bigint");
-        create_table<account_auth_sequence>(    t, "account_auth_sequence", "block_index bigint");
-        create_table<action_receipt>(           t, "action_receipt",        "block_index bigint");
-        create_table<action>(                   t, "action",                "block_index bigint");
-        create_table<account_delta>(            t, "account_delta",         "block_index bigint");
-        create_table<action_trace>(             t, "action_trace",          "block_index bigint, transaction_id varchar(64), action_index integer, parent_action_index integer");
-        create_table<transaction_trace>(        t, "transaction_trace",     "block_index bigint");
+        create_table<action_trace_authorization>(   t, "action_trace_authorization",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status smallint");
+        create_table<action_trace_auth_sequence>(   t, "action_trace_auth_sequence",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status smallint");
+        create_table<action_trace_ram_delta>(       t, "action_trace_ram_delta",      "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status smallint");
+        create_table<action_trace>(                 t, "action_trace",                "block_index, transaction_id, action_index",            "block_index bigint, transaction_id varchar(64), action_index integer, parent_action_index integer, transaction_status smallint");
+        create_table<transaction_trace>(            t, "transaction_trace",           "block_index, transaction_id",                          "block_index bigint");
         // clang-format on
 
         for (auto& table : abi.tables) {
@@ -691,11 +658,39 @@ struct session : enable_shared_from_this<session> {
 
         const auto action_index = ++num_actions;
         write(
-            "action_trace", atrace, "block_index, transaction_id, action_index, parent_action_index",
-            to_string(block_num) + ", '" + (string)ttrace.id + "', " + to_string(action_index) + ", " + to_string(parent_action_index), t,
-            pipeline);
+            "action_trace", atrace, "block_index, transaction_id, action_index, parent_action_index, transaction_status",
+            to_string(block_num) + ", '" + (string)ttrace.id + "', " + to_string(action_index) + ", " + to_string(parent_action_index) +
+                "," + to_string(ttrace.status),
+            t, pipeline);
         for (auto& child : atrace.inline_traces)
             write_action_trace(block_num, ttrace, num_actions, action_index, child, t, pipeline);
+
+        write_action_trace_subtable("action_trace_authorization", block_num, ttrace, action_index, atrace.authorization, t, pipeline);
+        write_action_trace_subtable(
+            "action_trace_auth_sequence", block_num, ttrace, action_index, atrace.receipt_auth_sequence, t, pipeline);
+        write_action_trace_subtable("action_trace_ram_delta", block_num, ttrace, action_index, atrace.account_ram_deltas, t, pipeline);
+    }
+
+    template <typename T>
+    void write_action_trace_subtable(
+        const std::string& name, uint32_t block_num, transaction_trace& ttrace, int32_t action_index, T& objects, pqxx::work& t,
+        pqxx::pipeline& pipeline) {
+
+        int32_t num = 0;
+        for (auto& obj : objects)
+            write_action_trace_subtable(name, block_num, ttrace, action_index, num, obj, t, pipeline);
+    }
+
+    template <typename T>
+    void write_action_trace_subtable(
+        const std::string& name, uint32_t block_num, transaction_trace& ttrace, int32_t action_index, int32_t& num, T& obj, pqxx::work& t,
+        pqxx::pipeline& pipeline) {
+
+        write(
+            name, obj, "block_index, transaction_id, action_index, index, transaction_status",
+            to_string(block_num) + ", '" + (string)ttrace.id + "', " + to_string(action_index) + ", " + to_string(++num) + "," +
+                to_string(ttrace.status),
+            t, pipeline);
     }
 
     template <typename T>
@@ -724,7 +719,7 @@ struct session : enable_shared_from_this<session> {
                                {{"irreversible_only"s}, {false}},
                                {{"fetch_block"s}, {false}},
                                {{"fetch_traces"s}, {true}},
-                               {{"fetch_deltas"s}, {true}},
+                               {{"fetch_deltas"s}, {false}},
                            }}}});
     }
 

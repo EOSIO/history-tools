@@ -42,6 +42,16 @@ using asio::ip::tcp;
 using boost::beast::flat_buffer;
 using boost::system::error_code;
 
+struct status {
+    enum {
+        executed  = 0, // succeed, no error handler executed
+        soft_fail = 1, // objectively failed (not executed), error handler executed
+        hard_fail = 2, // objectively failed and error handler objectively failed thus no state change
+        delayed   = 3, // transaction delayed/deferred/scheduled for future execution
+        expired   = 4, // transaction expired and storage space refuned to user
+    };
+};
+
 struct sql_type {
     const char* type                                        = "";
     string (*bin_to_sql)(pqxx::connection&, input_buffer&)  = nullptr;
@@ -522,7 +532,7 @@ struct session : enable_shared_from_this<session> {
         create_table<action_trace_auth_sequence>(   t, "action_trace_auth_sequence",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status smallint");
         create_table<action_trace_ram_delta>(       t, "action_trace_ram_delta",      "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status smallint");
         create_table<action_trace>(                 t, "action_trace",                "block_index, transaction_id, action_index",            "block_index bigint, transaction_id varchar(64), action_index integer, parent_action_index integer, transaction_status smallint");
-        create_table<transaction_trace>(            t, "transaction_trace",           "block_index, transaction_id",                          "block_index bigint");
+        create_table<transaction_trace>(            t, "transaction_trace",           "block_index, transaction_id",                          "block_index bigint, failed_dtrx_trace varchar(64)");
         // clang-format on
 
         for (auto& table : abi.tables) {
@@ -627,7 +637,9 @@ struct session : enable_shared_from_this<session> {
                         values += ", null";
                 }
 
-                pipeline.insert("insert into " + schema + "." + table_delta.name + "(" + fields + ") values (" + values + ")");
+                string query = "insert into " + schema + "." + table_delta.name + "(" + fields + ") values (" + values + ")";
+                // printf("%s\n", query.c_str());
+                pipeline.insert(query);
             }
             numRows += table_delta.rows.size();
         }
@@ -646,10 +658,26 @@ struct session : enable_shared_from_this<session> {
     }
 
     void write_transaction_trace(uint32_t block_num, transaction_trace& ttrace, pqxx::work& t, pqxx::pipeline& pipeline) {
-        write("transaction_trace", ttrace, "block_index", to_string(block_num), t, pipeline);
+        string values = to_string(block_num);
+        if (ttrace.failed_dtrx_trace.empty())
+            values += ", ''";
+        else
+            values += ", '" + string(ttrace.failed_dtrx_trace[0].id) + "'";
+        write("transaction_trace", ttrace, "block_index, failed_dtrx_trace", values, t, pipeline);
         int32_t num_actions = 0;
         for (auto& atrace : ttrace.action_traces)
             write_action_trace(block_num, ttrace, num_actions, 0, atrace, t, pipeline);
+        if (!ttrace.failed_dtrx_trace.empty()) {
+            auto& child = ttrace.failed_dtrx_trace[0];
+            if (child.status == status::executed) {
+                // child didn't execute correctly; fix status
+                if (ttrace.status)
+                    child.status = status::hard_fail;
+                else
+                    child.status = status::soft_fail;
+            }
+            write_transaction_trace(block_num, child, t, pipeline);
+        }
     }
 
     void write_action_trace(
@@ -719,7 +747,7 @@ struct session : enable_shared_from_this<session> {
                                {{"irreversible_only"s}, {false}},
                                {{"fetch_block"s}, {false}},
                                {{"fetch_traces"s}, {true}},
-                               {{"fetch_deltas"s}, {false}},
+                               {{"fetch_deltas"s}, {true}},
                            }}}});
     }
 

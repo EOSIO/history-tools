@@ -9,6 +9,7 @@
 #include <boost/iostreams/device/back_inserter.hpp>
 #include <boost/iostreams/filter/zlib.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
+#include <boost/program_options.hpp>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
@@ -37,6 +38,7 @@ using std::vector;
 
 namespace asio      = boost::asio;
 namespace bio       = boost::iostreams;
+namespace bpo       = boost::program_options;
 namespace websocket = boost::beast::websocket;
 
 using asio::ip::tcp;
@@ -501,18 +503,31 @@ struct session : enable_shared_from_this<session> {
     string                                host;
     string                                port;
     string                                schema;
-    bool                                  received_abi = false;
+    uint32_t                              stop_before   = 0;
+    bool                                  drop_schema   = false;
+    bool                                  create_schema = false;
+    bool                                  received_abi  = false;
     abi_def                               abi{};
     map<string, abi_type>                 abi_types;
     map<string, unique_ptr<table_stream>> table_streams;
 
-    explicit session(asio::io_context& ioc, string host, string port, string schema)
+    explicit session(
+        asio::io_context& ioc, string host, string port, string schema, uint32_t stop_before, bool drop_schema, bool create_schema)
         : resolver(ioc)
         , stream(ioc)
         , host(move(host))
         , port(move(port))
-        , schema(move(schema)) {
+        , schema(move(schema))
+        , stop_before(stop_before)
+        , drop_schema(drop_schema)
+        , create_schema(create_schema) {
+
         stream.binary(true);
+        if (drop_schema) {
+            pqxx::work t(sql_connection);
+            t.exec("drop schema if exists " + t.quote_name(this->schema) + " cascade");
+            t.commit();
+        }
     }
 
     void start() {
@@ -538,22 +553,24 @@ struct session : enable_shared_from_this<session> {
             callback(ec, "async_read", [&] {
                 if (!received_abi)
                     receive_abi(in_buffer);
-                else
-                    receive_result(in_buffer);
+                else {
+                    if (!receive_result(in_buffer))
+                        return;
+                }
                 start_read();
             });
         });
     }
 
     void receive_abi(const shared_ptr<flat_buffer>& p) {
-        printf("received abi\n");
         auto data = p->data();
         if (!json_to_native(abi, string_view{(const char*)data.data(), data.size()}))
             throw runtime_error("abi parse error");
         check_abi_version(abi.version);
         abi_types    = create_contract(abi).abi_types;
         received_abi = true;
-        create_tables();
+        if (create_schema)
+            create_tables();
         send_request();
     }
 
@@ -568,14 +585,13 @@ struct session : enable_shared_from_this<session> {
         });
 
         string query = "create table " + t.quote_name(schema) + "." + t.quote_name(name) + "(" + fields + ", primary key (" + pk + "))";
-        printf("%s\n", query.c_str());
+        // printf("%s\n", query.c_str());
         t.exec(query);
     }
 
     void create_tables() {
         pqxx::work t(sql_connection);
 
-        t.exec("drop schema if exists " + t.quote_name(schema) + " cascade");
         t.exec("create schema " + t.quote_name(schema));
         t.exec(
             "create table " + t.quote_name(schema) +
@@ -618,7 +634,7 @@ struct session : enable_shared_from_this<session> {
         t.commit();
     }
 
-    void receive_result(const shared_ptr<flat_buffer>& p) {
+    bool receive_result(const shared_ptr<flat_buffer>& p) {
         auto   data = p->data();
         string json;
 
@@ -630,18 +646,20 @@ struct session : enable_shared_from_this<session> {
             throw runtime_error("result conversion error");
 
         if (!result.this_block)
-            return;
+            return true;
 
         bool bulk = true;
+
+        if (stop_before && result.this_block->block_num >= stop_before) {
+            cerr << "block " << result.this_block->block_num << ": stop requested\n";
+            close_streams();
+            return false;
+        }
 
         if (!(result.this_block->block_num % 200))
             close_streams();
         if (!(result.this_block->block_num % 100))
-            printf("block %d\n", result.this_block->block_num);
-        if (result.this_block->block_num == 1'000) {
-            close_streams();
-            throw std::runtime_error("stop");
-        }
+            cerr << "block " << result.this_block->block_num << "\n";
 
         pqxx::work     t(sql_connection);
         pqxx::pipeline pipeline(t);
@@ -651,6 +669,7 @@ struct session : enable_shared_from_this<session> {
             receive_traces(result.this_block->block_num, *result.traces, bulk, t, pipeline);
         pipeline.complete();
         t.commit();
+        return true;
     }
 
     void close_streams() {
@@ -947,19 +966,34 @@ struct session : enable_shared_from_this<session> {
 }; // session
 
 int main(int argc, char** argv) {
-    if (argc != 4) {
-        cerr << "Usage: websocket-client-async <host> <port> <schema>\n"
-             << "Example:\n"
-             << "    websocket-client-async localhost 8080\n";
-        return EXIT_FAILURE;
+    try {
+        bpo::options_description desc{"Options"};
+        auto                     op = desc.add_options();
+        op("help,h", "Help screen");
+        op("host,H", bpo::value<string>()->default_value("localhost"), "Host to connect to (nodeos)");
+        op("port,p", bpo::value<string>()->default_value("8080"), "Port to connect to (nodeos state-history plugin)");
+        op("schema,s", bpo::value<string>()->default_value("chain"), "Database schema");
+        op("stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
+        op("drop,d", "Drop (delete) schema and tables");
+        op("create,c", "Create schema and tables");
+
+        bpo::variables_map vm;
+        bpo::store(bpo::parse_command_line(argc, argv, desc), vm);
+        bpo::notify(vm);
+
+        if (vm.count("help"))
+            std::cout << desc << '\n';
+        else {
+            asio::io_context ioc;
+            auto             s = make_shared<session>(
+                ioc, vm["host"].as<string>(), vm["port"].as<string>(), vm["schema"].as<string>(),
+                vm.count("stop") ? vm["stop"].as<uint32_t>() : 0, vm.count("drop"), vm.count("create"));
+            s->start();
+            ioc.run();
+        }
+        return 0;
+    } catch (const std::exception& e) {
+        std::cerr << "error: " << e.what() << '\n';
+        return 1;
     }
-    auto host   = argv[1];
-    auto port   = argv[2];
-    auto schema = argv[3];
-
-    asio::io_context ioc;
-    make_shared<session>(ioc, host, port, schema)->start();
-    ioc.run();
-
-    return EXIT_SUCCESS;
 }

@@ -507,6 +507,8 @@ struct session : enable_shared_from_this<session> {
     bool                                  drop_schema   = false;
     bool                                  create_schema = false;
     bool                                  received_abi  = false;
+    uint32_t                              head          = 0;
+    uint32_t                              irreversible  = 0;
     abi_def                               abi{};
     map<string, abi_type>                 abi_types;
     map<string, unique_ptr<table_stream>> table_streams;
@@ -569,8 +571,15 @@ struct session : enable_shared_from_this<session> {
         check_abi_version(abi.version);
         abi_types    = create_contract(abi).abi_types;
         received_abi = true;
+
         if (create_schema)
             create_tables();
+        {
+            pqxx::work t(sql_connection);
+            load_status(t);
+            truncate(t, head);
+            t.commit();
+        }
         send_request();
     }
 
@@ -632,11 +641,40 @@ struct session : enable_shared_from_this<session> {
         }
 
         t.commit();
+    } // create_tables()
+
+    void load_status(pqxx::work& t) {
+        auto r       = t.exec("select head, irreversible from " + t.quote_name(schema) + ".status")[0];
+        head         = r[0].as<uint32_t>();
+        irreversible = r[1].as<uint32_t>();
+    }
+
+    void write_status(pqxx::work& t, pqxx::pipeline& pipeline) {
+        pipeline.insert(
+            "update " + t.quote_name(schema) + ".status set head=" + to_string(head) + ", irreversible=" + to_string(irreversible));
+    }
+
+    void truncate(pqxx::work& t, uint32_t block) {
+        auto trunc = [&](const std::string& name) {
+            t.exec("delete from " + t.quote_name(schema) + "." + t.quote_name(name) + " where block_index >= " + to_string(block));
+        };
+        trunc("received_blocks");
+        trunc("action_trace_authorization");
+        trunc("action_trace_auth_sequence");
+        trunc("action_trace_ram_delta");
+        trunc("action_trace");
+        trunc("transaction_trace");
+        for (auto& table : abi.tables)
+            trunc(table.type);
     }
 
     bool receive_result(const shared_ptr<flat_buffer>& p) {
         auto   data = p->data();
         string json;
+
+        // !!! fill received_blocks
+        // !!! use received_blocks during startup
+        // !!! switch forks
 
         input_buffer bin{(const char*)data.data(), (const char*)data.data() + data.size()};
         check_variant(bin, get_type("result"), "get_blocks_result_v0");
@@ -667,18 +705,32 @@ struct session : enable_shared_from_this<session> {
             receive_deltas(result.this_block->block_num, *result.deltas, bulk, t, pipeline);
         if (result.traces)
             receive_traces(result.this_block->block_num, *result.traces, bulk, t, pipeline);
+
+        head         = result.this_block->block_num;
+        irreversible = result.last_irreversible.block_num;
+        if (!bulk)
+            write_status(t, pipeline);
+
         pipeline.complete();
         t.commit();
         return true;
     }
 
     void close_streams() {
+        if (table_streams.empty())
+            return;
         for (auto& [_, ts] : table_streams) {
             ts->writer.complete();
             ts->t.commit();
             ts.reset();
         }
         table_streams.clear();
+
+        pqxx::work     t(sql_connection);
+        pqxx::pipeline pipeline(t);
+        write_status(t, pipeline);
+        pipeline.complete();
+        t.commit();
     }
 
     void receive_deltas(uint32_t block_num, input_buffer buf, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
@@ -886,7 +938,7 @@ struct session : enable_shared_from_this<session> {
     void send_request() {
         send(jvalue{jarray{{"get_blocks_request_v0"s},
                            {jobject{
-                               {{"start_block_num"s}, {"0"s}},
+                               {{"start_block_num"s}, {to_string(head)}},
                                {{"end_block_num"s}, {"4294967295"s}},
                                {{"max_messages_in_flight"s}, {"4294967295"s}},
                                {{"have_positions"s}, {jarray{}}},

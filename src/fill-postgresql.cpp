@@ -578,13 +578,16 @@ struct session : enable_shared_from_this<session> {
 
         if (create_schema)
             create_tables();
-        {
-            pqxx::work t(sql_connection);
-            load_status(t);
-            truncate(t, head);
-            t.commit();
-        }
-        send_request();
+
+        pqxx::work t(sql_connection);
+        load_status(t);
+        auto           positions = get_positions(t);
+        pqxx::pipeline pipeline(t);
+        truncate(t, pipeline, head);
+        pipeline.complete();
+        t.commit();
+
+        send_request(positions);
     }
 
     template <typename T>
@@ -653,15 +656,30 @@ struct session : enable_shared_from_this<session> {
         irreversible = r[1].as<uint32_t>();
     }
 
+    jarray get_positions(pqxx::work& t) {
+        jarray result;
+        auto   rows = t.exec(
+            "select block_index, block_id from " + t.quote_name(schema) + ".received_blocks where block_index >= " +
+            to_string(irreversible) + " and block_index <= " + to_string(head) + " order by block_index");
+        for (auto row : rows) {
+            // cerr << row[0].as<string>() << " " << row[1].as<string>() << "\n";
+            result.push_back(jvalue{jobject{
+                {{"block_num"s}, {row[0].as<string>()}},
+                {{"block_id"s}, {row[1].as<string>()}},
+            }});
+        }
+        return result;
+    }
+
     void write_status(pqxx::work& t, pqxx::pipeline& pipeline) {
         pipeline.insert(
             "update " + t.quote_name(schema) + ".status set head=" + to_string(head) +
             ", irreversible=" + to_string(min(head, irreversible)));
     }
 
-    void truncate(pqxx::work& t, uint32_t block) {
+    void truncate(pqxx::work& t, pqxx::pipeline& pipeline, uint32_t block) {
         auto trunc = [&](const std::string& name) {
-            t.exec("delete from " + t.quote_name(schema) + "." + t.quote_name(name) + " where block_index >= " + to_string(block));
+            pipeline.insert("delete from " + t.quote_name(schema) + "." + t.quote_name(name) + " where block_index >= " + to_string(block));
         };
         trunc("received_blocks");
         trunc("action_trace_authorization");
@@ -677,8 +695,6 @@ struct session : enable_shared_from_this<session> {
         auto   data = p->data();
         string json;
 
-        // !!! use received_blocks during startup
-        // !!! switch forks
         // !!! check parent link
         // !!! check schema version
 
@@ -700,6 +716,12 @@ struct session : enable_shared_from_this<session> {
             return false;
         }
 
+        if (result.this_block->block_num <= head) {
+            close_streams();
+            cerr << "switch forks at block " << result.this_block->block_num << "\n";
+            bulk = false;
+        }
+
         if (!bulk || !(result.this_block->block_num % 200))
             close_streams();
         if (!bulk)
@@ -707,6 +729,8 @@ struct session : enable_shared_from_this<session> {
 
         pqxx::work     t(sql_connection);
         pqxx::pipeline pipeline(t);
+        if (result.this_block->block_num <= head)
+            truncate(t, pipeline, result.this_block->block_num);
         if (result.deltas)
             receive_deltas(result.this_block->block_num, *result.deltas, bulk, t, pipeline);
         if (result.traces)
@@ -949,13 +973,13 @@ struct session : enable_shared_from_this<session> {
         }
     }
 
-    void send_request() {
+    void send_request(const jarray& positions) {
         send(jvalue{jarray{{"get_blocks_request_v0"s},
                            {jobject{
-                               {{"start_block_num"s}, {to_string(head)}},
+                               {{"start_block_num"s}, {to_string(head + 1)}},
                                {{"end_block_num"s}, {"4294967295"s}},
                                {{"max_messages_in_flight"s}, {"4294967295"s}},
-                               {{"have_positions"s}, {jarray{}}},
+                               {{"have_positions"s}, {positions}},
                                {{"irreversible_only"s}, {false}},
                                {{"fetch_block"s}, {false}},
                                {{"fetch_traces"s}, {true}},

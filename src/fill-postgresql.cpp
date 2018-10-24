@@ -643,8 +643,12 @@ struct session : enable_shared_from_this<session> {
                 fields += ", " + t.quote_name(f.name) + " " + it->second.type;
             }
 
-            // todo: PK
-            t.exec("create table " + t.quote_name(schema) + "." + table.type + "(" + fields + ")");
+            string keys = "block_index";
+            for (auto& key : table.key_names)
+                keys += ", " + t.quote_name(key);
+            cerr << table.type << ": " << keys << "\n";
+
+            t.exec("create table " + t.quote_name(schema) + "." + table.type + "(" + fields + ", primary key(" + keys + "))");
         }
 
         t.commit();

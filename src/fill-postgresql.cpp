@@ -80,20 +80,24 @@ string sql_str(pqxx::connection& c, bool bulk, const T& obj);
 
 string sql_str(pqxx::connection& c, bool bulk, const std::string& s) {
     try {
-        if (bulk) {
-            string tmp = c.esc(s);
-            string result;
-            result.reserve(tmp.size());
-            for (auto ch : tmp) {
-                if (ch == '\t')
-                    result += "\\t";
-                else
-                    result += ch;
-            }
-            return result;
-        } else {
-            return "'" + c.esc(s) + "'";
+        string tmp = c.esc(s);
+        string result;
+        result.reserve(tmp.size() + 2);
+        if (!bulk)
+            result += "'";
+        for (auto ch : tmp) {
+            if (ch == '\t')
+                result += "\\t";
+            else if (ch == '\r')
+                result += "\\r";
+            else if (ch == '\n')
+                result += "\\n";
+            else
+                result += ch;
         }
+        if (!bulk)
+            result += "'";
+        return result;
     } catch (...) {
         string result;
         if (!bulk)
@@ -643,7 +647,7 @@ struct session : enable_shared_from_this<session> {
                 fields += ", " + t.quote_name(f.name) + " " + it->second.type;
             }
 
-            string keys = "block_index";
+            string keys = "block_index, present";
             for (auto& key : table.key_names)
                 keys += ", " + t.quote_name(key);
             cerr << table.type << ": " << keys << "\n";
@@ -759,6 +763,8 @@ struct session : enable_shared_from_this<session> {
         auto& ts = table_streams[name];
         if (!ts)
             ts = make_unique<table_stream>(t.quote_name(schema) + "." + t.quote_name(name));
+        // if (name == "contract_row")
+        //     cerr << "<<<" + values + ">>>\n";
         ts->writer.write_raw_line(values);
     }
 

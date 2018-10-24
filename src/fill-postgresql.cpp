@@ -27,6 +27,7 @@ using std::exception;
 using std::make_shared;
 using std::make_unique;
 using std::map;
+using std::min;
 using std::optional;
 using std::runtime_error;
 using std::shared_ptr;
@@ -446,7 +447,7 @@ struct transaction_trace {
     bool                              scheduled;
     vector<action_trace>              action_traces;
     optional<string>                  except;
-    vector<recurse_transaction_trace> failed_dtrx_trace; // !!!
+    vector<recurse_transaction_trace> failed_dtrx_trace;
 };
 
 template <typename F>
@@ -509,6 +510,7 @@ struct session : enable_shared_from_this<session> {
     bool                                  received_abi  = false;
     uint32_t                              head          = 0;
     uint32_t                              irreversible  = 0;
+    uint32_t                              first_bulk    = 0;
     abi_def                               abi{};
     map<string, abi_type>                 abi_types;
     map<string, unique_ptr<table_stream>> table_streams;
@@ -534,6 +536,8 @@ struct session : enable_shared_from_this<session> {
 
     void start() {
         resolver.async_resolve(host, port, [self = shared_from_this(), this](error_code ec, tcp::resolver::results_type results) {
+            if (ec)
+                cerr << "during lookup of " << host << " " << port << ": ";
             callback(ec, "resolve", [&] {
                 asio::async_connect(
                     stream.next_layer(), results.begin(), results.end(), [self = shared_from_this(), this](error_code ec, auto&) {
@@ -651,7 +655,8 @@ struct session : enable_shared_from_this<session> {
 
     void write_status(pqxx::work& t, pqxx::pipeline& pipeline) {
         pipeline.insert(
-            "update " + t.quote_name(schema) + ".status set head=" + to_string(head) + ", irreversible=" + to_string(irreversible));
+            "update " + t.quote_name(schema) + ".status set head=" + to_string(head) +
+            ", irreversible=" + to_string(min(head, irreversible)));
     }
 
     void truncate(pqxx::work& t, uint32_t block) {
@@ -672,9 +677,10 @@ struct session : enable_shared_from_this<session> {
         auto   data = p->data();
         string json;
 
-        // !!! fill received_blocks
         // !!! use received_blocks during startup
         // !!! switch forks
+        // !!! check parent link
+        // !!! check schema version
 
         input_buffer bin{(const char*)data.data(), (const char*)data.data() + data.size()};
         check_variant(bin, get_type("result"), "get_blocks_result_v0");
@@ -686,17 +692,17 @@ struct session : enable_shared_from_this<session> {
         if (!result.this_block)
             return true;
 
-        bool bulk = true;
+        bool bulk = result.this_block->block_num + 4 < result.last_irreversible.block_num;
 
         if (stop_before && result.this_block->block_num >= stop_before) {
-            cerr << "block " << result.this_block->block_num << ": stop requested\n";
             close_streams();
+            cerr << "block " << result.this_block->block_num << ": stop requested\n";
             return false;
         }
 
-        if (!(result.this_block->block_num % 200))
+        if (!bulk || !(result.this_block->block_num % 200))
             close_streams();
-        if (!(result.this_block->block_num % 100))
+        if (!bulk)
             cerr << "block " << result.this_block->block_num << "\n";
 
         pqxx::work     t(sql_connection);
@@ -710,10 +716,22 @@ struct session : enable_shared_from_this<session> {
         irreversible = result.last_irreversible.block_num;
         if (!bulk)
             write_status(t, pipeline);
+        pipeline.insert(
+            "insert into " + t.quote_name(schema) + ".received_blocks (block_index, block_id) values (" +
+            to_string(result.this_block->block_num) + ", '" + string(result.this_block->block_id) + "')");
 
         pipeline.complete();
         t.commit();
         return true;
+    }
+
+    void write_stream(uint32_t block_num, pqxx::work& t, const std::string& name, const std::string& values) {
+        if (!first_bulk)
+            first_bulk = block_num;
+        auto& ts = table_streams[name];
+        if (!ts)
+            ts = make_unique<table_stream>(t.quote_name(schema) + "." + t.quote_name(name));
+        ts->writer.write_raw_line(values);
     }
 
     void close_streams() {
@@ -731,6 +749,9 @@ struct session : enable_shared_from_this<session> {
         write_status(t, pipeline);
         pipeline.complete();
         t.commit();
+
+        cerr << "block " << first_bulk << " - " << head << "\n";
+        first_bulk = 0;
     }
 
     void receive_deltas(uint32_t block_num, input_buffer buf, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
@@ -793,11 +814,7 @@ struct session : enable_shared_from_this<session> {
                 }
 
                 if (bulk) {
-                    auto& ts = table_streams[table_delta.name];
-                    if (!ts)
-                        ts = make_unique<table_stream>(t.quote_name(schema) + "." + t.quote_name(table_delta.name));
-                    // printf("...%s\n", values.c_str());
-                    ts->writer.write_raw_line(values);
+                    write_stream(block_num, t, table_delta.name, values);
                 } else {
                     string query = "insert into " + t.quote_name(schema) + "." + t.quote_name(table_delta.name) + "(" + fields +
                                    ") values (" + values + ")";
@@ -836,7 +853,7 @@ struct session : enable_shared_from_this<session> {
                 values = to_string(block_num) + ", '" + string(ttrace.failed_dtrx_trace[0].id) + "'";
         }
 
-        write("transaction_trace", ttrace, fields, values, bulk, t, pipeline);
+        write("transaction_trace", block_num, ttrace, fields, values, bulk, t, pipeline);
         int32_t num_actions = 0;
         for (auto& atrace : ttrace.action_traces)
             write_action_trace(block_num, ttrace, num_actions, 0, atrace, bulk, t, pipeline);
@@ -867,7 +884,7 @@ struct session : enable_shared_from_this<session> {
             values = to_string(block_num) + ", '" + (string)ttrace.id + "', " + to_string(action_index) + ", " +
                      to_string(parent_action_index) + ", " + to_string(ttrace.status);
 
-        write("action_trace", atrace, fields, values, bulk, t, pipeline);
+        write("action_trace", block_num, atrace, fields, values, bulk, t, pipeline);
         for (auto& child : atrace.inline_traces)
             write_action_trace(block_num, ttrace, num_actions, action_index, child, bulk, t, pipeline);
 
@@ -902,12 +919,13 @@ struct session : enable_shared_from_this<session> {
             values = to_string(block_num) + ", '" + (string)ttrace.id + "', " + to_string(action_index) + ", " + to_string(++num) + "," +
                      to_string(ttrace.status);
 
-        write(name, obj, fields, values, bulk, t, pipeline);
+        write(name, block_num, obj, fields, values, bulk, t, pipeline);
     }
 
     template <typename T>
-    void write( //
-        const std::string& name, T& obj, std::string fields, std::string values, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+    void write(
+        const std::string& name, uint32_t block_num, T& obj, std::string fields, std::string values, bool bulk, pqxx::work& t,
+        pqxx::pipeline& pipeline) {
 
         for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
             using type              = typename decltype(member_ptr)::member_type;
@@ -923,11 +941,7 @@ struct session : enable_shared_from_this<session> {
         });
 
         if (bulk) {
-            auto& ts = table_streams[name];
-            if (!ts)
-                ts = make_unique<table_stream>(t.quote_name(schema) + "." + t.quote_name(name));
-            // printf("...%s\n", values.c_str());
-            ts->writer.write_raw_line(values);
+            write_stream(block_num, t, name, values);
         } else {
             string query = "insert into " + t.quote_name(schema) + "." + t.quote_name(name) + "(" + fields + ") values (" + values + ")";
             // printf("%s\n", query.c_str());

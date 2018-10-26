@@ -116,7 +116,7 @@ string sql_str(pqxx::connection&, bool bulk, varint32 v)           { return stri
 string sql_str(pqxx::connection&, bool bulk, int128 v)             { return string(v); }
 string sql_str(pqxx::connection&, bool bulk, uint128 v)            { return string(v); }
 string sql_str(pqxx::connection&, bool bulk, float128 v)           { if(bulk) return "\\\\x" + string(v); return "'\\x" + string(v) + "'"; }
-string sql_str(pqxx::connection&, bool bulk, name v)               { if(bulk) return string(v); return "'" + string(v) + "'"; }
+string sql_str(pqxx::connection&, bool bulk, name v)               { auto s = v.value ? string(v) : ""s; if(bulk) return s; return "'" + s + "'"; }
 string sql_str(pqxx::connection&, bool bulk, time_point v)         { if(bulk) return string(v); return "'" + string(v) + "'"; }
 string sql_str(pqxx::connection&, bool bulk, time_point_sec v)     { if(bulk) return string(v); return "'" + string(v) + "'"; }
 string sql_str(pqxx::connection&, bool bulk, block_timestamp v)    { if(bulk) return string(v); return "'" + string(v) + "'"; }
@@ -609,6 +609,26 @@ struct session : enable_shared_from_this<session> {
         t.exec(query);
     }
 
+    void fill_field(pqxx::work& t, const string& base_name, string& fields, abi_field& field) {
+        if (field.type->filled_struct) {
+            for (auto& f : field.type->fields)
+                fill_field(t, base_name + field.name + "_", fields, f);
+        } else if (field.type->filled_variant && field.type->fields.size() == 1 && field.type->fields[0].type->filled_struct) {
+            for (auto& f : field.type->fields[0].type->fields)
+                fill_field(t, base_name + field.name + "_", fields, f);
+        } else if (field.type->array_of) {
+            cerr << "[] " << field.name << "\n";
+        } else {
+            auto abi_type = field.type->name;
+            if (abi_type.size() >= 1 && abi_type.back() == '?')
+                abi_type.resize(abi_type.size() - 1);
+            auto it = abi_type_to_sql_type.find(abi_type);
+            if (it == abi_type_to_sql_type.end())
+                throw std::runtime_error("don't know sql type for abi type: " + abi_type);
+            fields += ", " + t.quote_name(base_name + field.name) + " " + it->second.type;
+        }
+    };
+
     void create_tables() {
         pqxx::work t(sql_connection);
 
@@ -632,26 +652,13 @@ struct session : enable_shared_from_this<session> {
             auto& variant_type = get_type(table.type);
             if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
                 throw std::runtime_error("don't know how to proccess " + variant_type.name);
-            auto& type = *variant_type.fields[0].type;
-
+            auto&  type   = *variant_type.fields[0].type;
             string fields = "block_index bigint, present bool";
-            for (auto& f : type.fields) {
-                if (f.type->filled_struct || f.type->filled_variant)
-                    continue; // todo
-                auto abi_type = f.type->name;
-                if (abi_type.size() >= 1 && abi_type.back() == '?')
-                    abi_type.resize(abi_type.size() - 1);
-                auto it = abi_type_to_sql_type.find(abi_type);
-                if (it == abi_type_to_sql_type.end())
-                    throw std::runtime_error("don't know sql type for abi type: " + abi_type);
-                fields += ", " + t.quote_name(f.name) + " " + it->second.type;
-            }
-
+            for (auto& field : type.fields)
+                fill_field(t, "", fields, field);
             string keys = "block_index, present";
             for (auto& key : table.key_names)
                 keys += ", " + t.quote_name(key);
-            cerr << table.type << ": " << keys << "\n";
-
             t.exec("create table " + t.quote_name(schema) + "." + table.type + "(" + fields + ", primary key(" + keys + "))");
         }
 
@@ -788,6 +795,46 @@ struct session : enable_shared_from_this<session> {
         first_bulk = 0;
     }
 
+    void
+    fill_value(bool bulk, pqxx::work& t, const string& base_name, string& fields, string& values, input_buffer& bin, abi_field& field) {
+        if (field.type->filled_struct) {
+            for (auto& f : field.type->fields)
+                fill_value(bulk, t, base_name + field.name + "_", fields, values, bin, f);
+        } else if (field.type->filled_variant && field.type->fields.size() == 1 && field.type->fields[0].type->filled_struct) {
+            for (auto& f : field.type->fields[0].type->fields)
+                fill_value(bulk, t, base_name + field.name + "_", fields, values, bin, f);
+        } else if (field.type->array_of) {
+            string dummy;
+            if (!bin_to_json(bin, field.type, dummy))
+                throw runtime_error("table_delta conversion error (2)");
+        } else {
+            auto abi_type    = field.type->name;
+            bool is_optional = false;
+            if (abi_type.size() >= 1 && abi_type.back() == '?') {
+                is_optional = true;
+                abi_type.resize(abi_type.size() - 1);
+            }
+            auto it = abi_type_to_sql_type.find(abi_type);
+            if (it == abi_type_to_sql_type.end())
+                throw std::runtime_error("don't know sql type for abi type: " + abi_type);
+            if (!it->second.bin_to_sql)
+                throw std::runtime_error("don't know how to process " + field.type->name);
+
+            fields += ", " + t.quote_name(field.name);
+            if (bulk) {
+                if (!is_optional || read_bin<bool>(bin))
+                    values += "\t" + it->second.bin_to_sql(sql_connection, bulk, bin);
+                else
+                    values += "\t\\N";
+            } else {
+                if (!is_optional || read_bin<bool>(bin))
+                    values += ", " + it->second.bin_to_sql(sql_connection, bulk, bin);
+                else
+                    values += ", null";
+            }
+        }
+    } // fill_value
+
     void receive_deltas(uint32_t block_num, input_buffer buf, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
         auto         data = zlib_decompress(buf);
         input_buffer bin{data.data(), data.data() + data.size()};
@@ -813,40 +860,8 @@ struct session : enable_shared_from_this<session> {
                     values = to_string(block_num) + "\t" + (row.present ? "t" : "f");
                 else
                     values = to_string(block_num) + ", " + (row.present ? "true" : "false");
-                for (auto& f : type.fields) {
-                    if (f.type->filled_struct || f.type->filled_variant) {
-                        string dummy;
-                        if (!bin_to_json(row.data, f.type, dummy))
-                            throw runtime_error("table_delta conversion error (2)");
-                        continue;
-                    }
-
-                    auto abi_type    = f.type->name;
-                    bool is_optional = false;
-                    if (abi_type.size() >= 1 && abi_type.back() == '?') {
-                        is_optional = true;
-                        abi_type.resize(abi_type.size() - 1);
-                    }
-                    auto it = abi_type_to_sql_type.find(abi_type);
-                    if (it == abi_type_to_sql_type.end())
-                        throw std::runtime_error("don't know sql type for abi type: " + abi_type);
-                    if (!it->second.bin_to_sql)
-                        throw std::runtime_error("don't know how to process " + f.type->name);
-
-                    fields += ", " + t.quote_name(f.name);
-                    if (bulk) {
-                        if (!is_optional || read_bin<bool>(row.data))
-                            values += "\t" + it->second.bin_to_sql(sql_connection, bulk, row.data);
-                        else
-                            values += "\t\\N";
-                    } else {
-                        if (!is_optional || read_bin<bool>(row.data))
-                            values += ", " + it->second.bin_to_sql(sql_connection, bulk, row.data);
-                        else
-                            values += ", null";
-                    }
-                }
-
+                for (auto& field : type.fields)
+                    fill_value(bulk, t, "", fields, values, row.data, field);
                 if (bulk) {
                     write_stream(block_num, t, table_delta.name, values);
                 } else {

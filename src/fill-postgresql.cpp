@@ -139,6 +139,7 @@ string sql_str(pqxx::connection&, bool bulk, time_point v)         { if(bulk) re
 string sql_str(pqxx::connection&, bool bulk, time_point_sec v)     { if(bulk) return string(v); return "'" + string(v) + "'"; }
 string sql_str(pqxx::connection&, bool bulk, block_timestamp v)    { if(bulk) return string(v); return "'" + string(v) + "'"; }
 string sql_str(pqxx::connection&, bool bulk, checksum256 v)        { if(bulk) return string(v); return "'" + string(v) + "'"; }
+string sql_str(pqxx::connection&, bool bulk, const public_key& v)  { if(bulk) return public_key_to_string(v); return "'" + public_key_to_string(v) + "'"; }
 string sql_str(pqxx::connection&, bool bulk, transaction_status v) { if(bulk) return to_string(v); return "'" + to_string(v) + "'"; }
 // clang-format on
 
@@ -271,6 +272,7 @@ template<> inline constexpr sql_type sql_type_for<time_point>           = make_s
 template<> inline constexpr sql_type sql_type_for<time_point_sec>       = make_sql_type_for<time_point_sec>(        "timestamp"                 );
 template<> inline constexpr sql_type sql_type_for<block_timestamp>      = make_sql_type_for<block_timestamp>(       "timestamp"                 );
 template<> inline constexpr sql_type sql_type_for<checksum256>          = make_sql_type_for<checksum256>(           "varchar(64)"               );
+template<> inline constexpr sql_type sql_type_for<public_key>           = make_sql_type_for<public_key>(            "varchar"                   );
 template<> inline constexpr sql_type sql_type_for<bytes>                = make_sql_type_for<bytes>(                 "bytea"                     );
 template<> inline constexpr sql_type sql_type_for<input_buffer>         = make_sql_type_for<input_buffer>(          "bytea"                     );
 template<> inline constexpr sql_type sql_type_for<transaction_status>   = make_sql_type_for<transaction_status>(    "transaction_status_type"   );
@@ -300,6 +302,7 @@ const map<string, sql_type> abi_type_to_sql_type = {
     {"time_point_sec",          sql_type_for<time_point_sec>},
     {"block_timestamp_type",    sql_type_for<block_timestamp>},
     {"checksum256",             sql_type_for<checksum256>},
+    {"public_key",              sql_type_for<public_key>},
     {"bytes",                   sql_type_for<bytes>},
     {"transaction_status",      sql_type_for<transaction_status>},
 };
@@ -640,8 +643,15 @@ struct session : enable_shared_from_this<session> {
         } else if (field.type->filled_variant && field.type->fields.size() == 1 && field.type->fields[0].type->filled_struct) {
             for (auto& f : field.type->fields[0].type->fields)
                 fill_field(t, base_name + field.name + "_", fields, f);
-        } else if (field.type->array_of) {
-            cerr << "[] " << field.name << "\n";
+        } else if (field.type->array_of && field.type->array_of->filled_struct) {
+            string sub_fields;
+            for (auto& f : field.type->array_of->fields)
+                fill_field(t, "", sub_fields, f);
+            string query = "create type " + t.quote_name(schema) + "." + t.quote_name(field.type->array_of->name) + " as (" +
+                           sub_fields.substr(2) + ")";
+            t.exec(query);
+            fields += ", " + t.quote_name(base_name + field.name) + " " + t.quote_name(schema) + "." +
+                      t.quote_name(field.type->array_of->name) + "[]";
         } else {
             auto abi_type = field.type->name;
             if (abi_type.size() >= 1 && abi_type.back() == '?')
@@ -827,18 +837,46 @@ struct session : enable_shared_from_this<session> {
         first_bulk = 0;
     }
 
-    void
-    fill_value(bool bulk, pqxx::work& t, const string& base_name, string& fields, string& values, input_buffer& bin, abi_field& field) {
+    void fill_value(
+        bool bulk, bool nested_bulk, pqxx::work& t, const string& base_name, string& fields, string& values, input_buffer& bin,
+        abi_field& field) {
         if (field.type->filled_struct) {
             for (auto& f : field.type->fields)
-                fill_value(bulk, t, base_name + field.name + "_", fields, values, bin, f);
+                fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
         } else if (field.type->filled_variant && field.type->fields.size() == 1 && field.type->fields[0].type->filled_struct) {
             for (auto& f : field.type->fields[0].type->fields)
-                fill_value(bulk, t, base_name + field.name + "_", fields, values, bin, f);
-        } else if (field.type->array_of) {
-            string dummy;
-            if (!bin_to_json(bin, field.type, dummy))
-                throw runtime_error("table_delta conversion error (2)");
+                fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
+        } else if (field.type->array_of && field.type->array_of->filled_struct) {
+            fields += ", " + t.quote_name(base_name + field.name);
+            if (bulk)
+                values += "\t{";
+            else
+                values += ", array[";
+            uint32_t n = read_varuint32(bin);
+            for (uint32_t i = 0; i < n; ++i) {
+                if (i)
+                    values += ",";
+                if (bulk)
+                    values += "\"(";
+                else
+                    values += "(";
+                string struct_fields;
+                string struct_values;
+                for (auto& f : field.type->array_of->fields)
+                    fill_value(bulk, true, t, "", struct_fields, struct_values, bin, f);
+                if (bulk)
+                    values += struct_values.substr(1);
+                else
+                    values += struct_values.substr(2);
+                if (bulk)
+                    values += ")\"";
+                else
+                    values += ")";
+            }
+            if (bulk)
+                values += "}";
+            else
+                values += "]::" + t.quote_name(schema) + "." + t.quote_name(field.type->array_of->name) + "[]";
         } else {
             auto abi_type    = field.type->name;
             bool is_optional = false;
@@ -854,10 +892,14 @@ struct session : enable_shared_from_this<session> {
 
             fields += ", " + t.quote_name(base_name + field.name);
             if (bulk) {
-                if (!is_optional || read_bin<bool>(bin))
-                    values += "\t" + it->second.bin_to_sql(sql_connection, bulk, bin);
+                if (nested_bulk)
+                    values += ",";
                 else
-                    values += "\t\\N";
+                    values += "\t";
+                if (!is_optional || read_bin<bool>(bin))
+                    values += it->second.bin_to_sql(sql_connection, bulk, bin);
+                else
+                    values += "\\N";
             } else {
                 if (!is_optional || read_bin<bool>(bin))
                     values += ", " + it->second.bin_to_sql(sql_connection, bulk, bin);
@@ -893,13 +935,14 @@ struct session : enable_shared_from_this<session> {
                 else
                     values = to_string(block_num) + ", " + (row.present ? "true" : "false");
                 for (auto& field : type.fields)
-                    fill_value(bulk, t, "", fields, values, row.data, field);
+                    fill_value(bulk, false, t, "", fields, values, row.data, field);
                 if (bulk) {
+                    // printf("%s\n", values.c_str());
                     write_stream(block_num, t, table_delta.name, values);
                 } else {
                     string query = "insert into " + t.quote_name(schema) + "." + t.quote_name(table_delta.name) + "(" + fields +
                                    ") values (" + values + ")";
-                    // printf("%s\n", query.c_str());
+                    // printf("%s;\n", query.c_str());
                     pipeline.insert(query);
                 }
             }
@@ -1025,7 +1068,7 @@ struct session : enable_shared_from_this<session> {
             write_stream(block_num, t, name, values);
         } else {
             string query = "insert into " + t.quote_name(schema) + "." + t.quote_name(name) + "(" + fields + ") values (" + values + ")";
-            // printf("%s\n", query.c_str());
+            // printf("%s;\n", query.c_str());
             pipeline.insert(query);
         }
     }

@@ -46,15 +46,33 @@ using asio::ip::tcp;
 using boost::beast::flat_buffer;
 using boost::system::error_code;
 
-struct status {
-    enum {
-        executed  = 0, // succeed, no error handler executed
-        soft_fail = 1, // objectively failed (not executed), error handler executed
-        hard_fail = 2, // objectively failed and error handler objectively failed thus no state change
-        delayed   = 3, // transaction delayed/deferred/scheduled for future execution
-        expired   = 4, // transaction expired and storage space refuned to user
-    };
+enum class transaction_status : uint8_t {
+    executed  = 0, // succeed, no error handler executed
+    soft_fail = 1, // objectively failed (not executed), error handler executed
+    hard_fail = 2, // objectively failed and error handler objectively failed thus no state change
+    delayed   = 3, // transaction delayed/deferred/scheduled for future execution
+    expired   = 4, // transaction expired and storage space refuned to user
 };
+
+string to_string(transaction_status status) {
+    switch (status) {
+    case transaction_status::executed: return "executed";
+    case transaction_status::soft_fail: return "soft_fail";
+    case transaction_status::hard_fail: return "hard_fail";
+    case transaction_status::delayed: return "delayed";
+    case transaction_status::expired: return "expired";
+    }
+    throw runtime_error("unknown status: " + to_string((uint8_t)status));
+}
+
+bool bin_to_native(transaction_status& status, bin_to_native_state& state, bool) {
+    status = transaction_status(read_bin<uint8_t>(state.bin));
+    return true;
+}
+
+bool json_to_native(transaction_status&, json_to_native_state&, event_type, bool) {
+    throw error("json_to_native: transaction_status unsupported");
+}
 
 struct sql_type {
     const char* type                                              = "";
@@ -121,6 +139,7 @@ string sql_str(pqxx::connection&, bool bulk, time_point v)         { if(bulk) re
 string sql_str(pqxx::connection&, bool bulk, time_point_sec v)     { if(bulk) return string(v); return "'" + string(v) + "'"; }
 string sql_str(pqxx::connection&, bool bulk, block_timestamp v)    { if(bulk) return string(v); return "'" + string(v) + "'"; }
 string sql_str(pqxx::connection&, bool bulk, checksum256 v)        { if(bulk) return string(v); return "'" + string(v) + "'"; }
+string sql_str(pqxx::connection&, bool bulk, transaction_status v) { if(bulk) return to_string(v); return "'" + to_string(v) + "'"; }
 // clang-format on
 
 template <typename T>
@@ -231,29 +250,30 @@ string native_to_sql<input_buffer>(pqxx::connection&, bool bulk, const void* p) 
 }
 
 // clang-format off
-template<> inline constexpr sql_type sql_type_for<bool>            = make_sql_type_for<bool>(            "bool"        );
-template<> inline constexpr sql_type sql_type_for<varuint32>       = make_sql_type_for<varuint32>(       "bigint"      );
-template<> inline constexpr sql_type sql_type_for<varint32>        = make_sql_type_for<varint32>(        "integer"     );
-template<> inline constexpr sql_type sql_type_for<uint8_t>         = make_sql_type_for<uint8_t>(         "smallint"    );
-template<> inline constexpr sql_type sql_type_for<uint16_t>        = make_sql_type_for<uint16_t>(        "integer"     );
-template<> inline constexpr sql_type sql_type_for<uint32_t>        = make_sql_type_for<uint32_t>(        "bigint"      );
-template<> inline constexpr sql_type sql_type_for<uint64_t>        = make_sql_type_for<uint64_t>(        "decimal"     );
-template<> inline constexpr sql_type sql_type_for<uint128>         = make_sql_type_for<uint128>(         "decimal"     );
-template<> inline constexpr sql_type sql_type_for<int8_t>          = make_sql_type_for<int8_t>(          "smallint"    );
-template<> inline constexpr sql_type sql_type_for<int16_t>         = make_sql_type_for<int16_t>(         "smallint"    );
-template<> inline constexpr sql_type sql_type_for<int32_t>         = make_sql_type_for<int32_t>(         "integer"     );
-template<> inline constexpr sql_type sql_type_for<int64_t>         = make_sql_type_for<int64_t>(         "bigint"      );
-template<> inline constexpr sql_type sql_type_for<int128>          = make_sql_type_for<int128>(          "decimal"     );
-template<> inline constexpr sql_type sql_type_for<double>          = make_sql_type_for<double>(          "float8"      );
-template<> inline constexpr sql_type sql_type_for<float128>        = make_sql_type_for<float128>(        "bytea"       );
-template<> inline constexpr sql_type sql_type_for<name>            = make_sql_type_for<name>(            "varchar(13)" );
-template<> inline constexpr sql_type sql_type_for<string>          = make_sql_type_for<string>(          "varchar"     );
-template<> inline constexpr sql_type sql_type_for<time_point>      = make_sql_type_for<time_point>(      "timestamp"   );
-template<> inline constexpr sql_type sql_type_for<time_point_sec>  = make_sql_type_for<time_point_sec>(  "timestamp"   );
-template<> inline constexpr sql_type sql_type_for<block_timestamp> = make_sql_type_for<block_timestamp>( "timestamp"   );
-template<> inline constexpr sql_type sql_type_for<checksum256>     = make_sql_type_for<checksum256>(     "varchar(64)" );
-template<> inline constexpr sql_type sql_type_for<bytes>           = make_sql_type_for<bytes>(           "bytea"       );
-template<> inline constexpr sql_type sql_type_for<input_buffer>    = make_sql_type_for<input_buffer>(    "bytea"       );
+template<> inline constexpr sql_type sql_type_for<bool>                 = make_sql_type_for<bool>(                  "bool"                      );
+template<> inline constexpr sql_type sql_type_for<varuint32>            = make_sql_type_for<varuint32>(             "bigint"                    );
+template<> inline constexpr sql_type sql_type_for<varint32>             = make_sql_type_for<varint32>(              "integer"                   );
+template<> inline constexpr sql_type sql_type_for<uint8_t>              = make_sql_type_for<uint8_t>(               "smallint"                  );
+template<> inline constexpr sql_type sql_type_for<uint16_t>             = make_sql_type_for<uint16_t>(              "integer"                   );
+template<> inline constexpr sql_type sql_type_for<uint32_t>             = make_sql_type_for<uint32_t>(              "bigint"                    );
+template<> inline constexpr sql_type sql_type_for<uint64_t>             = make_sql_type_for<uint64_t>(              "decimal"                   );
+template<> inline constexpr sql_type sql_type_for<uint128>              = make_sql_type_for<uint128>(               "decimal"                   );
+template<> inline constexpr sql_type sql_type_for<int8_t>               = make_sql_type_for<int8_t>(                "smallint"                  );
+template<> inline constexpr sql_type sql_type_for<int16_t>              = make_sql_type_for<int16_t>(               "smallint"                  );
+template<> inline constexpr sql_type sql_type_for<int32_t>              = make_sql_type_for<int32_t>(               "integer"                   );
+template<> inline constexpr sql_type sql_type_for<int64_t>              = make_sql_type_for<int64_t>(               "bigint"                    );
+template<> inline constexpr sql_type sql_type_for<int128>               = make_sql_type_for<int128>(                "decimal"                   );
+template<> inline constexpr sql_type sql_type_for<double>               = make_sql_type_for<double>(                "float8"                    );
+template<> inline constexpr sql_type sql_type_for<float128>             = make_sql_type_for<float128>(              "bytea"                     );
+template<> inline constexpr sql_type sql_type_for<name>                 = make_sql_type_for<name>(                  "varchar(13)"               );
+template<> inline constexpr sql_type sql_type_for<string>               = make_sql_type_for<string>(                "varchar"                   );
+template<> inline constexpr sql_type sql_type_for<time_point>           = make_sql_type_for<time_point>(            "timestamp"                 );
+template<> inline constexpr sql_type sql_type_for<time_point_sec>       = make_sql_type_for<time_point_sec>(        "timestamp"                 );
+template<> inline constexpr sql_type sql_type_for<block_timestamp>      = make_sql_type_for<block_timestamp>(       "timestamp"                 );
+template<> inline constexpr sql_type sql_type_for<checksum256>          = make_sql_type_for<checksum256>(           "varchar(64)"               );
+template<> inline constexpr sql_type sql_type_for<bytes>                = make_sql_type_for<bytes>(                 "bytea"                     );
+template<> inline constexpr sql_type sql_type_for<input_buffer>         = make_sql_type_for<input_buffer>(          "bytea"                     );
+template<> inline constexpr sql_type sql_type_for<transaction_status>   = make_sql_type_for<transaction_status>(    "transaction_status_type"   );
 
 template <typename T>
 inline constexpr sql_type sql_type_for<std::optional<T>> = make_sql_type_for<std::optional<T>>(sql_type_for<T>.type);
@@ -281,6 +301,7 @@ const map<string, sql_type> abi_type_to_sql_type = {
     {"block_timestamp_type",    sql_type_for<block_timestamp>},
     {"checksum256",             sql_type_for<checksum256>},
     {"bytes",                   sql_type_for<bytes>},
+    {"transaction_status",      sql_type_for<transaction_status>},
 };
 // clang-format on
 
@@ -443,7 +464,7 @@ struct recurse_transaction_trace;
 struct transaction_trace {
     variant_header_zero               dummy;
     checksum256                       id;
-    uint8_t                           status;
+    transaction_status                status;
     uint32_t                          cpu_usage_us;
     varuint32                         net_usage_words;
     int64_t                           elapsed;
@@ -600,7 +621,10 @@ struct session : enable_shared_from_this<session> {
             using type              = typename decltype(member_ptr)::member_type;
             constexpr auto sql_type = sql_type_for<type>;
             if constexpr (is_known_type(sql_type)) {
-                fields += ", "s + t.quote_name(field_name) + " " + sql_type.type;
+                string type = sql_type.type;
+                if (type == "transaction_status_type")
+                    type = t.quote_name(schema) + "." + type;
+                fields += ", "s + t.quote_name(field_name) + " " + type;
             }
         });
 
@@ -625,6 +649,9 @@ struct session : enable_shared_from_this<session> {
             auto it = abi_type_to_sql_type.find(abi_type);
             if (it == abi_type_to_sql_type.end())
                 throw std::runtime_error("don't know sql type for abi type: " + abi_type);
+            string type = it->second.type;
+            if (type == "transaction_status_type")
+                type = t.quote_name(schema) + "." + type;
             fields += ", " + t.quote_name(base_name + field.name) + " " + it->second.type;
         }
     };
@@ -634,6 +661,9 @@ struct session : enable_shared_from_this<session> {
 
         t.exec("create schema " + t.quote_name(schema));
         t.exec(
+            "create type " + t.quote_name(schema) +
+            ".transaction_status_type as enum('executed', 'soft_fail', 'hard_fail', 'delayed', 'expired')");
+        t.exec(
             "create table " + t.quote_name(schema) +
             R"(.received_blocks ("block_index" bigint, "block_id" varchar(64), primary key("block_index")))");
         t.exec("create table " + t.quote_name(schema) + R"(.status ("head" bigint, "irreversible" bigint))");
@@ -641,10 +671,10 @@ struct session : enable_shared_from_this<session> {
         t.exec("insert into " + t.quote_name(schema) + R"(.status values (0, 0))");
 
         // clang-format off
-        create_table<action_trace_authorization>(   t, "action_trace_authorization",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status smallint");
-        create_table<action_trace_auth_sequence>(   t, "action_trace_auth_sequence",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status smallint");
-        create_table<action_trace_ram_delta>(       t, "action_trace_ram_delta",      "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status smallint");
-        create_table<action_trace>(                 t, "action_trace",                "block_index, transaction_id, action_index",            "block_index bigint, transaction_id varchar(64), action_index integer, parent_action_index integer, transaction_status smallint");
+        create_table<action_trace_authorization>(   t, "action_trace_authorization",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(schema) + ".transaction_status_type");
+        create_table<action_trace_auth_sequence>(   t, "action_trace_auth_sequence",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(schema) + ".transaction_status_type");
+        create_table<action_trace_ram_delta>(       t, "action_trace_ram_delta",      "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(schema) + ".transaction_status_type");
+        create_table<action_trace>(                 t, "action_trace",                "block_index, transaction_id, action_index",            "block_index bigint, transaction_id varchar(64), action_index integer, parent_action_index integer, transaction_status " + t.quote_name(schema) + ".transaction_status_type");
         create_table<transaction_trace>(            t, "transaction_trace",           "block_index, transaction_id",                          "block_index bigint, failed_dtrx_trace varchar(64)");
         // clang-format on
 
@@ -659,7 +689,9 @@ struct session : enable_shared_from_this<session> {
             string keys = "block_index, present";
             for (auto& key : table.key_names)
                 keys += ", " + t.quote_name(key);
-            t.exec("create table " + t.quote_name(schema) + "." + table.type + "(" + fields + ", primary key(" + keys + "))");
+            string query = "create table " + t.quote_name(schema) + "." + table.type + "(" + fields + ", primary key(" + keys + "))";
+            // printf("%s\n", query.c_str());
+            t.exec(query);
         }
 
         t.commit();
@@ -820,7 +852,7 @@ struct session : enable_shared_from_this<session> {
             if (!it->second.bin_to_sql)
                 throw std::runtime_error("don't know how to process " + field.type->name);
 
-            fields += ", " + t.quote_name(field.name);
+            fields += ", " + t.quote_name(base_name + field.name);
             if (bulk) {
                 if (!is_optional || read_bin<bool>(bin))
                     values += "\t" + it->second.bin_to_sql(sql_connection, bulk, bin);
@@ -908,12 +940,12 @@ struct session : enable_shared_from_this<session> {
             write_action_trace(block_num, ttrace, num_actions, 0, atrace, bulk, t, pipeline);
         if (!ttrace.failed_dtrx_trace.empty()) {
             auto& child = ttrace.failed_dtrx_trace[0];
-            if (child.status == status::executed) {
+            if (child.status == transaction_status::executed) {
                 // child didn't execute correctly; fix status
-                if (ttrace.status)
-                    child.status = status::hard_fail;
+                if (ttrace.status != transaction_status::executed)
+                    child.status = transaction_status::hard_fail;
                 else
-                    child.status = status::soft_fail;
+                    child.status = transaction_status::soft_fail;
             }
             write_transaction_trace(block_num, child, bulk, t, pipeline);
         }
@@ -931,7 +963,7 @@ struct session : enable_shared_from_this<session> {
                      to_string(parent_action_index) + "\t" + to_string(ttrace.status);
         else
             values = to_string(block_num) + ", '" + (string)ttrace.id + "', " + to_string(action_index) + ", " +
-                     to_string(parent_action_index) + ", " + to_string(ttrace.status);
+                     to_string(parent_action_index) + ", '" + to_string(ttrace.status) + "'";
 
         write("action_trace", block_num, atrace, fields, values, bulk, t, pipeline);
         for (auto& child : atrace.inline_traces)
@@ -965,8 +997,8 @@ struct session : enable_shared_from_this<session> {
             values = to_string(block_num) + "\t" + (string)ttrace.id + "\t" + to_string(action_index) + "\t" + to_string(++num) + "\t" +
                      to_string(ttrace.status);
         else
-            values = to_string(block_num) + ", '" + (string)ttrace.id + "', " + to_string(action_index) + ", " + to_string(++num) + "," +
-                     to_string(ttrace.status);
+            values = to_string(block_num) + ", '" + (string)ttrace.id + "', " + to_string(action_index) + ", " + to_string(++num) + ", '" +
+                     to_string(ttrace.status) + "'";
 
         write(name, block_num, obj, fields, values, bulk, t, pipeline);
     }

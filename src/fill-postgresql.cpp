@@ -10,6 +10,7 @@
 #include <boost/iostreams/filter/zlib.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/program_options.hpp>
+#include <chrono>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
@@ -769,7 +770,8 @@ struct session : enable_shared_from_this<session> {
 
         if (stop_before && result.this_block->block_num >= stop_before) {
             close_streams();
-            cerr << "block " << result.this_block->block_num << ": stop requested\n";
+            auto n = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+            cerr << std::put_time(std::localtime(&n), "%F %T: ") << "block " << result.this_block->block_num << ": stop requested\n";
             return false;
         }
 
@@ -781,8 +783,10 @@ struct session : enable_shared_from_this<session> {
 
         if (!bulk || !(result.this_block->block_num % 200))
             close_streams();
-        if (!bulk)
-            cerr << "block " << result.this_block->block_num << "\n";
+        if (!bulk) {
+            auto n = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+            cerr << std::put_time(std::localtime(&n), "%F %T: ") << "block " << result.this_block->block_num << "\n";
+        }
 
         pqxx::work     t(sql_connection);
         pqxx::pipeline pipeline(t);
@@ -833,7 +837,8 @@ struct session : enable_shared_from_this<session> {
         pipeline.complete();
         t.commit();
 
-        cerr << "block " << first_bulk << " - " << head << "\n";
+        auto n = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        cerr << std::put_time(std::localtime(&n), "%F %T: ") << "block " << first_bulk << " - " << head << "\n";
         first_bulk = 0;
     }
 

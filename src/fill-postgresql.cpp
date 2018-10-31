@@ -988,13 +988,6 @@ struct session : enable_shared_from_this<session> {
             write_action_trace(block_num, ttrace, num_actions, 0, atrace, bulk, t, pipeline);
         if (!ttrace.failed_dtrx_trace.empty()) {
             auto& child = ttrace.failed_dtrx_trace[0];
-            if (child.status == transaction_status::executed) {
-                // child didn't execute correctly; fix status
-                if (ttrace.status != transaction_status::executed)
-                    child.status = transaction_status::hard_fail;
-                else
-                    child.status = transaction_status::soft_fail;
-            }
             write_transaction_trace(block_num, child, bulk, t, pipeline);
         }
     }

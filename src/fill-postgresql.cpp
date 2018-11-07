@@ -334,6 +334,7 @@ struct get_blocks_result_v0 {
     block_position           head;
     block_position           last_irreversible;
     optional<block_position> this_block;
+    optional<block_position> prev_block;
     optional<input_buffer>   block;
     optional<input_buffer>   traces;
     optional<input_buffer>   deltas;
@@ -344,6 +345,7 @@ constexpr void for_each_field(get_blocks_result_v0*, F f) {
     f("head", member_ptr<&get_blocks_result_v0::head>{});
     f("last_irreversible", member_ptr<&get_blocks_result_v0::last_irreversible>{});
     f("this_block", member_ptr<&get_blocks_result_v0::this_block>{});
+    f("prev_block", member_ptr<&get_blocks_result_v0::prev_block>{});
     f("block", member_ptr<&get_blocks_result_v0::block>{});
     f("traces", member_ptr<&get_blocks_result_v0::traces>{});
     f("deltas", member_ptr<&get_blocks_result_v0::deltas>{});
@@ -533,13 +535,15 @@ struct session : enable_shared_from_this<session> {
     string                                host;
     string                                port;
     string                                schema;
-    uint32_t                              stop_before   = 0;
-    bool                                  drop_schema   = false;
-    bool                                  create_schema = false;
-    bool                                  received_abi  = false;
-    uint32_t                              head          = 0;
-    uint32_t                              irreversible  = 0;
-    uint32_t                              first_bulk    = 0;
+    uint32_t                              stop_before     = 0;
+    bool                                  drop_schema     = false;
+    bool                                  create_schema   = false;
+    bool                                  received_abi    = false;
+    uint32_t                              head            = 0;
+    string                                head_id         = "";
+    uint32_t                              irreversible    = 0;
+    string                                irreversible_id = "";
+    uint32_t                              first_bulk      = 0;
     abi_def                               abi{};
     map<string, abi_type>                 abi_types;
     map<string, unique_ptr<table_stream>> table_streams;
@@ -609,7 +613,7 @@ struct session : enable_shared_from_this<session> {
             create_tables();
 
         pqxx::work t(sql_connection);
-        load_status(t);
+        load_fill_status(t);
         auto           positions = get_positions(t);
         pqxx::pipeline pipeline(t);
         truncate(t, pipeline, head);
@@ -677,9 +681,11 @@ struct session : enable_shared_from_this<session> {
         t.exec(
             "create table " + t.quote_name(schema) +
             R"(.received_blocks ("block_index" bigint, "block_id" varchar(64), primary key("block_index")))");
-        t.exec("create table " + t.quote_name(schema) + R"(.status ("head" bigint, "irreversible" bigint))");
-        t.exec("create unique index on " + t.quote_name(schema) + R"(.status ((true)))");
-        t.exec("insert into " + t.quote_name(schema) + R"(.status values (0, 0))");
+        t.exec(
+            "create table " + t.quote_name(schema) +
+            R"(.fill_status ("head" bigint, "head_id" varchar(64), "irreversible" bigint, "irreversible_id" varchar(64)))");
+        t.exec("create unique index on " + t.quote_name(schema) + R"(.fill_status ((true)))");
+        t.exec("insert into " + t.quote_name(schema) + R"(.fill_status values (0, '', 0, ''))");
 
         // clang-format off
         create_table<action_trace_authorization>(   t, "action_trace_authorization",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(schema) + ".transaction_status_type");
@@ -708,10 +714,12 @@ struct session : enable_shared_from_this<session> {
         t.commit();
     } // create_tables()
 
-    void load_status(pqxx::work& t) {
-        auto r       = t.exec("select head, irreversible from " + t.quote_name(schema) + ".status")[0];
-        head         = r[0].as<uint32_t>();
-        irreversible = r[1].as<uint32_t>();
+    void load_fill_status(pqxx::work& t) {
+        auto r          = t.exec("select head, head_id, irreversible, irreversible_id from " + t.quote_name(schema) + ".fill_status")[0];
+        head            = r[0].as<uint32_t>();
+        head_id         = r[1].as<string>();
+        irreversible    = r[2].as<uint32_t>();
+        irreversible_id = r[3].as<string>();
     }
 
     jarray get_positions(pqxx::work& t) {
@@ -729,10 +737,13 @@ struct session : enable_shared_from_this<session> {
         return result;
     }
 
-    void write_status(pqxx::work& t, pqxx::pipeline& pipeline) {
-        pipeline.insert(
-            "update " + t.quote_name(schema) + ".status set head=" + to_string(head) +
-            ", irreversible=" + to_string(min(head, irreversible)));
+    void write_fill_status(pqxx::work& t, pqxx::pipeline& pipeline) {
+        string query = "update " + t.quote_name(schema) + ".fill_status set head=" + to_string(head) + ", head_id='" + head_id + "', ";
+        if (irreversible < head)
+            query += "irreversible=" + to_string(irreversible) + ", irreversible_id='" + irreversible_id + "'";
+        else
+            query += "irreversible=" + to_string(head) + ", irreversible_id='" + head_id + "'";
+        pipeline.insert(query);
     }
 
     void truncate(pqxx::work& t, pqxx::pipeline& pipeline, uint32_t block) {
@@ -747,15 +758,20 @@ struct session : enable_shared_from_this<session> {
         trunc("transaction_trace");
         for (auto& table : abi.tables)
             trunc(table.type);
+
+        auto result = pipeline.retrieve(
+            pipeline.insert("select block_id from " + t.quote_name(schema) + ".received_blocks where block_index=" + to_string(block - 1)));
+        if (result.empty()) {
+            head    = 0;
+            head_id = "";
+        } else {
+            head    = block - 1;
+            head_id = result.front()[0].as<string>();
+        }
     }
 
     bool receive_result(const shared_ptr<flat_buffer>& p) {
-        auto   data = p->data();
-        string json;
-
-        // !!! check parent link
-        // !!! check schema version
-
+        auto         data = p->data();
         input_buffer bin{(const char*)data.data(), (const char*)data.data() + data.size()};
         check_variant(bin, get_type("result"), "get_blocks_result_v0");
 
@@ -792,15 +808,19 @@ struct session : enable_shared_from_this<session> {
         pqxx::pipeline pipeline(t);
         if (result.this_block->block_num <= head)
             truncate(t, pipeline, result.this_block->block_num);
+        if (!head_id.empty() && (!result.prev_block || (string)result.prev_block->block_id != head_id))
+            throw runtime_error("prev_block does not match");
         if (result.deltas)
             receive_deltas(result.this_block->block_num, *result.deltas, bulk, t, pipeline);
         if (result.traces)
             receive_traces(result.this_block->block_num, *result.traces, bulk, t, pipeline);
 
-        head         = result.this_block->block_num;
-        irreversible = result.last_irreversible.block_num;
+        head            = result.this_block->block_num;
+        head_id         = (string)result.this_block->block_id;
+        irreversible    = result.last_irreversible.block_num;
+        irreversible_id = (string)result.last_irreversible.block_id;
         if (!bulk)
-            write_status(t, pipeline);
+            write_fill_status(t, pipeline);
         pipeline.insert(
             "insert into " + t.quote_name(schema) + ".received_blocks (block_index, block_id) values (" +
             to_string(result.this_block->block_num) + ", '" + string(result.this_block->block_id) + "')");
@@ -833,7 +853,7 @@ struct session : enable_shared_from_this<session> {
 
         pqxx::work     t(sql_connection);
         pqxx::pipeline pipeline(t);
-        write_status(t, pipeline);
+        write_fill_status(t, pipeline);
         pipeline.complete();
         t.commit();
 

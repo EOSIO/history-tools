@@ -1,4 +1,4 @@
-// copyright defined in abieos/LICENSE.txt
+// copyright defined in LICENSE.txt
 
 #include "abieos.hpp"
 
@@ -28,6 +28,7 @@ using std::exception;
 using std::make_shared;
 using std::make_unique;
 using std::map;
+using std::max;
 using std::min;
 using std::optional;
 using std::runtime_error;
@@ -535,6 +536,7 @@ struct session : enable_shared_from_this<session> {
     string                                host;
     string                                port;
     string                                schema;
+    uint32_t                              skip_to         = 0;
     uint32_t                              stop_before     = 0;
     bool                                  drop_schema     = false;
     bool                                  create_schema   = false;
@@ -549,12 +551,14 @@ struct session : enable_shared_from_this<session> {
     map<string, unique_ptr<table_stream>> table_streams;
 
     explicit session(
-        asio::io_context& ioc, string host, string port, string schema, uint32_t stop_before, bool drop_schema, bool create_schema)
+        asio::io_context& ioc, string host, string port, string schema, uint32_t skip_to, uint32_t stop_before, bool drop_schema,
+        bool create_schema)
         : resolver(ioc)
         , stream(ioc)
         , host(move(host))
         , port(move(port))
         , schema(move(schema))
+        , skip_to(skip_to)
         , stop_before(stop_before)
         , drop_schema(drop_schema)
         , create_schema(create_schema) {
@@ -616,7 +620,7 @@ struct session : enable_shared_from_this<session> {
         load_fill_status(t);
         auto           positions = get_positions(t);
         pqxx::pipeline pipeline(t);
-        truncate(t, pipeline, head);
+        truncate(t, pipeline, head + 1);
         pipeline.complete();
         t.commit();
 
@@ -637,7 +641,6 @@ struct session : enable_shared_from_this<session> {
         });
 
         string query = "create table " + t.quote_name(schema) + "." + t.quote_name(name) + "(" + fields + ", primary key (" + pk + "))";
-        // printf("%s\n", query.c_str());
         t.exec(query);
     }
 
@@ -669,7 +672,7 @@ struct session : enable_shared_from_this<session> {
                 type = t.quote_name(schema) + "." + type;
             fields += ", " + t.quote_name(base_name + field.name) + " " + it->second.type;
         }
-    };
+    }; // fill_field
 
     void create_tables() {
         pqxx::work t(sql_connection);
@@ -707,7 +710,6 @@ struct session : enable_shared_from_this<session> {
             for (auto& key : table.key_names)
                 keys += ", " + t.quote_name(key);
             string query = "create table " + t.quote_name(schema) + "." + table.type + "(" + fields + ", primary key(" + keys + "))";
-            // printf("%s\n", query.c_str());
             t.exec(query);
         }
 
@@ -728,7 +730,6 @@ struct session : enable_shared_from_this<session> {
             "select block_index, block_id from " + t.quote_name(schema) + ".received_blocks where block_index >= " +
             to_string(irreversible) + " and block_index <= " + to_string(head) + " order by block_index");
         for (auto row : rows) {
-            // cerr << row[0].as<string>() << " " << row[1].as<string>() << "\n";
             result.push_back(jvalue{jobject{
                 {{"block_num"s}, {row[0].as<string>()}},
                 {{"block_id"s}, {row[1].as<string>()}},
@@ -768,7 +769,7 @@ struct session : enable_shared_from_this<session> {
             head    = block - 1;
             head_id = result.front()[0].as<string>();
         }
-    }
+    } // truncate
 
     bool receive_result(const shared_ptr<flat_buffer>& p) {
         auto         data = p->data();
@@ -828,7 +829,7 @@ struct session : enable_shared_from_this<session> {
         pipeline.complete();
         t.commit();
         return true;
-    }
+    } // receive_result()
 
     void write_stream(uint32_t block_num, pqxx::work& t, const std::string& name, const std::string& values) {
         if (!first_bulk)
@@ -836,8 +837,6 @@ struct session : enable_shared_from_this<session> {
         auto& ts = table_streams[name];
         if (!ts)
             ts = make_unique<table_stream>(t.quote_name(schema) + "." + t.quote_name(name));
-        // if (name == "contract_row")
-        //     cerr << "<<<" + values + ">>>\n";
         ts->writer.write_raw_line(values);
     }
 
@@ -962,12 +961,10 @@ struct session : enable_shared_from_this<session> {
                 for (auto& field : type.fields)
                     fill_value(bulk, false, t, "", fields, values, row.data, field);
                 if (bulk) {
-                    // printf("%s\n", values.c_str());
                     write_stream(block_num, t, table_delta.name, values);
                 } else {
                     string query = "insert into " + t.quote_name(schema) + "." + t.quote_name(table_delta.name) + "(" + fields +
                                    ") values (" + values + ")";
-                    // printf("%s;\n", query.c_str());
                     pipeline.insert(query);
                 }
             }
@@ -1010,7 +1007,7 @@ struct session : enable_shared_from_this<session> {
             auto& child = ttrace.failed_dtrx_trace[0];
             write_transaction_trace(block_num, child, bulk, t, pipeline);
         }
-    }
+    } // write_transaction_trace
 
     void write_action_trace(
         uint32_t block_num, transaction_trace& ttrace, int32_t& num_actions, int32_t parent_action_index, action_trace& atrace, bool bulk,
@@ -1035,7 +1032,7 @@ struct session : enable_shared_from_this<session> {
             "action_trace_auth_sequence", block_num, ttrace, action_index, atrace.receipt_auth_sequence, bulk, t, pipeline);
         write_action_trace_subtable(
             "action_trace_ram_delta", block_num, ttrace, action_index, atrace.account_ram_deltas, bulk, t, pipeline);
-    }
+    } // write_action_trace
 
     template <typename T>
     void write_action_trace_subtable(
@@ -1086,15 +1083,14 @@ struct session : enable_shared_from_this<session> {
             write_stream(block_num, t, name, values);
         } else {
             string query = "insert into " + t.quote_name(schema) + "." + t.quote_name(name) + "(" + fields + ") values (" + values + ")";
-            // printf("%s;\n", query.c_str());
             pipeline.insert(query);
         }
-    }
+    } // write
 
     void send_request(const jarray& positions) {
         send(jvalue{jarray{{"get_blocks_request_v0"s},
                            {jobject{
-                               {{"start_block_num"s}, {to_string(head + 1)}},
+                               {{"start_block_num"s}, {to_string(max(skip_to, head + 1))}},
                                {{"end_block_num"s}, {"4294967295"s}},
                                {{"max_messages_in_flight"s}, {"4294967295"s}},
                                {{"have_positions"s}, {positions}},
@@ -1181,6 +1177,7 @@ int main(int argc, char** argv) {
         op("host,H", bpo::value<string>()->default_value("localhost"), "Host to connect to (nodeos)");
         op("port,p", bpo::value<string>()->default_value("8080"), "Port to connect to (nodeos state-history plugin)");
         op("schema,s", bpo::value<string>()->default_value("chain"), "Database schema");
+        op("skip-to,k", bpo::value<uint32_t>(), "Skip blocks before [arg]");
         op("stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
         op("drop,d", "Drop (delete) schema and tables");
         op("create,c", "Create schema and tables");
@@ -1195,7 +1192,8 @@ int main(int argc, char** argv) {
             asio::io_context ioc;
             auto             s = make_shared<session>(
                 ioc, vm["host"].as<string>(), vm["port"].as<string>(), vm["schema"].as<string>(),
-                vm.count("stop") ? vm["stop"].as<uint32_t>() : 0, vm.count("drop"), vm.count("create"));
+                vm.count("skip-to") ? vm["skip-to"].as<uint32_t>() : 0, vm.count("stop") ? vm["stop"].as<uint32_t>() : 0, vm.count("drop"),
+                vm.count("create"));
             s->start();
             ioc.run();
         }
@@ -1204,4 +1202,4 @@ int main(int argc, char** argv) {
         std::cerr << "error: " << e.what() << '\n';
         return 1;
     }
-}
+} // main

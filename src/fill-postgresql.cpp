@@ -37,6 +37,7 @@ using std::string;
 using std::string_view;
 using std::to_string;
 using std::unique_ptr;
+using std::variant;
 using std::vector;
 
 namespace asio      = boost::asio;
@@ -509,6 +510,126 @@ bool json_to_native(recurse_transaction_trace& obj, json_to_native_state& state,
     return json_to_native(o, state, event, start);
 }
 
+struct producer_key {
+    name       producer_name;
+    public_key block_signing_key;
+};
+
+template <typename F>
+constexpr void for_each_field(producer_key*, F f) {
+    f("producer_name", member_ptr<&producer_key::producer_name>{});
+    f("block_signing_key", member_ptr<&producer_key::block_signing_key>{});
+}
+
+struct extension {
+    uint16_t type;
+    bytes    data;
+};
+
+template <typename F>
+constexpr void for_each_field(extension*, F f) {
+    f("type", member_ptr<&extension::type>{});
+    f("data", member_ptr<&extension::data>{});
+}
+
+struct producer_schedule {
+    uint32_t             version;
+    vector<producer_key> producers;
+};
+
+template <typename F>
+constexpr void for_each_field(producer_schedule*, F f) {
+    f("version", member_ptr<&producer_schedule::version>{});
+    f("producers", member_ptr<&producer_schedule::producers>{});
+}
+
+struct transaction_receipt_header {
+    uint8_t   status;
+    uint32_t  cpu_usage_us;
+    varuint32 net_usage_words;
+};
+
+template <typename F>
+constexpr void for_each_field(transaction_receipt_header*, F f) {
+    f("status", member_ptr<&transaction_receipt_header::status>{});
+    f("cpu_usage_us", member_ptr<&transaction_receipt_header::cpu_usage_us>{});
+    f("net_usage_words", member_ptr<&transaction_receipt_header::net_usage_words>{});
+}
+
+struct packed_transaction {
+    vector<signature> signatures;
+    uint8_t           compression;
+    bytes             packed_context_free_data;
+    bytes             packed_trx;
+};
+
+template <typename F>
+constexpr void for_each_field(packed_transaction*, F f) {
+    f("signatures", member_ptr<&packed_transaction::signatures>{});
+    f("compression", member_ptr<&packed_transaction::compression>{});
+    f("packed_context_free_data", member_ptr<&packed_transaction::packed_context_free_data>{});
+    f("packed_trx", member_ptr<&packed_transaction::packed_trx>{});
+}
+
+using transaction_variant = variant<checksum256, packed_transaction>;
+
+struct transaction_receipt : transaction_receipt_header {
+    transaction_variant trx;
+};
+
+template <typename F>
+constexpr void for_each_field(transaction_receipt*, F f) {
+    for_each_field((transaction_receipt_header*)nullptr, f);
+    f("trx", member_ptr<&transaction_receipt::trx>{});
+}
+
+struct block_header {
+    block_timestamp             timestamp;
+    name                        producer;
+    uint16_t                    confirmed;
+    checksum256                 previous;
+    checksum256                 transaction_mroot;
+    checksum256                 action_mroot;
+    uint32_t                    schedule_version;
+    optional<producer_schedule> new_producers;
+    vector<extension>           header_extensions;
+};
+
+template <typename F>
+constexpr void for_each_field(block_header*, F f) {
+    f("timestamp", member_ptr<&block_header::timestamp>{});
+    f("producer", member_ptr<&block_header::producer>{});
+    f("confirmed", member_ptr<&block_header::confirmed>{});
+    f("previous", member_ptr<&block_header::previous>{});
+    f("transaction_mroot", member_ptr<&block_header::transaction_mroot>{});
+    f("action_mroot", member_ptr<&block_header::action_mroot>{});
+    f("schedule_version", member_ptr<&block_header::schedule_version>{});
+    f("new_producers", member_ptr<&block_header::new_producers>{});
+    f("header_extensions", member_ptr<&block_header::header_extensions>{});
+}
+
+struct signed_block_header : block_header {
+    signature producer_signature;
+};
+
+template <typename F>
+constexpr void for_each_field(signed_block_header*, F f) {
+    for_each_field((block_header*)nullptr, f);
+    f("producer_signature", member_ptr<&signed_block_header::producer_signature>{});
+}
+
+struct signed_block : signed_block_header {
+    vector<transaction_receipt> transactions;
+    vector<extension>           block_extensions;
+};
+
+template <typename F>
+constexpr void for_each_field(signed_block*, F f) {
+    for_each_field((signed_block_header*)nullptr, f);
+    f("transactions", member_ptr<&signed_block::transactions>{});
+    f("block_extensions", member_ptr<&signed_block::block_extensions>{});
+}
+
 std::vector<char> zlib_decompress(input_buffer data) {
     std::vector<char>      out;
     bio::filtering_ostream decomp;
@@ -683,7 +804,7 @@ struct session : enable_shared_from_this<session> {
             ".transaction_status_type as enum('executed', 'soft_fail', 'hard_fail', 'delayed', 'expired')");
         t.exec(
             "create table " + t.quote_name(schema) +
-            R"(.received_blocks ("block_index" bigint, "block_id" varchar(64), primary key("block_index")))");
+            R"(.received_block ("block_index" bigint, "block_id" varchar(64), primary key("block_index")))");
         t.exec(
             "create table " + t.quote_name(schema) +
             R"(.fill_status ("head" bigint, "head_id" varchar(64), "irreversible" bigint, "irreversible_id" varchar(64)))");
@@ -713,6 +834,23 @@ struct session : enable_shared_from_this<session> {
             t.exec(query);
         }
 
+        t.exec(
+            "create table " + t.quote_name(schema) +
+            R"(.block_info(                   
+                "block_index" bigint,
+                "block_id" varchar(64),
+                "timestamp" timestamp,
+                "producer" varchar(13),
+                "confirmed" integer,
+                "previous" varchar(64),
+                "transaction_mroot" varchar(64),
+                "action_mroot" varchar(64),
+                "schedule_version" bigint,
+                "new_producers_version" bigint,
+                "new_producers" )" +
+            t.quote_name(schema) + R"(.producer_key[],
+                primary key("block_index")))");
+
         t.commit();
     } // create_tables()
 
@@ -727,7 +865,7 @@ struct session : enable_shared_from_this<session> {
     jarray get_positions(pqxx::work& t) {
         jarray result;
         auto   rows = t.exec(
-            "select block_index, block_id from " + t.quote_name(schema) + ".received_blocks where block_index >= " +
+            "select block_index, block_id from " + t.quote_name(schema) + ".received_block where block_index >= " +
             to_string(irreversible) + " and block_index <= " + to_string(head) + " order by block_index");
         for (auto row : rows) {
             result.push_back(jvalue{jobject{
@@ -751,17 +889,18 @@ struct session : enable_shared_from_this<session> {
         auto trunc = [&](const std::string& name) {
             pipeline.insert("delete from " + t.quote_name(schema) + "." + t.quote_name(name) + " where block_index >= " + to_string(block));
         };
-        trunc("received_blocks");
+        trunc("received_block");
         trunc("action_trace_authorization");
         trunc("action_trace_auth_sequence");
         trunc("action_trace_ram_delta");
         trunc("action_trace");
         trunc("transaction_trace");
+        trunc("block_info");
         for (auto& table : abi.tables)
             trunc(table.type);
 
         auto result = pipeline.retrieve(
-            pipeline.insert("select block_id from " + t.quote_name(schema) + ".received_blocks where block_index=" + to_string(block - 1)));
+            pipeline.insert("select block_id from " + t.quote_name(schema) + ".received_block where block_index=" + to_string(block - 1)));
         if (result.empty()) {
             head    = 0;
             head_id = "";
@@ -811,6 +950,8 @@ struct session : enable_shared_from_this<session> {
             truncate(t, pipeline, result.this_block->block_num);
         if (!head_id.empty() && (!result.prev_block || (string)result.prev_block->block_id != head_id))
             throw runtime_error("prev_block does not match");
+        if (result.block)
+            receive_block(result.this_block->block_num, result.this_block->block_id, *result.block, bulk, t, pipeline);
         if (result.deltas)
             receive_deltas(result.this_block->block_num, *result.deltas, bulk, t, pipeline);
         if (result.traces)
@@ -823,7 +964,7 @@ struct session : enable_shared_from_this<session> {
         if (!bulk)
             write_fill_status(t, pipeline);
         pipeline.insert(
-            "insert into " + t.quote_name(schema) + ".received_blocks (block_index, block_id) values (" +
+            "insert into " + t.quote_name(schema) + ".received_block (block_index, block_id) values (" +
             to_string(result.this_block->block_num) + ", '" + string(result.this_block->block_id) + "')");
 
         pipeline.complete();
@@ -932,6 +1073,70 @@ struct session : enable_shared_from_this<session> {
             }
         }
     } // fill_value
+
+    void
+    receive_block(uint32_t block_index, const checksum256& block_id, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        signed_block block;
+        if (!bin_to_native(block, bin))
+            throw runtime_error("block conversion error");
+
+        string fields = "block_index, block_id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, "
+                        "schedule_version, new_producers_version, new_producers";
+        string values;
+        if (bulk)
+            values = to_string(block_index) + "\t" +                                    //
+                     (string)(block_id) + "\t" +                                        //
+                     (string)(block.timestamp) + "\t" +                                 //
+                     (string)(block.producer) + "\t" +                                  //
+                     to_string(block.confirmed) + "\t" +                                //
+                     (string)(block.previous) + "\t" +                                  //
+                     (string)(block.transaction_mroot) + "\t" +                         //
+                     (string)(block.action_mroot) + "\t" +                              //
+                     to_string(block.schedule_version) + "\t" +                         //
+                     to_string(block.new_producers ? block.new_producers->version : 0); //
+        else
+            values = to_string(block_index) + ", '" +                                   //
+                     (string)(block_id) + "', '" +                                      //
+                     (string)(block.timestamp) + "', '" +                               //
+                     (string)(block.producer) + "', " +                                 //
+                     to_string(block.confirmed) + ", '" +                               //
+                     (string)(block.previous) + "', '" +                                //
+                     (string)(block.transaction_mroot) + "', '" +                       //
+                     (string)(block.action_mroot) + "', " +                             //
+                     to_string(block.schedule_version) + ", " +                         //
+                     to_string(block.new_producers ? block.new_producers->version : 0); //
+
+        if (block.new_producers) {
+            if (bulk)
+                values += "\t{";
+            else
+                values += ", array[";
+            for (auto& x : block.new_producers->producers) {
+                if (&x != &block.new_producers->producers[0])
+                    values += ",";
+                if (bulk)
+                    values += "\"(" + (string)x.producer_name + "," + public_key_to_string(x.block_signing_key) + ")\"";
+                else
+                    values += "('" + (string)x.producer_name + "','" + public_key_to_string(x.block_signing_key) + "')";
+            }
+            if (bulk)
+                values += "}";
+            else
+                values += "]::" + t.quote_name(schema) + ".producer_key[]";
+        } else {
+            if (bulk)
+                values += "\t\\N";
+            else
+                values += ", null";
+        }
+
+        if (bulk) {
+            write_stream(block_index, t, "block_info", values);
+        } else {
+            string query = "insert into " + t.quote_name(schema) + ".block_info(" + fields + ") values (" + values + ")";
+            pipeline.insert(query);
+        }
+    } // receive_block
 
     void receive_deltas(uint32_t block_num, input_buffer buf, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
         auto         data = zlib_decompress(buf);
@@ -1095,7 +1300,7 @@ struct session : enable_shared_from_this<session> {
                                {{"max_messages_in_flight"s}, {"4294967295"s}},
                                {{"have_positions"s}, {positions}},
                                {{"irreversible_only"s}, {false}},
-                               {{"fetch_block"s}, {false}},
+                               {{"fetch_block"s}, {true}},
                                {{"fetch_traces"s}, {true}},
                                {{"fetch_deltas"s}, {true}},
                            }}}});

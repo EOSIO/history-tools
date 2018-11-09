@@ -96,6 +96,29 @@ inline constexpr bool is_known_type(unknown_type<T>) {
 template <typename T>
 inline constexpr unknown_type<T> sql_type_for;
 
+inline string nullValue(bool bulk) {
+    if (bulk)
+        return "\\N"s;
+    else
+        return "null"s;
+}
+
+inline string sep(bool bulk) {
+    if (bulk)
+        return "\t";
+    else
+        return ",";
+}
+
+inline string quote(bool bulk, string s) {
+    if (bulk)
+        return s;
+    else
+        return "'" + s + "'";
+}
+
+inline string quote(string s) { return quote(false, s); }
+
 template <typename T>
 string sql_str(pqxx::connection& c, bool bulk, const T& obj);
 
@@ -138,10 +161,10 @@ string sql_str(pqxx::connection&, bool bulk, int128 v)             { return stri
 string sql_str(pqxx::connection&, bool bulk, uint128 v)            { return string(v); }
 string sql_str(pqxx::connection&, bool bulk, float128 v)           { if(bulk) return "\\\\x" + string(v); return "'\\x" + string(v) + "'"; }
 string sql_str(pqxx::connection&, bool bulk, name v)               { auto s = v.value ? string(v) : ""s; if(bulk) return s; return "'" + s + "'"; }
-string sql_str(pqxx::connection&, bool bulk, time_point v)         { if(bulk) return string(v); return "'" + string(v) + "'"; }
-string sql_str(pqxx::connection&, bool bulk, time_point_sec v)     { if(bulk) return string(v); return "'" + string(v) + "'"; }
-string sql_str(pqxx::connection&, bool bulk, block_timestamp v)    { if(bulk) return string(v); return "'" + string(v) + "'"; }
-string sql_str(pqxx::connection&, bool bulk, checksum256 v)        { if(bulk) return string(v); return "'" + string(v) + "'"; }
+string sql_str(pqxx::connection&, bool bulk, time_point v)         { return quote(bulk, string(v)); }
+string sql_str(pqxx::connection&, bool bulk, time_point_sec v)     { return quote(bulk, string(v)); }
+string sql_str(pqxx::connection&, bool bulk, block_timestamp v)    { return quote(bulk, string(v)); }
+string sql_str(pqxx::connection&, bool bulk, checksum256 v)        { return quote(bulk, string(v)); }
 string sql_str(pqxx::connection&, bool bulk, const public_key& v)  { if(bulk) return public_key_to_string(v); return "'" + public_key_to_string(v) + "'"; }
 string sql_str(pqxx::connection&, bool bulk, transaction_status v) { if(bulk) return to_string(v); return "'" + to_string(v) + "'"; }
 // clang-format on
@@ -149,19 +172,12 @@ string sql_str(pqxx::connection&, bool bulk, transaction_status v) { if(bulk) re
 template <typename T>
 string sql_str(pqxx::connection& c, bool bulk, const T& obj) {
     if constexpr (is_optional_v<T>) {
-        if (obj) {
+        if (obj)
             return sql_str(c, bulk, *obj);
-        } else if (is_string_v<typename T::value_type>) {
-            if (bulk)
-                return ""s;
-            else
-                return "''"s;
-        } else {
-            if (bulk)
-                return "\\N"s;
-            else
-                return "null"s;
-        }
+        else if (is_string_v<typename T::value_type>)
+            return quote(bulk, "");
+        else
+            return nullValue(bulk);
     } else {
         return to_string(obj);
     }
@@ -170,19 +186,12 @@ string sql_str(pqxx::connection& c, bool bulk, const T& obj) {
 template <typename T>
 string bin_to_sql(pqxx::connection& c, bool bulk, input_buffer& bin) {
     if constexpr (is_optional_v<T>) {
-        if (read_bin<bool>(bin)) {
+        if (read_bin<bool>(bin))
             return bin_to_sql<typename T::value_type>(c, bulk, bin);
-        } else if (is_string_v<typename T::value_type>) {
-            if (bulk)
-                return ""s;
-            else
-                return "''"s;
-        } else {
-            if (bulk)
-                return "\\N"s;
-            else
-                return "null"s;
-        }
+        else if (is_string_v<typename T::value_type>)
+            return quote(bulk, "");
+        else
+            return nullValue(bulk);
     } else {
         return sql_str(c, bulk, read_bin<T>(bin));
     }
@@ -877,11 +886,11 @@ struct session : enable_shared_from_this<session> {
     }
 
     void write_fill_status(pqxx::work& t, pqxx::pipeline& pipeline) {
-        string query = "update " + t.quote_name(schema) + ".fill_status set head=" + to_string(head) + ", head_id='" + head_id + "', ";
+        string query = "update " + t.quote_name(schema) + ".fill_status set head=" + to_string(head) + ", head_id=" + quote(head_id) + ", ";
         if (irreversible < head)
-            query += "irreversible=" + to_string(irreversible) + ", irreversible_id='" + irreversible_id + "'";
+            query += "irreversible=" + to_string(irreversible) + ", irreversible_id=" + quote(irreversible_id);
         else
-            query += "irreversible=" + to_string(head) + ", irreversible_id='" + head_id + "'";
+            query += "irreversible=" + to_string(head) + ", irreversible_id=" + quote(head_id);
         pipeline.insert(query);
     }
 
@@ -965,7 +974,7 @@ struct session : enable_shared_from_this<session> {
             write_fill_status(t, pipeline);
         pipeline.insert(
             "insert into " + t.quote_name(schema) + ".received_block (block_index, block_id) values (" +
-            to_string(result.this_block->block_num) + ", '" + string(result.this_block->block_id) + "')");
+            to_string(result.this_block->block_num) + ", " + quote(string(result.this_block->block_id)) + ")");
 
         pipeline.complete();
         t.commit();
@@ -1085,24 +1094,24 @@ struct session : enable_shared_from_this<session> {
         string values;
         if (bulk)
             values = to_string(block_index) + "\t" +                                    //
-                     (string)(block_id) + "\t" +                                        //
-                     (string)(block.timestamp) + "\t" +                                 //
-                     (string)(block.producer) + "\t" +                                  //
+                     string(block_id) + "\t" +                                          //
+                     string(block.timestamp) + "\t" +                                   //
+                     string(block.producer) + "\t" +                                    //
                      to_string(block.confirmed) + "\t" +                                //
-                     (string)(block.previous) + "\t" +                                  //
-                     (string)(block.transaction_mroot) + "\t" +                         //
-                     (string)(block.action_mroot) + "\t" +                              //
+                     string(block.previous) + "\t" +                                    //
+                     string(block.transaction_mroot) + "\t" +                           //
+                     string(block.action_mroot) + "\t" +                                //
                      to_string(block.schedule_version) + "\t" +                         //
                      to_string(block.new_producers ? block.new_producers->version : 0); //
         else
-            values = to_string(block_index) + ", '" +                                   //
-                     (string)(block_id) + "', '" +                                      //
-                     (string)(block.timestamp) + "', '" +                               //
-                     (string)(block.producer) + "', " +                                 //
-                     to_string(block.confirmed) + ", '" +                               //
-                     (string)(block.previous) + "', '" +                                //
-                     (string)(block.transaction_mroot) + "', '" +                       //
-                     (string)(block.action_mroot) + "', " +                             //
+            values = to_string(block_index) + ", " +                                    //
+                     quote(string(block_id)) + ", " +                                   //
+                     quote(string(block.timestamp)) + ", " +                            //
+                     quote(string(block.producer)) + ", " +                             //
+                     to_string(block.confirmed) + ", " +                                //
+                     quote(string(block.previous)) + ", " +                             //
+                     quote(string(block.transaction_mroot)) + ", " +                    //
+                     quote(string(block.action_mroot)) + ", " +                         //
                      to_string(block.schedule_version) + ", " +                         //
                      to_string(block.new_producers ? block.new_producers->version : 0); //
 
@@ -1117,7 +1126,7 @@ struct session : enable_shared_from_this<session> {
                 if (bulk)
                     values += "\"(" + (string)x.producer_name + "," + public_key_to_string(x.block_signing_key) + ")\"";
                 else
-                    values += "('" + (string)x.producer_name + "','" + public_key_to_string(x.block_signing_key) + "')";
+                    values += "(" + quote((string)x.producer_name) + "," + quote(public_key_to_string(x.block_signing_key)) + ")";
             }
             if (bulk)
                 values += "}";
@@ -1190,21 +1199,11 @@ struct session : enable_shared_from_this<session> {
     }
 
     void write_transaction_trace(uint32_t block_num, transaction_trace& ttrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        string id     = ttrace.failed_dtrx_trace.empty() ? "" : string(ttrace.failed_dtrx_trace[0].id);
         string fields = "block_index, failed_dtrx_trace";
-        string values;
-        if (bulk) {
-            if (ttrace.failed_dtrx_trace.empty())
-                values = to_string(block_num) + "\t";
-            else
-                values = to_string(block_num) + "\t" + string(ttrace.failed_dtrx_trace[0].id);
-        } else {
-            if (ttrace.failed_dtrx_trace.empty())
-                values = to_string(block_num) + ", ''";
-            else
-                values = to_string(block_num) + ", '" + string(ttrace.failed_dtrx_trace[0].id) + "'";
-        }
-
+        string values = to_string(block_num) + sep(bulk) + quote(bulk, id);
         write("transaction_trace", block_num, ttrace, fields, values, bulk, t, pipeline);
+
         int32_t num_actions = 0;
         for (auto& atrace : ttrace.action_traces)
             write_action_trace(block_num, ttrace, num_actions, 0, atrace, bulk, t, pipeline);
@@ -1219,14 +1218,10 @@ struct session : enable_shared_from_this<session> {
         pqxx::work& t, pqxx::pipeline& pipeline) {
 
         const auto action_index = ++num_actions;
-        string     fields       = "block_index, transaction_id, action_index, parent_action_index, transaction_status";
-        string     values;
-        if (bulk)
-            values = to_string(block_num) + "\t" + (string)ttrace.id + "\t" + to_string(action_index) + "\t" +
-                     to_string(parent_action_index) + "\t" + to_string(ttrace.status);
-        else
-            values = to_string(block_num) + ", '" + (string)ttrace.id + "', " + to_string(action_index) + ", " +
-                     to_string(parent_action_index) + ", '" + to_string(ttrace.status) + "'";
+
+        string fields = "block_index, transaction_id, action_index, parent_action_index, transaction_status";
+        string values = to_string(block_num) + sep(bulk) + quote(bulk, (string)ttrace.id) + sep(bulk) + to_string(action_index) +
+                        sep(bulk) + to_string(parent_action_index) + sep(bulk) + quote(bulk, to_string(ttrace.status));
 
         write("action_trace", block_num, atrace, fields, values, bulk, t, pipeline);
         for (auto& child : atrace.inline_traces)
@@ -1253,15 +1248,10 @@ struct session : enable_shared_from_this<session> {
     void write_action_trace_subtable(
         const std::string& name, uint32_t block_num, transaction_trace& ttrace, int32_t action_index, int32_t& num, T& obj, bool bulk,
         pqxx::work& t, pqxx::pipeline& pipeline) {
-
+        ++num;
         string fields = "block_index, transaction_id, action_index, index, transaction_status";
-        string values;
-        if (bulk)
-            values = to_string(block_num) + "\t" + (string)ttrace.id + "\t" + to_string(action_index) + "\t" + to_string(++num) + "\t" +
-                     to_string(ttrace.status);
-        else
-            values = to_string(block_num) + ", '" + (string)ttrace.id + "', " + to_string(action_index) + ", " + to_string(++num) + ", '" +
-                     to_string(ttrace.status) + "'";
+        string values = to_string(block_num) + sep(bulk) + quote(bulk, (string)ttrace.id) + sep(bulk) + to_string(action_index) +
+                        sep(bulk) + to_string(num) + sep(bulk) + quote(bulk, to_string(ttrace.status));
 
         write(name, block_num, obj, fields, values, bulk, t, pipeline);
     }
@@ -1276,11 +1266,7 @@ struct session : enable_shared_from_this<session> {
             constexpr auto sql_type = sql_type_for<type>;
             if constexpr (is_known_type(sql_type)) {
                 fields += ", " + t.quote_name(field_name);
-                if (bulk)
-                    values += "\t";
-                else
-                    values += ", ";
-                values += sql_type.native_to_sql(sql_connection, bulk, &member_from_void(member_ptr, &obj));
+                values += sep(bulk) + sql_type.native_to_sql(sql_connection, bulk, &member_from_void(member_ptr, &obj));
             }
         });
 

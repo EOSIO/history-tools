@@ -96,7 +96,7 @@ inline constexpr bool is_known_type(unknown_type<T>) {
 template <typename T>
 inline constexpr unknown_type<T> sql_type_for;
 
-inline string nullValue(bool bulk) {
+inline string null_value(bool bulk) {
     if (bulk)
         return "\\N"s;
     else
@@ -124,6 +124,34 @@ inline string quote_bytea(bool bulk, string s) {
         return "\\\\x" + s;
     else
         return "'\\x" + s + "'";
+}
+
+inline string begin_array(bool bulk) {
+    if (bulk)
+        return "{";
+    else
+        return "array[";
+}
+
+inline string end_array(bool bulk, pqxx::work& t, const std::string& schema, const std::string& table) {
+    if (bulk)
+        return "}";
+    else
+        return "]::" + t.quote_name(schema) + "." + t.quote_name(table) + "[]";
+}
+
+inline string begin_object_in_array(bool bulk) {
+    if (bulk)
+        return "\"(";
+    else
+        return "(";
+}
+
+inline string end_object_in_array(bool bulk) {
+    if (bulk)
+        return ")\"";
+    else
+        return ")";
 }
 
 template <typename T>
@@ -161,19 +189,33 @@ string sql_str(pqxx::connection& c, bool bulk, const std::string& s) {
 }
 
 // clang-format off
-string sql_str(pqxx::connection&, bool bulk, bool v)               { if(bulk) return v ? "t" : "f"; return v ? "true" : "false";}
-string sql_str(pqxx::connection&, bool bulk, varuint32 v)          { return string(v); }
-string sql_str(pqxx::connection&, bool bulk, varint32 v)           { return string(v); }
-string sql_str(pqxx::connection&, bool bulk, int128 v)             { return string(v); }
-string sql_str(pqxx::connection&, bool bulk, uint128 v)            { return string(v); }
-string sql_str(pqxx::connection&, bool bulk, float128 v)           { return quote_bytea(bulk, string(v)); }
-string sql_str(pqxx::connection&, bool bulk, name v)               { return quote(bulk, v.value ? string(v) : ""s); }
-string sql_str(pqxx::connection&, bool bulk, time_point v)         { return quote(bulk, string(v)); }
-string sql_str(pqxx::connection&, bool bulk, time_point_sec v)     { return quote(bulk, string(v)); }
-string sql_str(pqxx::connection&, bool bulk, block_timestamp v)    { return quote(bulk, string(v)); }
-string sql_str(pqxx::connection&, bool bulk, checksum256 v)        { return quote(bulk, string(v)); }
-string sql_str(pqxx::connection&, bool bulk, const public_key& v)  { return quote(bulk, public_key_to_string(v)); }
-string sql_str(pqxx::connection&, bool bulk, transaction_status v) { return quote(bulk, to_string(v)); }
+inline string sql_str(bool bulk, bool v)                                  { if(bulk) return v ? "t" : "f"; return v ? "true" : "false";}
+inline string sql_str(bool bulk, varuint32 v)                             { return string(v); }
+inline string sql_str(bool bulk, varint32 v)                              { return string(v); }
+inline string sql_str(bool bulk, int128 v)                                { return string(v); }
+inline string sql_str(bool bulk, uint128 v)                               { return string(v); }
+inline string sql_str(bool bulk, float128 v)                              { return quote_bytea(bulk, string(v)); }
+inline string sql_str(bool bulk, name v)                                  { return quote(bulk, v.value ? string(v) : ""s); }
+inline string sql_str(bool bulk, time_point v)                            { return quote(bulk, string(v)); }
+inline string sql_str(bool bulk, time_point_sec v)                        { return quote(bulk, string(v)); }
+inline string sql_str(bool bulk, block_timestamp v)                       { return quote(bulk, string(v)); }
+inline string sql_str(bool bulk, checksum256 v)                           { return quote(bulk, string(v)); }
+inline string sql_str(bool bulk, const public_key& v)                     { return quote(bulk, public_key_to_string(v)); }
+inline string sql_str(bool bulk, transaction_status v)                    { return quote(bulk, to_string(v)); }
+
+inline string sql_str(pqxx::connection&, bool bulk, bool v)               { return sql_str(bulk, v); }
+inline string sql_str(pqxx::connection&, bool bulk, varuint32 v)          { return sql_str(bulk, v); }
+inline string sql_str(pqxx::connection&, bool bulk, varint32 v)           { return sql_str(bulk, v); }
+inline string sql_str(pqxx::connection&, bool bulk, int128 v)             { return sql_str(bulk, v); }
+inline string sql_str(pqxx::connection&, bool bulk, uint128 v)            { return sql_str(bulk, v); }
+inline string sql_str(pqxx::connection&, bool bulk, float128 v)           { return sql_str(bulk, v); }
+inline string sql_str(pqxx::connection&, bool bulk, name v)               { return sql_str(bulk, v); }
+inline string sql_str(pqxx::connection&, bool bulk, time_point v)         { return sql_str(bulk, v); }
+inline string sql_str(pqxx::connection&, bool bulk, time_point_sec v)     { return sql_str(bulk, v); }
+inline string sql_str(pqxx::connection&, bool bulk, block_timestamp v)    { return sql_str(bulk, v); }
+inline string sql_str(pqxx::connection&, bool bulk, checksum256 v)        { return sql_str(bulk, v); }
+inline string sql_str(pqxx::connection&, bool bulk, const public_key& v)  { return sql_str(bulk, v); }
+inline string sql_str(pqxx::connection&, bool bulk, transaction_status v) { return sql_str(bulk, v); }
 // clang-format on
 
 template <typename T>
@@ -184,7 +226,7 @@ string sql_str(pqxx::connection& c, bool bulk, const T& obj) {
         else if (is_string_v<typename T::value_type>)
             return quote(bulk, "");
         else
-            return nullValue(bulk);
+            return null_value(bulk);
     } else {
         return to_string(obj);
     }
@@ -198,7 +240,7 @@ string bin_to_sql(pqxx::connection& c, bool bulk, input_buffer& bin) {
         else if (is_string_v<typename T::value_type>)
             return quote(bulk, "");
         else
-            return nullValue(bulk);
+            return null_value(bulk);
     } else {
         return sql_str(c, bulk, read_bin<T>(bin));
     }
@@ -1092,27 +1134,16 @@ struct session : enable_shared_from_this<session> {
                         to_string(block.new_producers ? block.new_producers->version : 0); //
 
         if (block.new_producers) {
-            if (bulk)
-                values += "\t{";
-            else
-                values += ", array[";
+            values += sep(bulk) + begin_array(bulk);
             for (auto& x : block.new_producers->producers) {
                 if (&x != &block.new_producers->producers[0])
                     values += ",";
-                if (bulk)
-                    values += "\"(" + (string)x.producer_name + "," + public_key_to_string(x.block_signing_key) + ")\"";
-                else
-                    values += "(" + quote((string)x.producer_name) + "," + quote(public_key_to_string(x.block_signing_key)) + ")";
+                values += begin_object_in_array(bulk) + quote(bulk, (string)x.producer_name) + "," +
+                          quote(bulk, public_key_to_string(x.block_signing_key)) + end_object_in_array(bulk);
             }
-            if (bulk)
-                values += "}";
-            else
-                values += "]::" + t.quote_name(schema) + ".producer_key[]";
+            values += end_array(bulk, t, schema, "producer_key");
         } else {
-            if (bulk)
-                values += "\t\\N";
-            else
-                values += ", null";
+            values += sep(bulk) + null_value(bulk);
         }
 
         if (bulk) {
@@ -1143,20 +1174,10 @@ struct session : enable_shared_from_this<session> {
             for (auto& row : table_delta.rows) {
                 check_variant(row.data, variant_type, 0u);
                 string fields = "block_index, present";
-                string values;
-                if (bulk)
-                    values = to_string(block_num) + "\t" + (row.present ? "t" : "f");
-                else
-                    values = to_string(block_num) + ", " + (row.present ? "true" : "false");
+                string values = to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);
                 for (auto& field : type.fields)
                     fill_value(bulk, false, t, "", fields, values, row.data, field);
-                if (bulk) {
-                    write_stream(block_num, t, table_delta.name, values);
-                } else {
-                    string query = "insert into " + t.quote_name(schema) + "." + t.quote_name(table_delta.name) + "(" + fields +
-                                   ") values (" + values + ")";
-                    pipeline.insert(query);
-                }
+                write(block_num, t, pipeline, bulk, table_delta.name, fields, values);
             }
             numRows += table_delta.rows.size();
         }
@@ -1232,6 +1253,17 @@ struct session : enable_shared_from_this<session> {
         write(name, block_num, obj, fields, values, bulk, t, pipeline);
     }
 
+    void write(
+        uint32_t block_num, pqxx::work& t, pqxx::pipeline& pipeline, bool bulk, const std::string& name, const std::string& fields,
+        const std::string& values) {
+        if (bulk) {
+            write_stream(block_num, t, name, values);
+        } else {
+            string query = "insert into " + t.quote_name(schema) + "." + t.quote_name(name) + "(" + fields + ") values (" + values + ")";
+            pipeline.insert(query);
+        }
+    }
+
     template <typename T>
     void write(
         const std::string& name, uint32_t block_num, T& obj, std::string fields, std::string values, bool bulk, pqxx::work& t,
@@ -1245,13 +1277,7 @@ struct session : enable_shared_from_this<session> {
                 values += sep(bulk) + sql_type.native_to_sql(sql_connection, bulk, &member_from_void(member_ptr, &obj));
             }
         });
-
-        if (bulk) {
-            write_stream(block_num, t, name, values);
-        } else {
-            string query = "insert into " + t.quote_name(schema) + "." + t.quote_name(name) + "(" + fields + ") values (" + values + ")";
-            pipeline.insert(query);
-        }
+        write(block_num, t, pipeline, bulk, name, fields, values);
     } // write
 
     void send_request(const jarray& positions) {

@@ -119,6 +119,13 @@ inline string quote(bool bulk, string s) {
 
 inline string quote(string s) { return quote(false, s); }
 
+inline string quote_bytea(bool bulk, string s) {
+    if (bulk)
+        return "\\\\x" + s;
+    else
+        return "'\\x" + s + "'";
+}
+
 template <typename T>
 string sql_str(pqxx::connection& c, bool bulk, const T& obj);
 
@@ -159,14 +166,14 @@ string sql_str(pqxx::connection&, bool bulk, varuint32 v)          { return stri
 string sql_str(pqxx::connection&, bool bulk, varint32 v)           { return string(v); }
 string sql_str(pqxx::connection&, bool bulk, int128 v)             { return string(v); }
 string sql_str(pqxx::connection&, bool bulk, uint128 v)            { return string(v); }
-string sql_str(pqxx::connection&, bool bulk, float128 v)           { if(bulk) return "\\\\x" + string(v); return "'\\x" + string(v) + "'"; }
-string sql_str(pqxx::connection&, bool bulk, name v)               { auto s = v.value ? string(v) : ""s; if(bulk) return s; return "'" + s + "'"; }
+string sql_str(pqxx::connection&, bool bulk, float128 v)           { return quote_bytea(bulk, string(v)); }
+string sql_str(pqxx::connection&, bool bulk, name v)               { return quote(bulk, v.value ? string(v) : ""s); }
 string sql_str(pqxx::connection&, bool bulk, time_point v)         { return quote(bulk, string(v)); }
 string sql_str(pqxx::connection&, bool bulk, time_point_sec v)     { return quote(bulk, string(v)); }
 string sql_str(pqxx::connection&, bool bulk, block_timestamp v)    { return quote(bulk, string(v)); }
 string sql_str(pqxx::connection&, bool bulk, checksum256 v)        { return quote(bulk, string(v)); }
-string sql_str(pqxx::connection&, bool bulk, const public_key& v)  { if(bulk) return public_key_to_string(v); return "'" + public_key_to_string(v) + "'"; }
-string sql_str(pqxx::connection&, bool bulk, transaction_status v) { if(bulk) return to_string(v); return "'" + to_string(v) + "'"; }
+string sql_str(pqxx::connection&, bool bulk, const public_key& v)  { return quote(bulk, public_key_to_string(v)); }
+string sql_str(pqxx::connection&, bool bulk, transaction_status v) { return quote(bulk, to_string(v)); }
 // clang-format on
 
 template <typename T>
@@ -218,29 +225,17 @@ string bin_to_sql<bytes>(pqxx::connection&, bool bulk, input_buffer& bin) {
     if (size > bin.end - bin.pos)
         throw error("invalid bytes size");
     string result;
-    if (bulk)
-        result = "\\\\x";
-    else
-        result = "'\\x";
     boost::algorithm::hex(bin.pos, bin.pos + size, back_inserter(result));
     bin.pos += size;
-    if (!bulk)
-        result += "'";
-    return result;
+    return quote_bytea(bulk, result);
 }
 
 template <>
 string native_to_sql<bytes>(pqxx::connection&, bool bulk, const void* p) {
     auto&  obj = reinterpret_cast<const bytes*>(p)->data;
     string result;
-    if (bulk)
-        result = "\\\\x";
-    else
-        result = "'\\x";
     boost::algorithm::hex(obj.data(), obj.data() + obj.size(), back_inserter(result));
-    if (!bulk)
-        result += "'";
-    return result;
+    return quote_bytea(bulk, result);
 }
 
 template <>
@@ -252,14 +247,8 @@ template <>
 string native_to_sql<input_buffer>(pqxx::connection&, bool bulk, const void* p) {
     auto&  obj = *reinterpret_cast<const input_buffer*>(p);
     string result;
-    if (bulk)
-        result = "\\\\x";
-    else
-        result = "'\\x";
     boost::algorithm::hex(obj.pos, obj.end, back_inserter(result));
-    if (!bulk)
-        result += "'";
-    return result;
+    return quote_bytea(bulk, result);
 }
 
 // clang-format off
@@ -1091,29 +1080,16 @@ struct session : enable_shared_from_this<session> {
 
         string fields = "block_index, block_id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, "
                         "schedule_version, new_producers_version, new_producers";
-        string values;
-        if (bulk)
-            values = to_string(block_index) + "\t" +                                    //
-                     string(block_id) + "\t" +                                          //
-                     string(block.timestamp) + "\t" +                                   //
-                     string(block.producer) + "\t" +                                    //
-                     to_string(block.confirmed) + "\t" +                                //
-                     string(block.previous) + "\t" +                                    //
-                     string(block.transaction_mroot) + "\t" +                           //
-                     string(block.action_mroot) + "\t" +                                //
-                     to_string(block.schedule_version) + "\t" +                         //
-                     to_string(block.new_producers ? block.new_producers->version : 0); //
-        else
-            values = to_string(block_index) + ", " +                                    //
-                     quote(string(block_id)) + ", " +                                   //
-                     quote(string(block.timestamp)) + ", " +                            //
-                     quote(string(block.producer)) + ", " +                             //
-                     to_string(block.confirmed) + ", " +                                //
-                     quote(string(block.previous)) + ", " +                             //
-                     quote(string(block.transaction_mroot)) + ", " +                    //
-                     quote(string(block.action_mroot)) + ", " +                         //
-                     to_string(block.schedule_version) + ", " +                         //
-                     to_string(block.new_producers ? block.new_producers->version : 0); //
+        string values = to_string(block_index) + sep(bulk) +                               //
+                        quote(bulk, string(block_id)) + sep(bulk) +                        //
+                        quote(bulk, string(block.timestamp)) + sep(bulk) +                 //
+                        quote(bulk, string(block.producer)) + sep(bulk) +                  //
+                        to_string(block.confirmed) + sep(bulk) +                           //
+                        quote(bulk, string(block.previous)) + sep(bulk) +                  //
+                        quote(bulk, string(block.transaction_mroot)) + sep(bulk) +         //
+                        quote(bulk, string(block.action_mroot)) + sep(bulk) +              //
+                        to_string(block.schedule_version) + sep(bulk) +                    //
+                        to_string(block.new_producers ? block.new_producers->version : 0); //
 
         if (block.new_producers) {
             if (bulk)

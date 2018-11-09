@@ -133,11 +133,11 @@ inline string begin_array(bool bulk) {
         return "array[";
 }
 
-inline string end_array(bool bulk, pqxx::work& t, const std::string& schema, const std::string& table) {
+inline string end_array(bool bulk, pqxx::work& t, const std::string& schema, const std::string& type) {
     if (bulk)
         return "}";
     else
-        return "]::" + t.quote_name(schema) + "." + t.quote_name(table) + "[]";
+        return "]::" + t.quote_name(schema) + "." + t.quote_name(type) + "[]";
 }
 
 inline string begin_object_in_array(bool bulk) {
@@ -1053,18 +1053,12 @@ struct session : enable_shared_from_this<session> {
                 fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
         } else if (field.type->array_of && field.type->array_of->filled_struct) {
             fields += ", " + t.quote_name(base_name + field.name);
-            if (bulk)
-                values += "\t{";
-            else
-                values += ", array[";
+            values += sep(bulk) + begin_array(bulk);
             uint32_t n = read_varuint32(bin);
             for (uint32_t i = 0; i < n; ++i) {
                 if (i)
                     values += ",";
-                if (bulk)
-                    values += "\"(";
-                else
-                    values += "(";
+                values += begin_object_in_array(bulk);
                 string struct_fields;
                 string struct_values;
                 for (auto& f : field.type->array_of->fields)
@@ -1073,15 +1067,9 @@ struct session : enable_shared_from_this<session> {
                     values += struct_values.substr(1);
                 else
                     values += struct_values.substr(2);
-                if (bulk)
-                    values += ")\"";
-                else
-                    values += ")";
+                values += end_object_in_array(bulk);
             }
-            if (bulk)
-                values += "}";
-            else
-                values += "]::" + t.quote_name(schema) + "." + t.quote_name(field.type->array_of->name) + "[]";
+            values += end_array(bulk, t, schema, field.type->array_of->name);
         } else {
             auto abi_type    = field.type->name;
             bool is_optional = false;
@@ -1146,12 +1134,7 @@ struct session : enable_shared_from_this<session> {
             values += sep(bulk) + null_value(bulk);
         }
 
-        if (bulk) {
-            write_stream(block_index, t, "block_info", values);
-        } else {
-            string query = "insert into " + t.quote_name(schema) + ".block_info(" + fields + ") values (" + values + ")";
-            pipeline.insert(query);
-        }
+        write(block_index, t, pipeline, bulk, "block_info", fields, values);
     } // receive_block
 
     void receive_deltas(uint32_t block_num, input_buffer buf, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {

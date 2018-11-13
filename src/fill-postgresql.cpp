@@ -188,8 +188,15 @@ string sql_str(pqxx::connection& c, bool bulk, const std::string& s) {
     }
 }
 
+template <typename T>
+string sql_str(bool bulk, const T& v);
+
 // clang-format off
 inline string sql_str(bool bulk, bool v)                                  { if(bulk) return v ? "t" : "f"; return v ? "true" : "false";}
+inline string sql_str(bool bulk, uint16_t v)                              { return to_string(v); }
+inline string sql_str(bool bulk, int16_t v)                               { return to_string(v); }
+inline string sql_str(bool bulk, uint32_t v)                              { return to_string(v); }
+inline string sql_str(bool bulk, int32_t v)                               { return to_string(v); }
 inline string sql_str(bool bulk, varuint32 v)                             { return string(v); }
 inline string sql_str(bool bulk, varint32 v)                              { return string(v); }
 inline string sql_str(bool bulk, int128 v)                                { return string(v); }
@@ -1110,16 +1117,16 @@ struct session : enable_shared_from_this<session> {
 
         string fields = "block_index, block_id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, "
                         "schedule_version, new_producers_version, new_producers";
-        string values = to_string(block_index) + sep(bulk) +                               //
-                        quote(bulk, string(block_id)) + sep(bulk) +                        //
-                        quote(bulk, string(block.timestamp)) + sep(bulk) +                 //
-                        quote(bulk, string(block.producer)) + sep(bulk) +                  //
-                        to_string(block.confirmed) + sep(bulk) +                           //
-                        quote(bulk, string(block.previous)) + sep(bulk) +                  //
-                        quote(bulk, string(block.transaction_mroot)) + sep(bulk) +         //
-                        quote(bulk, string(block.action_mroot)) + sep(bulk) +              //
-                        to_string(block.schedule_version) + sep(bulk) +                    //
-                        to_string(block.new_producers ? block.new_producers->version : 0); //
+        string values = sql_str(bulk, block_index) + sep(bulk) +                               //
+                        sql_str(bulk, block_id) + sep(bulk) +                                  //
+                        sql_str(bulk, block.timestamp) + sep(bulk) +                           //
+                        sql_str(bulk, block.producer) + sep(bulk) +                            //
+                        sql_str(bulk, block.confirmed) + sep(bulk) +                           //
+                        sql_str(bulk, block.previous) + sep(bulk) +                            //
+                        sql_str(bulk, block.transaction_mroot) + sep(bulk) +                   //
+                        sql_str(bulk, block.action_mroot) + sep(bulk) +                        //
+                        sql_str(bulk, block.schedule_version) + sep(bulk) +                    //
+                        sql_str(bulk, block.new_producers ? block.new_producers->version : 0); //
 
         if (block.new_producers) {
             values += sep(bulk) + begin_array(bulk);

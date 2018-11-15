@@ -460,15 +460,15 @@ struct recurse_action_trace;
 struct action_trace {
     variant_header_zero                dummy;
     variant_header_zero                receipt_dummy;
-    name                               receipt_receiver;
+    abieos::name                       receipt_receiver;
     checksum256                        receipt_act_digest;
     uint64_t                           receipt_global_sequence;
     uint64_t                           receipt_recv_sequence;
     vector<action_trace_auth_sequence> receipt_auth_sequence;
     varuint32                          receipt_code_sequence;
     varuint32                          receipt_abi_sequence;
-    name                               account;
-    name                               name;
+    abieos::name                       account;
+    abieos::name                       name;
     vector<action_trace_authorization> authorization;
     input_buffer                       data;
     bool                               context_free;

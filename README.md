@@ -43,6 +43,7 @@ Run the following on a fresh Ubuntu 18.10 image:
 
 ```
 sudo apt update
+sudo apt upgrade
 sudo apt install build-essential cmake libboost-all-dev git libpq-dev libpqxx-dev
 git clone git@github.com:EOSIO/fill-postgresql.git
 cd fill-postgresql

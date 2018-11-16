@@ -7,48 +7,53 @@ fill-postgresql creates primary keys, but doesn't create any indexes. It's up to
 Queries on this page use these functions:
 
 ```sql
-create or replace function decode_int64(value bytea) returns bigint as $$
+drop function if exists int64_bin_to_value;
+create function int64_bin_to_value(value bytea, pos int) returns bigint as $$
 begin
     return
-        (get_byte(value, 7)::bigint << 56) |
-        (get_byte(value, 6)::bigint << 48) |
-        (get_byte(value, 5)::bigint << 40) |
-        (get_byte(value, 4)::bigint << 32) |
-        (get_byte(value, 3)::bigint << 24) |
-        (get_byte(value, 2)::bigint << 16) |
-        (get_byte(value, 1)::bigint << 8) |
-        (get_byte(value, 0)::bigint << 0);
+        (get_byte(value, pos + 7)::bigint << 56) |
+        (get_byte(value, pos + 6)::bigint << 48) |
+        (get_byte(value, pos + 5)::bigint << 40) |
+        (get_byte(value, pos + 4)::bigint << 32) |
+        (get_byte(value, pos + 3)::bigint << 24) |
+        (get_byte(value, pos + 2)::bigint << 16) |
+        (get_byte(value, pos + 1)::bigint << 8) |
+        (get_byte(value, pos + 0)::bigint << 0);
 end; $$
 language plpgsql;
 
-create or replace function decode_asset_precision(value bytea) returns int as $$
+drop function if exists symbol_bin_to_precision;
+create function symbol_bin_to_precision(value bytea, pos int) returns int as $$
 begin
-    return ('x' || encode(substring(value from 9 for 1), 'hex'))::bit(8)::int;
+    return ('x' || encode(substring(value from pos + 1 for 1), 'hex'))::bit(8)::int;
 end; $$
 language plpgsql;
 
-create or replace function decode_asset_name(value bytea) returns varchar as $$
+drop function if exists symbol_bin_to_name;
+create function symbol_bin_to_name(value bytea, pos int) returns varchar as $$
 begin
-    return encode(trim('\x00'::bytea from substring(value from 10 for 7)), 'escape');
+    return encode(trim('\x00'::bytea from substring(value from pos + 2 for 7)), 'escape');
 end; $$
 language plpgsql;
 
-create or replace function decode_asset(value bytea) returns varchar as $$
+drop function if exists asset_bin_to_str;
+create function asset_bin_to_str(value bytea, pos int) returns varchar as $$
 begin
     return
-        left(decode_int64(value)::varchar, -decode_asset_precision(value)) || '.' ||
-        right(decode_int64(value)::varchar, decode_asset_precision(value)) || ' ' ||
-        decode_asset_name(value);
+        left(int64_bin_to_value(value, pos)::varchar, -symbol_bin_to_precision(value, pos + 8)) || '.' ||
+        right(int64_bin_to_value(value, pos)::varchar, symbol_bin_to_precision(value, pos + 8)) || ' ' ||
+        symbol_bin_to_name(value, pos + 8);
 end; $$
 language plpgsql;
 
-create or replace function decode_asset_conditional(present boolean, value bytea) returns varchar as $$
+drop function if exists conditional_asset_bin_to_str;
+create function conditional_asset_bin_to_str(present boolean, value bytea, pos int) returns varchar as $$
 begin
     if present then
-        return decode_asset(value);
+        return asset_bin_to_str(value, pos);
     else
         return '';
-	end if;
+    end if;
 end; $$
 language plpgsql;
 ```
@@ -57,55 +62,134 @@ language plpgsql;
 
 ## Get current head and LIB
 
-```
+```sql
 select * from chain.fill_status
 ```
 
 ## Get the 100 most-recent block ids
 
-```
-select * from chain.received_block order by block_index desc limit 100
+```sql
+select 
+  * 
+from 
+  chain.received_block 
+order by 
+  block_index desc 
+limit 
+  100
 ```
 
 ## Get the 100 most-recent irreversible block ids
 
-```
-select * from chain.received_block where block_index <= (select irreversible from chain.fill_status) order by block_index desc limit 100
+```sql
+select 
+  * 
+from 
+  chain.received_block 
+where 
+  block_index <= (select irreversible from chain.fill_status)
+order by 
+  block_index desc 
+limit 
+  100
 ```
 
 ## Get the 10 most-recent producer schedule changes
-```
-select * from chain.block_info where new_producers!='{}' order by block_index desc limit 10
+```sql
+select 
+  * 
+from 
+  chain.block_info 
+where 
+  new_producers is not null 
+order by 
+  block_index desc 
+limit 
+  10
 ```
 
 ## Get the 100 most-recent executed transactions
 
-```
-select * from chain.transaction_trace where status='executed' order by block_index desc limit 100
+```sql
+select 
+  * 
+from 
+  chain.transaction_trace 
+where 
+  status = 'executed' 
+order by 
+  block_index desc 
+limit 
+  100
 ```
 
 ## Get the 100 most-recent executed actions
 
-```
-select * from chain.action_trace where transaction_status='executed' order by block_index desc limit 100
+```sql
+select 
+  * 
+from 
+  chain.action_trace 
+where 
+  transaction_status = 'executed' 
+order by 
+  block_index desc 
+limit 
+  100
 ```
 
 ## Get the 100 most-recent `eosio.token` transfers
 
-```
-select * from chain.action_trace where receipt_receiver='eosio.token' and account='eosio.token' and name='transfer' and transaction_status='executed' order by block_index desc limit 100
+```sql
+select 
+  * 
+from 
+  chain.action_trace 
+where 
+  receipt_receiver = 'eosio.token' 
+  and account = 'eosio.token' 
+  and name = 'transfer' 
+  and transaction_status = 'executed' 
+order by 
+  block_index desc 
+limit 
+  100
 ```
 
 ## Get the 100 most-recent `eosio.token` transfer notifications sent to `eosio.ramfee`
 
-```
-select * from chain.action_trace where receipt_receiver='eosio.ramfee' and account='eosio.token' and name='transfer' and transaction_status='executed' order by block_index desc limit 100
+```sql
+select 
+  * 
+from 
+  chain.action_trace 
+where 
+  receipt_receiver = 'eosio.ramfee' 
+  and account = 'eosio.token' 
+  and name = 'transfer' 
+  and transaction_status = 'executed' 
+order by 
+  block_index desc 
+limit 
+  100
 ```
 
 ## Get the 100 most-recent actions authorized by `eosio`
 
-```
-select * from chain.transaction_trace left join chain.action_trace_authorization on transaction_trace.block_index=action_trace_authorization.block_index and transaction_trace.transaction_id=action_trace_authorization.transaction_id where actor='eosio' order by transaction_trace.block_index desc limit 100
+```sql
+select 
+  * 
+from 
+  chain.transaction_trace 
+  left join chain.action_trace_authorization
+    on transaction_trace.block_index = action_trace_authorization.block_index 
+    and transaction_trace.transaction_id = action_trace_authorization.transaction_id 
+where 
+  actor = 'eosio' 
+order by 
+  transaction_trace.block_index desc 
+limit 
+  100
 ```
 
 # State History
@@ -114,6 +198,19 @@ select * from chain.transaction_trace left join chain.action_trace_authorization
 
 `primary_key=5459781` limits result to the `EOS` token
 
-```
-select *, decode_asset_conditional(present, value) from chain.contract_row where code='eosio.token' and scope='eosio.ramfee' and "table"='accounts' and primary_key=5459781 order by block_index desc limit 100
+```sql
+select 
+  *, 
+  conditional_asset_bin_to_str(present, value, 0) 
+from 
+  chain.contract_row 
+where 
+  code = 'eosio.token' 
+  and scope = 'eosio.ramfee' 
+  and "table" = 'accounts' 
+  and primary_key = 5459781 
+order by 
+  block_index desc 
+limit 
+  100
 ```

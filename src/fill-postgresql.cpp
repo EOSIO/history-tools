@@ -203,10 +203,10 @@ inline string sql_str(bool bulk, int128 v)                                { retu
 inline string sql_str(bool bulk, uint128 v)                               { return string(v); }
 inline string sql_str(bool bulk, float128 v)                              { return quote_bytea(bulk, string(v)); }
 inline string sql_str(bool bulk, name v)                                  { return quote(bulk, v.value ? string(v) : ""s); }
-inline string sql_str(bool bulk, time_point v)                            { return quote(bulk, string(v)); }
-inline string sql_str(bool bulk, time_point_sec v)                        { return quote(bulk, string(v)); }
-inline string sql_str(bool bulk, block_timestamp v)                       { return quote(bulk, string(v)); }
-inline string sql_str(bool bulk, checksum256 v)                           { return quote(bulk, string(v)); }
+inline string sql_str(bool bulk, time_point v)                            { return v.microseconds ? quote(bulk, string(v)): null_value(bulk); }
+inline string sql_str(bool bulk, time_point_sec v)                        { return v.utc_seconds ? quote(bulk, string(v)): null_value(bulk); }
+inline string sql_str(bool bulk, block_timestamp v)                       { return v.slot ?  quote(bulk, string(v)) : null_value(bulk); }
+inline string sql_str(bool bulk, checksum256 v)                           { return quote(bulk, v.value == checksum256{}.value ? "" : string(v)); }
 inline string sql_str(bool bulk, const public_key& v)                     { return quote(bulk, public_key_to_string(v)); }
 inline string sql_str(bool bulk, transaction_status v)                    { return quote(bulk, to_string(v)); }
 

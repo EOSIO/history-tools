@@ -732,6 +732,7 @@ struct session : enable_shared_from_this<session> {
         , create_schema(create_schema) {
 
         stream.binary(true);
+        stream.read_message_max(1024 * 1024 * 1024);
         if (drop_schema) {
             pqxx::work t(sql_connection);
             t.exec("drop schema if exists " + t.quote_name(this->schema) + " cascade");
@@ -969,7 +970,13 @@ struct session : enable_shared_from_this<session> {
         if (!result.this_block)
             return true;
 
-        bool bulk = result.this_block->block_num + 4 < result.last_irreversible.block_num;
+        bool bulk         = result.this_block->block_num + 4 < result.last_irreversible.block_num;
+        bool large_deltas = false;
+        if (!bulk && result.deltas && result.deltas->end - result.deltas->pos >= 10 * 1024 * 1024) {
+            cerr << "large deltas size: " << (result.deltas->end - result.deltas->pos) << "\n";
+            bulk         = true;
+            large_deltas = true;
+        }
 
         if (stop_before && result.this_block->block_num >= stop_before) {
             close_streams();
@@ -984,7 +991,7 @@ struct session : enable_shared_from_this<session> {
             bulk = false;
         }
 
-        if (!bulk || !(result.this_block->block_num % 200))
+        if (!bulk || large_deltas || !(result.this_block->block_num % 200))
             close_streams();
         if (!bulk) {
             auto n = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -1016,6 +1023,8 @@ struct session : enable_shared_from_this<session> {
 
         pipeline.complete();
         t.commit();
+        if (large_deltas)
+            close_streams();
         return true;
     } // receive_result()
 
@@ -1161,13 +1170,17 @@ struct session : enable_shared_from_this<session> {
                 throw std::runtime_error("don't know how to proccess " + variant_type.name);
             auto& type = *variant_type.fields[0].type;
 
+            size_t num_processed = 0;
             for (auto& row : table_delta.rows) {
+                if (table_delta.rows.size() > 1000 && !(num_processed % 10000))
+                    cerr << table_delta.name << " row " << num_processed << " of " << table_delta.rows.size() << " bulk=" << bulk << "\n";
                 check_variant(row.data, variant_type, 0u);
                 string fields = "block_index, present";
                 string values = to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);
                 for (auto& field : type.fields)
                     fill_value(bulk, false, t, "", fields, values, row.data, field);
                 write(block_num, t, pipeline, bulk, table_delta.name, fields, values);
+                ++num_processed;
             }
             numRows += table_delta.rows.size();
         }
@@ -1377,6 +1390,7 @@ int main(int argc, char** argv) {
                 ioc, vm["host"].as<string>(), vm["port"].as<string>(), vm["schema"].as<string>(),
                 vm.count("skip-to") ? vm["skip-to"].as<uint32_t>() : 0, vm.count("stop") ? vm["stop"].as<uint32_t>() : 0, vm.count("drop"),
                 vm.count("create"));
+            cerr.imbue(std::locale(""));
             s->start();
             ioc.run();
         }

@@ -697,6 +697,11 @@ struct table_stream {
         , writer(t, name) {}
 };
 
+void log_time() {
+    auto n = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    cerr << std::put_time(std::localtime(&n), "%F %T: ");
+}
+
 struct session : enable_shared_from_this<session> {
     pqxx::connection                      sql_connection;
     tcp::resolver                         resolver;
@@ -973,6 +978,7 @@ struct session : enable_shared_from_this<session> {
         bool bulk         = result.this_block->block_num + 4 < result.last_irreversible.block_num;
         bool large_deltas = false;
         if (!bulk && result.deltas && result.deltas->end - result.deltas->pos >= 10 * 1024 * 1024) {
+            log_time();
             cerr << "large deltas size: " << (result.deltas->end - result.deltas->pos) << "\n";
             bulk         = true;
             large_deltas = true;
@@ -980,13 +986,14 @@ struct session : enable_shared_from_this<session> {
 
         if (stop_before && result.this_block->block_num >= stop_before) {
             close_streams();
-            auto n = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-            cerr << std::put_time(std::localtime(&n), "%F %T: ") << "block " << result.this_block->block_num << ": stop requested\n";
+            log_time();
+            cerr << "block " << result.this_block->block_num << ": stop requested\n";
             return false;
         }
 
         if (result.this_block->block_num <= head) {
             close_streams();
+            log_time();
             cerr << "switch forks at block " << result.this_block->block_num << "\n";
             bulk = false;
         }
@@ -994,8 +1001,8 @@ struct session : enable_shared_from_this<session> {
         if (!bulk || large_deltas || !(result.this_block->block_num % 200))
             close_streams();
         if (!bulk) {
-            auto n = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-            cerr << std::put_time(std::localtime(&n), "%F %T: ") << "block " << result.this_block->block_num << "\n";
+            log_time();
+            cerr << "block " << result.this_block->block_num << "\n";
         }
 
         pqxx::work     t(sql_connection);
@@ -1053,8 +1060,8 @@ struct session : enable_shared_from_this<session> {
         pipeline.complete();
         t.commit();
 
-        auto n = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-        cerr << std::put_time(std::localtime(&n), "%F %T: ") << "block " << first_bulk << " - " << head << "\n";
+        log_time();
+        cerr << "block " << first_bulk << " - " << head << "\n";
         first_bulk = 0;
     }
 
@@ -1172,8 +1179,11 @@ struct session : enable_shared_from_this<session> {
 
             size_t num_processed = 0;
             for (auto& row : table_delta.rows) {
-                if (table_delta.rows.size() > 1000 && !(num_processed % 10000))
-                    cerr << table_delta.name << " row " << num_processed << " of " << table_delta.rows.size() << " bulk=" << bulk << "\n";
+                if (table_delta.rows.size() > 10000 && !(num_processed % 10000)) {
+                    log_time();
+                    cerr << "block " << block_num << " " << table_delta.name << " " << num_processed << " of " << table_delta.rows.size()
+                         << " bulk=" << bulk << "\n";
+                }
                 check_variant(row.data, variant_type, 0u);
                 string fields = "block_index, present";
                 string values = to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);

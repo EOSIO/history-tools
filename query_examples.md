@@ -228,12 +228,46 @@ limit
   100;
 ```
 
-## Balance (EOS) of all accounts beginning with "mo", as of block 20500000
+## <a name="mo-simple"></a> Balance (EOS) of all accounts beginning with "mo", as of block 20500000 ("distinct on" method)
 
 Use this index to speed up this query:
 
 ```sql
-create index on chain.contract_row(code, "table", scope, primary_key, block_index, present);
+create index if not exists contract_row_code_table_scope_primary_key_block_index_prese_idx on chain.contract_row(code, "table", scope, primary_key, block_index, present);
+```
+
+```sql
+select
+    distinct on(code, "table", scope, primary_key)
+    contract_row.*,
+    chain.conditional_asset_bin_to_str(contract_row.present, contract_row.value, 0) 
+from
+    chain.contract_row
+where
+    block_index <= 20500000
+    and code='eosio.token'
+    and "table"='accounts'
+    and scope>='mo'
+    and scope<='mozzzzzzzzzz'
+    and primary_key = 5459781
+order by
+    code,
+    "table",
+    scope,
+    primary_key,
+    block_index,
+    present
+desc;
+```
+
+`distinct on` only includes the first row in each set of rows with duplicate fields. The `order by` clause includes `block_index, present` in descending order to make sure the most-recent state is the one included.
+
+## Balance (EOS) of all accounts beginning with "mo", as of block 20500000 (nested query method)
+
+Use this index to speed up this query:
+
+```sql
+create index if not exists contract_row_code_table_scope_primary_key_block_index_prese_idx on chain.contract_row(code, "table", scope, primary_key, block_index, present);
 ```
 
 ```sql

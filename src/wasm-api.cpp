@@ -42,19 +42,19 @@ auto& member_from_void(const member_ptr<P>&, const void* p) {
 
 template <typename T>
 void native_to_bin(std::vector<char>& bin, const T& obj);
-template <typename T>
-void native_to_bin(std::vector<char>& bin, const std::vector<T>& obj);
-void native_to_bin(std::vector<char>& bin, const std::string& obj);
 
-template <typename T>
-void native_to_bin(std::vector<char>& bin, const T& obj) {
-    if constexpr (std::is_trivially_copyable_v<T>) { // todo: bad condition
-        push_raw(bin, obj);
-    } else {
-        for_each_field((T*)nullptr, [&](auto* name, auto member_ptr) { //
-            native_to_bin(bin, member_from_void(member_ptr, &obj));
-        });
-    }
+inline void native_to_bin(std::vector<char>& bin, const name& obj) {
+    native_to_bin(bin, obj.value); //
+}
+
+void native_to_bin(std::vector<char>& bin, const std::string& obj) {
+    push_varuint32(bin, obj.size());
+    bin.insert(bin.end(), obj.begin(), obj.end());
+}
+
+void native_to_bin(std::vector<char>& bin, const bytes& obj) {
+    push_varuint32(bin, obj.data.size());
+    bin.insert(bin.end(), obj.data.begin(), obj.data.end());
 }
 
 template <typename T>
@@ -65,9 +65,28 @@ void native_to_bin(std::vector<char>& bin, const std::vector<T>& obj) {
     }
 }
 
-void native_to_bin(std::vector<char>& bin, const std::string& obj) {
-    push_varuint32(bin, obj.size());
-    bin.insert(bin.end(), obj.begin(), obj.end());
+template <typename T>
+void native_to_bin(std::vector<char>& bin, const T& obj) {
+    if constexpr (std::is_class_v<T>) {
+        for_each_field((T*)nullptr, [&](auto* name, auto member_ptr) { //
+            native_to_bin(bin, member_from_void(member_ptr, &obj));
+        });
+    } else {
+        static_assert(std::is_trivially_copyable_v<T>);
+        push_raw(bin, obj);
+    }
+}
+
+bytes sql_to_bytes(const char* ch) {
+    bytes result;
+    if (!ch || ch[0] != '\\' || ch[1] != 'x')
+        return result;
+    try {
+        boost::algorithm::unhex(ch + 2, ch + strlen(ch), std::back_inserter(result.data));
+    } catch (...) {
+        result.data.clear();
+    }
+    return result;
 }
 
 std::string readStr(const char* filename) {
@@ -141,21 +160,12 @@ bool convert_str(JSContext* cx, JSString* str, std::string& dest) {
     return JS_EncodeStringToBuffer(cx, str, dest.data(), len);
 }
 
-bool printStr(JSContext* cx, unsigned argc, JS::Value* vp) {
+bool print_js_str(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::CallArgs args = CallArgsFromVp(argc, vp);
     std::string  s;
     for (unsigned i = 0; i < args.length(); ++i)
         if (args[i].isString() && convert_str(cx, args[i].toString(), s))
-            std::cerr << s << "\n";
-    return true;
-}
-
-bool printi32(JSContext* cx, unsigned argc, JS::Value* vp) {
-    JS::CallArgs args = CallArgsFromVp(argc, vp);
-    std::string  s;
-    for (unsigned i = 0; i < args.length(); ++i)
-        if (args[i].isInt32())
-            std::cerr << args[i].toInt32();
+            std::cerr << s;
     return true;
 }
 
@@ -210,9 +220,9 @@ char* get_mem_from_callback(JSContext* cx, JS::CallArgs& args, unsigned callback
     return data + begin;
 }
 
-bool printWasmStr(JSContext* cx, unsigned argc, JS::Value* vp) {
+bool print_wasm_str(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.requireAtLeast(cx, "printWasmStr", 3))
+    if (!args.requireAtLeast(cx, "print_wasm_str", 3))
         return false;
     {
         JS::AutoCheckCannotGC checkGC;
@@ -222,10 +232,10 @@ bool printWasmStr(JSContext* cx, unsigned argc, JS::Value* vp) {
             return true;
         }
     }
-    return js_assert(false, cx, "printWasmStr: invalid args");
+    return js_assert(false, cx, "print_wasm_str: invalid args");
 }
 
-bool readWasm(JSContext* cx, unsigned argc, JS::Value* vp) {
+bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
     try {
         std::fstream file("test.wasm", std::ios_base::in | std::ios_base::binary);
         file.seekg(0, std::ios_base::end);
@@ -249,14 +259,14 @@ bool readWasm(JSContext* cx, unsigned argc, JS::Value* vp) {
 }
 
 struct db_result {
-    uint32_t    block_index = 0;
-    bool        present     = false;
-    name        code;
-    name        table;
-    name        scope;
-    uint64_t    primary_key = 0;
-    name        payer;
-    std::string value;
+    uint32_t block_index = 0;
+    bool     present     = false;
+    name     code;
+    name     table;
+    name     scope;
+    uint64_t primary_key = 0;
+    name     payer;
+    bytes    value;
 };
 
 template <typename F>
@@ -304,12 +314,12 @@ bool testdb(JSContext* cx, unsigned argc, JS::Value* vp) {
             v.push_back(db_result{
                 .block_index = r[0].as<uint32_t>(),
                 .present     = r[1].as<bool>(),
-                .code        = name{r[2].as<std::string>().c_str()},
-                .table       = name{r[3].as<std::string>().c_str()},
-                .scope       = name{r[4].as<std::string>().c_str()},
+                .code        = name{r[2].c_str()},
+                .table       = name{r[3].c_str()},
+                .scope       = name{r[4].c_str()},
                 .primary_key = r[5].as<uint64_t>(),
-                .payer       = name{r[6].as<std::string>().c_str()},
-                .value       = r[7].as<std::string>(),
+                .payer       = name{r[6].c_str()},
+                .value       = sql_to_bytes(r[7].c_str()),
             });
         }
         t.commit();
@@ -329,12 +339,11 @@ bool testdb(JSContext* cx, unsigned argc, JS::Value* vp) {
 } // testdb
 
 static const JSFunctionSpec functions[] = {
-    JS_FN("printStr", printStr, 0, 0),         //
-    JS_FN("printi32", printi32, 0, 0),         //
-    JS_FN("printWasmStr", printWasmStr, 0, 0), //
-    JS_FN("readWasm", readWasm, 0, 0),         //
-    JS_FN("testdb", testdb, 0, 0),             //
-    JS_FS_END                                  //
+    JS_FN("print_js_str", print_js_str, 0, 0),     //
+    JS_FN("print_wasm_str", print_wasm_str, 0, 0), //
+    JS_FN("get_wasm", get_wasm, 0, 0),             //
+    JS_FN("testdb", testdb, 0, 0),                 //
+    JS_FS_END                                      //
 };
 
 void runit() {

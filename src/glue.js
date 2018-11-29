@@ -1,8 +1,8 @@
 // copyright defined in LICENSE.txt
 
 try {
-    let wasm = readWasm();
-    let mod = new WebAssembly.Module(readWasm());
+    let wasm = get_wasm();
+    let mod = new WebAssembly.Module(get_wasm());
     let inst;
     const env = {
         abort() {
@@ -26,12 +26,14 @@ try {
             });
         },
         printss(begin, end) {
-            printWasmStr(inst.exports.memory.buffer, begin, end);
+            print_wasm_str(inst.exports.memory.buffer, begin, end);
         },
-        printi32,
+        printi32(i) {
+            print_js_str('' + (i | 0));
+        },
     };
     inst = new WebAssembly.Instance(mod, { env });
     inst.exports.startup();
 } catch (e) {
-    printStr('Caught: ' + e);
+    print_js_str('Caught: ' + e);
 }

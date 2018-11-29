@@ -1,6 +1,8 @@
 // copyright defined in LICENSE.txt
 
+#include <eosiolib/asset.hpp>
 #include <eosiolib/datastream.hpp>
+#include <eosiolib/varint.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -63,17 +65,28 @@ inline void print(int32_t i, Args&&... args) {
     print(std::forward<Args>(args)...);
 }
 
+namespace eosio {
+template <typename Stream>
+inline datastream<Stream>& operator>>(datastream<Stream>& ds, datastream<Stream>& dest) {
+    unsigned_int size;
+    ds >> size;
+    dest = datastream<Stream>{ds.pos(), size};
+    ds.skip(size);
+    return ds;
+}
+} // namespace eosio
+
 typedef void* cb_alloc_fn(void* cb_alloc_data, size_t size);
 
 struct db_result {
-    uint32_t          block_index = 0;
-    bool              present     = false;
-    eosio::name       code;
-    eosio::name       table;
-    eosio::name       scope;
-    uint64_t          primary_key = 0;
-    eosio::name       payer;
-    std::vector<char> value;
+    uint32_t                       block_index = 0;
+    bool                           present     = false;
+    eosio::name                    code;
+    eosio::name                    table;
+    eosio::name                    scope;
+    uint64_t                       primary_key = 0;
+    eosio::name                    payer;
+    eosio::datastream<const char*> value{nullptr, 0};
 };
 
 extern "C" void testdb(void* cb_alloc_data, cb_alloc_fn* cb_alloc);
@@ -104,9 +117,11 @@ extern "C" void startup() {
     ds >> result;
     print("result.size(): ", result.size(), "\n");
     for (auto& x : result) {
+        eosio::asset a;
+        x.value >> a;
         print(
             "    ", x.block_index, " ", x.present, " ", x.code.to_string(), " ", x.table.to_string(), " ", x.scope.to_string(), " ",
-            x.primary_key, " ", x.payer.to_string(), " ", x.value, "\n");
+            x.primary_key, " ", x.payer.to_string(), " ", a.amount, "\n");
     }
     print("end wasm\n\n");
 }

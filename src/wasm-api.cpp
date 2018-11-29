@@ -26,6 +26,46 @@ using namespace abieos;
 
 namespace bpo = boost::program_options;
 
+template <class C, typename M>
+const C* class_from_void(M C::*, const void* v) {
+    return reinterpret_cast<const C*>(v);
+}
+
+template <auto P>
+auto& member_from_void(const member_ptr<P>&, const void* p) {
+    return class_from_void(P, p)->*P;
+}
+
+template <typename T>
+void native_to_bin(std::vector<char>& bin, const T& obj);
+template <typename T>
+void native_to_bin(std::vector<char>& bin, const std::vector<T>& obj);
+void native_to_bin(std::vector<char>& bin, const std::string& obj);
+
+template <typename T>
+void native_to_bin(std::vector<char>& bin, const T& obj) {
+    if constexpr (std::is_trivially_copyable_v<T>) { // todo: bad condition
+        push_raw(bin, obj);
+    } else {
+        for_each_field((T*)nullptr, [&](auto* name, auto member_ptr) { //
+            native_to_bin(bin, member_from_void(member_ptr, &obj));
+        });
+    }
+}
+
+template <typename T>
+void native_to_bin(std::vector<char>& bin, const std::vector<T>& obj) {
+    push_varuint32(bin, obj.size());
+    for (auto& v : obj) {
+        native_to_bin(bin, v);
+    }
+}
+
+void native_to_bin(std::vector<char>& bin, const std::string& obj) {
+    push_varuint32(bin, obj.size());
+    bin.insert(bin.end(), obj.begin(), obj.end());
+}
+
 std::string readStr(const char* filename) {
     std::fstream file(filename, std::ios_base::in | std::ios_base::binary);
     file.seekg(0, std::ios_base::end);
@@ -206,51 +246,85 @@ bool readWasm(JSContext* cx, unsigned argc, JS::Value* vp) {
     }
 }
 
-bool testdb(JSContext* cx, unsigned argc, JS::Value* vp) {
-    JS::CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.requireAtLeast(cx, "testdb", 2))
-        return false;
+struct db_result {
+    uint32_t    block_index = 0;
+    bool        present     = false;
+    name        code;
+    name        table;
+    name        scope;
+    uint64_t    primary_key = 0;
+    name        payer;
+    std::string value;
+};
 
-    pqxx::work t(foo_global->sql_connection);
-
-    auto result = t.exec(R"(
-        select
-            distinct on(code, "table", scope, primary_key)
-            block_index, present, code, "table", scope, primary_key, payer, value
-        from
-            chain.contract_row
-        where
-            block_index <= 30000000
-            and code = 'eosio.token'
-            and "table" = 'accounts'
-            and scope > 'z'
-            and primary_key = 5459781
-        order by
-            code,
-            "table",
-            primary_key,
-            scope,
-            block_index desc,
-            present desc
-        limit 10
-    )");
-
-    std::stringstream ss;
-    for (const auto& r : result) {
-        ss << r[0].as<uint32_t>() << " " << r[1].as<bool>() << " " << r[2].as<std::string>() << " " << r[3].as<std::string>() << " "
-           << r[4].as<std::string>() << " " << r[5].as<uint64_t>() << " " << r[6].as<std::string>() << " " << r[7].as<std::string>()
-           << "\n";
-    }
-    auto s = ss.str();
-
-    t.commit();
-
-    auto data = get_mem_from_callback(cx, args, 0, 1, s.size());
-    if (!js_assert(data, cx, "testdb: failed to fetch buffer from callback"))
-        return false;
-    memcpy(data, s.c_str(), s.size());
-    return true;
+template <typename F>
+constexpr void for_each_field(db_result*, F f) {
+    f("block_index", member_ptr<&db_result::block_index>{});
+    f("present", member_ptr<&db_result::present>{});
+    f("code", member_ptr<&db_result::code>{});
+    f("table", member_ptr<&db_result::table>{});
+    f("scope", member_ptr<&db_result::scope>{});
+    f("primary_key", member_ptr<&db_result::primary_key>{});
+    f("payer", member_ptr<&db_result::payer>{});
+    f("value", member_ptr<&db_result::value>{});
 }
+
+bool testdb(JSContext* cx, unsigned argc, JS::Value* vp) {
+    try {
+        JS::CallArgs args = CallArgsFromVp(argc, vp);
+        if (!args.requireAtLeast(cx, "testdb", 2))
+            return false;
+        pqxx::work t(foo_global->sql_connection);
+        auto       result = t.exec(R"(
+            select
+                distinct on(code, "table", scope, primary_key)
+                block_index, present, code, "table", scope, primary_key, payer, value
+            from
+                chain.contract_row
+            where
+                block_index <= 30000000
+                and code = 'eosio.token'
+                and "table" = 'accounts'
+                and scope > 'z'
+                and primary_key = 5459781
+            order by
+                code,
+                "table",
+                primary_key,
+                scope,
+                block_index desc,
+                present desc
+            limit 10
+        )");
+
+        std::vector<db_result> v;
+        for (const auto& r : result) {
+            v.push_back(db_result{
+                .block_index = r[0].as<uint32_t>(),
+                .present     = r[1].as<bool>(),
+                .code        = name{r[2].as<std::string>().c_str()},
+                .table       = name{r[3].as<std::string>().c_str()},
+                .scope       = name{r[4].as<std::string>().c_str()},
+                .primary_key = r[5].as<uint64_t>(),
+                .payer       = name{r[6].as<std::string>().c_str()},
+                .value       = r[7].as<std::string>(),
+            });
+        }
+        t.commit();
+
+        std::vector<char> bin;
+        native_to_bin(bin, v);
+        auto data = get_mem_from_callback(cx, args, 0, 1, bin.size());
+        if (!js_assert(data, cx, "testdb: failed to fetch buffer from callback"))
+            return false;
+        memcpy(data, bin.data(), bin.size());
+        return true;
+    } catch (...) {
+        std::cerr << "!!!!!\n";
+        JS_ReportOutOfMemory(cx);
+        return false;
+    }
+} // testdb
 
 static const JSFunctionSpec functions[] = {
     JS_FN("printStr", printStr, 0, 0),         //

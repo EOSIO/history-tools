@@ -2,7 +2,12 @@
 
 // todo: timeout wasm
 // todo: timeout sql
-// todo: limit memory size
+// todo: what should memory size limit be?
+// todo: check callbacks for recursion to limit stack size
+// todo: make sure spidermonkey limits stack size
+// todo: global constructors in wasm
+
+#define DEBUG
 
 #include "abieos.hpp"
 
@@ -14,7 +19,6 @@
 #include <sstream>
 #include <string>
 
-#define DEBUG
 #include "jsapi.h"
 
 #include "js/AutoByteString.h"
@@ -177,34 +181,32 @@ input_buffer get_input_buffer(JS::CallArgs& args, unsigned buffer_arg, unsigned 
     return {data + begin, data + end};
 }
 
-char* get_mem_from_callback(JSContext* cx, JS::CallArgs& args, unsigned buffer_arg, unsigned callback_arg, int32_t size) {
-    // todo: don't use rval
-    if (!args[buffer_arg].isObject() || size < 0) {
-        std::cerr << "aaa\n";
+char* get_mem_from_callback(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, int32_t size) {
+    JS::RootedValue       cb_result(cx);
+    JS::AutoValueArray<1> cb_args(cx);
+    cb_args[0].set(JS::NumberValue(size));
+    if (!JS_CallFunctionValue(cx, nullptr, args[callback_arg], cb_args, &cb_result) || !cb_result.isObject())
         return nullptr;
-    }
-    JS::RootedValue      rv(cx, JS::NumberValue(size));
-    JS::HandleValueArray callbackArgs(rv);
-    if (!JS_CallFunctionValue(cx, nullptr, args[callback_arg], callbackArgs, args.rval()) || !args.rval().isInt32()) {
-        std::cerr << "bbb\n";
+
+    JS::RootedObject cb_result_obj(cx, &cb_result.toObject());
+    JS::RootedValue  cb_result_buf(cx);
+    JS::RootedValue  cb_result_size(cx);
+    if (!JS_GetElement(cx, cb_result_obj, 0, &cb_result_buf) || !JS_GetElement(cx, cb_result_obj, 1, &cb_result_size) ||
+        !cb_result_buf.isObject() || !cb_result_size.isInt32())
         return nullptr;
-    }
-    JSObject* memory = &args[buffer_arg].toObject();
-    auto      begin  = args.rval().toInt32();
-    auto      end    = uint64_t(begin) + uint64_t(size);
-    if (!JS_IsArrayBufferObject(memory) || !JS_ArrayBufferHasData(memory) || begin < 0) {
-        std::cerr << "ccc\n";
+
+    JS::RootedObject memory(cx, &cb_result_buf.toObject());
+    auto             begin = cb_result_size.toInt32();
+    auto             end   = uint64_t(begin) + uint64_t(size);
+    if (!JS_IsArrayBufferObject(memory) || !JS_ArrayBufferHasData(memory) || begin < 0)
         return nullptr;
-    }
     auto buf_len = JS_GetArrayBufferByteLength(memory);
     bool dummy   = false;
 
     JS::AutoCheckCannotGC checkGC;
     auto                  data = reinterpret_cast<char*>(JS_GetArrayBufferData(memory, &dummy, checkGC));
-    if (!data || end > buf_len) {
-        std::cerr << "ddd\n";
+    if (!data || end > buf_len)
         return nullptr;
-    }
     return data + begin;
 }
 
@@ -272,7 +274,7 @@ constexpr void for_each_field(db_result*, F f) {
 bool testdb(JSContext* cx, unsigned argc, JS::Value* vp) {
     try {
         JS::CallArgs args = CallArgsFromVp(argc, vp);
-        if (!args.requireAtLeast(cx, "testdb", 2))
+        if (!args.requireAtLeast(cx, "testdb", 1))
             return false;
         pqxx::work t(foo_global->sql_connection);
         auto       result = t.exec(R"(
@@ -314,7 +316,7 @@ bool testdb(JSContext* cx, unsigned argc, JS::Value* vp) {
 
         std::vector<char> bin;
         native_to_bin(bin, v);
-        auto data = get_mem_from_callback(cx, args, 0, 1, bin.size());
+        auto data = get_mem_from_callback(cx, args, 0, bin.size());
         if (!js_assert(data, cx, "testdb: failed to fetch buffer from callback"))
             return false;
         memcpy(data, bin.data(), bin.size());
@@ -337,7 +339,6 @@ static const JSFunctionSpec functions[] = {
 
 void runit() {
     JS_Init();
-
     {
         ContextWrapper context;
         JSAutoRequest  ar(context.cx);
@@ -365,11 +366,12 @@ void runit() {
                 throw std::runtime_error("JS::Evaluate failed");
         }
     }
-
     JS_ShutDown();
 }
 
 int main(int argc, const char* argv[]) {
+    std::cerr << std::unitbuf;
+
     try {
         bpo::options_description desc{"Options"};
         auto                     op = desc.add_options();

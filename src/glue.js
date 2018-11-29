@@ -19,7 +19,11 @@ try {
             throw new Error('called set_blockchain_parameters_packed');
         },
         testdb(cb_alloc_data, cb_alloc) {
-            testdb(inst.exports.memory.buffer, size => inst.exports.__indirect_function_table.get(cb_alloc)(cb_alloc_data, size));
+            testdb(size => {
+                // cb_alloc may resize memory, causing inst.exports.memory.buffer to change
+                let ptr = inst.exports.__indirect_function_table.get(cb_alloc)(cb_alloc_data, size);
+                return [inst.exports.memory.buffer, ptr];
+            });
         },
         printss(begin, end) {
             printWasmStr(inst.exports.memory.buffer, begin, end);

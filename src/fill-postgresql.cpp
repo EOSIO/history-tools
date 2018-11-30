@@ -1072,6 +1072,9 @@ struct session : enable_shared_from_this<session> {
             for (auto& f : field.type->fields)
                 fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
         } else if (field.type->filled_variant && field.type->fields.size() == 1 && field.type->fields[0].type->filled_struct) {
+            auto v = read_varuint32(bin);
+            if (v)
+                throw std::runtime_error("invalid variant in " + field.type->name);
             for (auto& f : field.type->fields[0].type->fields)
                 fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
         } else if (field.type->array_of && field.type->array_of->filled_struct) {

@@ -7,10 +7,8 @@
 #include <string>
 #include <vector>
 
+using namespace eosio;
 using namespace std;
-
-extern "C" void printss(const char* begin, const char* end);
-extern "C" void printi32(int32_t);
 
 extern "C" void* memcpy(void* __restrict dest, const void* __restrict src, size_t size) {
     auto d = reinterpret_cast<char*>(dest);
@@ -27,42 +25,34 @@ extern "C" void* memset(void* dest, int v, size_t size) {
     return dest;
 }
 
-inline void print() {}
+extern "C" void print_range(const char* begin, const char* end);
+extern "C" void prints(const char* cstr) { print_range(cstr, cstr + strlen(cstr)); }
+extern "C" void prints_l(const char* cstr, uint32_t len) { print_range(cstr, cstr + len); }
 
-template <int size, typename... Args>
-inline void print(const char (&s)[size], Args&&... args);
-
-template <typename... Args>
-inline void print(const string& s, Args&&... args);
-
-template <typename... Args>
-inline void print(const std::vector<char>& s, Args&&... args);
-
-template <typename... Args>
-inline void print(int32_t i, Args&&... args);
-
-template <int size, typename... Args>
-inline void print(const char (&s)[size], Args&&... args) {
-    printss(s, s + size);
-    print(std::forward<Args>(args)...);
+extern "C" void printn(uint64_t n) {
+    char buffer[13];
+    auto end = name{n}.write_as_string(buffer, buffer + sizeof(buffer));
+    print_range(buffer, end);
 }
 
-template <typename... Args>
-inline void print(const string& s, Args&&... args) {
-    printss(s.c_str(), s.c_str() + s.size());
-    print(std::forward<Args>(args)...);
+extern "C" void printui(uint64_t value) {
+    char  s[21];
+    char* ch = s;
+    do {
+        *ch++ = '0' + (value % 10);
+        value /= 10;
+    } while (value);
+    std::reverse(s, ch);
+    *ch = 0;
+    print_range(s, ch);
 }
 
-template <typename... Args>
-inline void print(const std::vector<char>& s, Args&&... args) {
-    printss(s.data(), s.data() + s.size());
-    print(std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-inline void print(int32_t i, Args&&... args) {
-    printi32(i);
-    print(std::forward<Args>(args)...);
+extern "C" void printi(int64_t value) {
+    if (value < 0) {
+        prints("-");
+        printui(-value);
+    } else
+        printui(value);
 }
 
 namespace eosio {
@@ -141,8 +131,8 @@ extern "C" void startup() {
         eosio::asset a;
         x.value >> a;
         print(
-            "    ", x.block_index, " ", x.present, " ", x.code.to_string(), " ", x.table.to_string(), " ", x.scope.to_string(), " ",
-            x.primary_key, " ", x.payer.to_string(), " ", a.amount, "\n");
+            "    ", x.block_index, " ", x.present, " ", x.code, " ", x.table, " ", x.scope, " ", x.primary_key, " ", x.payer, " ", a.amount,
+            "\n");
     }
     print("end wasm\n\n");
 }

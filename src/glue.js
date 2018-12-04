@@ -25,11 +25,8 @@ try {
                 return [inst.exports.memory.buffer, ptr];
             });
         },
-        printss(begin, end) {
+        print_range(begin, end) {
             print_wasm_str(inst.exports.memory.buffer, begin, end);
-        },
-        printi32(i) {
-            print_js_str('' + (i | 0));
         },
     };
     inst = new WebAssembly.Instance(mod, { env });

@@ -25,6 +25,9 @@ as $$
 		num_results integer = 0;
         found_key bool = false;
     begin
+        if max_results <= 0 then
+            return;
+        end if;
         for key_search in
             select
                 contract_row.scope

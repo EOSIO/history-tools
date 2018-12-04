@@ -104,35 +104,54 @@ inline void exec_query(const query& req, Alloc_fn alloc_fn) {
 inline std::vector<char> exec_query(const query& req) {
     std::vector<char> result;
     exec_query(req, [&result](size_t size) {
-        print("in callback: ", size, "\n");
         result.resize(size);
         return result.data();
     });
     return result;
 }
 
+template <typename result, typename F>
+bool for_each_query_result(const std::vector<char>& bytes, F f) {
+    eosio::datastream<const char*> ds(bytes.data(), bytes.size());
+    unsigned_int                   size;
+    ds >> size;
+    for (uint32_t i = 0; i < size.value; ++i) {
+        result r;
+        ds >> r;
+        if (!f(r))
+            return false;
+    }
+    return true;
+}
+
+template <typename payload, typename F>
+bool for_each_contract_row(const std::vector<char>& bytes, F f) {
+    return for_each_query_result<contract_row>(bytes, [&](contract_row& row) {
+        payload p;
+        row.value >> p;
+        if (!f(row, p))
+            return false;
+        return true;
+    });
+}
+
 extern "C" void startup() {
     print("\nstart wasm\n");
     auto s = exec_query(query_contract_row_range_scope{
-        .max_block_index = 30000000,
+        .max_block_index = 30000,
         .code            = eosio::name{"eosio.token"},
         .scope_min       = eosio::name{"eosio"},
         .scope_max       = eosio::name{"eosio.zzzzzz"},
         .table           = eosio::name{"accounts"},
         .primary_key     = 5459781,
-        .max_results     = 10,
+        .max_results     = 100,
     });
-    print("s.size(): ", s.size(), "\n");
-    eosio::datastream<const char*> ds(s.data(), s.size());
-    std::vector<contract_row>      result;
-    ds >> result;
-    print("result.size(): ", result.size(), "\n");
-    for (auto& x : result) {
-        eosio::asset a;
-        x.value >> a;
-        print(
-            "    ", x.block_index, " ", x.present, " ", x.code, " ", x.table, " ", x.scope, " ", x.primary_key, " ", x.payer, " ", a.amount,
-            "\n");
-    }
+    for_each_contract_row<asset>(s, [&](contract_row& r, asset& a) {
+        print("    ", r.block_index, " ", r.present, " ", r.code, " ", r.table, " ", r.scope, " ", r.primary_key, " ", r.payer);
+        if (r.present)
+            print(" ", a.amount);
+        print("\n");
+        return true;
+    });
     print("end wasm\n\n");
 }

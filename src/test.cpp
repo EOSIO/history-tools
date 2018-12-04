@@ -78,29 +78,42 @@ inline datastream<Stream>& operator>>(datastream<Stream>& ds, datastream<Stream>
 
 typedef void* cb_alloc_fn(void* cb_alloc_data, size_t size);
 
-struct db_result {
+struct contract_row {
     uint32_t                       block_index = 0;
     bool                           present     = false;
     eosio::name                    code;
-    eosio::name                    table;
     eosio::name                    scope;
+    eosio::name                    table;
     uint64_t                       primary_key = 0;
     eosio::name                    payer;
     eosio::datastream<const char*> value{nullptr, 0};
 };
 
-extern "C" void testdb(void* cb_alloc_data, cb_alloc_fn* cb_alloc);
+struct query_contract_row_range_scope {
+    uint32_t    max_block_index = 0;
+    eosio::name code;
+    eosio::name scope_min;
+    eosio::name scope_max;
+    eosio::name table;
+    uint64_t    primary_key = 0;
+    uint32_t    max_results = 1;
+};
+
+using query = std::variant<query_contract_row_range_scope>;
+
+extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, cb_alloc_fn* cb_alloc);
 
 template <typename Alloc_fn>
-inline void testdb(Alloc_fn alloc_fn) {
-    testdb(&alloc_fn, [](void* cb_alloc_data, size_t size) -> void* { //
+inline void exec_query(const query& req, Alloc_fn alloc_fn) {
+    auto req_data = eosio::pack(req);
+    exec_query(req_data.data(), req_data.data() + req_data.size(), &alloc_fn, [](void* cb_alloc_data, size_t size) -> void* { //
         return (*reinterpret_cast<Alloc_fn*>(cb_alloc_data))(size);
     });
 }
 
-inline std::vector<char> testdb() {
+inline std::vector<char> exec_query(const query& req) {
     std::vector<char> result;
-    testdb([&result](size_t size) {
+    exec_query(req, [&result](size_t size) {
         print("in callback: ", size, "\n");
         result.resize(size);
         return result.data();
@@ -110,10 +123,18 @@ inline std::vector<char> testdb() {
 
 extern "C" void startup() {
     print("\nstart wasm\n");
-    auto s = testdb();
+    auto s = exec_query(query_contract_row_range_scope{
+        .max_block_index = 30000000,
+        .code            = eosio::name{"eosio.token"},
+        .scope_min       = eosio::name{"eosio"},
+        .scope_max       = eosio::name{"eosio.zzzzzz"},
+        .table           = eosio::name{"accounts"},
+        .primary_key     = 5459781,
+        .max_results     = 10,
+    });
     print("s.size(): ", s.size(), "\n");
     eosio::datastream<const char*> ds(s.data(), s.size());
-    std::vector<db_result>         result;
+    std::vector<contract_row>      result;
     ds >> result;
     print("result.size(): ", result.size(), "\n");
     for (auto& x : result) {

@@ -18,8 +18,8 @@ try {
         set_blockchain_parameters_packed() {
             throw new Error('called set_blockchain_parameters_packed');
         },
-        testdb(cb_alloc_data, cb_alloc) {
-            testdb(size => {
+        exec_query(req_begin, req_end, cb_alloc_data, cb_alloc) {
+            exec_query(inst.exports.memory.buffer, req_begin, req_end, size => {
                 // cb_alloc may resize memory, causing inst.exports.memory.buffer to change
                 let ptr = inst.exports.__indirect_function_table.get(cb_alloc)(cb_alloc_data, size);
                 return [inst.exports.memory.buffer, ptr];
@@ -35,5 +35,5 @@ try {
     inst = new WebAssembly.Instance(mod, { env });
     inst.exports.startup();
 } catch (e) {
-    print_js_str('Caught: ' + e);
+    print_js_str('Caught: ' + e + '\n');
 }

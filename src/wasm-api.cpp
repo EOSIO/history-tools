@@ -18,6 +18,7 @@
 #include <pqxx/pqxx>
 #include <sstream>
 #include <string>
+#include <variant>
 
 #include "jsapi.h"
 
@@ -27,8 +28,38 @@
 #include "jsfriendapi.h"
 
 using namespace abieos;
-
+using namespace std::literals;
 namespace bpo = boost::program_options;
+
+using std::string;
+using std::to_string;
+
+static const string null_value = "null";
+static const string sep        = ",";
+
+inline string quote(string s) { return "'" + s + "'"; }
+inline string quote_bytea(string s) { return "'\\x" + s + "'"; }
+
+// clang-format off
+inline string sql_str(bool v)               { return v ? "true" : "false";}
+inline string sql_str(uint16_t v)           { return to_string(v); }
+inline string sql_str(int16_t v)            { return to_string(v); }
+inline string sql_str(uint32_t v)           { return to_string(v); }
+inline string sql_str(int32_t v)            { return to_string(v); }
+inline string sql_str(uint64_t v)           { return to_string(v); }
+inline string sql_str(int64_t v)            { return to_string(v); }
+inline string sql_str(varuint32 v)          { return string(v); }
+inline string sql_str(varint32 v)           { return string(v); }
+inline string sql_str(int128 v)             { return string(v); }
+inline string sql_str(uint128 v)            { return string(v); }
+inline string sql_str(float128 v)           { return quote_bytea(string(v)); }
+inline string sql_str(name v)               { return quote(v.value ? string(v) : ""s); }
+inline string sql_str(time_point v)         { return v.microseconds ? quote(string(v)): null_value; }
+inline string sql_str(time_point_sec v)     { return v.utc_seconds ? quote(string(v)): null_value; }
+inline string sql_str(block_timestamp v)    { return v.slot ?  quote(string(v)) : null_value; }
+inline string sql_str(checksum256 v)        { return quote(v.value == checksum256{}.value ? "" : string(v)); }
+inline string sql_str(const public_key& v)  { return quote(public_key_to_string(v)); }
+// clang-format on
 
 template <class C, typename M>
 const C* class_from_void(M C::*, const void* v) {
@@ -47,7 +78,7 @@ inline void native_to_bin(std::vector<char>& bin, const name& obj) {
     native_to_bin(bin, obj.value); //
 }
 
-void native_to_bin(std::vector<char>& bin, const std::string& obj) {
+void native_to_bin(std::vector<char>& bin, const string& obj) {
     push_varuint32(bin, obj.size());
     bin.insert(bin.end(), obj.begin(), obj.end());
 }
@@ -89,12 +120,12 @@ bytes sql_to_bytes(const char* ch) {
     return result;
 }
 
-std::string readStr(const char* filename) {
+string readStr(const char* filename) {
     std::fstream file(filename, std::ios_base::in | std::ios_base::binary);
     file.seekg(0, std::ios_base::end);
     auto len = file.tellg();
     file.seekg(0, std::ios_base::beg);
-    std::string result(len, 0);
+    string result(len, 0);
     file.read(result.data(), len);
     return result;
 }
@@ -107,7 +138,7 @@ bool buildIdOp(JS::BuildIdCharVector* buildId) {
 }
 
 struct foo {
-    std::string      schema;
+    string           schema;
     pqxx::connection sql_connection;
 };
 
@@ -151,7 +182,7 @@ struct ContextWrapper {
     ~ContextWrapper() { JS_DestroyContext(cx); }
 };
 
-bool convert_str(JSContext* cx, JSString* str, std::string& dest) {
+bool convert_str(JSContext* cx, JSString* str, string& dest) {
     auto len = JS_GetStringEncodingLength(cx, str);
     if (len == size_t(-1))
         return false;
@@ -162,7 +193,7 @@ bool convert_str(JSContext* cx, JSString* str, std::string& dest) {
 
 bool print_js_str(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::CallArgs args = CallArgsFromVp(argc, vp);
-    std::string  s;
+    string       s;
     for (unsigned i = 0; i < args.length(); ++i)
         if (args[i].isString() && convert_str(cx, args[i].toString(), s))
             std::cerr << s;
@@ -243,7 +274,7 @@ bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
         file.seekg(0, std::ios_base::beg);
         auto data = malloc(len);
         if (!data) {
-            std::cerr << "!!!!!\n";
+            std::cerr << "!!!!! a\n";
             JS_ReportOutOfMemory(cx);
             return false;
         }
@@ -252,66 +283,75 @@ bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
         args.rval().setObjectOrNull(JS_NewArrayBufferWithContents(cx, len, data));
         return true;
     } catch (...) {
-        std::cerr << "!!!!!\n";
+        std::cerr << "!!!!! b\n";
         JS_ReportOutOfMemory(cx);
         return false;
     }
 }
 
-struct db_result {
+struct query_contract_row_range_scope {
+    uint32_t max_block_index = 0;
+    name     code;
+    name     scope_min;
+    name     scope_max;
+    name     table;
+    uint64_t primary_key = 0;
+    uint32_t max_results = 1;
+};
+
+template <typename F>
+constexpr void for_each_field(query_contract_row_range_scope*, F f) {
+    f("max_block_index", member_ptr<&query_contract_row_range_scope::max_block_index>{});
+    f("code", member_ptr<&query_contract_row_range_scope::code>{});
+    f("scope_min", member_ptr<&query_contract_row_range_scope::scope_min>{});
+    f("scope_max", member_ptr<&query_contract_row_range_scope::scope_max>{});
+    f("table", member_ptr<&query_contract_row_range_scope::table>{});
+    f("primary_key", member_ptr<&query_contract_row_range_scope::primary_key>{});
+    f("max_results", member_ptr<&query_contract_row_range_scope::max_results>{});
+};
+
+using query = std::variant<query_contract_row_range_scope>;
+
+struct contract_row {
     uint32_t block_index = 0;
     bool     present     = false;
     name     code;
-    name     table;
     name     scope;
+    name     table;
     uint64_t primary_key = 0;
     name     payer;
     bytes    value;
 };
 
 template <typename F>
-constexpr void for_each_field(db_result*, F f) {
-    f("block_index", member_ptr<&db_result::block_index>{});
-    f("present", member_ptr<&db_result::present>{});
-    f("code", member_ptr<&db_result::code>{});
-    f("table", member_ptr<&db_result::table>{});
-    f("scope", member_ptr<&db_result::scope>{});
-    f("primary_key", member_ptr<&db_result::primary_key>{});
-    f("payer", member_ptr<&db_result::payer>{});
-    f("value", member_ptr<&db_result::value>{});
+constexpr void for_each_field(contract_row*, F f) {
+    f("block_index", member_ptr<&contract_row::block_index>{});
+    f("present", member_ptr<&contract_row::present>{});
+    f("code", member_ptr<&contract_row::code>{});
+    f("scope", member_ptr<&contract_row::scope>{});
+    f("table", member_ptr<&contract_row::table>{});
+    f("primary_key", member_ptr<&contract_row::primary_key>{});
+    f("payer", member_ptr<&contract_row::payer>{});
+    f("value", member_ptr<&contract_row::value>{});
 }
 
-bool testdb(JSContext* cx, unsigned argc, JS::Value* vp) {
+bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, query_contract_row_range_scope& req) {
     try {
-        JS::CallArgs args = CallArgsFromVp(argc, vp);
-        if (!args.requireAtLeast(cx, "testdb", 1))
-            return false;
         pqxx::work t(foo_global->sql_connection);
-        auto       result = t.exec(R"(
-            select
-                distinct on(code, "table", scope, primary_key)
-                block_index, present, code, "table", scope, primary_key, payer, value
-            from
-                chain.contract_row
-            where
-                block_index <= 30000000
-                and code = 'eosio.token'
-                and "table" = 'accounts'
-                and scope > 'z'
-                and primary_key = 5459781
-            order by
-                code,
-                "table",
-                primary_key,
-                scope,
-                block_index desc,
-                present desc
-            limit 10
-        )");
 
-        std::vector<db_result> v;
+        auto result = t.exec(
+            "select * from chain.contract_row_range_scope(" + //
+            sql_str(req.max_block_index) + sep +              //
+            sql_str(req.code) + sep +                         //
+            sql_str(req.scope_min) + sep +                    //
+            sql_str(req.scope_max) + sep +                    //
+            sql_str(req.table) + sep +                        //
+            sql_str(req.primary_key) + sep +                  //
+            sql_str(req.max_results) + ")");
+
+        std::vector<contract_row> v;
         for (const auto& r : result) {
-            v.push_back(db_result{
+            v.push_back(contract_row{
                 .block_index = r[0].as<uint32_t>(),
                 .present     = r[1].as<bool>(),
                 .code        = name{r[2].c_str()},
@@ -326,23 +366,45 @@ bool testdb(JSContext* cx, unsigned argc, JS::Value* vp) {
 
         std::vector<char> bin;
         native_to_bin(bin, v);
-        auto data = get_mem_from_callback(cx, args, 0, bin.size());
-        if (!js_assert(data, cx, "testdb: failed to fetch buffer from callback"))
+        auto data = get_mem_from_callback(cx, args, callback_arg, bin.size());
+        if (!js_assert(data, cx, "exec_query: failed to fetch buffer from callback"))
             return false;
         memcpy(data, bin.data(), bin.size());
         return true;
     } catch (...) {
-        std::cerr << "!!!!!\n";
+        std::cerr << "!!!!! c\n";
         JS_ReportOutOfMemory(cx);
         return false;
     }
-} // testdb
+} // query_db_impl
+
+// args: ArrayBuffer, row_request_begin, row_request_end, callback
+bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
+    JS::CallArgs args = CallArgsFromVp(argc, vp);
+    if (!args.requireAtLeast(cx, "exec_query", 4))
+        return false;
+    query req{};
+    bool  ok = false;
+    {
+        JS::AutoCheckCannotGC checkGC;
+        auto                  bin = get_input_buffer(args, 0, 1, 2, checkGC);
+        if (bin.pos) {
+            try {
+                ok = bin_to_native(req, bin);
+            } catch (...) {
+            }
+        }
+    }
+    if (!ok)
+        return js_assert(false, cx, "exec_query: invalid args");
+    return std::visit([&](auto& r) { return query_db_impl(cx, args, 3, r); }, req);
+} // exec_query
 
 static const JSFunctionSpec functions[] = {
     JS_FN("print_js_str", print_js_str, 0, 0),     //
     JS_FN("print_wasm_str", print_wasm_str, 0, 0), //
     JS_FN("get_wasm", get_wasm, 0, 0),             //
-    JS_FN("testdb", testdb, 0, 0),                 //
+    JS_FN("exec_query", exec_query, 0, 0),         //
     JS_FS_END                                      //
 };
 
@@ -385,7 +447,7 @@ int main(int argc, const char* argv[]) {
         bpo::options_description desc{"Options"};
         auto                     op = desc.add_options();
         op("help,h", "Help screen");
-        op("schema,s", bpo::value<std::string>()->default_value("chain"), "Database schema");
+        op("schema,s", bpo::value<string>()->default_value("chain"), "Database schema");
         bpo::variables_map vm;
         bpo::store(bpo::parse_command_line(argc, argv, desc), vm);
         bpo::notify(vm);
@@ -396,7 +458,7 @@ int main(int argc, const char* argv[]) {
         }
 
         foo_global         = std::make_unique<foo>();
-        foo_global->schema = vm["schema"].as<std::string>();
+        foo_global->schema = vm["schema"].as<string>();
         runit();
         return 0;
     } catch (const std::exception& e) {

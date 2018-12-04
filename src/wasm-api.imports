@@ -4,4 +4,4 @@ get_blockchain_parameters_packed
 printi32
 printss
 set_blockchain_parameters_packed
-testdb
+exec_query

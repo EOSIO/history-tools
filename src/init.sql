@@ -7,14 +7,14 @@ create index if not exists contract_row_code_table_primary_key_scope_block_index
     present desc
 );
 
-drop function if exists chain.contract_row_scope_range;
-create function chain.contract_row_scope_range(
+drop function if exists chain.contract_row_range_scope;
+create function chain.contract_row_range_scope(
+    max_block_index bigint,
     code varchar(13),
     min_scope varchar(13),
     max_scope varchar(13),
     "table" varchar(13),
     primary_key numeric,
-    max_block_index bigint,
     max_results integer
 ) returns setof chain.contract_row
 as $$

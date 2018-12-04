@@ -24,6 +24,7 @@ as $$
         block_search record;
 		num_results integer = 0;
         found_key bool = false;
+        found_block bool = false;
     begin
         if max_results <= 0 then
             return;
@@ -49,6 +50,7 @@ as $$
             limit 1
         loop
             found_key = true;
+            found_block = false;
             min_scope = key_search.scope;
             for block_search in
                 select
@@ -70,9 +72,16 @@ as $$
                     present desc
                 limit 1
             loop
-                return next block_search;
-                num_results = num_results + 1;
+                if block_search.present then
+                    return next block_search;
+                    num_results = num_results + 1;
+                    found_block = true;
+                end if;
             end loop;
+            if not found_block then
+                return next row(0::bigint, false, code::varchar(13), key_search.scope::varchar(13), "table"::varchar(13), primary_key, ''::varchar(13), ''::bytea);
+                num_results = num_results + 1;
+            end if;
         end loop;
 
         loop
@@ -100,6 +109,7 @@ as $$
                 limit 1
             loop
                 found_key = true;
+                found_block = false;
                 min_scope = key_search.scope;
                 for block_search in
                     select
@@ -121,9 +131,16 @@ as $$
                         present desc
                     limit 1
                 loop
-                    return next block_search;
-                    num_results = num_results + 1;
+                    if block_search.present then
+                        return next block_search;
+                        num_results = num_results + 1;
+                        found_block = true;
+                    end if;
                 end loop;
+                if not found_block then
+                    return next row(0::bigint, false, code::varchar(13), key_search.scope::varchar(13), "table"::varchar(13), primary_key, ''::varchar(13), ''::bytea);
+                    num_results = num_results + 1;
+                end if;
             end loop;
         end loop;
     end 

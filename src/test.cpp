@@ -128,9 +128,15 @@ template <typename payload, typename F>
 bool for_each_contract_row(const std::vector<char>& bytes, F f) {
     return for_each_query_result<contract_row>(bytes, [&](contract_row& row) {
         payload p;
-        row.value >> p;
-        if (!f(row, p))
-            return false;
+        if (row.present && row.value.remaining()) {
+            // todo: don't assert if serialization fails
+            row.value >> p;
+            if (!f(row, &p))
+                return false;
+        } else {
+            if (!f(row, nullptr))
+                return false;
+        }
         return true;
     });
 }
@@ -146,10 +152,10 @@ extern "C" void startup() {
         .primary_key     = 5459781,
         .max_results     = 100,
     });
-    for_each_contract_row<asset>(s, [&](contract_row& r, asset& a) {
+    for_each_contract_row<asset>(s, [&](contract_row& r, asset* a) {
         print("    ", r.block_index, " ", r.present, " ", r.code, " ", r.table, " ", r.scope, " ", r.primary_key, " ", r.payer);
-        if (r.present)
-            print(" ", a.amount);
+        if (r.present && a)
+            print(" ", a->amount);
         print("\n");
         return true;
     });

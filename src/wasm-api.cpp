@@ -304,6 +304,21 @@ constexpr void for_each_field(code_table_pk_scope*, F f) {
     f("scope", member_ptr<&code_table_pk_scope::scope>{});
 };
 
+struct code_table_scope_pk {
+    name     code;
+    name     table;
+    name     scope;
+    uint64_t primary_key = 0;
+};
+
+template <typename F>
+constexpr void for_each_field(code_table_scope_pk*, F f) {
+    f("code", member_ptr<&code_table_scope_pk::code>{});
+    f("table", member_ptr<&code_table_scope_pk::table>{});
+    f("scope", member_ptr<&code_table_scope_pk::scope>{});
+    f("primary_key", member_ptr<&code_table_scope_pk::primary_key>{});
+};
+
 struct query_contract_row_range_code_table_pk_scope {
     uint32_t            max_block_index = 0;
     code_table_pk_scope first;
@@ -319,7 +334,22 @@ constexpr void for_each_field(query_contract_row_range_code_table_pk_scope*, F f
     f("max_results", member_ptr<&query_contract_row_range_code_table_pk_scope::max_results>{});
 };
 
-using query = std::variant<query_contract_row_range_code_table_pk_scope>;
+struct query_contract_row_range_code_table_scope_pk {
+    uint32_t            max_block_index = 0;
+    code_table_scope_pk first;
+    code_table_scope_pk last;
+    uint32_t            max_results = 1;
+};
+
+template <typename F>
+constexpr void for_each_field(query_contract_row_range_code_table_scope_pk*, F f) {
+    f("max_block_index", member_ptr<&query_contract_row_range_code_table_scope_pk::max_block_index>{});
+    f("first", member_ptr<&query_contract_row_range_code_table_scope_pk::first>{});
+    f("last", member_ptr<&query_contract_row_range_code_table_scope_pk::last>{});
+    f("max_results", member_ptr<&query_contract_row_range_code_table_scope_pk::max_results>{});
+};
+
+using query = std::variant<query_contract_row_range_code_table_pk_scope, query_contract_row_range_code_table_scope_pk>;
 
 struct contract_row {
     uint32_t block_index = 0;
@@ -344,32 +374,21 @@ constexpr void for_each_field(contract_row*, F f) {
     f("value", member_ptr<&contract_row::value>{});
 }
 
-bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, query_contract_row_range_code_table_pk_scope& req) {
+template <typename F>
+bool query_contract_row(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, F exec) {
     try {
         pqxx::work t(foo_global->sql_connection);
-
-        auto result = t.exec(
-            "select * from chain.contract_row_range_code_table_pk_scope(" + //
-            sql_str(req.max_block_index) + sep +                            //
-            sql_str(req.first.code) + sep +                                 //
-            sql_str(req.first.table) + sep +                                //
-            sql_str(req.first.primary_key) + sep +                          //
-            sql_str(req.first.scope) + sep +                                //
-            sql_str(req.last.code) + sep +                                  //
-            sql_str(req.last.table) + sep +                                 //
-            sql_str(req.last.primary_key) + sep +                           //
-            sql_str(req.last.scope) + sep +                                 //
-            sql_str(req.max_results) + ")");
+        auto       result = exec(t);
 
         std::vector<contract_row> v;
         for (const auto& r : result) {
             v.push_back(contract_row{
-                .block_index = r[0].as<uint32_t>(),
-                .present     = r[1].as<bool>(),
+                .block_index = r[0].template as<uint32_t>(),
+                .present     = r[1].template as<bool>(),
                 .code        = name{r[2].c_str()},
-                .table       = name{r[3].c_str()},
-                .scope       = name{r[4].c_str()},
-                .primary_key = r[5].as<uint64_t>(),
+                .scope       = name{r[3].c_str()},
+                .table       = name{r[4].c_str()},
+                .primary_key = r[5].template as<uint64_t>(),
                 .payer       = name{r[6].c_str()},
                 .value       = sql_to_bytes(r[7].c_str()),
             });
@@ -388,7 +407,43 @@ bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, que
         JS_ReportOutOfMemory(cx);
         return false;
     }
-} // query_db_impl
+} // query_contract_row
+
+bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, query_contract_row_range_code_table_pk_scope& req) {
+    return query_contract_row(cx, args, callback_arg, [&req](auto& t) {
+        return t.exec(
+            "select * from chain.contract_row_range_code_table_pk_scope(" + //
+            sql_str(req.max_block_index) + sep +                            //
+            sql_str(req.first.code) + sep +                                 //
+            sql_str(req.first.table) + sep +                                //
+            sql_str(req.first.primary_key) + sep +                          //
+            sql_str(req.first.scope) + sep +                                //
+            sql_str(req.last.code) + sep +                                  //
+            sql_str(req.last.table) + sep +                                 //
+            sql_str(req.last.primary_key) + sep +                           //
+            sql_str(req.last.scope) + sep +                                 //
+            sql_str(req.max_results) +                                      //
+            ")");
+    });
+}
+
+bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, query_contract_row_range_code_table_scope_pk& req) {
+    return query_contract_row(cx, args, callback_arg, [&req](auto& t) {
+        return t.exec(
+            "select * from chain.contract_row_range_code_table_scope_pk(" + //
+            sql_str(req.max_block_index) + sep +                            //
+            sql_str(req.first.code) + sep +                                 //
+            sql_str(req.first.table) + sep +                                //
+            sql_str(req.first.scope) + sep +                                //
+            sql_str(req.first.primary_key) + sep +                          //
+            sql_str(req.last.code) + sep +                                  //
+            sql_str(req.last.table) + sep +                                 //
+            sql_str(req.last.scope) + sep +                                 //
+            sql_str(req.last.primary_key) + sep +                           //
+            sql_str(req.max_results) +                                      //
+            ")");
+    });
+}
 
 // args: ArrayBuffer, row_request_begin, row_request_end, callback
 bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {

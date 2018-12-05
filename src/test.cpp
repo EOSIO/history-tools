@@ -86,6 +86,13 @@ struct code_table_pk_scope {
     uint64_t scope;
 };
 
+struct code_table_scope_pk {
+    name     code;
+    name     table;
+    uint64_t scope;
+    uint64_t primary_key = 0;
+};
+
 struct query_contract_row_range_code_table_pk_scope {
     uint32_t            max_block_index = 0;
     code_table_pk_scope first;
@@ -93,7 +100,14 @@ struct query_contract_row_range_code_table_pk_scope {
     uint32_t            max_results = 1;
 };
 
-using query = std::variant<query_contract_row_range_code_table_pk_scope>;
+struct query_contract_row_range_code_table_scope_pk {
+    uint32_t            max_block_index = 0;
+    code_table_scope_pk first;
+    code_table_scope_pk last;
+    uint32_t            max_results = 1;
+};
+
+using query = std::variant<query_contract_row_range_code_table_pk_scope, query_contract_row_range_code_table_scope_pk>;
 
 extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, cb_alloc_fn* cb_alloc);
 
@@ -172,6 +186,36 @@ extern "C" void startup() {
         print("\n");
         return true;
     });
-    print(symbol{"EOS", 4}.raw(), "\n");
+
+    print("\n");
+    s = exec_query(query_contract_row_range_code_table_scope_pk{
+        .max_block_index = 30000000,
+        .first =
+            {
+                .code        = "eosio.msig"_n,
+                .table       = "proposal"_n,
+                .scope       = 0,
+                .primary_key = 0,
+            },
+        .last =
+            {
+                .code        = "eosio.msig"_n,
+                .table       = "proposal"_n,
+                .scope       = ~uint64_t(0),
+                .primary_key = ~uint64_t(0),
+            },
+        .max_results = 20,
+    });
+    for_each_query_result<contract_row>(s, [&](contract_row& r) {
+        // print(
+        //     "    block_index: ", r.block_index, " present: ", r.present, " code: ", r.code, " scope: ", r.scope, " table: ", r.table,
+        //     " primary_key: ", r.primary_key, " payer: ", r.payer, "\n");
+        print("    ", r.block_index, " ", r.present, " ", r.code, " ", r.table, " ", name{r.scope}, " ", name{r.primary_key});
+        if (r.present)
+            print(" ", r.value.remaining(), " bytes");
+        print("\n");
+        return true;
+    });
+
     print("end wasm\n\n");
 }

@@ -289,28 +289,37 @@ bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
     }
 }
 
-struct query_contract_row_range_scope {
-    uint32_t max_block_index = 0;
+struct code_table_pk_scope {
     name     code;
-    name     scope_min;
-    name     scope_max;
     name     table;
     uint64_t primary_key = 0;
-    uint32_t max_results = 1;
+    name     scope;
 };
 
 template <typename F>
-constexpr void for_each_field(query_contract_row_range_scope*, F f) {
-    f("max_block_index", member_ptr<&query_contract_row_range_scope::max_block_index>{});
-    f("code", member_ptr<&query_contract_row_range_scope::code>{});
-    f("scope_min", member_ptr<&query_contract_row_range_scope::scope_min>{});
-    f("scope_max", member_ptr<&query_contract_row_range_scope::scope_max>{});
-    f("table", member_ptr<&query_contract_row_range_scope::table>{});
-    f("primary_key", member_ptr<&query_contract_row_range_scope::primary_key>{});
-    f("max_results", member_ptr<&query_contract_row_range_scope::max_results>{});
+constexpr void for_each_field(code_table_pk_scope*, F f) {
+    f("code", member_ptr<&code_table_pk_scope::code>{});
+    f("table", member_ptr<&code_table_pk_scope::table>{});
+    f("primary_key", member_ptr<&code_table_pk_scope::primary_key>{});
+    f("scope", member_ptr<&code_table_pk_scope::scope>{});
 };
 
-using query = std::variant<query_contract_row_range_scope>;
+struct query_contract_row_range_code_table_pk_scope {
+    uint32_t            max_block_index = 0;
+    code_table_pk_scope first;
+    code_table_pk_scope last;
+    uint32_t            max_results = 1;
+};
+
+template <typename F>
+constexpr void for_each_field(query_contract_row_range_code_table_pk_scope*, F f) {
+    f("max_block_index", member_ptr<&query_contract_row_range_code_table_pk_scope::max_block_index>{});
+    f("first", member_ptr<&query_contract_row_range_code_table_pk_scope::first>{});
+    f("last", member_ptr<&query_contract_row_range_code_table_pk_scope::last>{});
+    f("max_results", member_ptr<&query_contract_row_range_code_table_pk_scope::max_results>{});
+};
+
+using query = std::variant<query_contract_row_range_code_table_pk_scope>;
 
 struct contract_row {
     uint32_t block_index = 0;
@@ -335,18 +344,21 @@ constexpr void for_each_field(contract_row*, F f) {
     f("value", member_ptr<&contract_row::value>{});
 }
 
-bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, query_contract_row_range_scope& req) {
+bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, query_contract_row_range_code_table_pk_scope& req) {
     try {
         pqxx::work t(foo_global->sql_connection);
 
         auto result = t.exec(
-            "select * from chain.contract_row_range_scope(" + //
-            sql_str(req.max_block_index) + sep +              //
-            sql_str(req.code) + sep +                         //
-            sql_str(req.scope_min) + sep +                    //
-            sql_str(req.scope_max) + sep +                    //
-            sql_str(req.table) + sep +                        //
-            sql_str(req.primary_key) + sep +                  //
+            "select * from chain.contract_row_range_code_table_pk_scope(" + //
+            sql_str(req.max_block_index) + sep +                            //
+            sql_str(req.first.code) + sep +                                 //
+            sql_str(req.first.table) + sep +                                //
+            sql_str(req.first.primary_key) + sep +                          //
+            sql_str(req.first.scope) + sep +                                //
+            sql_str(req.last.code) + sep +                                  //
+            sql_str(req.last.table) + sep +                                 //
+            sql_str(req.last.primary_key) + sep +                           //
+            sql_str(req.last.scope) + sep +                                 //
             sql_str(req.max_results) + ")");
 
         std::vector<contract_row> v;

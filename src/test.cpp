@@ -69,33 +69,37 @@ inline datastream<Stream>& operator>>(datastream<Stream>& ds, datastream<Stream>
 typedef void* cb_alloc_fn(void* cb_alloc_data, size_t size);
 
 struct contract_row {
-    uint32_t                       block_index = 0;
-    bool                           present     = false;
-    eosio::name                    code;
-    eosio::name                    scope;
-    eosio::name                    table;
-    uint64_t                       primary_key = 0;
-    eosio::name                    payer;
-    eosio::datastream<const char*> value{nullptr, 0};
+    uint32_t                block_index = 0;
+    bool                    present     = false;
+    name                    code;
+    uint64_t                scope;
+    name                    table;
+    uint64_t                primary_key = 0;
+    name                    payer;
+    datastream<const char*> value{nullptr, 0};
 };
 
-struct query_contract_row_range_scope {
-    uint32_t    max_block_index = 0;
-    eosio::name code;
-    eosio::name scope_min;
-    eosio::name scope_max;
-    eosio::name table;
-    uint64_t    primary_key = 0;
-    uint32_t    max_results = 1;
+struct code_table_pk_scope {
+    name     code;
+    name     table;
+    uint64_t primary_key = 0;
+    uint64_t scope;
 };
 
-using query = std::variant<query_contract_row_range_scope>;
+struct query_contract_row_range_code_table_pk_scope {
+    uint32_t            max_block_index = 0;
+    code_table_pk_scope first;
+    code_table_pk_scope last;
+    uint32_t            max_results = 1;
+};
+
+using query = std::variant<query_contract_row_range_code_table_pk_scope>;
 
 extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, cb_alloc_fn* cb_alloc);
 
 template <typename Alloc_fn>
 inline void exec_query(const query& req, Alloc_fn alloc_fn) {
-    auto req_data = eosio::pack(req);
+    auto req_data = pack(req);
     exec_query(req_data.data(), req_data.data() + req_data.size(), &alloc_fn, [](void* cb_alloc_data, size_t size) -> void* { //
         return (*reinterpret_cast<Alloc_fn*>(cb_alloc_data))(size);
     });
@@ -112,8 +116,8 @@ inline std::vector<char> exec_query(const query& req) {
 
 template <typename result, typename F>
 bool for_each_query_result(const std::vector<char>& bytes, F f) {
-    eosio::datastream<const char*> ds(bytes.data(), bytes.size());
-    unsigned_int                   size;
+    datastream<const char*> ds(bytes.data(), bytes.size());
+    unsigned_int            size;
     ds >> size;
     for (uint32_t i = 0; i < size.value; ++i) {
         result r;
@@ -143,21 +147,31 @@ bool for_each_contract_row(const std::vector<char>& bytes, F f) {
 
 extern "C" void startup() {
     print("\nstart wasm\n");
-    auto s = exec_query(query_contract_row_range_scope{
-        .max_block_index = 30000,
-        .code            = eosio::name{"eosio.token"},
-        .scope_min       = eosio::name{"eosio"},
-        .scope_max       = eosio::name{"eosio.zzzzzz"},
-        .table           = eosio::name{"accounts"},
-        .primary_key     = 5459781,
-        .max_results     = 100,
+    auto s = exec_query(query_contract_row_range_code_table_pk_scope{
+        .max_block_index = 30000000,
+        .first =
+            {
+                .code        = "eosio.token"_n,
+                .table       = "accounts"_n,
+                .primary_key = symbol_code{"EOS"}.raw(),
+                .scope       = "eosio"_n.value,
+            },
+        .last =
+            {
+                .code        = "eosio.token"_n,
+                .table       = "accounts"_n,
+                .primary_key = symbol_code{"EOS"}.raw(),
+                .scope       = "eosio.zzzzzz"_n.value,
+            },
+        .max_results = 100,
     });
     for_each_contract_row<asset>(s, [&](contract_row& r, asset* a) {
-        print("    ", r.block_index, " ", r.present, " ", r.code, " ", r.table, " ", r.scope, " ", r.primary_key, " ", r.payer);
+        print("    ", r.block_index, " ", r.present, " ", r.code, " ", r.table, " ", name{r.scope}, " ", r.primary_key, " ", r.payer);
         if (r.present && a)
             print(" ", a->amount);
         print("\n");
         return true;
     });
+    print(symbol{"EOS", 4}.raw(), "\n");
     print("end wasm\n\n");
 }

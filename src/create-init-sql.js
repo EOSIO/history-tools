@@ -15,7 +15,57 @@ function generate({ table_name, index_name, keys, sort_keys }) {
             block_index desc,
             present desc
         );
-    `
+    `;
+
+    const key_search = (compare, indent) => `
+        ${indent}for key_search in
+        ${indent}    select
+        ${indent}        ${sort_keys_tuple('"', '"', ', ')}
+        ${indent}    from
+        ${indent}        chain.${table_name}
+        ${indent}    where
+        ${indent}        (${sort_keys_tuple('"', '"', ', ')}) ${compare} (${sort_keys_tuple('"first_', '"', ', ')})
+        ${indent}    order by
+        ${indent}        ${sort_keys_tuple('"', '"', ',\n                ' + indent)},
+        ${indent}        block_index desc,
+        ${indent}        present desc
+        ${indent}    limit 1
+        ${indent}loop
+        ${indent}    if (${sort_keys_tuple('key_search."', '"', ', ')}) > (${sort_keys_tuple('last_', '', ', ')}) then
+        ${indent}        return;
+        ${indent}    end if;
+        ${indent}    found_key = true;
+        ${indent}    found_block = false;
+        ${indent}    ${sort_keys.map(x => `first_${x.name} = key_search."${x.name}";`).join('\n            ' + indent)}
+        ${indent}    for block_search in
+        ${indent}        select
+        ${indent}            *
+        ${indent}        from
+        ${indent}            chain.${table_name}
+        ${indent}        where
+        ${indent}            ${sort_keys.map(x => `${table_name}."${x.name}" = key_search."${x.name}"`).join('\n                    ' + indent + 'and ')}
+        ${indent}            and ${table_name}.block_index <= max_block_index
+        ${indent}        order by
+        ${indent}            ${sort_keys_tuple('"', '"', ',\n                    ' + indent)},
+        ${indent}            block_index desc,
+        ${indent}            present desc
+        ${indent}        limit 1
+        ${indent}    loop
+        ${indent}        if block_search.present then
+        ${indent}            return next block_search;
+        ${indent}        else
+        ${indent}            return next row(block_search.block_index, false, ${keys_tuple_type('key_search."', '"', ', ')}, ''::varchar(13), ''::bytea);
+        ${indent}        end if;
+        ${indent}        num_results = num_results + 1;
+        ${indent}        found_block = true;
+        ${indent}    end loop;
+        ${indent}    if not found_block then
+        ${indent}        return next row(0::bigint, false, ${keys_tuple_type('key_search."', '"', ', ')}, ''::varchar(13), ''::bytea);
+        ${indent}        num_results = num_results + 1;
+        ${indent}    end if;
+        ${indent}end loop;
+    `;
+
     functions += `
         drop function if exists ${fn_name};
         create function ${fn_name}(
@@ -35,115 +85,11 @@ function generate({ table_name, index_name, keys, sort_keys }) {
                 if max_results <= 0 then
                     return;
                 end if;
-                for key_search in
-                    select
-                        ${sort_keys_tuple('"', '"', ', ')}
-                    from
-                        chain.${table_name}
-                    where
-                        (${sort_keys_tuple('"', '"', ', ')}) >= (${sort_keys_tuple('"first_', '"', ', ')})
-                    order by
-                        ${sort_keys_tuple('"', '"', ',\n                        ')},
-                        block_index desc,
-                        present desc
-                    limit 1
-                loop
-                    if (${sort_keys_tuple('key_search."', '"', ', ')}) > (${sort_keys_tuple('last_', '', ', ')}) then
-                        return;
-                    end if;
-                    found_key = true;
-                    found_block = false;
-                    ${sort_keys.map(x => `first_${x.name} = key_search."${x.name}";`).join('\n                    ')}
-                    for block_search in
-                        select
-                            *
-                        from
-                            chain.${table_name}
-                        where
-                            ${sort_keys.map(x => `${table_name}."${x.name}" = key_search."${x.name}"`).join('\n                            and ')}
-                            and ${table_name}.block_index <= max_block_index
-                        order by
-                            ${sort_keys_tuple('"', '"', ',\n                            ')},
-                            block_index desc,
-                            present desc
-                        limit 1
-                    loop
-                        if block_search.present then
-                            return next block_search;
-                        else
-                            return next row(block_search.block_index, false, ${keys_tuple_type('key_search."', '"', ', ')}, ''::varchar(13), ''::bytea);
-                        end if;
-                        num_results = num_results + 1;
-                        found_block = true;
-                    end loop;
-                    if not found_block then
-                        return next row(0::bigint, false, ${keys_tuple_type('key_search."', '"', ', ')}, ''::varchar(13), ''::bytea);
-                        num_results = num_results + 1;
-                    end if;
-                end loop;
-
+                ${key_search('>=', '        ')}
                 loop
                     exit when not found_key or num_results >= max_results;
-
                     found_key = false;
-                    for key_search in
-                        select
-                            ${sort_keys_tuple('"', '"', ', ')}
-                        from
-                            chain.${table_name}
-                        where
-                            (${sort_keys_tuple('"', '"', ', ')}) > (${sort_keys_tuple('"first_', '"', ', ')})
-                        order by
-                            "${sort_keys[0].name}",
-                            "${sort_keys[1].name}",
-                            "${sort_keys[2].name}",
-                            "${sort_keys[3].name}",
-                            block_index desc,
-                            present desc
-                        limit 1
-                    loop
-                        if (${sort_keys_tuple('key_search."', '"', ', ')}) > (${sort_keys_tuple('last_', '', ', ')}) then
-                            return;
-                        end if;
-                        found_key = true;
-                        found_block = false;
-                        first_${sort_keys[0].name} = key_search."${sort_keys[0].name}";
-                        first_${sort_keys[1].name} = key_search."${sort_keys[1].name}";
-                        first_${sort_keys[2].name} = key_search."${sort_keys[2].name}";
-                        first_${sort_keys[3].name} = key_search."${sort_keys[3].name}";
-                        for block_search in
-                            select
-                                *
-                            from
-                                chain.${table_name}
-                            where
-                                ${table_name}."${sort_keys[0].name}" = key_search."${sort_keys[0].name}"
-                                and ${table_name}."${sort_keys[1].name}" = key_search."${sort_keys[1].name}"
-                                and ${table_name}."${sort_keys[2].name}" = key_search."${sort_keys[2].name}"
-                                and ${table_name}."${sort_keys[3].name}" = key_search."${sort_keys[3].name}"
-                                and ${table_name}.block_index <= max_block_index
-                            order by
-                                "${sort_keys[0].name}",
-                                "${sort_keys[1].name}",
-                                "${sort_keys[2].name}",
-                                "${sort_keys[3].name}",
-                                block_index desc,
-                                present desc
-                            limit 1
-                        loop
-                            if block_search.present then
-                                return next block_search;
-                            else
-                                return next row(block_search.block_index, false, ${keys_tuple_type('key_search."', '"', ', ')}, ''::varchar(13), ''::bytea);
-                            end if;
-                            num_results = num_results + 1;
-                            found_block = true;
-                        end loop;
-                        if not found_block then
-                            return next row(0::bigint, false, ${keys_tuple_type('key_search."', '"', ', ')}, ''::varchar(13), ''::bytea);
-                            num_results = num_results + 1;
-                        end if;
-                    end loop;
+                    ${key_search('>', '            ')}
                 end loop;
             end 
         $$ language plpgsql;

@@ -51,6 +51,7 @@
                 if max_results <= 0 then
                     return;
                 end if;
+                
                 for key_search in
                     select
                         "code", "table", "primary_key", "scope"
@@ -109,11 +110,11 @@
                         num_results = num_results + 1;
                     end if;
                 end loop;
-
+    
                 loop
                     exit when not found_key or num_results >= max_results;
-
                     found_key = false;
+                    
                     for key_search in
                         select
                             "code", "table", "primary_key", "scope"
@@ -172,6 +173,7 @@
                             num_results = num_results + 1;
                         end if;
                     end loop;
+    
                 end loop;
             end 
         $$ language plpgsql;
@@ -200,6 +202,7 @@
                 if max_results <= 0 then
                     return;
                 end if;
+                
                 for key_search in
                     select
                         "code", "table", "scope", "primary_key"
@@ -258,11 +261,11 @@
                         num_results = num_results + 1;
                     end if;
                 end loop;
-
+    
                 loop
                     exit when not found_key or num_results >= max_results;
-
                     found_key = false;
+                    
                     for key_search in
                         select
                             "code", "table", "scope", "primary_key"
@@ -321,6 +324,7 @@
                             num_results = num_results + 1;
                         end if;
                     end loop;
+    
                 end loop;
             end 
         $$ language plpgsql;
@@ -349,6 +353,7 @@
                 if max_results <= 0 then
                     return;
                 end if;
+                
                 for key_search in
                     select
                         "scope", "table", "primary_key", "code"
@@ -407,11 +412,11 @@
                         num_results = num_results + 1;
                     end if;
                 end loop;
-
+    
                 loop
                     exit when not found_key or num_results >= max_results;
-
                     found_key = false;
+                    
                     for key_search in
                         select
                             "scope", "table", "primary_key", "code"
@@ -470,6 +475,7 @@
                             num_results = num_results + 1;
                         end if;
                     end loop;
+    
                 end loop;
             end 
         $$ language plpgsql;

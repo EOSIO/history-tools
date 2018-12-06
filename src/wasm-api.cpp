@@ -1,5 +1,6 @@
 // copyright defined in LICENSE.txt
 
+// todo: balance history
 // todo: timeout wasm
 // todo: timeout sql
 // todo: what should memory size limit be?

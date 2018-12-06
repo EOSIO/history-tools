@@ -211,59 +211,59 @@ bool for_each_contract_row(const std::vector<char>& bytes, F f) {
     });
 }
 
-void t1() {
+void balances_for_multiple_accounts(
+    uint32_t max_block_index, name code, symbol_code sc, name first_account, name last_account, uint32_t max_results) {
+    print("    balances_for_multiple_accounts\n");
     auto s = exec_query(query_contract_row_range_code_table_pk_scope{
-        .max_block_index = 30000000,
+        .max_block_index = max_block_index,
         .first =
             {
-                .code        = "eosio.token"_n,
+                .code        = code,
                 .table       = "accounts"_n,
-                .primary_key = symbol_code{"EOS"}.raw(),
-                .scope       = "eosio"_n.value,
+                .primary_key = sc.raw(),
+                .scope       = first_account.value,
             },
         .last =
             {
-                .code        = "eosio.token"_n,
+                .code        = code,
                 .table       = "accounts"_n,
-                .primary_key = symbol_code{"EOS"}.raw(),
-                .scope       = "eosio.zzzzzz"_n.value,
+                .primary_key = sc.raw(),
+                .scope       = last_account.value,
             },
-        .max_results = 100,
+        .max_results = max_results,
     });
     for_each_contract_row<asset>(s, [&](contract_row& r, asset* a) {
-        print("    ", r.block_index, " ", r.present, " ", r.code, " ", r.table, " ", name{r.scope}, " ", r.primary_key, " ", r.payer);
+        print("        ", r.block_index, " ", r.present, " ", r.code, " ", name{r.scope}, " ", r.payer);
         if (r.present && a)
-            print(" ", a->amount);
+            print(" ", asset_to_string(*a));
         print("\n");
         return true;
     });
     print("\n");
 }
 
-void t2() {
+void proposals(uint32_t max_block_index, name first_account, name first_prop, name last_account, name last_prop, uint32_t max_results) {
+    print("    proposals\n");
     auto s = exec_query(query_contract_row_range_code_table_scope_pk{
-        .max_block_index = 30000000,
+        .max_block_index = max_block_index,
         .first =
             {
                 .code        = "eosio.msig"_n,
                 .table       = "proposal"_n,
-                .scope       = 0,
-                .primary_key = 0,
+                .scope       = first_account.value,
+                .primary_key = first_prop.value,
             },
         .last =
             {
                 .code        = "eosio.msig"_n,
                 .table       = "proposal"_n,
-                .scope       = ~uint64_t(0),
-                .primary_key = ~uint64_t(0),
+                .scope       = last_account.value,
+                .primary_key = last_prop.value,
             },
-        .max_results = 20,
+        .max_results = max_results,
     });
     for_each_query_result<contract_row>(s, [&](contract_row& r) {
-        // print(
-        //     "    block_index: ", r.block_index, " present: ", r.present, " code: ", r.code, " scope: ", r.scope, " table: ", r.table,
-        //     " primary_key: ", r.primary_key, " payer: ", r.payer, "\n");
-        print("    ", r.block_index, " ", r.present, " ", r.code, " ", r.table, " ", name{r.scope}, " ", name{r.primary_key});
+        print("        ", r.block_index, " ", r.present, " ", name{r.scope}, " ", name{r.primary_key});
         if (r.present)
             print(" ", r.value.remaining(), " bytes");
         print("\n");
@@ -272,24 +272,25 @@ void t2() {
     print("\n");
 }
 
-void t3() {
+void balances_for_multiple_tokens(uint32_t max_block_index, name account, uint32_t max_results) {
+    print("    balances_for_multiple_tokens\n");
     auto s = exec_query(query_contract_row_range_scope_table_pk_code{
-        .max_block_index = 30000000,
+        .max_block_index = max_block_index,
         .first =
             {
-                .scope       = "eosio"_n.value,
+                .scope       = account.value,
                 .table       = "accounts"_n,
                 .primary_key = 0,
                 .code        = name{0},
             },
         .last =
             {
-                .scope       = "eosio"_n.value,
+                .scope       = account.value,
                 .table       = "accounts"_n,
                 .primary_key = ~uint64_t(0),
                 .code        = name{~uint64_t(0)},
             },
-        .max_results = 100,
+        .max_results = max_results,
     });
     for_each_query_result<contract_row>(s, [&](contract_row& r) {
         if (!r.present || r.value.remaining() != 16)
@@ -298,7 +299,7 @@ void t3() {
         r.value >> a;
         if (!a.is_valid() || a.symbol.code().raw() != r.primary_key)
             return true;
-        print("    ", name{r.scope}, " ", r.code, " ", asset_to_string(a), "\n");
+        print("        ", name{r.scope}, " ", r.code, " ", asset_to_string(a), "\n");
         return true;
     });
     print("\n");
@@ -306,8 +307,8 @@ void t3() {
 
 extern "C" void startup() {
     print("\nstart wasm\n");
-    t1();
-    t2();
-    t3();
+    balances_for_multiple_accounts(3000000, "eosio.token"_n, symbol_code{"EOS"}, "eosio"_n, "eosio.zzzzzz"_n, 100);
+    proposals(30000000, "h"_n, name{0}, "hzzzzzzzzzzz"_n, name{~uint64_t(0)}, 20);
+    balances_for_multiple_tokens(30000000, "eosio"_n, 100);
     print("end wasm\n\n");
 }

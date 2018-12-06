@@ -6,6 +6,10 @@
 // todo: check callbacks for recursion to limit stack size
 // todo: make sure spidermonkey limits stack size
 // todo: global constructors in wasm
+// todo: don't allow queries past head
+// todo: kill a wasm execution if a fork change happens
+//       for now: warn about having multiple queries past irreversible
+// todo: cap max_results
 
 #define DEBUG
 
@@ -319,6 +323,21 @@ constexpr void for_each_field(code_table_scope_pk*, F f) {
     f("primary_key", member_ptr<&code_table_scope_pk::primary_key>{});
 };
 
+struct scope_table_pk_code {
+    name     scope;
+    name     table;
+    uint64_t primary_key = 0;
+    name     code;
+};
+
+template <typename F>
+constexpr void for_each_field(scope_table_pk_code*, F f) {
+    f("scope", member_ptr<&scope_table_pk_code::scope>{});
+    f("table", member_ptr<&scope_table_pk_code::table>{});
+    f("primary_key", member_ptr<&scope_table_pk_code::primary_key>{});
+    f("code", member_ptr<&scope_table_pk_code::code>{});
+};
+
 struct query_contract_row_range_code_table_pk_scope {
     uint32_t            max_block_index = 0;
     code_table_pk_scope first;
@@ -349,7 +368,24 @@ constexpr void for_each_field(query_contract_row_range_code_table_scope_pk*, F f
     f("max_results", member_ptr<&query_contract_row_range_code_table_scope_pk::max_results>{});
 };
 
-using query = std::variant<query_contract_row_range_code_table_pk_scope, query_contract_row_range_code_table_scope_pk>;
+struct query_contract_row_range_scope_table_pk_code {
+    uint32_t            max_block_index = 0;
+    scope_table_pk_code first;
+    scope_table_pk_code last;
+    uint32_t            max_results = 1;
+};
+
+template <typename F>
+constexpr void for_each_field(query_contract_row_range_scope_table_pk_code*, F f) {
+    f("max_block_index", member_ptr<&query_contract_row_range_scope_table_pk_code::max_block_index>{});
+    f("first", member_ptr<&query_contract_row_range_scope_table_pk_code::first>{});
+    f("last", member_ptr<&query_contract_row_range_scope_table_pk_code::last>{});
+    f("max_results", member_ptr<&query_contract_row_range_scope_table_pk_code::max_results>{});
+};
+
+using query = std::variant<
+    query_contract_row_range_code_table_pk_scope, query_contract_row_range_code_table_scope_pk,
+    query_contract_row_range_scope_table_pk_code>;
 
 struct contract_row {
     uint32_t block_index = 0;
@@ -402,6 +438,10 @@ bool query_contract_row(JSContext* cx, JS::CallArgs& args, unsigned callback_arg
             return false;
         memcpy(data, bin.data(), bin.size());
         return true;
+    } catch (const std::exception& e) {
+        std::cerr << "!!!!! c: " << e.what() << "\n";
+        JS_ReportOutOfMemory(cx);
+        return false;
     } catch (...) {
         std::cerr << "!!!!! c\n";
         JS_ReportOutOfMemory(cx);
@@ -440,6 +480,24 @@ bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, que
             sql_str(req.last.table) + sep +                                 //
             sql_str(req.last.scope) + sep +                                 //
             sql_str(req.last.primary_key) + sep +                           //
+            sql_str(req.max_results) +                                      //
+            ")");
+    });
+}
+
+bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, query_contract_row_range_scope_table_pk_code& req) {
+    return query_contract_row(cx, args, callback_arg, [&req](auto& t) {
+        return t.exec(
+            "select * from chain.contract_row_range_scope_table_pk_code(" + //
+            sql_str(req.max_block_index) + sep +                            //
+            sql_str(req.first.scope) + sep +                                //
+            sql_str(req.first.table) + sep +                                //
+            sql_str(req.first.primary_key) + sep +                          //
+            sql_str(req.first.code) + sep +                                 //
+            sql_str(req.last.scope) + sep +                                 //
+            sql_str(req.last.table) + sep +                                 //
+            sql_str(req.last.primary_key) + sep +                           //
+            sql_str(req.last.code) + sep +                                  //
             sql_str(req.max_results) +                                      //
             ")");
     });

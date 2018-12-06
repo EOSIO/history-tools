@@ -55,6 +55,42 @@ extern "C" void printi(int64_t value) {
         printui(value);
 }
 
+// todo: don't return static storage
+// todo: replace with eosio functions when linker is improved
+const char* asset_to_string(const asset& v) {
+    static char result[1000];
+    auto        pos = result;
+    uint64_t    amount;
+    if (v.amount < 0)
+        amount = -v.amount;
+    else
+        amount = v.amount;
+    uint8_t precision = v.symbol.precision();
+    if (precision) {
+        while (precision--) {
+            *pos++ = '0' + amount % 10;
+            amount /= 10;
+        }
+        *pos++ = '.';
+    }
+    do {
+        *pos++ = '0' + amount % 10;
+        amount /= 10;
+    } while (amount);
+    if (v.amount < 0)
+        *pos++ = '-';
+    *pos++ = ' ';
+
+    auto sc = v.symbol.code().raw();
+    while (sc > 0) {
+        *pos++ = char(sc & 0xFF);
+        sc >>= 8;
+    }
+
+    *pos++ = 0;
+    return result;
+}
+
 namespace eosio {
 template <typename Stream>
 inline datastream<Stream>& operator>>(datastream<Stream>& ds, datastream<Stream>& dest) {
@@ -93,6 +129,13 @@ struct code_table_scope_pk {
     uint64_t primary_key = 0;
 };
 
+struct scope_table_pk_code {
+    uint64_t scope;
+    name     table;
+    uint64_t primary_key = 0;
+    name     code;
+};
+
 struct query_contract_row_range_code_table_pk_scope {
     uint32_t            max_block_index = 0;
     code_table_pk_scope first;
@@ -107,7 +150,16 @@ struct query_contract_row_range_code_table_scope_pk {
     uint32_t            max_results = 1;
 };
 
-using query = std::variant<query_contract_row_range_code_table_pk_scope, query_contract_row_range_code_table_scope_pk>;
+struct query_contract_row_range_scope_table_pk_code {
+    uint32_t            max_block_index = 0;
+    scope_table_pk_code first;
+    scope_table_pk_code last;
+    uint32_t            max_results = 1;
+};
+
+using query = std::variant<
+    query_contract_row_range_code_table_pk_scope, query_contract_row_range_code_table_scope_pk,
+    query_contract_row_range_scope_table_pk_code>;
 
 extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, cb_alloc_fn* cb_alloc);
 
@@ -159,8 +211,7 @@ bool for_each_contract_row(const std::vector<char>& bytes, F f) {
     });
 }
 
-extern "C" void startup() {
-    print("\nstart wasm\n");
+void t1() {
     auto s = exec_query(query_contract_row_range_code_table_pk_scope{
         .max_block_index = 30000000,
         .first =
@@ -186,9 +237,11 @@ extern "C" void startup() {
         print("\n");
         return true;
     });
-
     print("\n");
-    s = exec_query(query_contract_row_range_code_table_scope_pk{
+}
+
+void t2() {
+    auto s = exec_query(query_contract_row_range_code_table_scope_pk{
         .max_block_index = 30000000,
         .first =
             {
@@ -216,6 +269,45 @@ extern "C" void startup() {
         print("\n");
         return true;
     });
+    print("\n");
+}
 
+void t3() {
+    auto s = exec_query(query_contract_row_range_scope_table_pk_code{
+        .max_block_index = 30000000,
+        .first =
+            {
+                .scope       = "eosio"_n.value,
+                .table       = "accounts"_n,
+                .primary_key = 0,
+                .code        = name{0},
+            },
+        .last =
+            {
+                .scope       = "eosio"_n.value,
+                .table       = "accounts"_n,
+                .primary_key = ~uint64_t(0),
+                .code        = name{~uint64_t(0)},
+            },
+        .max_results = 100,
+    });
+    for_each_query_result<contract_row>(s, [&](contract_row& r) {
+        if (!r.present || r.value.remaining() != 16)
+            return true;
+        asset a;
+        r.value >> a;
+        if (!a.is_valid() || a.symbol.code().raw() != r.primary_key)
+            return true;
+        print("    ", name{r.scope}, " ", r.code, " ", asset_to_string(a), "\n");
+        return true;
+    });
+    print("\n");
+}
+
+extern "C" void startup() {
+    print("\nstart wasm\n");
+    t1();
+    t2();
+    t3();
     print("end wasm\n\n");
 }

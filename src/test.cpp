@@ -55,6 +55,26 @@ extern "C" void printi(int64_t value) {
         printui(value);
 }
 
+// todo: remove this
+template <typename T>
+struct serial_wrapper {
+    T value{};
+};
+
+// todo: remove this
+template <typename DataStream>
+DataStream& operator<<(DataStream& ds, const serial_wrapper<checksum256>& obj) {
+    eosio_assert(false, "oops");
+    return ds;
+}
+
+// todo: remove this
+template <typename DataStream>
+DataStream& operator>>(DataStream& ds, serial_wrapper<checksum256>& obj) {
+    ds.read(reinterpret_cast<char*>(obj.value.data()), obj.value.num_words() * sizeof(checksum256::word_t));
+    return ds;
+}
+
 // todo: don't return static storage
 // todo: replace with eosio functions when linker is improved
 const char* asset_to_string(const asset& v) {
@@ -115,6 +135,32 @@ struct contract_row {
     datastream<const char*> value{nullptr, 0};
 };
 
+struct action_trace {
+    uint32_t                    block_index             = {};
+    serial_wrapper<checksum256> transaction_id          = {};
+    uint32_t                    action_index            = {};
+    uint32_t                    parent_action_index     = {};
+    datastream<const char*>     transaction_status      = {nullptr, 0}; // todo: enum
+    eosio::name                 receipt_receiver        = {};
+    serial_wrapper<checksum256> receipt_act_digest      = {};
+    uint64_t                    receipt_global_sequence = {};
+    uint64_t                    receipt_recv_sequence   = {};
+    unsigned_int                receipt_code_sequence   = {};
+    unsigned_int                receipt_abi_sequence    = {};
+    eosio::name                 account                 = {};
+    eosio::name                 name                    = {};
+    datastream<const char*>     data                    = {nullptr, 0};
+    bool                        context_free            = {};
+    int64_t                     elapsed                 = {};
+    datastream<const char*>     console                 = {nullptr, 0}; // todo: string
+    datastream<const char*>     except                  = {nullptr, 0}; // todo: string
+
+    EOSLIB_SERIALIZE(
+        action_trace, (block_index)(transaction_id)(action_index)(parent_action_index)(transaction_status)(receipt_receiver)(
+                          receipt_act_digest)(receipt_global_sequence)(receipt_recv_sequence)(receipt_code_sequence)(receipt_abi_sequence)(
+                          account)(name)(data)(context_free)(elapsed)(console)(except))
+};
+
 struct code_table_pk_scope {
     name     code;
     name     table;
@@ -134,6 +180,12 @@ struct scope_table_pk_code {
     name     table;
     uint64_t primary_key = 0;
     name     code;
+};
+
+struct receiver_name_account {
+    eosio::name receipt_receiver = {};
+    eosio::name name             = {};
+    eosio::name account          = {};
 };
 
 struct query_contract_row_range_code_table_pk_scope {
@@ -157,9 +209,16 @@ struct query_contract_row_range_scope_table_pk_code {
     uint32_t            max_results = 1;
 };
 
+struct query_action_trace_range_receiver_name_account {
+    uint32_t              max_block_index = 0;
+    receiver_name_account first           = {};
+    receiver_name_account last            = {};
+    uint32_t              max_results     = 1;
+};
+
 using query = std::variant<
     query_contract_row_range_code_table_pk_scope, query_contract_row_range_code_table_scope_pk,
-    query_contract_row_range_scope_table_pk_code>;
+    query_contract_row_range_scope_table_pk_code, query_action_trace_range_receiver_name_account>;
 
 extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, cb_alloc_fn* cb_alloc);
 
@@ -210,6 +269,13 @@ bool for_each_contract_row(const std::vector<char>& bytes, F f) {
         return true;
     });
 }
+
+struct newaccount {
+    eosio::name creator;
+    eosio::name name;
+    // authority owner;
+    // authority active;
+};
 
 void balances_for_multiple_accounts(
     uint32_t max_block_index, name code, symbol_code sc, name first_account, name last_account, uint32_t max_results) {
@@ -305,8 +371,42 @@ void balances_for_multiple_tokens(uint32_t max_block_index, name account, uint32
     print("\n");
 }
 
+void creators(uint32_t max_block_index, uint32_t max_results) {
+    print("    creators\n");
+    auto s = exec_query(query_action_trace_range_receiver_name_account{
+        .max_block_index = max_block_index,
+        .first =
+            {
+                .receipt_receiver = "eosio"_n,
+                .name             = "newaccount"_n,
+                .account          = "eosio"_n,
+            },
+        .last =
+            {
+                .receipt_receiver = "eosio"_n,
+                .name             = "newaccount"_n,
+                .account          = "eosio"_n,
+            },
+        .max_results = max_results,
+    });
+    for_each_query_result<action_trace>(s, [&](action_trace& t) {
+        char status[20];
+        auto size = min(t.transaction_status.remaining(), sizeof(status) - 1);
+        t.transaction_status.read(status, size);
+        status[size] = 0;
+        if (strcmp(status, "executed"))
+            return true;
+        newaccount na;
+        t.data >> na;
+        print("        ", na.creator, ", ", na.name, "\n");
+        return true;
+    });
+    print("\n");
+}
+
 extern "C" void startup() {
     print("\nstart wasm\n");
+    creators(30000000, 20);
     balances_for_multiple_accounts(3000000, "eosio.token"_n, symbol_code{"EOS"}, "eosio"_n, "eosio.zzzzzz"_n, 100);
     proposals(30000000, "h"_n, name{0}, "hzzzzzzzzzzz"_n, name{~uint64_t(0)}, 20);
     balances_for_multiple_tokens(30000000, "eosio"_n, 100);

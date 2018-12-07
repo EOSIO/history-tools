@@ -1,11 +1,19 @@
 
+        -- todo: fix
+        create index if not exists action_trace_receipt_receiver_name_account_block_index_idx on chain.action_trace(
+            "receipt_receiver",
+            "name",
+            "account",
+            "block_index"
+        );
+    
         create index if not exists contract_row_code_table_primary_key_scope_block_index_prese_idx on chain.contract_row(
             "code",
             "table",
             "primary_key",
             "scope",
-            block_index desc,
-            present desc
+            "block_index" desc,
+            "present" desc
         );
     
         create index if not exists contract_row_code_table_scope_primary_key_block_index_prese_idx on chain.contract_row(
@@ -13,8 +21,8 @@
             "table",
             "scope",
             "primary_key",
-            block_index desc,
-            present desc
+            "block_index" desc,
+            "present" desc
         );
     
         create index if not exists contract_row_scope_table_primary_key_code_block_index_prese_idx on chain.contract_row(
@@ -22,11 +30,58 @@
             "table",
             "primary_key",
             "code",
-            block_index desc,
-            present desc
+            "block_index" desc,
+            "present" desc
         );
     
 
+        -- todo: fix
+        drop function if exists chain.action_trace_range_receipt_receiver_name_account;
+        create function chain.action_trace_range_receipt_receiver_name_account(
+            max_block_index bigint,
+            first_receipt_receiver varchar(13),
+            first_name varchar(13),
+            first_account varchar(13),
+            last_receipt_receiver varchar(13),
+            last_name varchar(13),
+            last_account varchar(13),
+            max_results integer
+        ) returns setof chain.action_trace
+        as $$
+            declare
+                search record;
+                num_results integer = 0;
+                found_result bool = false;
+            begin
+                if max_results <= 0 then
+                    return;
+                end if;
+                
+                for search in
+                    select
+                        *
+                    from
+                        chain.action_trace
+                    where
+                        ("receipt_receiver", "name", "account") >= ("first_receipt_receiver", "first_name", "first_account")
+                        and ("receipt_receiver", "name", "account") <= ("first_receipt_receiver", "first_name", "first_account")
+                        -- and action_trace.block_index <= max_block_index
+                    order by
+                        "receipt_receiver",
+                        "name",
+                        "account"
+                    limit max_results
+                loop
+                    if (search."receipt_receiver", search."name", search."account") > (last_receipt_receiver, last_name, last_account) then
+                        return;
+                    end if;
+                    found_result = true;
+                    return next search;
+                    num_results = num_results + 1;
+                end loop;
+            end 
+        $$ language plpgsql;
+    
         drop function if exists chain.contract_row_range_code_table_pk_scope;
         create function chain.contract_row_range_code_table_pk_scope(
             max_block_index bigint,
@@ -64,8 +119,8 @@
                         "table",
                         "primary_key",
                         "scope",
-                        block_index desc,
-                        present desc
+                        "block_index" desc,
+                        "present" desc
                     limit 1
                 loop
                     if (key_search."code", key_search."table", key_search."primary_key", key_search."scope") > (last_code, last_table, last_primary_key, last_scope) then
@@ -93,8 +148,8 @@
                             "table",
                             "primary_key",
                             "scope",
-                            block_index desc,
-                            present desc
+                            "block_index" desc,
+                            "present" desc
                         limit 1
                     loop
                         if block_search.present then
@@ -127,8 +182,8 @@
                             "table",
                             "primary_key",
                             "scope",
-                            block_index desc,
-                            present desc
+                            "block_index" desc,
+                            "present" desc
                         limit 1
                     loop
                         if (key_search."code", key_search."table", key_search."primary_key", key_search."scope") > (last_code, last_table, last_primary_key, last_scope) then
@@ -156,8 +211,8 @@
                                 "table",
                                 "primary_key",
                                 "scope",
-                                block_index desc,
-                                present desc
+                                "block_index" desc,
+                                "present" desc
                             limit 1
                         loop
                             if block_search.present then
@@ -215,8 +270,8 @@
                         "table",
                         "scope",
                         "primary_key",
-                        block_index desc,
-                        present desc
+                        "block_index" desc,
+                        "present" desc
                     limit 1
                 loop
                     if (key_search."code", key_search."table", key_search."scope", key_search."primary_key") > (last_code, last_table, last_scope, last_primary_key) then
@@ -244,8 +299,8 @@
                             "table",
                             "scope",
                             "primary_key",
-                            block_index desc,
-                            present desc
+                            "block_index" desc,
+                            "present" desc
                         limit 1
                     loop
                         if block_search.present then
@@ -278,8 +333,8 @@
                             "table",
                             "scope",
                             "primary_key",
-                            block_index desc,
-                            present desc
+                            "block_index" desc,
+                            "present" desc
                         limit 1
                     loop
                         if (key_search."code", key_search."table", key_search."scope", key_search."primary_key") > (last_code, last_table, last_scope, last_primary_key) then
@@ -307,8 +362,8 @@
                                 "table",
                                 "scope",
                                 "primary_key",
-                                block_index desc,
-                                present desc
+                                "block_index" desc,
+                                "present" desc
                             limit 1
                         loop
                             if block_search.present then
@@ -366,8 +421,8 @@
                         "table",
                         "primary_key",
                         "code",
-                        block_index desc,
-                        present desc
+                        "block_index" desc,
+                        "present" desc
                     limit 1
                 loop
                     if (key_search."scope", key_search."table", key_search."primary_key", key_search."code") > (last_scope, last_table, last_primary_key, last_code) then
@@ -395,8 +450,8 @@
                             "table",
                             "primary_key",
                             "code",
-                            block_index desc,
-                            present desc
+                            "block_index" desc,
+                            "present" desc
                         limit 1
                     loop
                         if block_search.present then
@@ -429,8 +484,8 @@
                             "table",
                             "primary_key",
                             "code",
-                            block_index desc,
-                            present desc
+                            "block_index" desc,
+                            "present" desc
                         limit 1
                     loop
                         if (key_search."scope", key_search."table", key_search."primary_key", key_search."code") > (last_scope, last_table, last_primary_key, last_code) then
@@ -458,8 +513,8 @@
                                 "table",
                                 "primary_key",
                                 "code",
-                                block_index desc,
-                                present desc
+                                "block_index" desc,
+                                "present" desc
                             limit 1
                         loop
                             if block_search.present then

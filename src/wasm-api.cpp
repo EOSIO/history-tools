@@ -11,6 +11,7 @@
 // todo: kill a wasm execution if a fork change happens
 //       for now: warn about having multiple queries past irreversible
 // todo: cap max_results
+// todo: embed each row in bytes to allow binary extensions
 
 #define DEBUG
 
@@ -79,16 +80,20 @@ auto& member_from_void(const member_ptr<P>&, const void* p) {
 template <typename T>
 void native_to_bin(std::vector<char>& bin, const T& obj);
 
-inline void native_to_bin(std::vector<char>& bin, const name& obj) {
-    native_to_bin(bin, obj.value); //
+inline void native_to_bin(std::vector<char>& bin, const name& obj) { native_to_bin(bin, obj.value); }
+inline void native_to_bin(std::vector<char>& bin, const varuint32& obj) { push_varuint32(bin, obj.value); }
+
+template <unsigned size>
+inline void native_to_bin(std::vector<char>& bin, const fixed_binary<size>& obj) {
+    bin.insert(bin.end(), obj.value.begin(), obj.value.end());
 }
 
-void native_to_bin(std::vector<char>& bin, const string& obj) {
+inline void native_to_bin(std::vector<char>& bin, const string& obj) {
     push_varuint32(bin, obj.size());
     bin.insert(bin.end(), obj.begin(), obj.end());
 }
 
-void native_to_bin(std::vector<char>& bin, const bytes& obj) {
+inline void native_to_bin(std::vector<char>& bin, const bytes& obj) {
     push_varuint32(bin, obj.data.size());
     bin.insert(bin.end(), obj.data.begin(), obj.data.end());
 }
@@ -122,6 +127,20 @@ bytes sql_to_bytes(const char* ch) {
     } catch (...) {
         result.data.clear();
     }
+    return result;
+}
+
+checksum256 sql_to_checksum256(const char* ch) {
+    std::vector<uint8_t> v;
+    try {
+        boost::algorithm::unhex(ch, ch + strlen(ch), std::back_inserter(v));
+    } catch (...) {
+        throw error("expected hex string");
+    }
+    checksum256 result;
+    if (v.size() != result.value.size())
+        throw error("hex string has incorrect length");
+    memcpy(result.value.data(), v.data(), result.value.size());
     return result;
 }
 
@@ -339,6 +358,19 @@ constexpr void for_each_field(scope_table_pk_code*, F f) {
     f("code", member_ptr<&scope_table_pk_code::code>{});
 };
 
+struct receiver_name_account {
+    abieos::name receipt_receiver = {};
+    abieos::name name             = {};
+    abieos::name account          = {};
+};
+
+template <typename F>
+constexpr void for_each_field(receiver_name_account*, F f) {
+    f("receipt_receiver", member_ptr<&receiver_name_account::receipt_receiver>{});
+    f("name", member_ptr<&receiver_name_account::name>{});
+    f("account", member_ptr<&receiver_name_account::account>{});
+}
+
 struct query_contract_row_range_code_table_pk_scope {
     uint32_t            max_block_index = 0;
     code_table_pk_scope first;
@@ -384,9 +416,24 @@ constexpr void for_each_field(query_contract_row_range_scope_table_pk_code*, F f
     f("max_results", member_ptr<&query_contract_row_range_scope_table_pk_code::max_results>{});
 };
 
+struct query_action_trace_range_receiver_name_account {
+    uint32_t              max_block_index = 0;
+    receiver_name_account first           = {};
+    receiver_name_account last            = {};
+    uint32_t              max_results     = 1;
+};
+
+template <typename F>
+constexpr void for_each_field(query_action_trace_range_receiver_name_account*, F f) {
+    f("max_block_index", member_ptr<&query_action_trace_range_receiver_name_account::max_block_index>{});
+    f("first", member_ptr<&query_action_trace_range_receiver_name_account::first>{});
+    f("last", member_ptr<&query_action_trace_range_receiver_name_account::last>{});
+    f("max_results", member_ptr<&query_action_trace_range_receiver_name_account::max_results>{});
+}
+
 using query = std::variant<
     query_contract_row_range_code_table_pk_scope, query_contract_row_range_code_table_scope_pk,
-    query_contract_row_range_scope_table_pk_code>;
+    query_contract_row_range_scope_table_pk_code, query_action_trace_range_receiver_name_account>;
 
 struct contract_row {
     uint32_t block_index = 0;
@@ -450,6 +497,99 @@ bool query_contract_row(JSContext* cx, JS::CallArgs& args, unsigned callback_arg
     }
 } // query_contract_row
 
+// todo: transaction_status type
+struct action_trace {
+    uint32_t     block_index             = {};
+    checksum256  transaction_id          = {};
+    uint32_t     action_index            = {};
+    uint32_t     parent_action_index     = {};
+    string       transaction_status      = {};
+    abieos::name receipt_receiver        = {};
+    checksum256  receipt_act_digest      = {};
+    uint64_t     receipt_global_sequence = {};
+    uint64_t     receipt_recv_sequence   = {};
+    varuint32    receipt_code_sequence   = {};
+    varuint32    receipt_abi_sequence    = {};
+    abieos::name account                 = {};
+    abieos::name name                    = {};
+    bytes        data                    = {};
+    bool         context_free            = {};
+    int64_t      elapsed                 = {};
+    string       console                 = {};
+    string       except                  = {};
+};
+
+template <typename F>
+constexpr void for_each_field(action_trace*, F f) {
+    f("block_index", member_ptr<&action_trace::block_index>{});
+    f("transaction_id", member_ptr<&action_trace::transaction_id>{});
+    f("action_index", member_ptr<&action_trace::action_index>{});
+    f("parent_action_index", member_ptr<&action_trace::parent_action_index>{});
+    f("transaction_status", member_ptr<&action_trace::transaction_status>{});
+    f("receipt_receiver", member_ptr<&action_trace::receipt_receiver>{});
+    f("receipt_act_digest", member_ptr<&action_trace::receipt_act_digest>{});
+    f("receipt_global_sequence", member_ptr<&action_trace::receipt_global_sequence>{});
+    f("receipt_recv_sequence", member_ptr<&action_trace::receipt_recv_sequence>{});
+    f("receipt_code_sequence", member_ptr<&action_trace::receipt_code_sequence>{});
+    f("receipt_abi_sequence", member_ptr<&action_trace::receipt_abi_sequence>{});
+    f("account", member_ptr<&action_trace::account>{});
+    f("name", member_ptr<&action_trace::name>{});
+    f("data", member_ptr<&action_trace::data>{});
+    f("context_free", member_ptr<&action_trace::context_free>{});
+    f("elapsed", member_ptr<&action_trace::elapsed>{});
+    f("console", member_ptr<&action_trace::console>{});
+    f("except", member_ptr<&action_trace::except>{});
+}
+
+template <typename F>
+bool query_action_trace(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, F exec) {
+    try {
+        pqxx::work t(foo_global->sql_connection);
+        auto       result = exec(t);
+
+        std::vector<action_trace> v;
+        for (const auto& r : result) {
+            v.push_back(action_trace{
+                .block_index             = r[0].template as<uint32_t>(),
+                .transaction_id          = sql_to_checksum256(r[1].c_str()),
+                .action_index            = r[2].template as<uint32_t>(),
+                .parent_action_index     = r[3].template as<uint32_t>(),
+                .transaction_status      = t.unesc_raw(r[4].c_str()),
+                .receipt_receiver        = name{r[5].c_str()},
+                .receipt_act_digest      = sql_to_checksum256(r[6].c_str()),
+                .receipt_global_sequence = r[7].template as<uint64_t>(),
+                .receipt_recv_sequence   = r[8].template as<uint64_t>(),
+                .receipt_code_sequence   = {r[9].template as<uint32_t>()},
+                .receipt_abi_sequence    = {r[10].template as<uint32_t>()},
+                .account                 = name{r[11].c_str()},
+                .name                    = name{r[12].c_str()},
+                .data                    = sql_to_bytes(r[13].c_str()),
+                .context_free            = r[14].template as<bool>(),
+                .elapsed                 = r[15].template as<int64_t>(),
+                .console                 = t.unesc_raw(r[16].c_str()),
+                .except                  = t.unesc_raw(r[17].c_str()),
+            });
+        }
+        t.commit();
+
+        std::vector<char> bin;
+        native_to_bin(bin, v);
+        auto data = get_mem_from_callback(cx, args, callback_arg, bin.size());
+        if (!js_assert(data, cx, "exec_query: failed to fetch buffer from callback"))
+            return false;
+        memcpy(data, bin.data(), bin.size());
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "!!!!! c: " << e.what() << "\n";
+        JS_ReportOutOfMemory(cx);
+        return false;
+    } catch (...) {
+        std::cerr << "!!!!! c\n";
+        JS_ReportOutOfMemory(cx);
+        return false;
+    }
+} // query_action_trace
+
 bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, query_contract_row_range_code_table_pk_scope& req) {
     return query_contract_row(cx, args, callback_arg, [&req](auto& t) {
         return t.exec(
@@ -500,6 +640,22 @@ bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, que
             sql_str(req.last.primary_key) + sep +                           //
             sql_str(req.last.code) + sep +                                  //
             sql_str(req.max_results) +                                      //
+            ")");
+    });
+}
+
+bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, query_action_trace_range_receiver_name_account& req) {
+    return query_action_trace(cx, args, callback_arg, [&req](auto& t) {
+        return t.exec(
+            "select * from chain.action_trace_range_receipt_receiver_name_account(" + //
+            sql_str(req.max_block_index) + sep +                                      //
+            sql_str(req.first.receipt_receiver) + sep +                               //
+            sql_str(req.first.name) + sep +                                           //
+            sql_str(req.first.account) + sep +                                        //
+            sql_str(req.last.receipt_receiver) + sep +                                //
+            sql_str(req.last.name) + sep +                                            //
+            sql_str(req.last.account) + sep +                                         //
+            sql_str(req.max_results) +                                                //
             ")");
     });
 }

@@ -1,11 +1,40 @@
 'use strict';
 
+const fs = require('fs');
+
+const type_map = {
+    'bool': 'bool',
+    'varuint32': 'bigint',
+    'varint32': 'integer',
+    'uint8': 'smallint',
+    'uint16': 'integer',
+    'uint32': 'bigint',
+    'uint64': 'decimal',
+    'uint128': 'decimal',
+    'int8': 'smallint',
+    'int16': 'smallint',
+    'int32': 'integer',
+    'int64': 'bigint',
+    'int128': 'decimal',
+    'double': 'float8',
+    'float128': 'bytea',
+    'name': 'varchar(13)',
+    'string': 'varchar',
+    'time_point': 'timestamp',
+    'time_point_sec': 'timestamp',
+    'block_timestamp': 'timestamp',
+    'checksum256': 'varchar(64)',
+    'public_key': 'varchar',
+    'bytes': 'bytea',
+    'transaction_status': 'transaction_status_type',
+};
+
 let indexes = '';
 let functions = '';
 
-function generate_index({ table_name, index_name, sort_keys, history_keys }) {
+function generate_index({ table, index, sort_keys, history_keys }) {
     indexes += `
-        create index if not exists ${index_name} on chain.${table_name}(
+        create index if not exists ${index} on chain.${table}(
             ${sort_keys.map(x => `"${x.name}",`).join('\n            ')}
             ${history_keys.map(x => `"${x.name + (x.desc ? '" desc' : '"')}`).join(',\n            ')}
         );
@@ -13,10 +42,10 @@ function generate_index({ table_name, index_name, sort_keys, history_keys }) {
 }
 
 // todo: This is a stripped-down version of generate_state. It likely needs reoptimization.
-function generate({ table_name, index_name, keys, sort_keys, history_keys }) {
-    generate_index({ table_name, index_name, sort_keys, history_keys });
+function generate({ table, index, keys, sort_keys, history_keys, ...rest }) {
+    generate_index({ table, index, sort_keys, history_keys });
 
-    const fn_name = `chain.${table_name}_range_${sort_keys.map(x => x.short_name).join('_')}`;
+    const fn_name = 'chain.' + rest['function'];
     const fn_args = prefix => sort_keys.map(x => `${prefix}${x.name} ${x.type},`).join('\n            ');
     const keys_tuple_type = (prefix, suffix, sep) => keys.map(x => `${prefix}${x.name}${suffix}::${x.type}`).join(sep);
     const sort_keys_tuple = (prefix, suffix, sep) => sort_keys.map(x => `${prefix}${x.name}${suffix}`).join(sep);
@@ -26,10 +55,10 @@ function generate({ table_name, index_name, keys, sort_keys, history_keys }) {
         ${indent}    select
         ${indent}        *
         ${indent}    from
-        ${indent}        chain.${table_name}
+        ${indent}        chain.${table}
         ${indent}    where
         ${indent}        (${sort_keys_tuple('"', '"', ', ')}) ${compare} (${sort_keys_tuple('"first_', '"', ', ')})
-        ${indent}        and ${table_name}.block_index <= max_block_index
+        ${indent}        and ${table}.block_index <= max_block_index
         ${indent}    order by
         ${indent}        ${sort_keys_tuple('"', '"', ',\n                ' + indent)},
         ${indent}        ${history_keys.map(x => `"${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                ' + indent)}
@@ -51,7 +80,7 @@ function generate({ table_name, index_name, keys, sort_keys, history_keys }) {
             ${fn_args('first_')}
             ${fn_args('last_')}
             max_results integer
-        ) returns setof chain.${table_name}
+        ) returns setof chain.${table}
         as $$
             declare
                 search record;
@@ -72,10 +101,10 @@ function generate({ table_name, index_name, keys, sort_keys, history_keys }) {
     `;
 } // generate
 
-function generate_state({ table_name, index_name, keys, sort_keys, history_keys }) {
-    generate_index({ table_name, index_name, sort_keys, history_keys });
+function generate_state({ table, index, keys, sort_keys, history_keys, ...rest }) {
+    generate_index({ table, index, sort_keys, history_keys });
 
-    const fn_name = `chain.${table_name}_range_${sort_keys.map(x => x.short_name).join('_')}`;
+    const fn_name = 'chain.' + rest['function'];
     const fn_args = prefix => sort_keys.map(x => `${prefix}${x.name} ${x.type},`).join('\n            ');
     const keys_tuple_type = (prefix, suffix, sep) => keys.map(x => `${prefix}${x.name}${suffix}::${x.type}`).join(sep);
     const sort_keys_tuple = (prefix, suffix, sep) => sort_keys.map(x => `${prefix}${x.name}${suffix}`).join(sep);
@@ -85,7 +114,7 @@ function generate_state({ table_name, index_name, keys, sort_keys, history_keys 
         ${indent}    select
         ${indent}        ${sort_keys_tuple('"', '"', ', ')}
         ${indent}    from
-        ${indent}        chain.${table_name}
+        ${indent}        chain.${table}
         ${indent}    where
         ${indent}        (${sort_keys_tuple('"', '"', ', ')}) ${compare} (${sort_keys_tuple('"first_', '"', ', ')})
         ${indent}    order by
@@ -103,10 +132,10 @@ function generate_state({ table_name, index_name, keys, sort_keys, history_keys 
         ${indent}        select
         ${indent}            *
         ${indent}        from
-        ${indent}            chain.${table_name}
+        ${indent}            chain.${table}
         ${indent}        where
-        ${indent}            ${sort_keys.map(x => `${table_name}."${x.name}" = key_search."${x.name}"`).join('\n                    ' + indent + 'and ')}
-        ${indent}            and ${table_name}.block_index <= max_block_index
+        ${indent}            ${sort_keys.map(x => `${table}."${x.name}" = key_search."${x.name}"`).join('\n                    ' + indent + 'and ')}
+        ${indent}            and ${table}.block_index <= max_block_index
         ${indent}        order by
         ${indent}            ${sort_keys_tuple('"', '"', ',\n                    ' + indent)},
         ${indent}            ${history_keys.map(x => `"${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                    ' + indent)}
@@ -134,7 +163,7 @@ function generate_state({ table_name, index_name, keys, sort_keys, history_keys 
             ${fn_args('first_')}
             ${fn_args('last_')}
             max_results integer
-        ) returns setof chain.${table_name}
+        ) returns setof chain.${table}
         as $$
             declare
                 key_search record;
@@ -157,86 +186,30 @@ function generate_state({ table_name, index_name, keys, sort_keys, history_keys 
     `;
 } // generate_state
 
-generate({
-    table_name: 'action_trace',
-    index_name: 'action_trace_receipt_receiver_name_account_block_index_idx',
-    keys: [
-        { name: 'receipt_receiver', short_name: 'receipt_receiver', type: 'varchar(13)' },
-        { name: 'name', short_name: 'name', type: 'varchar(13)' },
-        { name: 'account', short_name: 'account', type: 'varchar(13)' },
-    ],
-    sort_keys: [
-        { name: 'receipt_receiver', short_name: 'receipt_receiver', type: 'varchar(13)' },
-        { name: 'name', short_name: 'name', type: 'varchar(13)' },
-        { name: 'account', short_name: 'account', type: 'varchar(13)' },
-    ],
-    history_keys: [
-        { name: 'block_index', desc: false },
-    ]
-});
+const config = JSON.parse(fs.readFileSync('../src/query-config.json', 'utf8'));
+const tables = {};
+for (let table of config.tables) {
+    const fields = [];
+    for (let field of table.fields)
+        fields[field.name] = field;
+    tables[table.name] = { fields };
+}
 
-generate_state({
-    table_name: 'contract_row',
-    index_name: 'contract_row_code_table_primary_key_scope_block_index_prese_idx',
-    keys: [
-        { name: 'code', short_name: 'code', type: 'varchar(13)' },
-        { name: 'scope', short_name: 'scope', type: 'varchar(13)' },
-        { name: 'table', short_name: 'table', type: 'varchar(13)' },
-        { name: 'primary_key', short_name: 'pk', type: 'numeric' },
-    ],
-    sort_keys: [
-        { name: 'code', short_name: 'code', type: 'varchar(13)' },
-        { name: 'table', short_name: 'table', type: 'varchar(13)' },
-        { name: 'primary_key', short_name: 'pk', type: 'numeric' },
-        { name: 'scope', short_name: 'scope', type: 'varchar(13)' },
-    ],
-    history_keys: [
-        { name: 'block_index', desc: true },
-        { name: 'present', desc: true },
-    ]
-});
+function get_type(type) {
+    return type_map[type] || '???' + type;
+}
 
-generate_state({
-    table_name: 'contract_row',
-    index_name: 'contract_row_code_table_scope_primary_key_block_index_prese_idx',
-    keys: [
-        { name: 'code', short_name: 'code', type: 'varchar(13)' },
-        { name: 'scope', short_name: 'scope', type: 'varchar(13)' },
-        { name: 'table', short_name: 'table', type: 'varchar(13)' },
-        { name: 'primary_key', short_name: 'pk', type: 'numeric' },
-    ],
-    sort_keys: [
-        { name: 'code', short_name: 'code', type: 'varchar(13)' },
-        { name: 'table', short_name: 'table', type: 'varchar(13)' },
-        { name: 'scope', short_name: 'scope', type: 'varchar(13)' },
-        { name: 'primary_key', short_name: 'pk', type: 'numeric' },
-    ],
-    history_keys: [
-        { name: 'block_index', desc: true },
-        { name: 'present', desc: true },
-    ]
-});
+function fill_types(query, fields) {
+    for (let field of fields)
+        field.type = get_type(tables[query.table].fields[field.name].type);
+}
 
-generate_state({
-    table_name: 'contract_row',
-    index_name: 'contract_row_scope_table_primary_key_code_block_index_prese_idx',
-    keys: [
-        { name: 'code', short_name: 'code', type: 'varchar(13)' },
-        { name: 'scope', short_name: 'scope', type: 'varchar(13)' },
-        { name: 'table', short_name: 'table', type: 'varchar(13)' },
-        { name: 'primary_key', short_name: 'pk', type: 'numeric' },
-    ],
-    sort_keys: [
-        { name: 'scope', short_name: 'scope', type: 'varchar(13)' },
-        { name: 'table', short_name: 'table', type: 'varchar(13)' },
-        { name: 'primary_key', short_name: 'pk', type: 'numeric' },
-        { name: 'code', short_name: 'code', type: 'varchar(13)' },
-    ],
-    history_keys: [
-        { name: 'block_index', desc: true },
-        { name: 'present', desc: true },
-    ]
-});
+for (let query of config.queries) {
+    fill_types(query, query.keys);
+    fill_types(query, query.sort_keys);
+    fill_types(query, query.history_keys);
+    generate_state(query);
+}
 
 console.log(indexes);
 console.log(functions);

@@ -87,11 +87,11 @@
             max_block_index bigint,
             first_code varchar(13),
             first_table varchar(13),
-            first_primary_key numeric,
+            first_primary_key decimal,
             first_scope varchar(13),
             last_code varchar(13),
             last_table varchar(13),
-            last_primary_key numeric,
+            last_primary_key decimal,
             last_scope varchar(13),
             max_results integer
         ) returns setof chain.contract_row
@@ -155,13 +155,13 @@
                         if block_search.present then
                             return next block_search;
                         else
-                            return next row(block_search.block_index, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::numeric, ''::varchar(13), ''::bytea);
+                            return next row(block_search.block_index, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::decimal, ''::varchar(13), ''::bytea);
                         end if;
                         num_results = num_results + 1;
                         found_block = true;
                     end loop;
                     if not found_block then
-                        return next row(0::bigint, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::numeric, ''::varchar(13), ''::bytea);
+                        return next row(0::bigint, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::decimal, ''::varchar(13), ''::bytea);
                         num_results = num_results + 1;
                     end if;
                 end loop;
@@ -218,13 +218,13 @@
                             if block_search.present then
                                 return next block_search;
                             else
-                                return next row(block_search.block_index, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::numeric, ''::varchar(13), ''::bytea);
+                                return next row(block_search.block_index, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::decimal, ''::varchar(13), ''::bytea);
                             end if;
                             num_results = num_results + 1;
                             found_block = true;
                         end loop;
                         if not found_block then
-                            return next row(0::bigint, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::numeric, ''::varchar(13), ''::bytea);
+                            return next row(0::bigint, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::decimal, ''::varchar(13), ''::bytea);
                             num_results = num_results + 1;
                         end if;
                     end loop;
@@ -239,11 +239,11 @@
             first_code varchar(13),
             first_table varchar(13),
             first_scope varchar(13),
-            first_primary_key numeric,
+            first_primary_key decimal,
             last_code varchar(13),
             last_table varchar(13),
             last_scope varchar(13),
-            last_primary_key numeric,
+            last_primary_key decimal,
             max_results integer
         ) returns setof chain.contract_row
         as $$
@@ -306,13 +306,13 @@
                         if block_search.present then
                             return next block_search;
                         else
-                            return next row(block_search.block_index, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::numeric, ''::varchar(13), ''::bytea);
+                            return next row(block_search.block_index, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::decimal, ''::varchar(13), ''::bytea);
                         end if;
                         num_results = num_results + 1;
                         found_block = true;
                     end loop;
                     if not found_block then
-                        return next row(0::bigint, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::numeric, ''::varchar(13), ''::bytea);
+                        return next row(0::bigint, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::decimal, ''::varchar(13), ''::bytea);
                         num_results = num_results + 1;
                     end if;
                 end loop;
@@ -369,13 +369,13 @@
                             if block_search.present then
                                 return next block_search;
                             else
-                                return next row(block_search.block_index, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::numeric, ''::varchar(13), ''::bytea);
+                                return next row(block_search.block_index, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::decimal, ''::varchar(13), ''::bytea);
                             end if;
                             num_results = num_results + 1;
                             found_block = true;
                         end loop;
                         if not found_block then
-                            return next row(0::bigint, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::numeric, ''::varchar(13), ''::bytea);
+                            return next row(0::bigint, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::decimal, ''::varchar(13), ''::bytea);
                             num_results = num_results + 1;
                         end if;
                     end loop;
@@ -389,11 +389,11 @@
             max_block_index bigint,
             first_scope varchar(13),
             first_table varchar(13),
-            first_primary_key numeric,
+            first_primary_key decimal,
             first_code varchar(13),
             last_scope varchar(13),
             last_table varchar(13),
-            last_primary_key numeric,
+            last_primary_key decimal,
             last_code varchar(13),
             max_results integer
         ) returns setof chain.contract_row
@@ -457,13 +457,13 @@
                         if block_search.present then
                             return next block_search;
                         else
-                            return next row(block_search.block_index, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::numeric, ''::varchar(13), ''::bytea);
+                            return next row(block_search.block_index, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::decimal, ''::varchar(13), ''::bytea);
                         end if;
                         num_results = num_results + 1;
                         found_block = true;
                     end loop;
                     if not found_block then
-                        return next row(0::bigint, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::numeric, ''::varchar(13), ''::bytea);
+                        return next row(0::bigint, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::decimal, ''::varchar(13), ''::bytea);
                         num_results = num_results + 1;
                     end if;
                 end loop;
@@ -520,13 +520,13 @@
                             if block_search.present then
                                 return next block_search;
                             else
-                                return next row(block_search.block_index, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::numeric, ''::varchar(13), ''::bytea);
+                                return next row(block_search.block_index, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::decimal, ''::varchar(13), ''::bytea);
                             end if;
                             num_results = num_results + 1;
                             found_block = true;
                         end loop;
                         if not found_block then
-                            return next row(0::bigint, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::numeric, ''::varchar(13), ''::bytea);
+                            return next row(0::bigint, false, key_search."code"::varchar(13), key_search."scope"::varchar(13), key_search."table"::varchar(13), key_search."primary_key"::decimal, ''::varchar(13), ''::bytea);
                             num_results = num_results + 1;
                         end if;
                     end loop;

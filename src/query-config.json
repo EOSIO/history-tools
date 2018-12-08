@@ -1,0 +1,286 @@
+{
+    "tables": [
+        {
+            "name": "action_trace",
+            "fields": [
+                {
+                    "name": "block_index",
+                    "type": "uint_t"
+                },
+                {
+                    "name": "transaction_id",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "action_index",
+                    "type": "uint_t"
+                },
+                {
+                    "name": "parent_action_index",
+                    "type": "uint_t"
+                },
+                {
+                    "name": "transaction_status",
+                    "type": "transaction_status_type"
+                },
+                {
+                    "name": "receipt_receiver",
+                    "type": "name"
+                },
+                {
+                    "name": "receipt_act_digest",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "receipt_global_sequence",
+                    "type": "uint64"
+                },
+                {
+                    "name": "receipt_recv_sequence",
+                    "type": "uint64"
+                },
+                {
+                    "name": "receipt_code_sequence",
+                    "type": "varuint32"
+                },
+                {
+                    "name": "receipt_abi_sequence",
+                    "type": "varuint32"
+                },
+                {
+                    "name": "account",
+                    "type": "name"
+                },
+                {
+                    "name": "name",
+                    "type": "name"
+                },
+                {
+                    "name": "data",
+                    "type": "bytes"
+                },
+                {
+                    "name": "context_free",
+                    "type": "bool"
+                },
+                {
+                    "name": "elapsed",
+                    "type": "int64_t"
+                },
+                {
+                    "name": "console",
+                    "type": "string"
+                },
+                {
+                    "name": "except",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "name": "contract_row",
+            "fields": [
+                {
+                    "name": "block_index",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "code",
+                    "type": "name"
+                },
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "table",
+                    "type": "name"
+                },
+                {
+                    "name": "primary_key",
+                    "short_name": "pk",
+                    "type": "uint64"
+                },
+                {
+                    "name": "payer",
+                    "type": "name"
+                },
+                {
+                    "name": "value",
+                    "type": "bytes"
+                }
+            ]
+        }
+    ],
+    "queries": [
+        {
+            "wasm_name": "at.rna",
+            "index": "action_trace_receipt_receiver_name_account_block_index_idx",
+            "function": "action_trace_range_receipt_receiver_name_account",
+            "table": "action_trace",
+            "keys": [
+                {
+                    "name": "receipt_receiver"
+                },
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "account"
+                }
+            ],
+            "sort_keys": [
+                {
+                    "name": "receipt_receiver"
+                },
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "account"
+                }
+            ],
+            "history_keys": [
+                {
+                    "name": "block_index"
+                }
+            ]
+        },
+        {
+            "wasm_name": "cr.ctps",
+            "index": "contract_row_code_table_primary_key_scope_block_index_prese_idx",
+            "function": "contract_row_range_code_table_pk_scope",
+            "table": "contract_row",
+            "keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                },
+                {
+                    "name": "scope"
+                }
+            ],
+            "history_keys": [
+                {
+                    "name": "block_index",
+                    "desc": true
+                },
+                {
+                    "name": "present",
+                    "desc": true
+                }
+            ]
+        },
+        {
+            "wasm_name": "",
+            "index": "contract_row_code_table_scope_primary_key_block_index_prese_idx",
+            "function": "contract_row_range_code_table_scope_pk",
+            "table": "contract_row",
+            "keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
+            "history_keys": [
+                {
+                    "name": "block_index",
+                    "desc": true
+                },
+                {
+                    "name": "present",
+                    "desc": true
+                }
+            ]
+        },
+        {
+            "wasm_name": "",
+            "index": "contract_row_scope_table_primary_key_code_block_index_prese_idx",
+            "function": "contract_row_range_scope_table_pk_code",
+            "table": "contract_row",
+            "keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
+            "sort_keys": [
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                },
+                {
+                    "name": "code"
+                }
+            ],
+            "history_keys": [
+                {
+                    "name": "block_index",
+                    "desc": true
+                },
+                {
+                    "name": "present",
+                    "desc": true
+                }
+            ]
+        }
+    ]
+}

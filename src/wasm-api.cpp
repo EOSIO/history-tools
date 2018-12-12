@@ -512,7 +512,7 @@ int main(int argc, const char* argv[]) {
         init_glue();
 
         tcp::resolver resolver(foo_global->ioc);
-        auto          addr = resolver.resolve(vm["address"].as<string>(), vm["port"].as<string>());
+        auto          addr = resolver.resolve(tcp::resolver::query(tcp::v4(), vm["address"].as<string>(), vm["port"].as<string>()));
         tcp::acceptor acceptor{foo_global->ioc, *addr.begin()};
         std::cerr << "listening on " << vm["address"].as<string>() << ":" << vm["port"].as<string>() << "\n";
 

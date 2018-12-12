@@ -16,13 +16,10 @@
 
 #include "queries.hpp"
 
-// #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
+#include <boost/beast/http/vector_body.hpp>
 #include <boost/beast/websocket.hpp>
-// #include <boost/iostreams/device/back_inserter.hpp>
-// #include <boost/iostreams/filter/zlib.hpp>
-// #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/program_options.hpp>
 #include <fstream>
 #include <iostream>
@@ -115,6 +112,8 @@ struct foo {
     query_config::config config;
     string               schema;
     pqxx::connection     sql_connection;
+    std::vector<char>    request;
+    std::vector<char>    reply;
 
     foo()
         : global(context.cx) {}
@@ -229,6 +228,50 @@ bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
     }
 }
 
+// args: callback
+bool get_request(JSContext* cx, unsigned argc, JS::Value* vp) {
+    JS::CallArgs args = CallArgsFromVp(argc, vp);
+    if (!args.requireAtLeast(cx, "get_request", 1))
+        return false;
+    try {
+        if (!js_assert((uint32_t)foo_global->request.size() == foo_global->request.size(), cx, "get_request: request is too big"))
+            return false;
+        auto data = get_mem_from_callback(cx, args, 0, foo_global->request.size());
+        if (!js_assert(data, cx, "get_request: failed to fetch buffer from callback"))
+            return false;
+        memcpy(data, foo_global->request.data(), foo_global->request.size());
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "!!!!! c: " << e.what() << "\n";
+        JS_ReportOutOfMemory(cx);
+        return false;
+    } catch (...) {
+        std::cerr << "!!!!! c\n";
+        JS_ReportOutOfMemory(cx);
+        return false;
+    }
+} // get_request
+
+// args: ArrayBuffer, row_request_begin, row_request_end
+bool set_reply(JSContext* cx, unsigned argc, JS::Value* vp) {
+    JS::CallArgs args = CallArgsFromVp(argc, vp);
+    if (!args.requireAtLeast(cx, "set_reply", 3))
+        return false;
+    bool ok = true;
+    {
+        JS::AutoCheckCannotGC checkGC;
+        auto                  b = get_input_buffer(args, 0, 1, 2, checkGC);
+        if (b.pos) {
+            try {
+                foo_global->reply.assign(b.pos, b.end);
+            } catch (...) {
+                ok = false;
+            }
+        }
+    }
+    return js_assert(ok, cx, "set_reply: invalid args");
+}
+
 // args: ArrayBuffer, row_request_begin, row_request_end, callback
 bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::CallArgs args = CallArgsFromVp(argc, vp);
@@ -303,14 +346,15 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         JS_ReportOutOfMemory(cx);
         return false;
     }
-
 } // exec_query
 
 static const JSFunctionSpec functions[] = {
+    JS_FN("exec_query", exec_query, 0, 0),         //
+    JS_FN("get_request", get_request, 0, 0),       //
+    JS_FN("get_wasm", get_wasm, 0, 0),             //
     JS_FN("print_js_str", print_js_str, 0, 0),     //
     JS_FN("print_wasm_str", print_wasm_str, 0, 0), //
-    JS_FN("get_wasm", get_wasm, 0, 0),             //
-    JS_FN("exec_query", exec_query, 0, 0),         //
+    JS_FN("set_reply", set_reply, 0, 0),           //
     JS_FS_END                                      //
 };
 
@@ -348,13 +392,15 @@ void run() {
     JS::RootedValue       rval(foo_global->context.cx);
     JS::AutoValueArray<1> args(foo_global->context.cx);
     args[0].set(JS::NumberValue(1234));
-    if (!JS_CallFunctionName(foo_global->context.cx, foo_global->global, "run", args, &rval))
+    if (!JS_CallFunctionName(foo_global->context.cx, foo_global->global, "run", args, &rval)) {
+        JS_ClearPendingException(foo_global->context.cx);
         throw std::runtime_error("JS_CallFunctionName failed");
+    }
 }
 
 void fail(beast::error_code ec, char const* what) { std::cerr << what << ": " << ec.message() << "\n"; }
 
-void handle_request(tcp::socket& socket, http::request<http::string_body> req, beast::error_code& ec) {
+void handle_request(tcp::socket& socket, http::request<http::vector_body<char>> req, beast::error_code& ec) {
     auto const bad_request = [&req](beast::string_view why) {
         http::response<http::string_body> res{http::status::bad_request, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
@@ -370,67 +416,49 @@ void handle_request(tcp::socket& socket, http::request<http::string_body> req, b
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, "text/html");
         res.keep_alive(req.keep_alive());
-        res.body() = "The resource '" + target.to_string() + "' was not found.";
+        res.body() = "The resource '" + target.to_string() + "' was not found.\n";
         res.prepare_payload();
         return res;
     };
 
-    // auto const server_error = [&req](beast::string_view what) {
-    //     http::response<http::string_body> res{http::status::internal_server_error, req.version()};
-    //     res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-    //     res.set(http::field::content_type, "text/html");
-    //     res.keep_alive(req.keep_alive());
-    //     res.body() = "An error occurred: '" + what.to_string() + "'";
-    //     res.prepare_payload();
-    //     return res;
-    // };
+    auto const server_error = [&req](beast::string_view what) {
+        http::response<http::string_body> res{http::status::internal_server_error, req.version()};
+        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+        res.set(http::field::content_type, "text/html");
+        res.keep_alive(req.keep_alive());
+        res.body() = what.to_string() + "\n";
+        res.prepare_payload();
+        return res;
+    };
+
+    auto const ok = [&req](std::vector<char> reply) {
+        http::response<http::vector_body<char>> res{http::status::ok, req.version()};
+        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+        res.set(http::field::content_type, "application/octet-stream");
+        res.keep_alive(req.keep_alive());
+        res.body() = std::move(reply);
+        res.prepare_payload();
+        return res;
+    };
 
     auto send = [&](const auto& msg) {
         http::serializer<false, typename std::decay_t<decltype(msg)>::body_type> sr{msg};
         http::write(socket, sr, ec);
     };
 
-    if (req.method() != http::verb::get && req.method() != http::verb::head)
-        return send(bad_request("Unknown HTTP-method"));
-
-    if (req.target().empty() || req.target()[0] != '/' || req.target().find("..") != beast::string_view::npos)
-        return send(bad_request("Illegal request-target"));
-
     if (req.target() == "/wasmql/v1/query") {
-        run();
-        return send(bad_request("....."));
+        if (req.method() != http::verb::post)
+            return send(bad_request("Unsupported HTTP-method\n"));
+        foo_global->request = std::move(req.body());
+        try {
+            run();
+            return send(ok(std::move(foo_global->reply)));
+        } catch (...) {
+            return send(server_error("wasm execution failed"));
+        }
     }
 
     return send(not_found(req.target()));
-
-    // // Handle an unknown error
-    // if(ec)
-    //     return send(server_error(ec.message()));
-
-    // // Cache the size since we need it after the move
-    // auto const size = body.size();
-
-    // // Respond to HEAD request
-    // if(req.method() == http::verb::head)
-    // {
-    //     http::response<http::empty_body> res{http::status::ok, req.version()};
-    //     res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-    //     res.set(http::field::content_type, mime_type(path));
-    //     res.content_length(size);
-    //     res.keep_alive(req.keep_alive());
-    //     return send(std::move(res));
-    // }
-
-    // // Respond to GET request
-    // http::response<http::file_body> res{
-    //     std::piecewise_construct,
-    //     std::make_tuple(std::move(body)),
-    //     std::make_tuple(http::status::ok, req.version())};
-    // res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-    // res.set(http::field::content_type, mime_type(path));
-    // res.content_length(size);
-    // res.keep_alive(req.keep_alive());
-    // return send(std::move(res));
 }
 
 void accepted(tcp::socket socket) {
@@ -438,7 +466,7 @@ void accepted(tcp::socket socket) {
 
     beast::flat_buffer buffer;
     for (;;) {
-        http::request<http::string_body> req;
+        http::request<http::vector_body<char>> req;
         http::read(socket, buffer, req, ec);
         if (ec == http::error::end_of_stream)
             break;

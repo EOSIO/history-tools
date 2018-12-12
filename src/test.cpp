@@ -359,6 +359,29 @@ struct query_action_trace_range_receiver_name_account {
     uint32_t              max_results     = 1;
 };
 
+extern "C" void get_request(void* cb_alloc_data, cb_alloc_fn* cb_alloc);
+
+template <typename Alloc_fn>
+inline void get_request(Alloc_fn alloc_fn) {
+    get_request(&alloc_fn, [](void* cb_alloc_data, size_t size) -> void* { //
+        return (*reinterpret_cast<Alloc_fn*>(cb_alloc_data))(size);
+    });
+}
+
+inline std::vector<char> get_request() {
+    std::vector<char> result;
+    get_request([&result](size_t size) {
+        result.resize(size);
+        return result.data();
+    });
+    return result;
+}
+
+extern "C" void set_reply(const char* begin, const char* end);
+
+inline void set_reply(const std::vector<char>& v) { set_reply(v.data(), v.data() + v.size()); }
+inline void set_reply(const std::string_view& v) { set_reply(v.data(), v.data() + v.size()); }
+
 extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, cb_alloc_fn* cb_alloc);
 
 template <typename T, typename Alloc_fn>
@@ -706,10 +729,14 @@ void bar() {
 
 extern "C" void startup() {
     print("\nstart wasm\n");
-    creators(30000000, 20);
-    balances_for_multiple_accounts(3000000, "eosio.token"_n, symbol_code{"EOS"}, "eosio"_n, "eosio.zzzzzz"_n, 100);
-    proposals(30000000, "h"_n, name{0}, "hzzzzzzzzzzz"_n, name{~uint64_t(0)}, 20);
-    balances_for_multiple_tokens(30000000, "eosio"_n, 100);
+
+    print(get_request().size(), " bytes\n");
+    set_reply("<( This is the reply )>\n");
+
+    // creators(30000000, 20);
+    // balances_for_multiple_accounts(3000000, "eosio.token"_n, symbol_code{"EOS"}, "eosio"_n, "eosio.zzzzzz"_n, 100);
+    // proposals(30000000, "h"_n, name{0}, "hzzzzzzzzzzz"_n, name{~uint64_t(0)}, 20);
+    // balances_for_multiple_tokens(30000000, "eosio"_n, 100);
     // bar();
     print("end wasm\n\n");
 }

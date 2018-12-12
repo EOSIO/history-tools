@@ -11,7 +11,6 @@
 // todo: kill a wasm execution if a fork change happens
 //       for now: warn about having multiple queries past irreversible
 // todo: cap max_results
-// todo: embed each row in bytes to allow binary extensions
 
 #define DEBUG
 
@@ -258,13 +257,21 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         pqxx::work        t(foo_global->sql_connection);
         auto              exec_result = t.exec(query_str);
         std::vector<char> result_bin;
+        std::vector<char> row_bin;
         push_varuint32(result_bin, exec_result.size());
         for (const auto& r : exec_result) {
+            row_bin.clear();
             int i = 0;
             for (auto& type : table.types)
-                type.sql_to_bin(result_bin, r[i++]);
+                type.sql_to_bin(row_bin, r[i++]);
+            if (!js_assert((uint32_t)row_bin.size() == row_bin.size(), cx, "exec_query: row is too big"))
+                return false;
+            push_varuint32(result_bin, row_bin.size());
+            result_bin.insert(result_bin.end(), row_bin.begin(), row_bin.end());
         }
         t.commit();
+        if (!js_assert((uint32_t)result_bin.size() == result_bin.size(), cx, "exec_query: result is too big"))
+            return false;
         auto data = get_mem_from_callback(cx, args, 3, result_bin.size());
         if (!js_assert(data, cx, "exec_query: failed to fetch buffer from callback"))
             return false;

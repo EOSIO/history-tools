@@ -385,8 +385,10 @@ bool for_each_query_result(const std::vector<char>& bytes, F f) {
     unsigned_int            size;
     ds >> size;
     for (uint32_t i = 0; i < size.value; ++i) {
+        datastream<const char*> row{nullptr, 0};
+        ds >> row;
         result r;
-        ds >> r;
+        row >> r;
         if (!f(r))
             return false;
     }

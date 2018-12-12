@@ -13,7 +13,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
-FIND_PACKAGE(Boost 1.58 REQUIRED COMPONENTS program_options)
+FIND_PACKAGE(Boost 1.58 REQUIRED COMPONENTS system program_options)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,7 +21,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_executable(wasm-api src/wasm-api.cpp)
 target_include_directories(wasm-api PUBLIC external/abieos/src external/abieos/external/rapidjson/include PRIVATE ${Boost_INCLUDE_DIR})
-target_link_libraries(wasm-api Boost::program_options mozjs-63 pqxx pq -lpthread)
+target_link_libraries(wasm-api Boost::system Boost::program_options mozjs-63 pqxx pq -lpthread)
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(wasm-api PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics -include /usr/local/include/mozjs-63/js/RequiredDefines.h -I/usr/local/include/mozjs-63)

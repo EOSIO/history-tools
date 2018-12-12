@@ -16,6 +16,13 @@
 
 #include "queries.hpp"
 
+// #include <boost/asio/connect.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/beast/core.hpp>
+#include <boost/beast/websocket.hpp>
+// #include <boost/iostreams/device/back_inserter.hpp>
+// #include <boost/iostreams/filter/zlib.hpp>
+// #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/program_options.hpp>
 #include <fstream>
 #include <iostream>
@@ -34,7 +41,11 @@
 using namespace abieos;
 using namespace std::literals;
 using namespace sql_conversion;
-namespace bpo = boost::program_options;
+namespace bpo   = boost::program_options;
+namespace asio  = boost::asio;
+namespace beast = boost::beast;
+namespace http  = beast::http;
+using tcp       = asio::ip::tcp;
 
 using std::string;
 
@@ -58,14 +69,6 @@ bool buildIdOp(JS::BuildIdCharVector* buildId) {
     // return buildId->append(id, sizeof(id));
     return true;
 }
-
-struct foo {
-    query_config::config config;
-    string               schema;
-    pqxx::connection     sql_connection;
-};
-
-std::unique_ptr<foo> foo_global; // todo: store in JS context instead of global variable
 
 static JSClassOps global_ops = {
     nullptr,                  // addProperty
@@ -104,6 +107,20 @@ struct ContextWrapper {
 
     ~ContextWrapper() { JS_DestroyContext(cx); }
 };
+
+struct foo {
+    ContextWrapper       context;
+    JS::RootedObject     global;
+    asio::io_context     ioc;
+    query_config::config config;
+    string               schema;
+    pqxx::connection     sql_connection;
+
+    foo()
+        : global(context.cx) {}
+};
+
+std::unique_ptr<foo> foo_global; // todo: store in JS context instead of global variable
 
 bool convert_str(JSContext* cx, JSString* str, string& dest) {
     auto len = JS_GetStringEncodingLength(cx, str);
@@ -297,36 +314,142 @@ static const JSFunctionSpec functions[] = {
     JS_FS_END                                      //
 };
 
-void runit() {
-    JS_Init();
-    {
-        ContextWrapper context;
-        JSAutoRequest  ar(context.cx);
+void init_glue() {
+    JSAutoRequest req(foo_global->context.cx);
 
-        JS::RealmOptions options;
-        JS::RootedObject global(context.cx, JS_NewGlobalObject(context.cx, &global_class, nullptr, JS::FireOnNewGlobalHook, options));
-        if (!global)
-            throw std::runtime_error("JS_NewGlobalObject failed");
+    JS::RealmOptions options;
+    foo_global->global.set(JS_NewGlobalObject(foo_global->context.cx, &global_class, nullptr, JS::FireOnNewGlobalHook, options));
+    if (!foo_global->global)
+        throw std::runtime_error("JS_NewGlobalObject failed");
 
-        {
-            JSAutoRealm ar(context.cx, global);
-            if (!JS::InitRealmStandardClasses(context.cx))
-                throw std::runtime_error("JS::InitRealmStandardClasses failed");
-            if (!JS_DefineFunctions(context.cx, global, functions))
-                throw std::runtime_error("JS_DefineFunctions failed");
+    JSAutoRealm realm(foo_global->context.cx, foo_global->global);
+    if (!JS::InitRealmStandardClasses(foo_global->context.cx))
+        throw std::runtime_error("JS::InitRealmStandardClasses failed");
+    if (!JS_DefineFunctions(foo_global->context.cx, foo_global->global, functions))
+        throw std::runtime_error("JS_DefineFunctions failed");
+    if (!JS_DefineProperty(foo_global->context.cx, foo_global->global, "global", foo_global->global, 0))
+        throw std::runtime_error("JS_DefineProperty failed");
 
-            auto               script   = readStr("../src/glue.js");
-            const char*        filename = "noname";
-            int                lineno   = 1;
-            JS::CompileOptions opts(context.cx);
-            opts.setFileAndLine(filename, lineno);
-            JS::RootedValue rval(context.cx);
-            bool            ok = JS::Evaluate(context.cx, opts, script.c_str(), script.size(), &rval);
-            if (!ok)
-                throw std::runtime_error("JS::Evaluate failed");
-        }
+    auto               script   = readStr("../src/glue.js");
+    const char*        filename = "noname";
+    int                lineno   = 1;
+    JS::CompileOptions opts(foo_global->context.cx);
+    opts.setFileAndLine(filename, lineno);
+    JS::RootedValue rval(foo_global->context.cx);
+    bool            ok = JS::Evaluate(foo_global->context.cx, opts, script.c_str(), script.size(), &rval);
+    if (!ok)
+        throw std::runtime_error("JS::Evaluate failed");
+}
+
+void run() {
+    JSAutoRequest req(foo_global->context.cx);
+    JSAutoRealm   realm(foo_global->context.cx, foo_global->global);
+
+    JS::RootedValue       rval(foo_global->context.cx);
+    JS::AutoValueArray<1> args(foo_global->context.cx);
+    args[0].set(JS::NumberValue(1234));
+    if (!JS_CallFunctionName(foo_global->context.cx, foo_global->global, "run", args, &rval))
+        throw std::runtime_error("JS_CallFunctionName failed");
+}
+
+void fail(beast::error_code ec, char const* what) { std::cerr << what << ": " << ec.message() << "\n"; }
+
+void handle_request(tcp::socket& socket, http::request<http::string_body> req, beast::error_code& ec) {
+    auto const bad_request = [&req](beast::string_view why) {
+        http::response<http::string_body> res{http::status::bad_request, req.version()};
+        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+        res.set(http::field::content_type, "text/html");
+        res.keep_alive(req.keep_alive());
+        res.body() = why.to_string();
+        res.prepare_payload();
+        return res;
+    };
+
+    auto const not_found = [&req](beast::string_view target) {
+        http::response<http::string_body> res{http::status::not_found, req.version()};
+        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+        res.set(http::field::content_type, "text/html");
+        res.keep_alive(req.keep_alive());
+        res.body() = "The resource '" + target.to_string() + "' was not found.";
+        res.prepare_payload();
+        return res;
+    };
+
+    // auto const server_error = [&req](beast::string_view what) {
+    //     http::response<http::string_body> res{http::status::internal_server_error, req.version()};
+    //     res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+    //     res.set(http::field::content_type, "text/html");
+    //     res.keep_alive(req.keep_alive());
+    //     res.body() = "An error occurred: '" + what.to_string() + "'";
+    //     res.prepare_payload();
+    //     return res;
+    // };
+
+    auto send = [&](const auto& msg) {
+        http::serializer<false, typename std::decay_t<decltype(msg)>::body_type> sr{msg};
+        http::write(socket, sr, ec);
+    };
+
+    if (req.method() != http::verb::get && req.method() != http::verb::head)
+        return send(bad_request("Unknown HTTP-method"));
+
+    if (req.target().empty() || req.target()[0] != '/' || req.target().find("..") != beast::string_view::npos)
+        return send(bad_request("Illegal request-target"));
+
+    if (req.target() == "/wasmql/v1/query") {
+        run();
+        return send(bad_request("....."));
     }
-    JS_ShutDown();
+
+    return send(not_found(req.target()));
+
+    // // Handle an unknown error
+    // if(ec)
+    //     return send(server_error(ec.message()));
+
+    // // Cache the size since we need it after the move
+    // auto const size = body.size();
+
+    // // Respond to HEAD request
+    // if(req.method() == http::verb::head)
+    // {
+    //     http::response<http::empty_body> res{http::status::ok, req.version()};
+    //     res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+    //     res.set(http::field::content_type, mime_type(path));
+    //     res.content_length(size);
+    //     res.keep_alive(req.keep_alive());
+    //     return send(std::move(res));
+    // }
+
+    // // Respond to GET request
+    // http::response<http::file_body> res{
+    //     std::piecewise_construct,
+    //     std::make_tuple(std::move(body)),
+    //     std::make_tuple(http::status::ok, req.version())};
+    // res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+    // res.set(http::field::content_type, mime_type(path));
+    // res.content_length(size);
+    // res.keep_alive(req.keep_alive());
+    // return send(std::move(res));
+}
+
+void accepted(tcp::socket socket) {
+    beast::error_code ec;
+
+    beast::flat_buffer buffer;
+    for (;;) {
+        http::request<http::string_body> req;
+        http::read(socket, buffer, req, ec);
+        if (ec == http::error::end_of_stream)
+            break;
+        if (ec)
+            return fail(ec, "read");
+
+        handle_request(socket, std::move(req), ec);
+        if (ec)
+            return fail(ec, "write");
+    }
+    socket.shutdown(tcp::socket::shutdown_send, ec);
 }
 
 int main(int argc, const char* argv[]) {
@@ -338,6 +461,8 @@ int main(int argc, const char* argv[]) {
         op("help,h", "Help screen");
         op("schema,s", bpo::value<string>()->default_value("chain"), "Database schema");
         op("query-config,q", bpo::value<string>()->default_value("../src/query-config.json"), "Query configuration");
+        op("address,a", bpo::value<string>()->default_value("localhost"), "Address to listen on");
+        op("port,p", bpo::value<string>()->default_value("8080"), "Port to listen on)");
         bpo::variables_map vm;
         bpo::store(bpo::parse_command_line(argc, argv, desc), vm);
         bpo::notify(vm);
@@ -347,6 +472,7 @@ int main(int argc, const char* argv[]) {
             return 0;
         }
 
+        JS_Init();
         foo_global         = std::make_unique<foo>();
         foo_global->schema = vm["schema"].as<string>();
 
@@ -355,10 +481,32 @@ int main(int argc, const char* argv[]) {
             throw std::runtime_error("error processing " + vm["query-config"].as<string>());
         foo_global->config.prepare();
 
-        runit();
+        init_glue();
+
+        tcp::resolver resolver(foo_global->ioc);
+        auto          addr = resolver.resolve(vm["address"].as<string>(), vm["port"].as<string>());
+        tcp::acceptor acceptor{foo_global->ioc, *addr.begin()};
+        std::cerr << "listening on " << vm["address"].as<string>() << ":" << vm["port"].as<string>() << "\n";
+
+        for (;;) {
+            try {
+                tcp::socket socket{foo_global->ioc};
+                acceptor.accept(socket);
+                std::cerr << "accepted\n";
+                accepted(std::move(socket));
+            } catch (const std::exception& e) {
+                std::cerr << "error: " << e.what() << "\n";
+            } catch (...) {
+                std::cerr << "error: unknown exception\n";
+            }
+        }
+
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "error: " << e.what() << '\n';
+        return 1;
+    } catch (...) {
+        std::cerr << "error: unknown exception\n";
         return 1;
     }
 }

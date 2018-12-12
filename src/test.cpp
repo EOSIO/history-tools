@@ -257,6 +257,14 @@ inline datastream<Stream>& operator>>(datastream<Stream>& ds, datastream<Stream>
 
 typedef void* cb_alloc_fn(void* cb_alloc_data, size_t size);
 
+enum class transaction_status : uint8_t {
+    executed  = 0, // succeed, no error handler executed
+    soft_fail = 1, // objectively failed (not executed), error handler executed
+    hard_fail = 2, // objectively failed and error handler objectively failed thus no state change
+    delayed   = 3, // transaction delayed/deferred/scheduled for future execution
+    expired   = 4, // transaction expired and storage space refunded to user
+};
+
 struct contract_row {
     uint32_t                block_index = 0;
     bool                    present     = false;
@@ -273,7 +281,7 @@ struct action_trace {
     serial_wrapper<checksum256> transaction_id          = {};
     uint32_t                    action_index            = {};
     uint32_t                    parent_action_index     = {};
-    datastream<const char*>     transaction_status      = {nullptr, 0}; // todo: enum
+    ::transaction_status        transaction_status      = {};
     eosio::name                 receipt_receiver        = {};
     serial_wrapper<checksum256> receipt_act_digest      = {};
     uint64_t                    receipt_global_sequence = {};
@@ -285,13 +293,11 @@ struct action_trace {
     datastream<const char*>     data                    = {nullptr, 0};
     bool                        context_free            = {};
     int64_t                     elapsed                 = {};
-    datastream<const char*>     console                 = {nullptr, 0}; // todo: string
-    datastream<const char*>     except                  = {nullptr, 0}; // todo: string
 
     EOSLIB_SERIALIZE(
         action_trace, (block_index)(transaction_id)(action_index)(parent_action_index)(transaction_status)(receipt_receiver)(
                           receipt_act_digest)(receipt_global_sequence)(receipt_recv_sequence)(receipt_code_sequence)(receipt_abi_sequence)(
-                          account)(name)(data)(context_free)(elapsed)(console)(except))
+                          account)(name)(data)(context_free)(elapsed))
 };
 
 struct code_table_pk_scope {
@@ -322,6 +328,7 @@ struct receiver_name_account {
 };
 
 struct query_contract_row_range_code_table_pk_scope {
+    name                query_name      = "cr.ctps"_n;
     uint32_t            max_block_index = 0;
     code_table_pk_scope first;
     code_table_pk_scope last;
@@ -329,6 +336,7 @@ struct query_contract_row_range_code_table_pk_scope {
 };
 
 struct query_contract_row_range_code_table_scope_pk {
+    name                query_name      = "cr.ctsp"_n;
     uint32_t            max_block_index = 0;
     code_table_scope_pk first;
     code_table_scope_pk last;
@@ -336,6 +344,7 @@ struct query_contract_row_range_code_table_scope_pk {
 };
 
 struct query_contract_row_range_scope_table_pk_code {
+    name                query_name      = "cr.stpc"_n;
     uint32_t            max_block_index = 0;
     scope_table_pk_code first;
     scope_table_pk_code last;
@@ -343,27 +352,25 @@ struct query_contract_row_range_scope_table_pk_code {
 };
 
 struct query_action_trace_range_receiver_name_account {
+    name                  query_name      = "at.rna"_n;
     uint32_t              max_block_index = 0;
     receiver_name_account first           = {};
     receiver_name_account last            = {};
     uint32_t              max_results     = 1;
 };
 
-using query = std::variant<
-    query_contract_row_range_code_table_pk_scope, query_contract_row_range_code_table_scope_pk,
-    query_contract_row_range_scope_table_pk_code, query_action_trace_range_receiver_name_account>;
-
 extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, cb_alloc_fn* cb_alloc);
 
-template <typename Alloc_fn>
-inline void exec_query(const query& req, Alloc_fn alloc_fn) {
+template <typename T, typename Alloc_fn>
+inline void exec_query(const T& req, Alloc_fn alloc_fn) {
     auto req_data = pack(req);
     exec_query(req_data.data(), req_data.data() + req_data.size(), &alloc_fn, [](void* cb_alloc_data, size_t size) -> void* { //
         return (*reinterpret_cast<Alloc_fn*>(cb_alloc_data))(size);
     });
 }
 
-inline std::vector<char> exec_query(const query& req) {
+template <typename T>
+inline std::vector<char> exec_query(const T& req) {
     std::vector<char> result;
     exec_query(req, [&result](size_t size) {
         result.resize(size);
@@ -523,11 +530,7 @@ void creators(uint32_t max_block_index, uint32_t max_results) {
         .max_results = max_results,
     });
     for_each_query_result<action_trace>(s, [&](action_trace& t) {
-        char status[20];
-        auto size = min(t.transaction_status.remaining(), sizeof(status) - 1);
-        t.transaction_status.read(status, size);
-        status[size] = 0;
-        if (strcmp(status, "executed"))
+        if (t.transaction_status != transaction_status::executed)
             return true;
         newaccount na;
         t.data >> na;

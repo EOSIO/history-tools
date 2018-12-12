@@ -5,7 +5,7 @@
             "fields": [
                 {
                     "name": "block_index",
-                    "type": "uint_t"
+                    "type": "uint32"
                 },
                 {
                     "name": "transaction_id",
@@ -13,15 +13,15 @@
                 },
                 {
                     "name": "action_index",
-                    "type": "uint_t"
+                    "type": "uint32"
                 },
                 {
                     "name": "parent_action_index",
-                    "type": "uint_t"
+                    "type": "uint32"
                 },
                 {
                     "name": "transaction_status",
-                    "type": "transaction_status_type"
+                    "type": "transaction_status"
                 },
                 {
                     "name": "receipt_receiver",
@@ -65,15 +65,7 @@
                 },
                 {
                     "name": "elapsed",
-                    "type": "int64_t"
-                },
-                {
-                    "name": "console",
-                    "type": "string"
-                },
-                {
-                    "name": "except",
-                    "type": "string"
+                    "type": "int64"
                 }
             ]
         },
@@ -195,7 +187,7 @@
             ]
         },
         {
-            "wasm_name": "",
+            "wasm_name": "cr.ctsp",
             "index": "contract_row_code_table_scope_primary_key_block_index_prese_idx",
             "function": "contract_row_range_code_table_scope_pk",
             "table": "contract_row",
@@ -239,7 +231,7 @@
             ]
         },
         {
-            "wasm_name": "",
+            "wasm_name": "cr.stpc",
             "index": "contract_row_scope_table_primary_key_code_block_index_prese_idx",
             "function": "contract_row_range_scope_table_pk_code",
             "table": "contract_row",

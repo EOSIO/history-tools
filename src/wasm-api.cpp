@@ -15,13 +15,12 @@
 
 #define DEBUG
 
-#include "abieos.hpp"
+#include "queries.hpp"
 
 #include <boost/program_options.hpp>
 #include <fstream>
 #include <iostream>
 #include <memory>
-#include <pqxx/pqxx>
 #include <sstream>
 #include <string>
 #include <variant>
@@ -35,123 +34,23 @@
 
 using namespace abieos;
 using namespace std::literals;
+using namespace sql_conversion;
 namespace bpo = boost::program_options;
 
 using std::string;
-using std::to_string;
-
-static const string null_value = "null";
-static const string sep        = ",";
-
-inline string quote(string s) { return "'" + s + "'"; }
-inline string quote_bytea(string s) { return "'\\x" + s + "'"; }
-
-// clang-format off
-inline string sql_str(bool v)               { return v ? "true" : "false";}
-inline string sql_str(uint16_t v)           { return to_string(v); }
-inline string sql_str(int16_t v)            { return to_string(v); }
-inline string sql_str(uint32_t v)           { return to_string(v); }
-inline string sql_str(int32_t v)            { return to_string(v); }
-inline string sql_str(uint64_t v)           { return to_string(v); }
-inline string sql_str(int64_t v)            { return to_string(v); }
-inline string sql_str(varuint32 v)          { return string(v); }
-inline string sql_str(varint32 v)           { return string(v); }
-inline string sql_str(int128 v)             { return string(v); }
-inline string sql_str(uint128 v)            { return string(v); }
-inline string sql_str(float128 v)           { return quote_bytea(string(v)); }
-inline string sql_str(name v)               { return quote(v.value ? string(v) : ""s); }
-inline string sql_str(time_point v)         { return v.microseconds ? quote(string(v)): null_value; }
-inline string sql_str(time_point_sec v)     { return v.utc_seconds ? quote(string(v)): null_value; }
-inline string sql_str(block_timestamp v)    { return v.slot ?  quote(string(v)) : null_value; }
-inline string sql_str(checksum256 v)        { return quote(v.value == checksum256{}.value ? "" : string(v)); }
-inline string sql_str(const public_key& v)  { return quote(public_key_to_string(v)); }
-// clang-format on
-
-template <class C, typename M>
-const C* class_from_void(M C::*, const void* v) {
-    return reinterpret_cast<const C*>(v);
-}
-
-template <auto P>
-auto& member_from_void(const member_ptr<P>&, const void* p) {
-    return class_from_void(P, p)->*P;
-}
-
-template <typename T>
-void native_to_bin(std::vector<char>& bin, const T& obj);
-
-inline void native_to_bin(std::vector<char>& bin, const name& obj) { native_to_bin(bin, obj.value); }
-inline void native_to_bin(std::vector<char>& bin, const varuint32& obj) { push_varuint32(bin, obj.value); }
-
-template <unsigned size>
-inline void native_to_bin(std::vector<char>& bin, const fixed_binary<size>& obj) {
-    bin.insert(bin.end(), obj.value.begin(), obj.value.end());
-}
-
-inline void native_to_bin(std::vector<char>& bin, const string& obj) {
-    push_varuint32(bin, obj.size());
-    bin.insert(bin.end(), obj.begin(), obj.end());
-}
-
-inline void native_to_bin(std::vector<char>& bin, const bytes& obj) {
-    push_varuint32(bin, obj.data.size());
-    bin.insert(bin.end(), obj.data.begin(), obj.data.end());
-}
-
-template <typename T>
-void native_to_bin(std::vector<char>& bin, const std::vector<T>& obj) {
-    push_varuint32(bin, obj.size());
-    for (auto& v : obj) {
-        native_to_bin(bin, v);
-    }
-}
-
-template <typename T>
-void native_to_bin(std::vector<char>& bin, const T& obj) {
-    if constexpr (std::is_class_v<T>) {
-        for_each_field((T*)nullptr, [&](auto* name, auto member_ptr) { //
-            native_to_bin(bin, member_from_void(member_ptr, &obj));
-        });
-    } else {
-        static_assert(std::is_trivially_copyable_v<T>);
-        push_raw(bin, obj);
-    }
-}
-
-bytes sql_to_bytes(const char* ch) {
-    bytes result;
-    if (!ch || ch[0] != '\\' || ch[1] != 'x')
-        return result;
-    try {
-        boost::algorithm::unhex(ch + 2, ch + strlen(ch), std::back_inserter(result.data));
-    } catch (...) {
-        result.data.clear();
-    }
-    return result;
-}
-
-checksum256 sql_to_checksum256(const char* ch) {
-    std::vector<uint8_t> v;
-    try {
-        boost::algorithm::unhex(ch, ch + strlen(ch), std::back_inserter(v));
-    } catch (...) {
-        throw error("expected hex string");
-    }
-    checksum256 result;
-    if (v.size() != result.value.size())
-        throw error("hex string has incorrect length");
-    memcpy(result.value.data(), v.data(), result.value.size());
-    return result;
-}
 
 string readStr(const char* filename) {
-    std::fstream file(filename, std::ios_base::in | std::ios_base::binary);
-    file.seekg(0, std::ios_base::end);
-    auto len = file.tellg();
-    file.seekg(0, std::ios_base::beg);
-    string result(len, 0);
-    file.read(result.data(), len);
-    return result;
+    try {
+        std::fstream file(filename, std::ios_base::in | std::ios_base::binary);
+        file.seekg(0, std::ios_base::end);
+        auto len = file.tellg();
+        file.seekg(0, std::ios_base::beg);
+        string result(len, 0);
+        file.read(result.data(), len);
+        return result;
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Error reading "s + filename);
+    }
 }
 
 bool buildIdOp(JS::BuildIdCharVector* buildId) {
@@ -162,8 +61,9 @@ bool buildIdOp(JS::BuildIdCharVector* buildId) {
 }
 
 struct foo {
-    string           schema;
-    pqxx::connection sql_connection;
+    query_config::config config;
+    string               schema;
+    pqxx::connection     sql_connection;
 };
 
 std::unique_ptr<foo> foo_global; // todo: store in JS context instead of global variable
@@ -313,373 +213,73 @@ bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
     }
 }
 
-struct code_table_pk_scope {
-    name     code;
-    name     table;
-    uint64_t primary_key = 0;
-    name     scope;
-};
-
-template <typename F>
-constexpr void for_each_field(code_table_pk_scope*, F f) {
-    f("code", member_ptr<&code_table_pk_scope::code>{});
-    f("table", member_ptr<&code_table_pk_scope::table>{});
-    f("primary_key", member_ptr<&code_table_pk_scope::primary_key>{});
-    f("scope", member_ptr<&code_table_pk_scope::scope>{});
-};
-
-struct code_table_scope_pk {
-    name     code;
-    name     table;
-    name     scope;
-    uint64_t primary_key = 0;
-};
-
-template <typename F>
-constexpr void for_each_field(code_table_scope_pk*, F f) {
-    f("code", member_ptr<&code_table_scope_pk::code>{});
-    f("table", member_ptr<&code_table_scope_pk::table>{});
-    f("scope", member_ptr<&code_table_scope_pk::scope>{});
-    f("primary_key", member_ptr<&code_table_scope_pk::primary_key>{});
-};
-
-struct scope_table_pk_code {
-    name     scope;
-    name     table;
-    uint64_t primary_key = 0;
-    name     code;
-};
-
-template <typename F>
-constexpr void for_each_field(scope_table_pk_code*, F f) {
-    f("scope", member_ptr<&scope_table_pk_code::scope>{});
-    f("table", member_ptr<&scope_table_pk_code::table>{});
-    f("primary_key", member_ptr<&scope_table_pk_code::primary_key>{});
-    f("code", member_ptr<&scope_table_pk_code::code>{});
-};
-
-struct receiver_name_account {
-    abieos::name receipt_receiver = {};
-    abieos::name name             = {};
-    abieos::name account          = {};
-};
-
-template <typename F>
-constexpr void for_each_field(receiver_name_account*, F f) {
-    f("receipt_receiver", member_ptr<&receiver_name_account::receipt_receiver>{});
-    f("name", member_ptr<&receiver_name_account::name>{});
-    f("account", member_ptr<&receiver_name_account::account>{});
-}
-
-struct query_contract_row_range_code_table_pk_scope {
-    uint32_t            max_block_index = 0;
-    code_table_pk_scope first;
-    code_table_pk_scope last;
-    uint32_t            max_results = 1;
-};
-
-template <typename F>
-constexpr void for_each_field(query_contract_row_range_code_table_pk_scope*, F f) {
-    f("max_block_index", member_ptr<&query_contract_row_range_code_table_pk_scope::max_block_index>{});
-    f("first", member_ptr<&query_contract_row_range_code_table_pk_scope::first>{});
-    f("last", member_ptr<&query_contract_row_range_code_table_pk_scope::last>{});
-    f("max_results", member_ptr<&query_contract_row_range_code_table_pk_scope::max_results>{});
-};
-
-struct query_contract_row_range_code_table_scope_pk {
-    uint32_t            max_block_index = 0;
-    code_table_scope_pk first;
-    code_table_scope_pk last;
-    uint32_t            max_results = 1;
-};
-
-template <typename F>
-constexpr void for_each_field(query_contract_row_range_code_table_scope_pk*, F f) {
-    f("max_block_index", member_ptr<&query_contract_row_range_code_table_scope_pk::max_block_index>{});
-    f("first", member_ptr<&query_contract_row_range_code_table_scope_pk::first>{});
-    f("last", member_ptr<&query_contract_row_range_code_table_scope_pk::last>{});
-    f("max_results", member_ptr<&query_contract_row_range_code_table_scope_pk::max_results>{});
-};
-
-struct query_contract_row_range_scope_table_pk_code {
-    uint32_t            max_block_index = 0;
-    scope_table_pk_code first;
-    scope_table_pk_code last;
-    uint32_t            max_results = 1;
-};
-
-template <typename F>
-constexpr void for_each_field(query_contract_row_range_scope_table_pk_code*, F f) {
-    f("max_block_index", member_ptr<&query_contract_row_range_scope_table_pk_code::max_block_index>{});
-    f("first", member_ptr<&query_contract_row_range_scope_table_pk_code::first>{});
-    f("last", member_ptr<&query_contract_row_range_scope_table_pk_code::last>{});
-    f("max_results", member_ptr<&query_contract_row_range_scope_table_pk_code::max_results>{});
-};
-
-struct query_action_trace_range_receiver_name_account {
-    uint32_t              max_block_index = 0;
-    receiver_name_account first           = {};
-    receiver_name_account last            = {};
-    uint32_t              max_results     = 1;
-};
-
-template <typename F>
-constexpr void for_each_field(query_action_trace_range_receiver_name_account*, F f) {
-    f("max_block_index", member_ptr<&query_action_trace_range_receiver_name_account::max_block_index>{});
-    f("first", member_ptr<&query_action_trace_range_receiver_name_account::first>{});
-    f("last", member_ptr<&query_action_trace_range_receiver_name_account::last>{});
-    f("max_results", member_ptr<&query_action_trace_range_receiver_name_account::max_results>{});
-}
-
-using query = std::variant<
-    query_contract_row_range_code_table_pk_scope, query_contract_row_range_code_table_scope_pk,
-    query_contract_row_range_scope_table_pk_code, query_action_trace_range_receiver_name_account>;
-
-struct contract_row {
-    uint32_t block_index = 0;
-    bool     present     = false;
-    name     code;
-    name     scope;
-    name     table;
-    uint64_t primary_key = 0;
-    name     payer;
-    bytes    value;
-};
-
-template <typename F>
-constexpr void for_each_field(contract_row*, F f) {
-    f("block_index", member_ptr<&contract_row::block_index>{});
-    f("present", member_ptr<&contract_row::present>{});
-    f("code", member_ptr<&contract_row::code>{});
-    f("scope", member_ptr<&contract_row::scope>{});
-    f("table", member_ptr<&contract_row::table>{});
-    f("primary_key", member_ptr<&contract_row::primary_key>{});
-    f("payer", member_ptr<&contract_row::payer>{});
-    f("value", member_ptr<&contract_row::value>{});
-}
-
-template <typename F>
-bool query_contract_row(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, F exec) {
-    try {
-        pqxx::work t(foo_global->sql_connection);
-        auto       result = exec(t);
-
-        std::vector<contract_row> v;
-        for (const auto& r : result) {
-            v.push_back(contract_row{
-                .block_index = r[0].template as<uint32_t>(),
-                .present     = r[1].template as<bool>(),
-                .code        = name{r[2].c_str()},
-                .scope       = name{r[3].c_str()},
-                .table       = name{r[4].c_str()},
-                .primary_key = r[5].template as<uint64_t>(),
-                .payer       = name{r[6].c_str()},
-                .value       = sql_to_bytes(r[7].c_str()),
-            });
-        }
-        t.commit();
-
-        std::vector<char> bin;
-        native_to_bin(bin, v);
-        auto data = get_mem_from_callback(cx, args, callback_arg, bin.size());
-        if (!js_assert(data, cx, "exec_query: failed to fetch buffer from callback"))
-            return false;
-        memcpy(data, bin.data(), bin.size());
-        return true;
-    } catch (const std::exception& e) {
-        std::cerr << "!!!!! c: " << e.what() << "\n";
-        JS_ReportOutOfMemory(cx);
-        return false;
-    } catch (...) {
-        std::cerr << "!!!!! c\n";
-        JS_ReportOutOfMemory(cx);
-        return false;
-    }
-} // query_contract_row
-
-// todo: transaction_status type
-struct action_trace {
-    uint32_t     block_index             = {};
-    checksum256  transaction_id          = {};
-    uint32_t     action_index            = {};
-    uint32_t     parent_action_index     = {};
-    string       transaction_status      = {};
-    abieos::name receipt_receiver        = {};
-    checksum256  receipt_act_digest      = {};
-    uint64_t     receipt_global_sequence = {};
-    uint64_t     receipt_recv_sequence   = {};
-    varuint32    receipt_code_sequence   = {};
-    varuint32    receipt_abi_sequence    = {};
-    abieos::name account                 = {};
-    abieos::name name                    = {};
-    bytes        data                    = {};
-    bool         context_free            = {};
-    int64_t      elapsed                 = {};
-    string       console                 = {};
-    string       except                  = {};
-};
-
-template <typename F>
-constexpr void for_each_field(action_trace*, F f) {
-    f("block_index", member_ptr<&action_trace::block_index>{});
-    f("transaction_id", member_ptr<&action_trace::transaction_id>{});
-    f("action_index", member_ptr<&action_trace::action_index>{});
-    f("parent_action_index", member_ptr<&action_trace::parent_action_index>{});
-    f("transaction_status", member_ptr<&action_trace::transaction_status>{});
-    f("receipt_receiver", member_ptr<&action_trace::receipt_receiver>{});
-    f("receipt_act_digest", member_ptr<&action_trace::receipt_act_digest>{});
-    f("receipt_global_sequence", member_ptr<&action_trace::receipt_global_sequence>{});
-    f("receipt_recv_sequence", member_ptr<&action_trace::receipt_recv_sequence>{});
-    f("receipt_code_sequence", member_ptr<&action_trace::receipt_code_sequence>{});
-    f("receipt_abi_sequence", member_ptr<&action_trace::receipt_abi_sequence>{});
-    f("account", member_ptr<&action_trace::account>{});
-    f("name", member_ptr<&action_trace::name>{});
-    f("data", member_ptr<&action_trace::data>{});
-    f("context_free", member_ptr<&action_trace::context_free>{});
-    f("elapsed", member_ptr<&action_trace::elapsed>{});
-    f("console", member_ptr<&action_trace::console>{});
-    f("except", member_ptr<&action_trace::except>{});
-}
-
-template <typename F>
-bool query_action_trace(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, F exec) {
-    try {
-        pqxx::work t(foo_global->sql_connection);
-        auto       result = exec(t);
-
-        std::vector<action_trace> v;
-        for (const auto& r : result) {
-            v.push_back(action_trace{
-                .block_index             = r[0].template as<uint32_t>(),
-                .transaction_id          = sql_to_checksum256(r[1].c_str()),
-                .action_index            = r[2].template as<uint32_t>(),
-                .parent_action_index     = r[3].template as<uint32_t>(),
-                .transaction_status      = t.unesc_raw(r[4].c_str()),
-                .receipt_receiver        = name{r[5].c_str()},
-                .receipt_act_digest      = sql_to_checksum256(r[6].c_str()),
-                .receipt_global_sequence = r[7].template as<uint64_t>(),
-                .receipt_recv_sequence   = r[8].template as<uint64_t>(),
-                .receipt_code_sequence   = {r[9].template as<uint32_t>()},
-                .receipt_abi_sequence    = {r[10].template as<uint32_t>()},
-                .account                 = name{r[11].c_str()},
-                .name                    = name{r[12].c_str()},
-                .data                    = sql_to_bytes(r[13].c_str()),
-                .context_free            = r[14].template as<bool>(),
-                .elapsed                 = r[15].template as<int64_t>(),
-                .console                 = t.unesc_raw(r[16].c_str()),
-                .except                  = t.unesc_raw(r[17].c_str()),
-            });
-        }
-        t.commit();
-
-        std::vector<char> bin;
-        native_to_bin(bin, v);
-        auto data = get_mem_from_callback(cx, args, callback_arg, bin.size());
-        if (!js_assert(data, cx, "exec_query: failed to fetch buffer from callback"))
-            return false;
-        memcpy(data, bin.data(), bin.size());
-        return true;
-    } catch (const std::exception& e) {
-        std::cerr << "!!!!! c: " << e.what() << "\n";
-        JS_ReportOutOfMemory(cx);
-        return false;
-    } catch (...) {
-        std::cerr << "!!!!! c\n";
-        JS_ReportOutOfMemory(cx);
-        return false;
-    }
-} // query_action_trace
-
-bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, query_contract_row_range_code_table_pk_scope& req) {
-    return query_contract_row(cx, args, callback_arg, [&req](auto& t) {
-        return t.exec(
-            "select * from chain.contract_row_range_code_table_pk_scope(" + //
-            sql_str(req.max_block_index) + sep +                            //
-            sql_str(req.first.code) + sep +                                 //
-            sql_str(req.first.table) + sep +                                //
-            sql_str(req.first.primary_key) + sep +                          //
-            sql_str(req.first.scope) + sep +                                //
-            sql_str(req.last.code) + sep +                                  //
-            sql_str(req.last.table) + sep +                                 //
-            sql_str(req.last.primary_key) + sep +                           //
-            sql_str(req.last.scope) + sep +                                 //
-            sql_str(req.max_results) +                                      //
-            ")");
-    });
-}
-
-bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, query_contract_row_range_code_table_scope_pk& req) {
-    return query_contract_row(cx, args, callback_arg, [&req](auto& t) {
-        return t.exec(
-            "select * from chain.contract_row_range_code_table_scope_pk(" + //
-            sql_str(req.max_block_index) + sep +                            //
-            sql_str(req.first.code) + sep +                                 //
-            sql_str(req.first.table) + sep +                                //
-            sql_str(req.first.scope) + sep +                                //
-            sql_str(req.first.primary_key) + sep +                          //
-            sql_str(req.last.code) + sep +                                  //
-            sql_str(req.last.table) + sep +                                 //
-            sql_str(req.last.scope) + sep +                                 //
-            sql_str(req.last.primary_key) + sep +                           //
-            sql_str(req.max_results) +                                      //
-            ")");
-    });
-}
-
-bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, query_contract_row_range_scope_table_pk_code& req) {
-    return query_contract_row(cx, args, callback_arg, [&req](auto& t) {
-        return t.exec(
-            "select * from chain.contract_row_range_scope_table_pk_code(" + //
-            sql_str(req.max_block_index) + sep +                            //
-            sql_str(req.first.scope) + sep +                                //
-            sql_str(req.first.table) + sep +                                //
-            sql_str(req.first.primary_key) + sep +                          //
-            sql_str(req.first.code) + sep +                                 //
-            sql_str(req.last.scope) + sep +                                 //
-            sql_str(req.last.table) + sep +                                 //
-            sql_str(req.last.primary_key) + sep +                           //
-            sql_str(req.last.code) + sep +                                  //
-            sql_str(req.max_results) +                                      //
-            ")");
-    });
-}
-
-bool query_db_impl(JSContext* cx, JS::CallArgs& args, unsigned callback_arg, query_action_trace_range_receiver_name_account& req) {
-    return query_action_trace(cx, args, callback_arg, [&req](auto& t) {
-        return t.exec(
-            "select * from chain.action_trace_range_receipt_receiver_name_account(" + //
-            sql_str(req.max_block_index) + sep +                                      //
-            sql_str(req.first.receipt_receiver) + sep +                               //
-            sql_str(req.first.name) + sep +                                           //
-            sql_str(req.first.account) + sep +                                        //
-            sql_str(req.last.receipt_receiver) + sep +                                //
-            sql_str(req.last.name) + sep +                                            //
-            sql_str(req.last.account) + sep +                                         //
-            sql_str(req.max_results) +                                                //
-            ")");
-    });
-}
-
 // args: ArrayBuffer, row_request_begin, row_request_end, callback
 bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::CallArgs args = CallArgsFromVp(argc, vp);
     if (!args.requireAtLeast(cx, "exec_query", 4))
         return false;
-    query req{};
-    bool  ok = false;
+    std::vector<char> args_bin;
+    bool              ok = true;
     {
         JS::AutoCheckCannotGC checkGC;
-        auto                  bin = get_input_buffer(args, 0, 1, 2, checkGC);
-        if (bin.pos) {
+        auto                  b = get_input_buffer(args, 0, 1, 2, checkGC);
+        if (b.pos) {
             try {
-                ok = bin_to_native(req, bin);
+                args_bin.assign(b.pos, b.end);
             } catch (...) {
+                ok = false;
             }
         }
     }
     if (!ok)
         return js_assert(false, cx, "exec_query: invalid args");
-    return std::visit([&](auto& r) { return query_db_impl(cx, args, 3, r); }, req);
+
+    try {
+        abieos::input_buffer args_buf{args_bin.data(), args_bin.data() + args_bin.size()};
+        abieos::name         query_name;
+        if (!abieos::bin_to_native(query_name, args_buf))
+            return js_assert(false, cx, "exec_query: invalid args");
+
+        auto it = foo_global->config.query_map.find(query_name);
+        if (it == foo_global->config.query_map.end())
+            return js_assert(false, cx, ("exec_query: unknown query: " + (string)query_name).c_str());
+        query_config::query& query = *it->second;
+        query_config::table& table = *query.result_table;
+
+        std::string query_str = "select * from \"" + foo_global->schema + "\"." + query.function + "(";
+        query_str += sql_conversion::sql_type_for<uint32_t>.bin_to_sql(args_buf); // max_block_index
+        for (auto& type : query.types)
+            query_str += sep + type.bin_to_sql(args_buf);
+        for (auto& type : query.types)
+            query_str += sep + type.bin_to_sql(args_buf);
+        query_str += sep + sql_conversion::sql_type_for<uint32_t>.bin_to_sql(args_buf); // max_block_index
+        query_str += ")";
+
+        pqxx::work        t(foo_global->sql_connection);
+        auto              exec_result = t.exec(query_str);
+        std::vector<char> result_bin;
+        push_varuint32(result_bin, exec_result.size());
+        for (const auto& r : exec_result) {
+            int i = 0;
+            for (auto& type : table.types)
+                type.sql_to_bin(result_bin, r[i++]);
+        }
+        t.commit();
+        auto data = get_mem_from_callback(cx, args, 3, result_bin.size());
+        if (!js_assert(data, cx, "exec_query: failed to fetch buffer from callback"))
+            return false;
+        memcpy(data, result_bin.data(), result_bin.size());
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "!!!!! c: " << e.what() << "\n";
+        JS_ReportOutOfMemory(cx);
+        return false;
+    } catch (...) {
+        std::cerr << "!!!!! c\n";
+        JS_ReportOutOfMemory(cx);
+        return false;
+    }
+
 } // exec_query
 
 static const JSFunctionSpec functions[] = {
@@ -730,6 +330,7 @@ int main(int argc, const char* argv[]) {
         auto                     op = desc.add_options();
         op("help,h", "Help screen");
         op("schema,s", bpo::value<string>()->default_value("chain"), "Database schema");
+        op("query-config,q", bpo::value<string>()->default_value("../src/query-config.json"), "Query configuration");
         bpo::variables_map vm;
         bpo::store(bpo::parse_command_line(argc, argv, desc), vm);
         bpo::notify(vm);
@@ -741,6 +342,12 @@ int main(int argc, const char* argv[]) {
 
         foo_global         = std::make_unique<foo>();
         foo_global->schema = vm["schema"].as<string>();
+
+        auto x = readStr(vm["query-config"].as<string>().c_str());
+        if (!json_to_native(foo_global->config, x))
+            throw std::runtime_error("error processing " + vm["query-config"].as<string>());
+        foo_global->config.prepare();
+
         runit();
         return 0;
     } catch (const std::exception& e) {

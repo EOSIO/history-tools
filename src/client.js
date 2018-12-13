@@ -66,33 +66,43 @@ class ClientWasm {
     }
 
     decode_reply(reply) {
-        this.input_data = reply;
+        this.input_data = new Uint8Array(reply);
         this.output_data = new Uint8Array(0);
         this.inst.exports.decode_reply();
-        return this.output_data;
+        return JSON.parse(decoder.decode(this.output_data));
+    }
+
+    async round_trip(request) {
+        const requestBin = this.create_request(request);
+        const queryReply = await fetch('http://127.0.0.1:8080/wasmql/v1/query', { method: 'POST', body: requestBin });
+        if (queryReply.status !== 200)
+            throw new Error(queryReply.status + ": " + queryReply.statusText);
+        return this.decode_reply(await queryReply.arrayBuffer());
     }
 }
 
-const clientWasm = new ClientWasm();
-const request = clientWasm.create_request({
-    max_block_index: 100000000,
-    code: 'eosio.token',
-    sym: 'EOS',
-    first_account: 'monster',
-    last_account: 'zzzzzzzzzzzzj',
-    max_results: 10,
-});
+async function doit(clientWasm, first_account, last_account) {
+    const reply = await clientWasm.round_trip({
+        max_block_index: 100000000,
+        code: 'eosio.token',
+        sym: 'EOS',
+        first_account: first_account,
+        last_account: last_account,
+        max_results: 10,
+    });
+    for (let row of reply.rows)
+        console.log(
+            row.account.padEnd(13, ' '),
+            row.amount.amount.padStart(13, ' '),
+            row.amount.symbol + '@' + row.amount.contract);
+    if (reply.more)
+        doit(clientWasm, reply.more, last_account);
+}
 
 (async () => {
     try {
-        const queryReply = await fetch('http://127.0.0.1:8080/wasmql/v1/query', { method: 'POST', body: request });
-        if (queryReply.status === 200) {
-            const a = clientWasm.decode_reply(new Uint8Array(await queryReply.arrayBuffer()));
-            const b = decoder.decode(a);
-            const c = JSON.parse(b);
-            console.log(JSON.stringify(c, null, 4));
-        } else
-            console.error(queryReply.status, queryReply.statusText);
+        const clientWasm = new ClientWasm();
+        await doit(clientWasm, 'mo', 'mozzzzzzzzzzj');
     } catch (e) {
         console.error(e);
     }

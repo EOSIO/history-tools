@@ -1,5 +1,14 @@
 // copyright defined in LICENSE.txt
 
+#pragma once
+#include <string_view>
+
+extern "C" void print_range(const char* begin, const char* end);
+
+namespace eosio {
+void print(std::string_view sv) { print_range(sv.data(), sv.data() + sv.size()); }
+} // namespace eosio
+
 #include <eosiolib/action.hpp>
 #include <eosiolib/asset.hpp>
 #include <eosiolib/datastream.hpp>
@@ -43,7 +52,6 @@ extern "C" void* memset(void* dest, int v, size_t size) {
     return dest;
 }
 
-extern "C" void print_range(const char* begin, const char* end);
 extern "C" void prints(const char* cstr) { print_range(cstr, cstr + strlen(cstr)); }
 extern "C" void prints_l(const char* cstr, uint32_t len) { print_range(cstr, cstr + len); }
 
@@ -359,6 +367,78 @@ inline std::vector<char> get_input_data() {
 extern "C" void set_output_data(const char* begin, const char* end);
 inline void     set_output_data(const std::vector<char>& v) { set_output_data(v.data(), v.data() + v.size()); }
 inline void     set_output_data(const std::string_view& v) { set_output_data(v.data(), v.data() + v.size()); }
+
+namespace json_parser {
+
+inline void skip_space(char*& pos, char* end) {
+    while (pos != end && (*pos == 0x09 || *pos == 0x0a || *pos == 0x0d || *pos == 0x20))
+        ++pos;
+}
+
+// todo
+inline void skip_value(char*& pos, char* end) {
+    while (pos != end && *pos != ',' && *pos != '}')
+        ++pos;
+}
+
+inline void expect(char*& pos, char* end, char ch, const char* msg) {
+    eosio_assert(pos != end && *pos == ch, msg);
+    ++pos;
+    skip_space(pos, end);
+}
+
+// todo: escapes
+inline std::string_view parse_string(char*& pos, char* end) {
+    eosio_assert(pos != end && *pos++ == '"', "expected string");
+    auto begin = pos;
+    while (pos != end && *pos != '"')
+        ++pos;
+    auto e = pos;
+    eosio_assert(pos != end && *pos++ == '"', "expected end of string");
+    return string_view(begin, e - begin);
+}
+
+inline uint32_t parse_uint32(char*& pos, char* end) {
+    bool in_str = false;
+    if (pos != end && *pos == '"') {
+        in_str = true;
+        skip_space(pos, end);
+    }
+    bool     found  = false;
+    uint32_t result = 0;
+    while (pos != end && *pos >= '0' && *pos <= '9') {
+        result = result * 10 + *pos++ - '0';
+        found  = true;
+    }
+    eosio_assert(found, "expected positive integer");
+    skip_space(pos, end);
+    if (in_str) {
+        expect(pos, end, '"', "expected positive integer");
+        skip_space(pos, end);
+    }
+    return result;
+}
+
+inline name parse_name(char*& pos, char* end) { return name{parse_string(pos, end)}; }
+
+inline symbol_code parse_symbol_code(char*& pos, char* end) { return symbol_code{parse_string(pos, end)}; }
+
+template <typename F>
+inline void parse_object(char*& pos, char* end, F f) {
+    expect(pos, end, '{', "expected {");
+    while (true) {
+        auto key = parse_string(pos, end);
+        expect(pos, end, ':', "expected :");
+        f(key);
+        if (pos != end && *pos == ',')
+            ++pos;
+        else
+            break;
+    }
+    expect(pos, end, '}', "expected }");
+}
+
+} // namespace json_parser
 
 // todo: version
 // todo: max_block_index: head, irreversible options

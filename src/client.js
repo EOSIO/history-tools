@@ -1,9 +1,10 @@
 // copyright defined in LICENSE.txt
 
 const fs = require('fs');
-const { TextDecoder } = require('util');
+const { TextEncoder, TextDecoder } = require('util');
 const fetch = require('node-fetch');
 
+const encoder = new TextEncoder('utf8');
 const decoder = new TextDecoder('utf8');
 
 class ClientWasm {
@@ -13,9 +14,17 @@ class ClientWasm {
             abort() {
                 throw new Error('called abort');
             },
-            eosio_assert(test, msg) {
-                if (!test)
-                    throw new Error('assert failed');
+            eosio_assert_message(test, begin, len) {
+                if (!test) {
+                    let e;
+                    try {
+                        e = new Error('assert failed with message: ' + decoder.decode(new Uint8Array(self.inst.exports.memory.buffer, begin, len)));
+                    }
+                    catch (x) {
+                        e = new Error('assert failed');
+                    }
+                    throw e;
+                }
             },
             get_blockchain_parameters_packed() {
                 throw new Error('called get_blockchain_parameters_packed');
@@ -24,7 +33,8 @@ class ClientWasm {
                 throw new Error('called set_blockchain_parameters_packed');
             },
             print_range(begin, end) {
-                process.stdout.write(decoder.decode(new Uint8Array(self.inst.exports.memory.buffer, begin, end - begin)));
+                if (begin !== end)
+                    process.stdout.write(decoder.decode(new Uint8Array(self.inst.exports.memory.buffer, begin, end - begin)));
             },
             get_input_data(cb_alloc_data, cb_alloc) {
                 const input_data = self.input_data;
@@ -48,7 +58,8 @@ class ClientWasm {
         this.inst = new WebAssembly.Instance(this.mod, { env: this.env });
     }
 
-    create_request() {
+    create_request(request) {
+        this.input_data = encoder.encode(JSON.stringify(request));
         this.inst.exports.create_request();
         return this.output_data;
     }
@@ -60,12 +71,19 @@ class ClientWasm {
 }
 
 const clientWasm = new ClientWasm();
-const request = clientWasm.create_request();
+const request = clientWasm.create_request({
+    max_block_index: 100000000,
+    code: 'eosio.token',
+    sym: 'EOS',
+    first_account: 'monster',
+    last_account: 'zzzzzzzzzzzzj',
+    max_results: 10,
+});
 
 (async () => {
     try {
         const queryReply = await fetch('http://127.0.0.1:8080/wasmql/v1/query', { method: 'POST', body: request });
-        if (queryReply.status == 200)
+        if (queryReply.status === 200)
             clientWasm.decode_reply(new Uint8Array(await queryReply.arrayBuffer()));
         else
             console.error(queryReply.status, queryReply.statusText);

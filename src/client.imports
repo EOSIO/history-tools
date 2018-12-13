@@ -1,5 +1,5 @@
 abort
-eosio_assert
+eosio_assert_message
 get_blockchain_parameters_packed
 get_input_data
 print_range

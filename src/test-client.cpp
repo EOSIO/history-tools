@@ -1,5 +1,10 @@
 #include "test-common.hpp"
 
+extern "C" void eosio_assert(uint32_t test, const char* msg) {
+    if (!test)
+        eosio_assert_message(test, msg, strlen(msg));
+}
+
 void print_pad_name(name n) {
     char s[13] = {32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32};
     n.write_as_string(s, s + sizeof(s));
@@ -17,14 +22,39 @@ void process(balances_for_multiple_accounts_response&& reply) {
 }
 
 extern "C" void create_request() {
-    set_output_data(pack(balances_for_multiple_accounts_request{
-        .max_block_index = 100'000'000,
-        .code            = "eosio.token"_n,
-        .sym             = symbol_code{"EOS"},
-        .first_account   = "c"_n,
-        .last_account    = "zzzzzzzzzzzzj"_n,
-        .max_results     = 10,
-    }));
+    auto                                   x = get_input_data();
+    balances_for_multiple_accounts_request request;
+    char*                                  pos = x.data();
+    char*                                  end = pos + x.size();
+    json_parser::skip_space(pos, end);
+    json_parser::parse_object(pos, end, [&](string_view key) {
+        if (key == "max_block_index") {
+            request.max_block_index = json_parser::parse_uint32(pos, end);
+            return;
+        }
+        if (key == "code") {
+            request.code = json_parser::parse_name(pos, end);
+            return;
+        }
+        if (key == "sym") {
+            request.sym = json_parser::parse_symbol_code(pos, end);
+            return;
+        }
+        if (key == "first_account") {
+            request.first_account = json_parser::parse_name(pos, end);
+            return;
+        }
+        if (key == "last_account") {
+            request.last_account = json_parser::parse_name(pos, end);
+            return;
+        }
+        if (key == "max_results") {
+            request.max_results = json_parser::parse_uint32(pos, end);
+            return;
+        }
+        json_parser::skip_value(pos, end);
+    });
+    set_output_data(pack(request));
 }
 
 extern "C" void decode_reply() {

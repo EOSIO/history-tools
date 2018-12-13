@@ -12,6 +12,7 @@
 //       for now: warn about having multiple queries past irreversible
 // todo: cap max_results
 // todo: reformulate get_input_data and set_output_data for reentrancy
+// todo: switch from eosio_assert to eosio_assert_message
 
 #define DEBUG
 

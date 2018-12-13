@@ -11,6 +11,7 @@
 // todo: kill a wasm execution if a fork change happens
 //       for now: warn about having multiple queries past irreversible
 // todo: cap max_results
+// todo: reformulate get_input_data and set_output_data for reentrancy
 
 #define DEBUG
 
@@ -229,15 +230,15 @@ bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
 }
 
 // args: callback
-bool get_request(JSContext* cx, unsigned argc, JS::Value* vp) {
+bool get_input_data(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.requireAtLeast(cx, "get_request", 1))
+    if (!args.requireAtLeast(cx, "get_input_data", 1))
         return false;
     try {
-        if (!js_assert((uint32_t)foo_global->request.size() == foo_global->request.size(), cx, "get_request: request is too big"))
+        if (!js_assert((uint32_t)foo_global->request.size() == foo_global->request.size(), cx, "get_input_data: request is too big"))
             return false;
         auto data = get_mem_from_callback(cx, args, 0, foo_global->request.size());
-        if (!js_assert(data, cx, "get_request: failed to fetch buffer from callback"))
+        if (!js_assert(data, cx, "get_input_data: failed to fetch buffer from callback"))
             return false;
         memcpy(data, foo_global->request.data(), foo_global->request.size());
         return true;
@@ -250,12 +251,12 @@ bool get_request(JSContext* cx, unsigned argc, JS::Value* vp) {
         JS_ReportOutOfMemory(cx);
         return false;
     }
-} // get_request
+} // get_input_data
 
 // args: ArrayBuffer, row_request_begin, row_request_end
-bool set_reply(JSContext* cx, unsigned argc, JS::Value* vp) {
+bool set_output_data(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.requireAtLeast(cx, "set_reply", 3))
+    if (!args.requireAtLeast(cx, "set_output_data", 3))
         return false;
     bool ok = true;
     {
@@ -269,7 +270,7 @@ bool set_reply(JSContext* cx, unsigned argc, JS::Value* vp) {
             }
         }
     }
-    return js_assert(ok, cx, "set_reply: invalid args");
+    return js_assert(ok, cx, "set_output_data: invalid args");
 }
 
 // args: ArrayBuffer, row_request_begin, row_request_end, callback
@@ -349,13 +350,13 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
 } // exec_query
 
 static const JSFunctionSpec functions[] = {
-    JS_FN("exec_query", exec_query, 0, 0),         //
-    JS_FN("get_request", get_request, 0, 0),       //
-    JS_FN("get_wasm", get_wasm, 0, 0),             //
-    JS_FN("print_js_str", print_js_str, 0, 0),     //
-    JS_FN("print_wasm_str", print_wasm_str, 0, 0), //
-    JS_FN("set_reply", set_reply, 0, 0),           //
-    JS_FS_END                                      //
+    JS_FN("exec_query", exec_query, 0, 0),           //
+    JS_FN("get_input_data", get_input_data, 0, 0),   //
+    JS_FN("get_wasm", get_wasm, 0, 0),               //
+    JS_FN("print_js_str", print_js_str, 0, 0),       //
+    JS_FN("print_wasm_str", print_wasm_str, 0, 0),   //
+    JS_FN("set_output_data", set_output_data, 0, 0), //
+    JS_FS_END                                        //
 };
 
 void init_glue() {

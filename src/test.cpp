@@ -176,11 +176,6 @@ struct query_action_trace_range_receiver_name_account {
     uint32_t              max_results     = 1;
 };
 
-extern "C" void set_reply(const char* begin, const char* end);
-
-inline void set_reply(const std::vector<char>& v) { set_reply(v.data(), v.data() + v.size()); }
-inline void set_reply(const std::string_view& v) { set_reply(v.data(), v.data() + v.size()); }
-
 extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, cb_alloc_fn* cb_alloc);
 
 template <typename T, typename Alloc_fn>
@@ -273,7 +268,7 @@ void process(balances_for_multiple_accounts_request&& req) {
         print("\n");
         return true;
     });
-    set_reply(pack(response));
+    set_output_data(pack(response));
     print("\n");
 }
 
@@ -380,13 +375,7 @@ void bar() {
 }
 
 extern "C" void startup() {
-    // print("\nstart wasm\n");
-
-    auto req = get_request();
-    // print(req.size(), " bytes\n");
-    // for (auto b : req)
-    //     print("    ", int(uint8_t(b)), "\n");
-
+    auto req          = get_input_data();
     auto request_name = unpack<name>(req);
     print("request: ", request_name, "\n");
 
@@ -394,12 +383,5 @@ extern "C" void startup() {
     case "bal.mult.acc"_n.value: return process(unpack<balances_for_multiple_accounts_request>(req));
     }
 
-    // set_reply("<( This is the reply )>\n");
-
-    // creators(30000000, 20);
-    // balances_for_multiple_accounts(3000000, "eosio.token"_n, symbol_code{"EOS"}, "eosio"_n, "eosio.zzzzzz"_n, 100);
-    // proposals(30000000, "h"_n, name{0}, "hzzzzzzzzzzz"_n, name{~uint64_t(0)}, 20);
-    // balances_for_multiple_tokens(30000000, "eosio"_n, 100);
-    // bar();
-    // print("end wasm\n\n");
+    // todo: error on unrecognized
 }

@@ -1,7 +1,7 @@
 abort
 eosio_assert
 get_blockchain_parameters_packed
-get_request
+get_input_data
 print_range
 set_blockchain_parameters_packed
-set_result
+set_output_data

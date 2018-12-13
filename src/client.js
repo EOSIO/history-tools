@@ -6,9 +6,9 @@ const fetch = require('node-fetch');
 
 const decoder = new TextDecoder('utf8');
 
-class Foo {
+class ClientWasm {
     constructor() {
-        let self = this;
+        const self = this;
         this.env = {
             abort() {
                 throw new Error('called abort');
@@ -26,41 +26,49 @@ class Foo {
             print_range(begin, end) {
                 process.stdout.write(decoder.decode(new Uint8Array(self.inst.exports.memory.buffer, begin, end - begin)));
             },
-            get_request(cb_alloc_data, cb_alloc) {
-                const request = self.request;
-                const ptr = self.inst.exports.__indirect_function_table.get(cb_alloc)(cb_alloc_data, request.length);
-                const dest = new Uint8Array(self.inst.exports.memory.buffer, ptr, request.length);
-                for (let i = 0; i < request.length; ++i)
-                    dest[i] = request[i];
+            get_input_data(cb_alloc_data, cb_alloc) {
+                const input_data = self.input_data;
+                const ptr = self.inst.exports.__indirect_function_table.get(cb_alloc)(cb_alloc_data, input_data.length);
+                const dest = new Uint8Array(self.inst.exports.memory.buffer, ptr, input_data.length);
+                for (let i = 0; i < input_data.length; ++i)
+                    dest[i] = input_data[i];
             },
-            set_result(begin, end) {
-                self.result = Uint8Array.from(new Uint8Array(self.inst.exports.memory.buffer, begin, end - begin));
+            set_output_data(begin, end) {
+                self.output_data = Uint8Array.from(new Uint8Array(self.inst.exports.memory.buffer, begin, end - begin));
             },
         };
 
         const wasm = fs.readFileSync('./test-client.wasm');
+        this.input_data = new Uint8Array(0);
         this.mod = new WebAssembly.Module(wasm);
+        this.reset();
+    }
+
+    reset() {
+        this.inst = new WebAssembly.Instance(this.mod, { env: this.env });
     }
 
     create_request() {
-        this.inst = new WebAssembly.Instance(this.mod, { env: this.env });
         this.inst.exports.create_request();
-        return this.result;
+        return this.output_data;
+    }
+
+    decode_reply(reply) {
+        this.input_data = reply;
+        this.inst.exports.decode_reply();
     }
 }
 
-let foo = new Foo();
-let request = foo.create_request();
+const clientWasm = new ClientWasm();
+const request = clientWasm.create_request();
 
 (async () => {
     try {
-        let x = await fetch('http://127.0.0.1:8080/wasmql/v1/query', { method: 'POST', body: request });
-        if (x.status == 200) {
-            let y = await x.arrayBuffer();
-            foo.request = new Uint8Array(y);
-            foo.inst.exports.decode_reply();
-        } else
-            console.error(x.status, x.statusText);
+        const queryReply = await fetch('http://127.0.0.1:8080/wasmql/v1/query', { method: 'POST', body: request });
+        if (queryReply.status == 200)
+            clientWasm.decode_reply(new Uint8Array(await queryReply.arrayBuffer()));
+        else
+            console.error(queryReply.status, queryReply.statusText);
     } catch (e) {
         console.error(e);
     }

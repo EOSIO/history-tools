@@ -81,28 +81,30 @@ class ClientWasm {
     }
 }
 
-async function doit(clientWasm, first_account, last_account) {
-    const reply = await clientWasm.round_trip({
-        max_block_index: 100000000,
-        code: 'eosio.token',
-        sym: 'EOS',
-        first_account: first_account,
-        last_account: last_account,
-        max_results: 10,
-    });
-    for (let row of reply.rows)
-        console.log(
-            row.account.padEnd(13, ' '),
-            row.amount.amount.padStart(13, ' '),
-            row.amount.symbol + '@' + row.amount.contract);
-    if (reply.more)
-        doit(clientWasm, reply.more, last_account);
+async function dump_eos_balances(clientWasm, first_account, last_account) {
+    while (first_account) {
+        const reply = await clientWasm.round_trip({
+            max_block_index: 100000000,
+            code: 'eosio.token',
+            sym: 'EOS',
+            first_account: first_account,
+            last_account: last_account,
+            max_results: 100,
+        });
+        for (let row of reply.rows)
+            console.log(
+                row.account.padEnd(13, ' '),
+                row.amount.amount.padStart(18, ' '),
+                row.amount.symbol + '@' + row.amount.contract);
+        console.log();
+        first_account = reply.more;
+    }
 }
 
 (async () => {
     try {
         const clientWasm = new ClientWasm();
-        await doit(clientWasm, 'mo', 'mozzzzzzzzzzj');
+        await dump_eos_balances(clientWasm, 'eosio', 'eosiozzzzzzzj');
     } catch (e) {
         console.error(e);
     }

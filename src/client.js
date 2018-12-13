@@ -45,7 +45,6 @@ class Foo {
 
 let foo = new Foo();
 let request = foo.create_request();
-console.log(request);
 
 (async () => {
     try {

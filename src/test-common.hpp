@@ -335,4 +335,15 @@ html to_html(const public_key& key) {
     }
 }
 
+// todo: head, irreversible options
+struct balances_for_multiple_accounts_request {
+    name        request         = "bal.mult.acc"_n;
+    uint32_t    max_block_index = {};
+    name        code            = {};
+    symbol_code sym             = {};
+    name        first_account   = {};
+    name        last_account    = {};
+    uint32_t    max_results     = {};
+};
+
 } // namespace eosio

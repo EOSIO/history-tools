@@ -259,26 +259,25 @@ struct newaccount {
     // authority active;
 };
 
-void balances_for_multiple_accounts(
-    uint32_t max_block_index, name code, symbol_code sc, name first_account, name last_account, uint32_t max_results) {
+void process(balances_for_multiple_accounts_request&& req) {
     print("    balances_for_multiple_accounts\n");
     auto s = exec_query(query_contract_row_range_code_table_pk_scope{
-        .max_block_index = max_block_index,
+        .max_block_index = req.max_block_index,
         .first =
             {
-                .code        = code,
+                .code        = req.code,
                 .table       = "accounts"_n,
-                .primary_key = sc.raw(),
-                .scope       = first_account.value,
+                .primary_key = req.sym.raw(),
+                .scope       = req.first_account.value,
             },
         .last =
             {
-                .code        = code,
+                .code        = req.code,
                 .table       = "accounts"_n,
-                .primary_key = sc.raw(),
-                .scope       = last_account.value,
+                .primary_key = req.sym.raw(),
+                .scope       = req.last_account.value,
             },
-        .max_results = max_results,
+        .max_results = req.max_results,
     });
     for_each_contract_row<asset>(s, [&](contract_row& r, asset* a) {
         print("        ", r.block_index, " ", r.present, " ", r.code, " ", name{r.scope}, " ", r.payer);
@@ -393,15 +392,26 @@ void bar() {
 }
 
 extern "C" void startup() {
-    print("\nstart wasm\n");
+    // print("\nstart wasm\n");
 
-    print(get_request().size(), " bytes\n");
-    set_reply("<( This is the reply )>\n");
+    auto req = get_request();
+    // print(req.size(), " bytes\n");
+    // for (auto b : req)
+    //     print("    ", int(uint8_t(b)), "\n");
+
+    auto request_name = unpack<name>(req);
+    print("request: ", request_name, "\n");
+
+    switch (request_name.value) {
+    case "bal.mult.acc"_n.value: return process(unpack<balances_for_multiple_accounts_request>(req));
+    }
+
+    // set_reply("<( This is the reply )>\n");
 
     // creators(30000000, 20);
     // balances_for_multiple_accounts(3000000, "eosio.token"_n, symbol_code{"EOS"}, "eosio"_n, "eosio.zzzzzz"_n, 100);
     // proposals(30000000, "h"_n, name{0}, "hzzzzzzzzzzz"_n, name{~uint64_t(0)}, 20);
     // balances_for_multiple_tokens(30000000, "eosio"_n, 100);
     // bar();
-    print("end wasm\n\n");
+    // print("end wasm\n\n");
 }

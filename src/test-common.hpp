@@ -69,7 +69,6 @@ extern "C" void printui(uint64_t value) {
         value /= 10;
     } while (value);
     std::reverse(s, ch);
-    *ch = 0;
     print_range(s, ch);
 }
 
@@ -103,7 +102,35 @@ DataStream& operator>>(DataStream& ds, serial_wrapper<checksum256>& obj) {
 
 // todo: don't return static storage
 // todo: replace with eosio functions when linker is improved
-const char* asset_to_string(const asset& v) {
+inline std::string_view asset_amount_to_string(const asset& v) {
+    static char result[1000];
+    auto        pos = result;
+    uint64_t    amount;
+    if (v.amount < 0)
+        amount = -v.amount;
+    else
+        amount = v.amount;
+    uint8_t precision = v.symbol.precision();
+    if (precision) {
+        while (precision--) {
+            *pos++ = '0' + amount % 10;
+            amount /= 10;
+        }
+        *pos++ = '.';
+    }
+    do {
+        *pos++ = '0' + amount % 10;
+        amount /= 10;
+    } while (amount);
+    if (v.amount < 0)
+        *pos++ = '-';
+    std::reverse(result, pos);
+    return std::string_view(result, pos - result);
+}
+
+// todo: don't return static storage
+// todo: replace with eosio functions when linker is improved
+inline const char* asset_to_string(const asset& v) {
     static char result[1000];
     auto        pos = result;
     uint64_t    amount;
@@ -387,8 +414,14 @@ inline void expect(char*& pos, char* end, char ch, const char* msg) {
     skip_space(pos, end);
 }
 
+inline void expect_end(char*& pos, char* end) { eosio_assert(pos == end, "expected end of json"); }
+
+template <typename T>
+inline T parse(char*& pos, char* end);
+
 // todo: escapes
-inline std::string_view parse_string(char*& pos, char* end) {
+template <>
+inline std::string_view parse<std::string_view>(char*& pos, char* end) {
     eosio_assert(pos != end && *pos++ == '"', "expected string");
     auto begin = pos;
     while (pos != end && *pos != '"')
@@ -398,7 +431,8 @@ inline std::string_view parse_string(char*& pos, char* end) {
     return string_view(begin, e - begin);
 }
 
-inline uint32_t parse_uint32(char*& pos, char* end) {
+template <>
+inline uint32_t parse<uint32_t>(char*& pos, char* end) {
     bool in_str = false;
     if (pos != end && *pos == '"') {
         in_str = true;
@@ -419,15 +453,21 @@ inline uint32_t parse_uint32(char*& pos, char* end) {
     return result;
 }
 
-inline name parse_name(char*& pos, char* end) { return name{parse_string(pos, end)}; }
+template <>
+inline name parse<name>(char*& pos, char* end) {
+    return name{parse<std::string_view>(pos, end)};
+}
 
-inline symbol_code parse_symbol_code(char*& pos, char* end) { return symbol_code{parse_string(pos, end)}; }
+template <>
+inline symbol_code parse<symbol_code>(char*& pos, char* end) {
+    return symbol_code{parse<std::string_view>(pos, end)};
+}
 
 template <typename F>
 inline void parse_object(char*& pos, char* end, F f) {
     expect(pos, end, '{', "expected {");
     while (true) {
-        auto key = parse_string(pos, end);
+        auto key = parse<std::string_view>(pos, end);
         expect(pos, end, ':', "expected :");
         f(key);
         if (pos != end && *pos == ',')
@@ -438,7 +478,110 @@ inline void parse_object(char*& pos, char* end, F f) {
     expect(pos, end, '}', "expected }");
 }
 
+template <typename T>
+inline T parse(char*& pos, char* end) {
+    T result{};
+    parse_object(pos, end, [&](std::string_view key) {
+        bool found = false;
+        for_each_member(result, [&](std::string_view member_name, auto& member) {
+            if (key == member_name) {
+                member = parse<std::decay_t<decltype(member)>>(pos, end);
+                found  = true;
+            }
+        });
+        if (!found)
+            skip_value(pos, end);
+    });
+    return result;
+}
+
+template <typename T>
+inline T parse(std::vector<char>&& v) {
+    char* pos = v.data();
+    char* end = pos + v.size();
+    skip_space(pos, end);
+    T result = parse<T>(pos, end);
+    expect_end(pos, end);
+    return result;
+}
+
 } // namespace json_parser
+
+// todo: escape
+// todo: handle non-utf8
+inline void to_json(std::vector<char>& dest, std::string_view sv) {
+    dest.push_back('"');
+    dest.insert(dest.end(), sv.begin(), sv.end());
+    dest.push_back('"');
+}
+
+inline void to_json(std::vector<char>& dest, uint32_t value) {
+    char  s[20];
+    char* ch = s;
+    do {
+        *ch++ = '0' + (value % 10);
+        value /= 10;
+    } while (value);
+    std::reverse(s, ch);
+    dest.insert(dest.end(), s, ch);
+}
+
+inline void to_json(std::vector<char>& dest, name value) {
+    char buffer[13];
+    auto end = value.write_as_string(buffer, buffer + sizeof(buffer));
+    dest.push_back('"');
+    dest.insert(dest.end(), buffer, end);
+    dest.push_back('"');
+}
+
+inline void append(std::vector<char>& dest, std::string_view sv) { dest.insert(dest.end(), sv.begin(), sv.end()); }
+
+inline void to_json(std::vector<char>& dest, extended_asset value) {
+    append(dest, "{\"contract\":");
+    to_json(dest, value.contract);
+    append(dest, ",\"symbol\":\"");
+    char buffer[10];
+    append(dest, std::string_view{buffer, size_t(value.quantity.symbol.code().write_as_string(buffer, buffer + sizeof(buffer)) - buffer)});
+    append(dest, "\",\"amount\":\"");
+    append(dest, asset_amount_to_string(value.quantity));
+    append(dest, "\"}");
+}
+
+template <typename T>
+inline void to_json(std::vector<char>& dest, std::optional<T>& obj) {
+    if (obj)
+        to_json(dest, *obj);
+    else
+        append(dest, "null");
+}
+
+template <typename T>
+inline void to_json(std::vector<char>& dest, std::vector<T>& obj) {
+    dest.push_back('[');
+    bool first = true;
+    for (auto& v : obj) {
+        if (!first)
+            dest.push_back(',');
+        first = false;
+        to_json(dest, v);
+    }
+    dest.push_back(']');
+}
+
+template <typename T>
+inline void to_json(std::vector<char>& dest, T& obj) {
+    dest.push_back('{');
+    bool first = true;
+    for_each_member(obj, [&](std::string_view member_name, auto& member) {
+        if (!first)
+            dest.push_back(',');
+        first = false;
+        to_json(dest, member_name);
+        dest.push_back(':');
+        to_json(dest, member);
+    });
+    dest.push_back('}');
+}
 
 // todo: version
 // todo: max_block_index: head, irreversible options
@@ -451,6 +594,17 @@ struct balances_for_multiple_accounts_request {
     name        last_account    = {};
     uint32_t    max_results     = {};
 };
+
+template <typename F>
+void for_each_member(balances_for_multiple_accounts_request& obj, F f) {
+    f("request", obj.request);
+    f("max_block_index", obj.max_block_index);
+    f("code", obj.code);
+    f("sym", obj.sym);
+    f("first_account", obj.first_account);
+    f("last_account", obj.last_account);
+    f("max_results", obj.max_results);
+}
 
 // todo: version
 struct balances_for_multiple_accounts_response {
@@ -465,3 +619,16 @@ struct balances_for_multiple_accounts_response {
 
     EOSLIB_SERIALIZE(balances_for_multiple_accounts_response, (request)(rows)(more))
 };
+
+template <typename F>
+void for_each_member(balances_for_multiple_accounts_response::row& obj, F f) {
+    f("account", obj.account);
+    f("amount", obj.amount);
+}
+
+template <typename F>
+void for_each_member(balances_for_multiple_accounts_response& obj, F f) {
+    f("request", obj.request);
+    f("rows", obj.rows);
+    f("more", obj.more);
+}

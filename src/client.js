@@ -60,13 +60,16 @@ class ClientWasm {
 
     create_request(request) {
         this.input_data = encoder.encode(JSON.stringify(request));
+        this.output_data = new Uint8Array(0);
         this.inst.exports.create_request();
         return this.output_data;
     }
 
     decode_reply(reply) {
         this.input_data = reply;
+        this.output_data = new Uint8Array(0);
         this.inst.exports.decode_reply();
+        return this.output_data;
     }
 }
 
@@ -83,9 +86,12 @@ const request = clientWasm.create_request({
 (async () => {
     try {
         const queryReply = await fetch('http://127.0.0.1:8080/wasmql/v1/query', { method: 'POST', body: request });
-        if (queryReply.status === 200)
-            clientWasm.decode_reply(new Uint8Array(await queryReply.arrayBuffer()));
-        else
+        if (queryReply.status === 200) {
+            const a = clientWasm.decode_reply(new Uint8Array(await queryReply.arrayBuffer()));
+            const b = decoder.decode(a);
+            const c = JSON.parse(b);
+            console.log(JSON.stringify(c, null, 4));
+        } else
             console.error(queryReply.status, queryReply.statusText);
     } catch (e) {
         console.error(e);

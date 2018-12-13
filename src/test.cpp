@@ -176,24 +176,6 @@ struct query_action_trace_range_receiver_name_account {
     uint32_t              max_results     = 1;
 };
 
-extern "C" void get_request(void* cb_alloc_data, cb_alloc_fn* cb_alloc);
-
-template <typename Alloc_fn>
-inline void get_request(Alloc_fn alloc_fn) {
-    get_request(&alloc_fn, [](void* cb_alloc_data, size_t size) -> void* { //
-        return (*reinterpret_cast<Alloc_fn*>(cb_alloc_data))(size);
-    });
-}
-
-inline std::vector<char> get_request() {
-    std::vector<char> result;
-    get_request([&result](size_t size) {
-        result.resize(size);
-        return result.data();
-    });
-    return result;
-}
-
 extern "C" void set_reply(const char* begin, const char* end);
 
 inline void set_reply(const std::vector<char>& v) { set_reply(v.data(), v.data() + v.size()); }
@@ -279,13 +261,19 @@ void process(balances_for_multiple_accounts_request&& req) {
             },
         .max_results = req.max_results,
     });
+
+    balances_for_multiple_accounts_response response;
     for_each_contract_row<asset>(s, [&](contract_row& r, asset* a) {
         print("        ", r.block_index, " ", r.present, " ", r.code, " ", name{r.scope}, " ", r.payer);
-        if (r.present && a)
+        response.more = name{r.scope + 1};
+        if (r.present && a) {
             print(" ", asset_to_string(*a));
+            response.rows.push_back({.account = name{r.scope}, .amount = extended_asset{*a, req.code}});
+        }
         print("\n");
         return true;
     });
+    set_reply(pack(response));
     print("\n");
 }
 

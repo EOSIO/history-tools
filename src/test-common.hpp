@@ -117,6 +117,7 @@ const char* asset_to_string(const asset& v) {
     } while (amount);
     if (v.amount < 0)
         *pos++ = '-';
+    std::reverse(result, pos);
     *pos++ = ' ';
 
     auto sc = v.symbol.code().raw();
@@ -335,7 +336,28 @@ html to_html(const public_key& key) {
     }
 }
 
-// todo: head, irreversible options
+} // namespace eosio
+
+extern "C" void get_request(void* cb_alloc_data, cb_alloc_fn* cb_alloc);
+
+template <typename Alloc_fn>
+inline void get_request(Alloc_fn alloc_fn) {
+    get_request(&alloc_fn, [](void* cb_alloc_data, size_t size) -> void* { //
+        return (*reinterpret_cast<Alloc_fn*>(cb_alloc_data))(size);
+    });
+}
+
+inline std::vector<char> get_request() {
+    std::vector<char> result;
+    get_request([&result](size_t size) {
+        result.resize(size);
+        return result.data();
+    });
+    return result;
+}
+
+// todo: version
+// todo: max_block_index: head, irreversible options
 struct balances_for_multiple_accounts_request {
     name        request         = "bal.mult.acc"_n;
     uint32_t    max_block_index = {};
@@ -346,4 +368,16 @@ struct balances_for_multiple_accounts_request {
     uint32_t    max_results     = {};
 };
 
-} // namespace eosio
+// todo: version
+struct balances_for_multiple_accounts_response {
+    struct row {
+        name           account = {};
+        extended_asset amount  = {};
+    };
+
+    name                request = "bal.mult.acc"_n;
+    std::vector<row>    rows    = {};
+    std::optional<name> more    = {};
+
+    EOSLIB_SERIALIZE(balances_for_multiple_accounts_response, (request)(rows)(more))
+};

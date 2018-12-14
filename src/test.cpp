@@ -302,27 +302,30 @@ void proposals(uint32_t max_block_index, name first_account, name first_prop, na
     print("\n");
 }
 
-void balances_for_multiple_tokens(uint32_t max_block_index, name account, uint32_t max_results) {
+void process(balances_for_multiple_tokens_request&& req) {
     print("    balances_for_multiple_tokens\n");
     auto s = exec_query(query_contract_row_range_scope_table_pk_code{
-        .max_block_index = max_block_index,
+        .max_block_index = req.max_block_index,
         .first =
             {
-                .scope       = account.value,
+                .scope       = req.account.value,
                 .table       = "accounts"_n,
-                .primary_key = 0,
-                .code        = name{0},
+                .primary_key = req.first_key.sym.raw(),
+                .code        = req.first_key.code,
             },
         .last =
             {
-                .scope       = account.value,
+                .scope       = req.account.value,
                 .table       = "accounts"_n,
-                .primary_key = ~uint64_t(0),
-                .code        = name{~uint64_t(0)},
+                .primary_key = req.last_key.sym.raw(),
+                .code        = req.last_key.code,
             },
-        .max_results = max_results,
+        .max_results = req.max_results,
     });
+
+    balances_for_multiple_tokens_response response;
     for_each_query_result<contract_row>(s, [&](contract_row& r) {
+        response.more = ++bfmt_key{.sym = symbol_code{r.primary_key}, .code = r.code};
         if (!r.present || r.value.remaining() != 16)
             return true;
         asset a;
@@ -330,8 +333,13 @@ void balances_for_multiple_tokens(uint32_t max_block_index, name account, uint32
         if (!a.is_valid() || a.symbol.code().raw() != r.primary_key)
             return true;
         print("        ", name{r.scope}, " ", r.code, " ", asset_to_string(a), "\n");
+        if (!response.more->code.value)
+            response.more->sym = symbol_code{response.more->sym.raw() + 1};
+        if (r.present)
+            response.rows.push_back({.account = name{r.scope}, .amount = extended_asset{a, r.code}});
         return true;
     });
+    set_output_data(pack(response));
     print("\n");
 }
 
@@ -381,6 +389,7 @@ extern "C" void startup() {
 
     switch (request_name.value) {
     case "bal.mult.acc"_n.value: return process(unpack<balances_for_multiple_accounts_request>(req));
+    case "bal.mult.tok"_n.value: return process(unpack<balances_for_multiple_tokens_request>(req));
     }
 
     // todo: error on unrecognized

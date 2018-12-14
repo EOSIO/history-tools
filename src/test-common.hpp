@@ -536,6 +536,13 @@ inline void to_json(std::vector<char>& dest, name value) {
 
 inline void append(std::vector<char>& dest, std::string_view sv) { dest.insert(dest.end(), sv.begin(), sv.end()); }
 
+inline void to_json(std::vector<char>& dest, symbol_code value) {
+    char buffer[10];
+    dest.push_back('"');
+    append(dest, std::string_view{buffer, size_t(value.write_as_string(buffer, buffer + sizeof(buffer)) - buffer)});
+    dest.push_back('"');
+}
+
 inline void to_json(std::vector<char>& dest, extended_asset value) {
     append(dest, "{\"contract\":");
     to_json(dest, value.contract);
@@ -606,6 +613,44 @@ void for_each_member(balances_for_multiple_accounts_request& obj, F f) {
     f("max_results", obj.max_results);
 }
 
+struct bfmt_key {
+    symbol_code sym  = {};
+    name        code = {};
+
+    bfmt_key& operator++() {
+        code = name{code.value + 1};
+        if (!code.value)
+            sym = symbol_code{sym.raw() + 1};
+        return *this;
+    }
+};
+
+template <typename F>
+void for_each_member(bfmt_key& obj, F f) {
+    f("sym", obj.sym);
+    f("code", obj.code);
+}
+
+// todo: version
+// todo: max_block_index: head, irreversible options
+struct balances_for_multiple_tokens_request {
+    name     request         = "bal.mult.tok"_n;
+    uint32_t max_block_index = {};
+    name     account         = {};
+    bfmt_key first_key       = {};
+    bfmt_key last_key        = {};
+    uint32_t max_results     = {};
+};
+
+template <typename F>
+void for_each_member(balances_for_multiple_tokens_request& obj, F f) {
+    f("max_block_index", obj.max_block_index);
+    f("account", obj.account);
+    f("first_key", obj.first_key);
+    f("last_key", obj.last_key);
+    f("max_results", obj.max_results);
+}
+
 // todo: version
 struct balances_for_multiple_accounts_response {
     struct row {
@@ -628,6 +673,33 @@ void for_each_member(balances_for_multiple_accounts_response::row& obj, F f) {
 
 template <typename F>
 void for_each_member(balances_for_multiple_accounts_response& obj, F f) {
+    f("request", obj.request);
+    f("rows", obj.rows);
+    f("more", obj.more);
+}
+
+// todo: version
+struct balances_for_multiple_tokens_response {
+    struct row {
+        name           account = {};
+        extended_asset amount  = {};
+    };
+
+    name                    request = "bal.mult.tok"_n;
+    std::vector<row>        rows    = {};
+    std::optional<bfmt_key> more    = {};
+
+    EOSLIB_SERIALIZE(balances_for_multiple_tokens_response, (request)(rows)(more))
+};
+
+template <typename F>
+void for_each_member(balances_for_multiple_tokens_response::row& obj, F f) {
+    f("account", obj.account);
+    f("amount", obj.amount);
+}
+
+template <typename F>
+void for_each_member(balances_for_multiple_tokens_response& obj, F f) {
     f("request", obj.request);
     f("rows", obj.rows);
     f("more", obj.more);

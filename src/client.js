@@ -82,29 +82,48 @@ class ClientWasm {
 }
 
 async function dump_eos_balances(clientWasm, first_account, last_account) {
-    while (first_account) {
-        const reply = await clientWasm.round_trip({
+    do {
+        const reply = await clientWasm.round_trip(['bal.mult.acc', {
             max_block_index: 100000000,
             code: 'eosio.token',
             sym: 'EOS',
             first_account: first_account,
             last_account: last_account,
             max_results: 100,
-        });
+        }]);
         for (let row of reply.rows)
             console.log(
                 row.account.padEnd(13, ' '),
                 row.amount.amount.padStart(18, ' '),
                 row.amount.symbol + '@' + row.amount.contract);
-        console.log();
         first_account = reply.more;
-    }
+    } while (first_account);
+}
+
+async function dump_tokens(clientWasm, first_key, last_key) {
+    do {
+        const reply = await clientWasm.round_trip(['bal.mult.tok', {
+            max_block_index: 100000000,
+            account: 'b1',
+            first_key,
+            last_key,
+            max_results: 100,
+        }]);
+        for (let row of reply.rows)
+            console.log(
+                row.account.padEnd(13, ' '),
+                row.amount.amount.padStart(18, ' '),
+                row.amount.symbol + '@' + row.amount.contract);
+        first_key = reply.more;
+    } while (first_key);
 }
 
 (async () => {
     try {
         const clientWasm = new ClientWasm();
-        await dump_eos_balances(clientWasm, 'eosio', 'eosiozzzzzzzj');
+        await dump_eos_balances(clientWasm, 'eosio', 'eosio.zzzzzzj');
+        console.log();
+        await dump_tokens(clientWasm, { sym: '', code: '' }, { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' });
     } catch (e) {
         console.error(e);
     }

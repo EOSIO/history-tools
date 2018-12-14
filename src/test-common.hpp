@@ -515,6 +515,17 @@ inline void to_json(std::vector<char>& dest, std::string_view sv) {
     dest.push_back('"');
 }
 
+inline void to_json(std::vector<char>& dest, uint8_t value) {
+    char  s[4];
+    char* ch = s;
+    do {
+        *ch++ = '0' + (value % 10);
+        value /= 10;
+    } while (value);
+    std::reverse(s, ch);
+    dest.insert(dest.end(), s, ch);
+}
+
 inline void to_json(std::vector<char>& dest, uint32_t value) {
     char  s[20];
     char* ch = s;
@@ -524,6 +535,27 @@ inline void to_json(std::vector<char>& dest, uint32_t value) {
     } while (value);
     std::reverse(s, ch);
     dest.insert(dest.end(), s, ch);
+}
+
+inline void to_json(std::vector<char>& dest, int64_t value) {
+    bool     neg = false;
+    uint64_t u   = value;
+    if (value < 0) {
+        neg = true;
+        u   = -value;
+    }
+    char  s[30];
+    char* ch = s;
+    do {
+        *ch++ = '0' + (u % 10);
+        u /= 10;
+    } while (u);
+    if (neg)
+        *ch++ = '-';
+    std::reverse(s, ch);
+    dest.push_back('"');
+    dest.insert(dest.end(), s, ch);
+    dest.push_back('"');
 }
 
 inline void to_json(std::vector<char>& dest, name value) {
@@ -549,9 +581,11 @@ inline void to_json(std::vector<char>& dest, extended_asset value) {
     append(dest, ",\"symbol\":\"");
     char buffer[10];
     append(dest, std::string_view{buffer, size_t(value.quantity.symbol.code().write_as_string(buffer, buffer + sizeof(buffer)) - buffer)});
-    append(dest, "\",\"amount\":\"");
-    append(dest, asset_amount_to_string(value.quantity));
-    append(dest, "\"}");
+    append(dest, "\",\"precision\":");
+    to_json(dest, value.quantity.symbol.precision());
+    append(dest, ",\"amount\":");
+    to_json(dest, value.quantity.amount);
+    append(dest, "}");
 }
 
 template <typename T>

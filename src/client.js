@@ -69,6 +69,7 @@ class ClientWasm {
         this.input_data = new Uint8Array(reply);
         this.output_data = new Uint8Array(0);
         this.inst.exports.decode_reply();
+        // console.log(decoder.decode(this.output_data))
         return JSON.parse(decoder.decode(this.output_data));
     }
 
@@ -79,6 +80,19 @@ class ClientWasm {
             throw new Error(queryReply.status + ": " + queryReply.statusText);
         return this.decode_reply(await queryReply.arrayBuffer());
     }
+}
+
+function amount_to_decimal(amount) {
+    let s;
+    if (amount.amount[0] === '-')
+        s = '-' + amount.amount.substr(1).padStart(amount.precision + 1, '0');
+    else
+        s = amount.amount.padStart(amount.precision + 1, '0');
+    return s.substr(0, s.length - amount.precision) + '.' + s.substr(s.length - amount.precision);
+}
+
+function format_extended_asset(amount, number_size = 18) {
+    return amount_to_decimal(amount).padStart(number_size, ' ') + ' ' + amount.symbol + '@' + amount.contract;
 }
 
 async function dump_eos_balances(clientWasm, first_account, last_account) {
@@ -92,10 +106,7 @@ async function dump_eos_balances(clientWasm, first_account, last_account) {
             max_results: 100,
         }]);
         for (let row of reply.rows)
-            console.log(
-                row.account.padEnd(13, ' '),
-                row.amount.amount.padStart(18, ' '),
-                row.amount.symbol + '@' + row.amount.contract);
+            console.log(row.account.padEnd(13, ' '), format_extended_asset(row.amount));
         first_account = reply.more;
     } while (first_account);
 }
@@ -110,10 +121,7 @@ async function dump_tokens(clientWasm, first_key, last_key) {
             max_results: 100,
         }]);
         for (let row of reply.rows)
-            console.log(
-                row.account.padEnd(13, ' '),
-                row.amount.amount.padStart(18, ' '),
-                row.amount.symbol + '@' + row.amount.contract);
+            console.log(row.account.padEnd(13, ' '), format_extended_asset(row.amount));
         first_key = reply.more;
     } while (first_key);
 }

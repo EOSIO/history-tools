@@ -1,7 +1,9 @@
 # copyright defined in LICENSE.txt
 
+set(CMAKE_OSX_DEPLOYMENT_TARGET 10.14)
+
 cmake_minimum_required (VERSION 3.11)
-project(wasm-api VERSION 0.1 LANGUAGES CXX)
+project(wasm-ql VERSION 0.1 LANGUAGES CXX)
 
 set(default_build_type "Release")
  
@@ -19,10 +21,16 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_executable(wasm-api src/wasm-api.cpp)
-target_include_directories(wasm-api PUBLIC external/abieos/src external/abieos/external/rapidjson/include PRIVATE ${Boost_INCLUDE_DIR})
-target_link_libraries(wasm-api Boost::system Boost::program_options mozjs-63 pqxx pq -lpthread)
+add_executable(wasm-ql src/wasm-ql.cpp)
+target_include_directories(wasm-ql PUBLIC external/abieos/src external/abieos/external/rapidjson/include PRIVATE ${Boost_INCLUDE_DIR})
+target_compile_options(wasm-ql PRIVATE -include /usr/local/include/mozjs-64/js/RequiredDefines.h -I/usr/local/include/mozjs-64)
+target_link_libraries(wasm-ql Boost::system Boost::program_options mozjs-64 pqxx pq -lpthread)
+
+string(TOLOWER ${CMAKE_BUILD_TYPE} LOWERCASE_CMAKE_BUILD_TYPE)
+if (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
+    target_compile_options(wasm-ql PRIVATE -D DEBUG)
+endif (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(wasm-api PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics -include /usr/local/include/mozjs-63/js/RequiredDefines.h -I/usr/local/include/mozjs-63)
+    target_compile_options(wasm-ql PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics)
 endif()

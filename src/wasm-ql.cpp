@@ -13,8 +13,8 @@
 // todo: cap max_results
 // todo: reformulate get_input_data and set_output_data for reentrancy
 // todo: switch from eosio_assert to eosio_assert_message
-
-#define DEBUG
+// todo: multiple requests
+// todo: dispatch to multiple wasms
 
 #include "queries.hpp"
 
@@ -32,7 +32,6 @@
 
 #include "jsapi.h"
 
-#include "js/AutoByteString.h"
 #include "js/CompilationAndEvaluation.h"
 #include "js/Initialization.h"
 #include "jsfriendapi.h"
@@ -60,13 +59,6 @@ string readStr(const char* filename) {
     } catch (const std::exception& e) {
         throw std::runtime_error("Error reading "s + filename);
     }
-}
-
-bool buildIdOp(JS::BuildIdCharVector* buildId) {
-    // todo: causes linker errors
-    // const char id[] = "something";
-    // return buildId->append(id, sizeof(id));
-    return true;
 }
 
 static JSClassOps global_ops = {
@@ -101,7 +93,6 @@ struct ContextWrapper {
             JS_DestroyContext(cx);
             throw std::runtime_error("JS::InitSelfHostedCode failed");
         }
-        JS::SetBuildIdOp(cx, buildIdOp);
     }
 
     ~ContextWrapper() { JS_DestroyContext(cx); }
@@ -212,6 +203,10 @@ bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
         std::fstream file("test.wasm", std::ios_base::in | std::ios_base::binary);
         file.seekg(0, std::ios_base::end);
         auto len = file.tellg();
+        if (len <= 0) {
+            std::cerr << "!!!!! d\n";
+            JS_ReportOutOfMemory(cx);
+        }
         file.seekg(0, std::ios_base::beg);
         auto data = malloc(len);
         if (!data) {
@@ -361,8 +356,6 @@ static const JSFunctionSpec functions[] = {
 };
 
 void init_glue() {
-    JSAutoRequest req(foo_global->context.cx);
-
     JS::RealmOptions options;
     foo_global->global.set(JS_NewGlobalObject(foo_global->context.cx, &global_class, nullptr, JS::FireOnNewGlobalHook, options));
     if (!foo_global->global)
@@ -382,14 +375,13 @@ void init_glue() {
     JS::CompileOptions opts(foo_global->context.cx);
     opts.setFileAndLine(filename, lineno);
     JS::RootedValue rval(foo_global->context.cx);
-    bool            ok = JS::Evaluate(foo_global->context.cx, opts, script.c_str(), script.size(), &rval);
+    bool            ok = JS::EvaluateUtf8(foo_global->context.cx, opts, script.c_str(), script.size(), &rval);
     if (!ok)
         throw std::runtime_error("JS::Evaluate failed");
 }
 
 void run() {
-    JSAutoRequest req(foo_global->context.cx);
-    JSAutoRealm   realm(foo_global->context.cx, foo_global->global);
+    JSAutoRealm realm(foo_global->context.cx, foo_global->global);
 
     JS::RootedValue       rval(foo_global->context.cx);
     JS::AutoValueArray<1> args(foo_global->context.cx);

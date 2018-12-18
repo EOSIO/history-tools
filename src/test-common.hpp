@@ -510,13 +510,13 @@ inline T parse_json(std::vector<char>&& v) {
 
 // todo: escape
 // todo: handle non-utf8
-inline void to_json(std::vector<char>& dest, std::string_view sv) {
+inline void to_json(std::string_view sv, std::vector<char>& dest) {
     dest.push_back('"');
     dest.insert(dest.end(), sv.begin(), sv.end());
     dest.push_back('"');
 }
 
-inline void to_json(std::vector<char>& dest, uint8_t value) {
+inline void to_json(uint8_t value, std::vector<char>& dest) {
     char  s[4];
     char* ch = s;
     do {
@@ -527,7 +527,7 @@ inline void to_json(std::vector<char>& dest, uint8_t value) {
     dest.insert(dest.end(), s, ch);
 }
 
-inline void to_json(std::vector<char>& dest, uint32_t value) {
+inline void to_json(uint32_t value, std::vector<char>& dest) {
     char  s[20];
     char* ch = s;
     do {
@@ -538,7 +538,7 @@ inline void to_json(std::vector<char>& dest, uint32_t value) {
     dest.insert(dest.end(), s, ch);
 }
 
-inline void to_json(std::vector<char>& dest, int64_t value) {
+inline void to_json(int64_t value, std::vector<char>& dest) {
     bool     neg = false;
     uint64_t u   = value;
     if (value < 0) {
@@ -559,7 +559,7 @@ inline void to_json(std::vector<char>& dest, int64_t value) {
     dest.push_back('"');
 }
 
-inline void to_json(std::vector<char>& dest, name value) {
+inline void to_json(name value, std::vector<char>& dest) {
     char buffer[13];
     auto end = value.write_as_string(buffer, buffer + sizeof(buffer));
     dest.push_back('"');
@@ -569,60 +569,67 @@ inline void to_json(std::vector<char>& dest, name value) {
 
 inline void append(std::vector<char>& dest, std::string_view sv) { dest.insert(dest.end(), sv.begin(), sv.end()); }
 
-inline void to_json(std::vector<char>& dest, symbol_code value) {
+inline void to_json(symbol_code value, std::vector<char>& dest) {
     char buffer[10];
     dest.push_back('"');
     append(dest, std::string_view{buffer, size_t(value.write_as_string(buffer, buffer + sizeof(buffer)) - buffer)});
     dest.push_back('"');
 }
 
-inline void to_json(std::vector<char>& dest, extended_asset value) {
+inline void to_json(extended_asset value, std::vector<char>& dest) {
     append(dest, "{\"contract\":");
-    to_json(dest, value.contract);
+    to_json(value.contract, dest);
     append(dest, ",\"symbol\":\"");
     char buffer[10];
     append(dest, std::string_view{buffer, size_t(value.quantity.symbol.code().write_as_string(buffer, buffer + sizeof(buffer)) - buffer)});
     append(dest, "\",\"precision\":");
-    to_json(dest, value.quantity.symbol.precision());
+    to_json(value.quantity.symbol.precision(), dest);
     append(dest, ",\"amount\":");
-    to_json(dest, value.quantity.amount);
+    to_json(value.quantity.amount, dest);
     append(dest, "}");
 }
 
 template <typename T>
-inline void to_json(std::vector<char>& dest, std::optional<T>& obj) {
+inline void to_json(std::optional<T>& obj, std::vector<char>& dest) {
     if (obj)
-        to_json(dest, *obj);
+        to_json(*obj, dest);
     else
         append(dest, "null");
 }
 
 template <typename T>
-inline void to_json(std::vector<char>& dest, std::vector<T>& obj) {
+inline void to_json(std::vector<T>& obj, std::vector<char>& dest) {
     dest.push_back('[');
     bool first = true;
     for (auto& v : obj) {
         if (!first)
             dest.push_back(',');
         first = false;
-        to_json(dest, v);
+        to_json(v, dest);
     }
     dest.push_back(']');
 }
 
 template <typename T>
-inline void to_json(std::vector<char>& dest, T& obj) {
+inline void to_json(T& obj, std::vector<char>& dest) {
     dest.push_back('{');
     bool first = true;
     for_each_member(obj, [&](std::string_view member_name, auto& member) {
         if (!first)
             dest.push_back(',');
         first = false;
-        to_json(dest, member_name);
+        to_json(member_name, dest);
         dest.push_back(':');
-        to_json(dest, member);
+        to_json(member, dest);
     });
     dest.push_back('}');
+}
+
+template <typename T>
+inline std::vector<char> to_json(T& obj) {
+    std::vector<char> result;
+    to_json(obj, result);
+    return result;
 }
 
 template <eosio::name::raw N, typename T>
@@ -675,11 +682,11 @@ DataStream& operator<<(DataStream& ds, const named_variant<NamedTypes...>& v) {
 
 // todo: const v
 template <typename... NamedTypes>
-inline void to_json(std::vector<char>& dest, named_variant<NamedTypes...>& v) {
+inline void to_json(named_variant<NamedTypes...>& v, std::vector<char>& dest) {
     dest.push_back('[');
-    to_json(dest, named_variant<NamedTypes...>::keys[v.value.index()]);
+    to_json(named_variant<NamedTypes...>::keys[v.value.index()], dest);
     dest.push_back(',');
-    std::visit([&](auto& x) { to_json(dest, x); }, v.value);
+    std::visit([&](auto& x) { to_json(x, dest); }, v.value);
     dest.push_back(']');
 }
 

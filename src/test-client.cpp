@@ -9,8 +9,6 @@ extern "C" void create_request() { //
     set_output_data(pack(parse_json<example_request>(get_input_data())));
 }
 
-extern "C" void decode_response() {
-    std::vector<char> json;
-    to_json(json, lvalue(unpack<example_response>(get_input_data())));
-    set_output_data(json);
+extern "C" void decode_response() { //
+    set_output_data(to_json(lvalue(unpack<example_response>(get_input_data()))));
 }

@@ -65,11 +65,11 @@ class ClientWasm {
         return this.output_data;
     }
 
-    decode_reply(reply) {
+    decode_response(reply) {
         this.input_data = new Uint8Array(reply);
         this.output_data = new Uint8Array(0);
-        this.inst.exports.decode_reply();
-        // console.log(decoder.decode(this.output_data))
+        this.inst.exports.decode_response();
+        // console.log('<<' + decoder.decode(this.output_data) + '>>')
         return JSON.parse(decoder.decode(this.output_data));
     }
 
@@ -78,7 +78,7 @@ class ClientWasm {
         const queryReply = await fetch('http://127.0.0.1:8080/wasmql/v1/query', { method: 'POST', body: requestBin });
         if (queryReply.status !== 200)
             throw new Error(queryReply.status + ": " + queryReply.statusText);
-        return this.decode_reply(await queryReply.arrayBuffer());
+        return this.decode_response(await queryReply.arrayBuffer());
     }
 }
 
@@ -105,9 +105,9 @@ async function dump_eos_balances(clientWasm, first_account, last_account) {
             last_account: last_account,
             max_results: 100,
         }]);
-        for (let row of reply.rows)
+        for (let row of reply[1].rows)
             console.log(row.account.padEnd(13, ' '), format_extended_asset(row.amount));
-        first_account = reply.more;
+        first_account = reply[1].more;
     } while (first_account);
 }
 
@@ -120,9 +120,9 @@ async function dump_tokens(clientWasm, first_key, last_key) {
             last_key,
             max_results: 100,
         }]);
-        for (let row of reply.rows)
+        for (let row of reply[1].rows)
             console.log(row.account.padEnd(13, ' '), format_extended_asset(row.amount));
-        first_key = reply.more;
+        first_key = reply[1].more;
     } while (first_key);
 }
 

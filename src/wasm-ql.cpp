@@ -308,8 +308,10 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
             query_str += sep + type.bin_to_sql(args_buf);
         for (auto& type : query.types)
             query_str += sep + type.bin_to_sql(args_buf);
-        query_str += sep + sql_conversion::sql_type_for<uint32_t>.bin_to_sql(args_buf); // max_block_index
+        auto max_results = abieos::read_bin<uint32_t>(args_buf);
+        query_str += sep + sql_conversion::sql_str(std::min(max_results, (uint32_t)1000)); // todo: make configurable
         query_str += ")";
+        // std::cerr << query_str << "\n";
 
         pqxx::work        t(foo_global->sql_connection);
         auto              exec_result = t.exec(query_str);

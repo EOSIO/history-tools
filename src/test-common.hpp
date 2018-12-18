@@ -82,6 +82,12 @@ extern "C" void printi(int64_t value) {
 
 // todo: remove this
 template <typename T>
+T& lvalue(T&& v) {
+    return v;
+}
+
+// todo: remove this
+template <typename T>
 struct serial_wrapper {
     T value{};
 };
@@ -395,8 +401,6 @@ extern "C" void set_output_data(const char* begin, const char* end);
 inline void     set_output_data(const std::vector<char>& v) { set_output_data(v.data(), v.data() + v.size()); }
 inline void     set_output_data(const std::string_view& v) { set_output_data(v.data(), v.data() + v.size()); }
 
-namespace json_parser {
-
 inline void skip_space(char*& pos, char* end) {
     while (pos != end && (*pos == 0x09 || *pos == 0x0a || *pos == 0x0d || *pos == 0x20))
         ++pos;
@@ -417,29 +421,27 @@ inline void expect(char*& pos, char* end, char ch, const char* msg) {
 inline void expect_end(char*& pos, char* end) { eosio_assert(pos == end, "expected end of json"); }
 
 template <typename T>
-inline T parse(char*& pos, char* end);
+inline void parse_json(T& obj, char*& pos, char* end);
 
 // todo: escapes
-template <>
-inline std::string_view parse<std::string_view>(char*& pos, char* end) {
+inline void parse_json(std::string_view& result, char*& pos, char* end) {
     eosio_assert(pos != end && *pos++ == '"', "expected string");
     auto begin = pos;
     while (pos != end && *pos != '"')
         ++pos;
     auto e = pos;
     eosio_assert(pos != end && *pos++ == '"', "expected end of string");
-    return string_view(begin, e - begin);
+    result = string_view(begin, e - begin);
 }
 
-template <>
-inline uint32_t parse<uint32_t>(char*& pos, char* end) {
+inline void parse_json(uint32_t& result, char*& pos, char* end) {
     bool in_str = false;
     if (pos != end && *pos == '"') {
         in_str = true;
         skip_space(pos, end);
     }
-    bool     found  = false;
-    uint32_t result = 0;
+    bool found = false;
+    result     = 0;
     while (pos != end && *pos >= '0' && *pos <= '9') {
         result = result * 10 + *pos++ - '0';
         found  = true;
@@ -450,24 +452,26 @@ inline uint32_t parse<uint32_t>(char*& pos, char* end) {
         expect(pos, end, '"', "expected positive integer");
         skip_space(pos, end);
     }
-    return result;
 }
 
-template <>
-inline name parse<name>(char*& pos, char* end) {
-    return name{parse<std::string_view>(pos, end)};
+inline void parse_json(name& result, char*& pos, char* end) {
+    std::string_view sv;
+    parse_json(sv, pos, end);
+    result = name{sv};
 }
 
-template <>
-inline symbol_code parse<symbol_code>(char*& pos, char* end) {
-    return symbol_code{parse<std::string_view>(pos, end)};
+inline void parse_json(symbol_code& result, char*& pos, char* end) {
+    std::string_view sv;
+    parse_json(sv, pos, end);
+    result = symbol_code{sv};
 }
 
 template <typename F>
 inline void parse_object(char*& pos, char* end, F f) {
     expect(pos, end, '{', "expected {");
     while (true) {
-        auto key = parse<std::string_view>(pos, end);
+        std::string_view key;
+        parse_json(key, pos, end);
         expect(pos, end, ':', "expected :");
         f(key);
         if (pos != end && *pos == ',')
@@ -479,33 +483,30 @@ inline void parse_object(char*& pos, char* end, F f) {
 }
 
 template <typename T>
-inline T parse(char*& pos, char* end) {
-    T result{};
+inline void parse_json(T& obj, char*& pos, char* end) {
     parse_object(pos, end, [&](std::string_view key) {
         bool found = false;
-        for_each_member(result, [&](std::string_view member_name, auto& member) {
+        for_each_member(obj, [&](std::string_view member_name, auto& member) {
             if (key == member_name) {
-                member = parse<std::decay_t<decltype(member)>>(pos, end);
-                found  = true;
+                parse_json(member, pos, end);
+                found = true;
             }
         });
         if (!found)
             skip_value(pos, end);
     });
-    return result;
 }
 
 template <typename T>
-inline T parse(std::vector<char>&& v) {
+inline T parse_json(std::vector<char>&& v) {
     char* pos = v.data();
     char* end = pos + v.size();
     skip_space(pos, end);
-    T result = parse<T>(pos, end);
+    T result;
+    parse_json(result, pos, end);
     expect_end(pos, end);
     return result;
 }
-
-} // namespace json_parser
 
 // todo: escape
 // todo: handle non-utf8
@@ -624,6 +625,98 @@ inline void to_json(std::vector<char>& dest, T& obj) {
     dest.push_back('}');
 }
 
+template <eosio::name::raw N, typename T>
+struct named_type {
+    static inline constexpr eosio::name name = eosio::name{N};
+    using type                               = T;
+};
+
+// todo: compile-time check for duplicate keys
+template <typename... NamedTypes>
+struct named_variant {
+    std::variant<typename NamedTypes::type...> value;
+    static inline constexpr eosio::name        keys[] = {NamedTypes::name...};
+};
+
+template <size_t I, typename DataStream, typename... NamedTypes>
+DataStream& deserialize_named_variant_impl(DataStream& ds, named_variant<NamedTypes...>& v, size_t i) {
+    if constexpr (I < sizeof...(NamedTypes)) {
+        if (i == I) {
+            auto& q = v.value;
+            auto& x = q.template emplace<I>();
+            ds >> x;
+            return ds;
+        } else {
+            return deserialize_named_variant_impl<I + 1>(ds, v, i);
+        }
+    } else {
+        eosio_assert(false, "invalid variant index");
+        return ds;
+    }
+}
+
+template <typename DataStream, typename... NamedTypes>
+DataStream& operator>>(DataStream& ds, named_variant<NamedTypes...>& v) {
+    eosio::name name;
+    ds >> name;
+    for (size_t i = 0; i < sizeof...(NamedTypes); ++i)
+        if (name == v.keys[i])
+            return deserialize_named_variant_impl<0>(ds, v, i);
+    eosio_assert(false, "invalid variant index name");
+    return ds;
+}
+
+template <typename DataStream, typename... NamedTypes>
+DataStream& operator<<(DataStream& ds, const named_variant<NamedTypes...>& v) {
+    ds << named_variant<NamedTypes...>::keys[v.value.index()];
+    std::visit([&](auto& v) { ds << v; }, v.value);
+    return ds;
+}
+
+// todo: const v
+template <typename... NamedTypes>
+inline void to_json(std::vector<char>& dest, named_variant<NamedTypes...>& v) {
+    dest.push_back('[');
+    to_json(dest, named_variant<NamedTypes...>::keys[v.value.index()]);
+    dest.push_back(',');
+    std::visit([&](auto& x) { to_json(dest, x); }, v.value);
+    dest.push_back(']');
+}
+
+template <size_t I, typename... NamedTypes>
+void parse_named_variant_impl(named_variant<NamedTypes...>& v, size_t i, char*& pos, char* end) {
+    if constexpr (I < sizeof...(NamedTypes)) {
+        if (i == I) {
+            auto& q = v.value;
+            auto& x = q.template emplace<I>();
+            parse_json(x, pos, end);
+        } else {
+            return parse_named_variant_impl<I + 1>(v, i, pos, end);
+        }
+    } else {
+        eosio_assert(false, "invalid variant index");
+    }
+}
+
+template <typename... NamedTypes>
+void parse_json(named_variant<NamedTypes...>& result, char*& pos, char* end) {
+    skip_space(pos, end);
+    expect(pos, end, '[', "expected array");
+
+    eosio::name name;
+    parse_json(name, pos, end);
+    expect(pos, end, ',', "expected ,");
+
+    for (size_t i = 0; i < sizeof...(NamedTypes); ++i) {
+        if (name == named_variant<NamedTypes...>::keys[i]) {
+            parse_named_variant_impl<0>(result, i, pos, end);
+            expect(pos, end, ']', "expected ]");
+            return;
+        }
+    }
+    eosio_assert(false, "invalid variant index name");
+}
+
 // todo: version
 // todo: max_block_index: head, irreversible options
 struct balances_for_multiple_accounts_request {
@@ -692,11 +785,10 @@ struct balances_for_multiple_accounts_response {
         extended_asset amount  = {};
     };
 
-    name                request = "bal.mult.acc"_n;
-    std::vector<row>    rows    = {};
-    std::optional<name> more    = {};
+    std::vector<row>    rows = {};
+    std::optional<name> more = {};
 
-    EOSLIB_SERIALIZE(balances_for_multiple_accounts_response, (request)(rows)(more))
+    EOSLIB_SERIALIZE(balances_for_multiple_accounts_response, (rows)(more))
 };
 
 template <typename F>
@@ -707,7 +799,6 @@ void for_each_member(balances_for_multiple_accounts_response::row& obj, F f) {
 
 template <typename F>
 void for_each_member(balances_for_multiple_accounts_response& obj, F f) {
-    f("request", obj.request);
     f("rows", obj.rows);
     f("more", obj.more);
 }
@@ -719,11 +810,10 @@ struct balances_for_multiple_tokens_response {
         extended_asset amount  = {};
     };
 
-    name                    request = "bal.mult.tok"_n;
-    std::vector<row>        rows    = {};
-    std::optional<bfmt_key> more    = {};
+    std::vector<row>        rows = {};
+    std::optional<bfmt_key> more = {};
 
-    EOSLIB_SERIALIZE(balances_for_multiple_tokens_response, (request)(rows)(more))
+    EOSLIB_SERIALIZE(balances_for_multiple_tokens_response, (rows)(more))
 };
 
 template <typename F>
@@ -734,7 +824,14 @@ void for_each_member(balances_for_multiple_tokens_response::row& obj, F f) {
 
 template <typename F>
 void for_each_member(balances_for_multiple_tokens_response& obj, F f) {
-    f("request", obj.request);
     f("rows", obj.rows);
     f("more", obj.more);
 }
+
+using example_request = named_variant<
+    named_type<"bal.mult.acc"_n, balances_for_multiple_accounts_request>,
+    named_type<"bal.mult.tok"_n, balances_for_multiple_tokens_request>>;
+
+using example_response = named_variant<
+    named_type<"bal.mult.acc"_n, balances_for_multiple_accounts_response>,
+    named_type<"bal.mult.tok"_n, balances_for_multiple_tokens_response>>;

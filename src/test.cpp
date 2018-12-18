@@ -236,7 +236,7 @@ struct newaccount {
     // authority active;
 };
 
-void process(balances_for_multiple_accounts_request&& req) {
+void process(balances_for_multiple_accounts_request& req) {
     print("    balances_for_multiple_accounts\n");
     auto s = exec_query(query_contract_row_range_code_table_pk_scope{
         .max_block_index = req.max_block_index,
@@ -268,7 +268,7 @@ void process(balances_for_multiple_accounts_request&& req) {
         print("\n");
         return true;
     });
-    set_output_data(pack(response));
+    set_output_data(pack(example_response{std::move(response)}));
     print("\n");
 }
 
@@ -302,7 +302,7 @@ void proposals(uint32_t max_block_index, name first_account, name first_prop, na
     print("\n");
 }
 
-void process(balances_for_multiple_tokens_request&& req) {
+void process(balances_for_multiple_tokens_request& req) {
     print("    balances_for_multiple_tokens\n");
     auto s = exec_query(query_contract_row_range_scope_table_pk_code{
         .max_block_index = req.max_block_index,
@@ -339,7 +339,7 @@ void process(balances_for_multiple_tokens_request&& req) {
             response.rows.push_back({.account = name{r.scope}, .amount = extended_asset{a, r.code}});
         return true;
     });
-    set_output_data(pack(response));
+    set_output_data(pack(example_response{std::move(response)}));
     print("\n");
 }
 
@@ -383,14 +383,7 @@ void bar() {
 }
 
 extern "C" void startup() {
-    auto req          = get_input_data();
-    auto request_name = unpack<name>(req);
-    print("request: ", request_name, "\n");
-
-    switch (request_name.value) {
-    case "bal.mult.acc"_n.value: return process(unpack<balances_for_multiple_accounts_request>(req));
-    case "bal.mult.tok"_n.value: return process(unpack<balances_for_multiple_tokens_request>(req));
-    }
-
-    // todo: error on unrecognized
+    auto request = unpack<example_request>(get_input_data());
+    print("request: ", example_request::keys[request.value.index()], "\n");
+    std::visit([](auto& x) { process(x); }, request.value);
 }

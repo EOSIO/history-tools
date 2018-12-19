@@ -29,16 +29,42 @@ const type_map = {
     'transaction_status': 'transaction_status_type',
 };
 
+const header = `
+        drop function if exists chain.little8;
+        create function chain.little8(value bytea, pos int) returns bytea immutable as $$
+        begin
+            return
+                substring(value from pos + 8 for 1) ||
+                substring(value from pos + 7 for 1) ||
+                substring(value from pos + 6 for 1) ||
+                substring(value from pos + 5 for 1) ||
+                substring(value from pos + 4 for 1) ||
+                substring(value from pos + 3 for 1) ||
+                substring(value from pos + 2 for 1) ||
+                substring(value from pos + 1 for 1);
+        end; $$
+        language plpgsql;
+`;
+
 let indexes = '';
 let functions = '';
 
-function generate_index({ table, index, sort_keys, history_keys }) {
+function sort_key_expr(key) {
+    if (key.expression)
+        return key.expression;
+    else
+        return '"' + key.name + '"';
+}
+
+function generate_index({ table, index, sort_keys, history_keys, conditions }) {
     indexes += `
         create index if not exists ${index} on chain.${table}(
-            ${sort_keys.map(x => `"${x.name}",`).join('\n            ')}
+            ${sort_keys.map(x => sort_key_expr(x) + ',').join('\n            ')}
             ${history_keys.map(x => `"${x.name + (x.desc ? '" desc' : '"')}`).join(',\n            ')}
-        );
-    `;
+        )`;
+    if (conditions)
+        indexes += '\n        where\n            ' + conditions.join('\n            and ');
+    indexes += ';\n';
 }
 
 // todo: This is a stripped-down version of generate_state. It likely needs reoptimization.
@@ -102,7 +128,7 @@ function generate({ table, index, keys, sort_keys, history_keys, ...rest }) {
 } // generate
 
 function generate_state({ table, index, keys, sort_keys, history_keys, ...rest }) {
-    generate_index({ table, index, sort_keys, history_keys });
+    generate_index({ table, index, sort_keys, history_keys, ...rest });
 
     const fn_name = 'chain.' + rest['function'];
     const fn_args = prefix => sort_keys.map(x => `${prefix}${x.name} ${x.type},`).join('\n            ');
@@ -201,7 +227,10 @@ function get_type(type) {
 
 function fill_types(query, fields) {
     for (let field of fields)
-        field.type = get_type(tables[query.table].fields[field.name].type);
+        if (field.type)
+            field.type = get_type(field.type);
+        else
+            field.type = get_type(tables[query.table].fields[field.name].type);
 }
 
 for (let query of config.queries) {
@@ -211,5 +240,6 @@ for (let query of config.queries) {
     generate_state(query);
 }
 
+console.log(header);
 console.log(indexes);
 console.log(functions);

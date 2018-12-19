@@ -1,4 +1,46 @@
 
+        drop function if exists chain.little8;
+        create function chain.little8(value bytea, pos int) returns bytea immutable as $$
+        begin
+            return
+                substring(value from pos + 8 for 1) ||
+                substring(value from pos + 7 for 1) ||
+                substring(value from pos + 6 for 1) ||
+                substring(value from pos + 5 for 1) ||
+                substring(value from pos + 4 for 1) ||
+                substring(value from pos + 3 for 1) ||
+                substring(value from pos + 2 for 1) ||
+                substring(value from pos + 1 for 1);
+        end; $$
+        language plpgsql;
+
+
+        create index if not exists at_nonnotify_executed_name_le8_0_account_block_trans_act_idx on chain.action_trace(
+            "name",
+            chain.little8(data, 0),
+            "account",
+            "block_index",
+            "transaction_id",
+            "action_index"
+        )
+        where
+            receipt_receiver = account
+            and transaction_status = 'executed'
+            and octet_length(data) >= 8;
+
+        create index if not exists at_nonnotify_executed_name_le8_8_account_block_trans_act_idx on chain.action_trace(
+            "name",
+            chain.little8(data, 8),
+            "account",
+            "block_index",
+            "transaction_id",
+            "action_index"
+        )
+        where
+            receipt_receiver = account
+            and transaction_status = 'executed'
+            and octet_length(data) >= 16;
+
         -- todo: fix
         create index if not exists action_trace_receipt_receiver_name_account_block_index_idx on chain.action_trace(
             "receipt_receiver",
@@ -6,7 +48,7 @@
             "account",
             "block_index"
         );
-    
+
         create index if not exists contract_row_code_table_primary_key_scope_block_index_prese_idx on chain.contract_row(
             "code",
             "table",
@@ -15,7 +57,7 @@
             "block_index" desc,
             "present" desc
         );
-    
+
         create index if not exists contract_row_code_table_scope_primary_key_block_index_prese_idx on chain.contract_row(
             "code",
             "table",
@@ -24,7 +66,7 @@
             "block_index" desc,
             "present" desc
         );
-    
+
         create index if not exists contract_row_scope_table_primary_key_code_block_index_prese_idx on chain.contract_row(
             "scope",
             "table",
@@ -33,7 +75,7 @@
             "block_index" desc,
             "present" desc
         );
-    
+
 
         -- todo: fix
         drop function if exists chain.action_trace_range_receipt_receiver_name_account;

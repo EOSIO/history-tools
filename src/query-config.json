@@ -110,6 +110,84 @@
     ],
     "queries": [
         {
+            "wasm_name": "at.ne.nfea",
+            "index": "at_nonnotify_executed_name_le8_0_account_block_trans_act_idx",
+            "function": "action_trace_nonnotify_executed_range_name_le8_0_account",
+            "table": "action_trace",
+            "keys": [
+                {
+                    "name": "name"
+                }
+            ],
+            "sort_keys": [
+                {
+                    "name": "name"
+                },
+                {
+                    "expression": "chain.little8(data, 0)",
+                    "type": "bytes"
+                },
+                {
+                    "name": "account"
+                }
+            ],
+            "history_keys": [
+                {
+                    "name": "block_index"
+                },
+                {
+                    "name": "transaction_id"
+                },
+                {
+                    "name": "action_index"
+                }
+            ],
+            "conditions": [
+                "receipt_receiver = account",
+                "transaction_status = 'executed'",
+                "octet_length(data) >= 8"
+            ]
+        },
+        {
+            "wasm_name": "at.ne.nsea",
+            "index": "at_nonnotify_executed_name_le8_8_account_block_trans_act_idx",
+            "function": "action_trace_nonnotify_executed_range_name_le8_8_account",
+            "table": "action_trace",
+            "keys": [
+                {
+                    "name": "name"
+                }
+            ],
+            "sort_keys": [
+                {
+                    "name": "name"
+                },
+                {
+                    "expression": "chain.little8(data, 8)",
+                    "type": "bytes"
+                },
+                {
+                    "name": "account"
+                }
+            ],
+            "history_keys": [
+                {
+                    "name": "block_index"
+                },
+                {
+                    "name": "transaction_id"
+                },
+                {
+                    "name": "action_index"
+                }
+            ],
+            "conditions": [
+                "receipt_receiver = account",
+                "transaction_status = 'executed'",
+                "octet_length(data) >= 16"
+            ]
+        },
+        {
             "wasm_name": "at.rna",
             "index": "action_trace_receipt_receiver_name_account_block_index_idx",
             "function": "action_trace_range_receipt_receiver_name_account",

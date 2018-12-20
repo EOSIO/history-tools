@@ -77,8 +77,13 @@ std::string bin_to_sql(abieos::input_buffer& bin) {
 }
 
 template <>
-std::string bin_to_sql<abieos::bytes>(abieos::input_buffer& bin) {
-    throw std::runtime_error("bin_to_sql<bytes>: not implemented");
+inline std::string bin_to_sql<abieos::bytes>(abieos::input_buffer& bin) {
+    abieos::input_buffer b;
+    if (!bin_to_native(b, bin))
+        throw std::runtime_error("invalid bytes");
+    std::string result;
+    boost::algorithm::hex(b.pos, b.end, back_inserter(result));
+    return quote_bytea(result);
 }
 
 template <typename T>
@@ -204,24 +209,32 @@ constexpr void for_each_field(table*, F f) {
 };
 
 struct key {
-    std::string name = {};
-    bool        desc = {};
+    std::string name           = {};
+    std::string type           = {};
+    std::string expression     = {};
+    std::string arg_expression = {};
+    bool        desc           = {};
 };
 
 template <typename F>
 constexpr void for_each_field(key*, F f) {
     f("name", abieos::member_ptr<&key::name>{});
+    f("type", abieos::member_ptr<&key::type>{});
+    f("expression", abieos::member_ptr<&key::expression>{});
+    f("arg_expression", abieos::member_ptr<&key::arg_expression>{});
     f("desc", abieos::member_ptr<&key::desc>{});
 };
 
 struct query {
-    abieos::name     wasm_name    = {};
-    std::string      index        = {};
-    std::string      function     = {};
-    std::string      _table       = {};
-    std::vector<key> keys         = {};
-    std::vector<key> sort_keys    = {};
-    std::vector<key> history_keys = {};
+    abieos::name             wasm_name    = {};
+    std::string              index        = {};
+    std::string              function     = {};
+    std::string              _table       = {};
+    bool                     is_state     = {};
+    std::vector<key>         keys         = {};
+    std::vector<key>         sort_keys    = {};
+    std::vector<key>         history_keys = {};
+    std::vector<std::string> conditions   = {};
 
     std::vector<sql_type> types        = {};
     table*                result_table = {};
@@ -233,9 +246,11 @@ constexpr void for_each_field(query*, F f) {
     f("index", abieos::member_ptr<&query::index>{});
     f("function", abieos::member_ptr<&query::function>{});
     f("table", abieos::member_ptr<&query::_table>{});
+    f("is_state", abieos::member_ptr<&query::is_state>{});
     f("keys", abieos::member_ptr<&query::keys>{});
     f("sort_keys", abieos::member_ptr<&query::sort_keys>{});
     f("history_keys", abieos::member_ptr<&query::history_keys>{});
+    f("conditions", abieos::member_ptr<&query::conditions>{});
 };
 
 struct config {
@@ -264,15 +279,17 @@ struct config {
                 throw std::runtime_error("query " + (std::string)query.wasm_name + ": unknown table: " + query._table);
             query.result_table = it->second;
             for (auto& key : query.sort_keys) {
-                auto field_it = query.result_table->field_map.find(key.name);
-                if (field_it == query.result_table->field_map.end())
-                    throw std::runtime_error("query " + (std::string)query.wasm_name + ": unknown field: " + key.name);
-                auto& field = *field_it->second;
+                std::string type = key.type;
+                if (type.empty()) {
+                    auto field_it = query.result_table->field_map.find(key.name);
+                    if (field_it == query.result_table->field_map.end())
+                        throw std::runtime_error("query " + (std::string)query.wasm_name + ": unknown field: " + key.name);
+                    type = field_it->second->type;
+                }
 
-                auto type_it = abi_type_to_sql_type.find(field.type);
+                auto type_it = abi_type_to_sql_type.find(type);
                 if (type_it == abi_type_to_sql_type.end())
-                    throw std::runtime_error(
-                        "query " + (std::string)query.wasm_name + " field " + field.name + ": unknown type: " + field.type);
+                    throw std::runtime_error("query " + (std::string)query.wasm_name + " key " + key.name + ": unknown type: " + type);
                 query.types.push_back(type_it->second);
             }
         }

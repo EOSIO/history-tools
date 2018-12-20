@@ -91,6 +91,10 @@ function amount_to_decimal(amount) {
     return s.substr(0, s.length - amount.precision) + '.' + s.substr(s.length - amount.precision);
 }
 
+function format_asset(amount, number_size = 18) {
+    return amount_to_decimal(amount).padStart(number_size, ' ') + ' ' + amount.symbol;
+}
+
 function format_extended_asset(amount, number_size = 18) {
     return amount_to_decimal(amount).padStart(number_size, ' ') + ' ' + amount.symbol + '@' + amount.contract;
 }
@@ -126,12 +130,49 @@ async function dump_tokens(clientWasm, first_key, last_key) {
     } while (first_key);
 }
 
+async function dump_outgoing_transfer(clientWasm) {
+    let first_key = {
+        account: 'eosio',
+        contract: 'eosio.token',
+        block_index: 0,
+        transaction_id: '0000000000000000000000000000000000000000000000000000000000000000',
+        action_index: 0,
+    };
+    let last_key = {
+        account: 'eosio',
+        contract: 'eosio.token',
+        block_index: 0xffffffff,
+        transaction_id: 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+        action_index: 0xffffffff,
+    };
+
+    let i = 0;
+    while (first_key) {
+        const reply = await clientWasm.round_trip(['out.xfer', {
+            max_block_index: 100000000,
+            first_key,
+            last_key,
+            max_results: 10,
+        }]);
+        for (let row of reply[1].rows)
+            console.log(
+                row.key.contract.padEnd(13, ' '), row.from.padEnd(13, ' ') + ' -> ' + row.to.padEnd(13, ' '),
+                format_asset(row.quantity), '     ', row.memo);
+        console.log(++i);
+        first_key = reply[1].more;
+        if (i >= 4)
+            break;
+    }
+}
+
 (async () => {
     try {
         const clientWasm = new ClientWasm();
         await dump_eos_balances(clientWasm, 'eosio', 'eosio.zzzzzzj');
         console.log();
         await dump_tokens(clientWasm, { sym: '', code: '' }, { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' });
+        console.log();
+        await dump_outgoing_transfer(clientWasm);
     } catch (e) {
         console.error(e);
     }

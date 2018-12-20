@@ -1,5 +1,8 @@
 // copyright defined in LICENSE.txt
 
+// todo: first vs. first_key, last vs. last_key
+// todo: results vs. response vs. rows
+
 #pragma once
 #include <string_view>
 
@@ -94,8 +97,8 @@ struct serial_wrapper {
 
 // todo: remove this
 template <typename DataStream>
-DataStream& operator<<(DataStream& ds, const serial_wrapper<checksum256>& obj) {
-    eosio_assert(false, "oops");
+DataStream& operator<<(DataStream& ds, serial_wrapper<checksum256>& obj) {
+    ds.write(reinterpret_cast<char*>(obj.value.data()), obj.value.num_words() * sizeof(checksum256::word_t));
     return ds;
 }
 
@@ -104,6 +107,16 @@ template <typename DataStream>
 DataStream& operator>>(DataStream& ds, serial_wrapper<checksum256>& obj) {
     ds.read(reinterpret_cast<char*>(obj.value.data()), obj.value.num_words() * sizeof(checksum256::word_t));
     return ds;
+}
+
+bool increment(checksum256& v) {
+    auto bytes = reinterpret_cast<char*>(v.data());
+    for (int i = 0; i < 64; ++i) {
+        auto& x = bytes[63 - i];
+        if (++x)
+            return false;
+    }
+    return true;
 }
 
 // todo: don't return static storage
@@ -172,6 +185,7 @@ inline const char* asset_to_string(const asset& v) {
 }
 
 namespace eosio {
+
 template <typename Stream>
 inline datastream<Stream>& operator>>(datastream<Stream>& ds, datastream<Stream>& dest) {
     unsigned_int size;
@@ -180,6 +194,34 @@ inline datastream<Stream>& operator>>(datastream<Stream>& ds, datastream<Stream>
     ds.skip(size);
     return ds;
 }
+
+template <typename Stream1, typename Stream2>
+inline datastream<Stream1>& operator<<(datastream<Stream1>& ds, const datastream<Stream2>& obj) {
+    unsigned_int size = obj.remaining();
+    ds << size;
+    ds.write(obj.pos(), size);
+    return ds;
+}
+
+// todo: remove
+template <typename Stream>
+inline datastream<Stream>& operator>>(datastream<Stream>& ds, std::string_view& dest) {
+    unsigned_int size;
+    ds >> size;
+    dest = std::string_view{ds.pos(), size};
+    ds.skip(size);
+    return ds;
+}
+
+// todo: remove
+template <typename Stream>
+inline datastream<Stream>& operator<<(datastream<Stream>& ds, const std::string_view& obj) {
+    unsigned_int size = obj.size();
+    ds << size;
+    ds.write(obj.begin(), size);
+    return ds;
+}
+
 } // namespace eosio
 
 typedef void* cb_alloc_fn(void* cb_alloc_data, size_t size);
@@ -190,17 +232,6 @@ enum class transaction_status : uint8_t {
     hard_fail = 2, // objectively failed and error handler objectively failed thus no state change
     delayed   = 3, // transaction delayed/deferred/scheduled for future execution
     expired   = 4, // transaction expired and storage space refunded to user
-};
-
-struct contract_row {
-    uint32_t                block_index = 0;
-    bool                    present     = false;
-    name                    code;
-    uint64_t                scope;
-    name                    table;
-    uint64_t                primary_key = 0;
-    name                    payer;
-    datastream<const char*> value{nullptr, 0};
 };
 
 struct action_trace {
@@ -225,6 +256,17 @@ struct action_trace {
         action_trace, (block_index)(transaction_id)(action_index)(parent_action_index)(transaction_status)(receipt_receiver)(
                           receipt_act_digest)(receipt_global_sequence)(receipt_recv_sequence)(receipt_code_sequence)(receipt_abi_sequence)(
                           account)(name)(data)(context_free)(elapsed))
+};
+
+struct contract_row {
+    uint32_t                block_index = 0;
+    bool                    present     = false;
+    name                    code;
+    uint64_t                scope;
+    name                    table;
+    uint64_t                primary_key = 0;
+    name                    payer;
+    datastream<const char*> value{nullptr, 0};
 };
 
 struct html {
@@ -466,6 +508,30 @@ inline void parse_json(symbol_code& result, char*& pos, char* end) {
     result = symbol_code{sv};
 }
 
+inline void parse_json(serial_wrapper<checksum256>& result, char*& pos, char* end) {
+    auto             bytes = reinterpret_cast<char*>(result.value.data());
+    std::string_view sv;
+    parse_json(sv, pos, end);
+    eosio_assert(sv.size() == 64, "expected checksum256");
+    auto p = sv.begin();
+    for (int i = 0; i < 32; ++i) {
+        auto get_digit = [&]() {
+            auto ch = *p++;
+            if (ch >= '0' && ch <= '9')
+                return ch - '0';
+            if (ch >= 'a' && ch <= 'f')
+                return ch - 'a' + 10;
+            if (ch >= 'A' && ch <= 'F')
+                return ch - 'A' + 10;
+            eosio_assert(false, "expected checksum256");
+            return 0;
+        };
+        auto h   = get_digit();
+        auto l   = get_digit();
+        bytes[i] = (h << 4) | l;
+    }
+}
+
 template <typename F>
 inline void parse_object(char*& pos, char* end, F f) {
     expect(pos, end, '{', "expected {");
@@ -576,6 +642,17 @@ inline void to_json(symbol_code value, std::vector<char>& dest) {
     dest.push_back('"');
 }
 
+inline void to_json(asset value, std::vector<char>& dest) {
+    append(dest, "{\"symbol\":\"");
+    char buffer[10];
+    append(dest, std::string_view{buffer, size_t(value.symbol.code().write_as_string(buffer, buffer + sizeof(buffer)) - buffer)});
+    append(dest, "\",\"precision\":");
+    to_json(value.symbol.precision(), dest);
+    append(dest, ",\"amount\":");
+    to_json(value.amount, dest);
+    append(dest, "}");
+}
+
 inline void to_json(extended_asset value, std::vector<char>& dest) {
     append(dest, "{\"contract\":");
     to_json(value.contract, dest);
@@ -587,6 +664,20 @@ inline void to_json(extended_asset value, std::vector<char>& dest) {
     append(dest, ",\"amount\":");
     to_json(value.quantity.amount, dest);
     append(dest, "}");
+}
+
+// todo: fix const
+inline void to_json(serial_wrapper<checksum256>& value, std::vector<char>& dest) {
+    static const char hex_digits[] = "0123456789ABCDEF";
+    auto              bytes        = reinterpret_cast<const unsigned char*>(value.value.data());
+    dest.push_back('"');
+    auto pos = dest.size();
+    dest.resize(pos + 64);
+    for (int i = 0; i < 32; ++i) {
+        dest[pos++] = hex_digits[bytes[i] >> 4];
+        dest[pos++] = hex_digits[bytes[i] & 15];
+    }
+    dest.push_back('"');
 }
 
 template <typename T>
@@ -724,10 +815,99 @@ void parse_json(named_variant<NamedTypes...>& result, char*& pos, char* end) {
     eosio_assert(false, "invalid variant index name");
 }
 
+struct outgoing_transfers_key {
+    name                        account        = {};
+    name                        contract       = {};
+    uint32_t                    block_index    = {};
+    serial_wrapper<checksum256> transaction_id = {};
+    uint32_t                    action_index   = {};
+
+    // todo: create a shortcut for defining this
+    outgoing_transfers_key& operator++() {
+        if (++action_index)
+            return *this;
+        if (!increment(transaction_id.value))
+            return *this;
+        if (++block_index)
+            return *this;
+        if (++contract.value)
+            return *this;
+        if (++account.value)
+            return *this;
+        return *this;
+    }
+
+    EOSLIB_SERIALIZE(outgoing_transfers_key, (account)(contract)(block_index)(transaction_id)(action_index))
+};
+
+template <typename F>
+void for_each_member(outgoing_transfers_key& obj, F f) {
+    f("account", obj.account);
+    f("contract", obj.contract);
+    f("block_index", obj.block_index);
+    f("transaction_id", obj.transaction_id);
+    f("action_index", obj.action_index);
+}
+
+// todo: row?
+struct outgoing_transfers_row {
+    outgoing_transfers_key key      = {};
+    eosio::name            from     = {};
+    eosio::name            to       = {};
+    eosio::asset           quantity = {};
+    std::string_view       memo     = {nullptr, 0};
+
+    EOSLIB_SERIALIZE(outgoing_transfers_row, (key)(from)(to)(quantity)(memo))
+};
+
+template <typename F>
+void for_each_member(outgoing_transfers_row& obj, F f) {
+    f("key", obj.key);
+    f("from", obj.from);
+    f("to", obj.to);
+    f("quantity", obj.quantity);
+    f("memo", obj.memo);
+}
+
+// todo: version
+// todo: max_block_index: head, irreversible options
+// todo: share struct with incoming_transfers_request
+struct outgoing_transfers_request {
+    name                   request         = "out.xfer"_n; // todo: remove
+    uint32_t               max_block_index = {};
+    outgoing_transfers_key first_key       = {};
+    outgoing_transfers_key last_key        = {};
+    uint32_t               max_results     = {};
+};
+
+template <typename F>
+void for_each_member(outgoing_transfers_request& obj, F f) {
+    f("request", obj.request);
+    f("max_block_index", obj.max_block_index);
+    f("first_key", obj.first_key);
+    f("last_key", obj.last_key);
+    f("max_results", obj.max_results);
+}
+
+// todo: version
+// todo: share struct with incoming_transfers_response
+struct outgoing_transfers_response {
+    std::vector<outgoing_transfers_row>   rows = {}; // todo name: rows?
+    std::optional<outgoing_transfers_key> more = {};
+
+    EOSLIB_SERIALIZE(outgoing_transfers_response, (rows)(more))
+};
+
+template <typename F>
+void for_each_member(outgoing_transfers_response& obj, F f) {
+    f("rows", obj.rows);
+    f("more", obj.more);
+}
+
 // todo: version
 // todo: max_block_index: head, irreversible options
 struct balances_for_multiple_accounts_request {
-    name        request         = "bal.mult.acc"_n;
+    name        request         = "bal.mult.acc"_n; // todo: remove
     uint32_t    max_block_index = {};
     name        code            = {};
     symbol_code sym             = {};
@@ -768,7 +948,7 @@ void for_each_member(bfmt_key& obj, F f) {
 // todo: version
 // todo: max_block_index: head, irreversible options
 struct balances_for_multiple_tokens_request {
-    name     request         = "bal.mult.tok"_n;
+    name     request         = "bal.mult.tok"_n; // todo: remove
     uint32_t max_block_index = {};
     name     account         = {};
     bfmt_key first_key       = {};
@@ -836,9 +1016,11 @@ void for_each_member(balances_for_multiple_tokens_response& obj, F f) {
 }
 
 using example_request = named_variant<
-    named_type<"bal.mult.acc"_n, balances_for_multiple_accounts_request>,
-    named_type<"bal.mult.tok"_n, balances_for_multiple_tokens_request>>;
+    named_type<"out.xfer"_n, outgoing_transfers_request>,                 //
+    named_type<"bal.mult.acc"_n, balances_for_multiple_accounts_request>, //
+    named_type<"bal.mult.tok"_n, balances_for_multiple_tokens_request>>;  //
 
 using example_response = named_variant<
-    named_type<"bal.mult.acc"_n, balances_for_multiple_accounts_response>,
-    named_type<"bal.mult.tok"_n, balances_for_multiple_tokens_response>>;
+    named_type<"out.xfer"_n, outgoing_transfers_response>,                 //
+    named_type<"bal.mult.acc"_n, balances_for_multiple_accounts_response>, //
+    named_type<"bal.mult.tok"_n, balances_for_multiple_tokens_response>>;  //

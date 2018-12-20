@@ -112,7 +112,7 @@
         {
             "wasm_name": "at.ne.nfea",
             "index": "at_nonnotify_executed_name_le8_0_account_block_trans_act_idx",
-            "function": "action_trace_nonnotify_executed_range_name_le8_0_account",
+            "function": "at_nonnotify_executed_range_name_le8_0_account_block_trans_act",
             "table": "action_trace",
             "keys": [
                 {
@@ -124,14 +124,14 @@
                     "name": "name"
                 },
                 {
-                    "expression": "chain.little8(data, 0)",
+                    "expression": "${schema}.little8(${prefix}data, 0)",
+                    "arg_expression": "${schema}.little8(${prefix}le8_0, 0)",
+                    "name": "le8_0",
                     "type": "bytes"
                 },
                 {
                     "name": "account"
-                }
-            ],
-            "history_keys": [
+                },
                 {
                     "name": "block_index"
                 },
@@ -142,6 +142,7 @@
                     "name": "action_index"
                 }
             ],
+            "history_keys": [],
             "conditions": [
                 "receipt_receiver = account",
                 "transaction_status = 'executed'",
@@ -151,7 +152,7 @@
         {
             "wasm_name": "at.ne.nsea",
             "index": "at_nonnotify_executed_name_le8_8_account_block_trans_act_idx",
-            "function": "action_trace_nonnotify_executed_range_name_le8_8_account",
+            "function": "at_nonnotify_executed_range_name_le8_8_account_block_trans_act",
             "table": "action_trace",
             "keys": [
                 {
@@ -163,14 +164,14 @@
                     "name": "name"
                 },
                 {
-                    "expression": "chain.little8(data, 8)",
+                    "expression": "${schema}.little8(${prefix}data, 8)",
+                    "arg_expression": "${schema}.little8(${prefix}le8_8, 0)",
+                    "name": "le8_8",
                     "type": "bytes"
                 },
                 {
                     "name": "account"
-                }
-            ],
-            "history_keys": [
+                },
                 {
                     "name": "block_index"
                 },
@@ -181,6 +182,7 @@
                     "name": "action_index"
                 }
             ],
+            "history_keys": [],
             "conditions": [
                 "receipt_receiver = account",
                 "transaction_status = 'executed'",
@@ -225,6 +227,7 @@
             "index": "contract_row_code_table_primary_key_scope_block_index_prese_idx",
             "function": "contract_row_range_code_table_pk_scope",
             "table": "contract_row",
+            "is_state": true,
             "keys": [
                 {
                     "name": "code"
@@ -269,6 +272,7 @@
             "index": "contract_row_code_table_scope_primary_key_block_index_prese_idx",
             "function": "contract_row_range_code_table_scope_pk",
             "table": "contract_row",
+            "is_state": true,
             "keys": [
                 {
                     "name": "code"
@@ -313,6 +317,7 @@
             "index": "contract_row_scope_table_primary_key_code_block_index_prese_idx",
             "function": "contract_row_range_scope_table_pk_code",
             "table": "contract_row",
+            "is_state": true,
             "keys": [
                 {
                     "name": "code"

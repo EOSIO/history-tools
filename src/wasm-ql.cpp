@@ -15,6 +15,7 @@
 // todo: switch from eosio_assert to eosio_assert_message
 // todo: multiple requests
 // todo: dispatch to multiple wasms
+// todo: fix transaction_id conversion
 
 #include "queries.hpp"
 
@@ -206,6 +207,7 @@ bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
         if (len <= 0) {
             std::cerr << "!!!!! d\n";
             JS_ReportOutOfMemory(cx);
+            return false;
         }
         file.seekg(0, std::ios_base::beg);
         auto data = malloc(len);

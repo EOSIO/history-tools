@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+const schema = 'chain';
 
 const type_map = {
     'bool': 'bool',
@@ -30,8 +31,8 @@ const type_map = {
 };
 
 const header = `
-        drop function if exists chain.little8;
-        create function chain.little8(value bytea, pos int) returns bytea immutable as $$
+        drop function if exists ${schema}.little8;
+        create function ${schema}.little8(value bytea, pos int) returns bytea immutable as $$
         begin
             return
                 substring(value from pos + 8 for 1) ||
@@ -49,53 +50,67 @@ const header = `
 let indexes = '';
 let functions = '';
 
-function sort_key_expr(key) {
-    if (key.expression)
-        return key.expression;
-    else
-        return '"' + key.name + '"';
+function sort_key_arg_expr(key, prefix) {
+    if (key.arg_expression) {
+        const expr = key.arg_expression.replace('${prefix}', prefix).replace('${schema}', schema);
+        return expr;
+    } else {
+        return '"' + prefix + key.name + '"';
+    }
+}
+
+function sort_key_expr(key, prefix, rename) {
+    if (key.expression) {
+        const expr = key.expression.replace('${prefix}', prefix).replace('${schema}', schema);
+        if (rename)
+            return expr + ' as ' + '"' + key.name + '"';
+        else
+            return expr;
+    } else {
+        return prefix + '"' + key.name + '"';
+    }
 }
 
 function generate_index({ table, index, sort_keys, history_keys, conditions }) {
     indexes += `
-        create index if not exists ${index} on chain.${table}(
-            ${sort_keys.map(x => sort_key_expr(x) + ',').join('\n            ')}
-            ${history_keys.map(x => `"${x.name + (x.desc ? '" desc' : '"')}`).join(',\n            ')}
+        create index if not exists ${index} on ${schema}.${table}(
+            ${sort_keys.map(x => sort_key_expr(x, '', false)).concat(history_keys.map(x => `"${x.name + (x.desc ? '" desc' : '"')}`)).join(',\n            ')}
         )`;
     if (conditions)
         indexes += '\n        where\n            ' + conditions.join('\n            and ');
     indexes += ';\n';
 }
 
-// todo: This is a stripped-down version of generate_state. It likely needs reoptimization.
-function generate({ table, index, keys, sort_keys, history_keys, ...rest }) {
-    generate_index({ table, index, sort_keys, history_keys });
+// todo: This likely needs reoptimization.
+// todo: perf problem with low max_block_index
+function generate_nonstate({ table, index, keys, sort_keys, conditions, ...rest }) {
+    generate_index({ table, index, sort_keys, conditions, ...rest });
+    conditions = conditions || [];
 
-    const fn_name = 'chain.' + rest['function'];
+    const fn_name = schema + '.' + rest['function'];
     const fn_args = prefix => sort_keys.map(x => `${prefix}${x.name} ${x.type},`).join('\n            ');
     const keys_tuple_type = (prefix, suffix, sep) => keys.map(x => `${prefix}${x.name}${suffix}::${x.type}`).join(sep);
     const sort_keys_tuple = (prefix, suffix, sep) => sort_keys.map(x => `${prefix}${x.name}${suffix}`).join(sep);
+    const sort_keys_tuple_expr = prefix => sort_keys.map(x => sort_key_expr(x, prefix, false)).join(',');
 
-    const search = (compare, indent) => `
+    const key_search = indent => `
         ${indent}for search in
         ${indent}    select
         ${indent}        *
         ${indent}    from
-        ${indent}        chain.${table}
+        ${indent}        ${schema}.${table}
         ${indent}    where
-        ${indent}        (${sort_keys_tuple('"', '"', ', ')}) ${compare} (${sort_keys_tuple('"first_', '"', ', ')})
+        ${indent}        (${sort_keys_tuple_expr('')}) >= (${sort_keys_tuple('"arg_first_', '"', ', ')})
+        ${indent}        ${conditions.map(x => `and ${x}\n        ${indent}        `).join('')}
         ${indent}        and ${table}.block_index <= max_block_index
         ${indent}    order by
-        ${indent}        ${sort_keys_tuple('"', '"', ',\n                ' + indent)},
-        ${indent}        ${history_keys.map(x => `"${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                ' + indent)}
-        ${indent}    limit 1
+        ${indent}        ${sort_keys_tuple_expr('')}
+        ${indent}    limit max_results
         ${indent}loop
-        ${indent}    if (${sort_keys_tuple('search."', '"', ', ')}) > (${sort_keys_tuple('last_', '', ', ')}) then
+        ${indent}    if (${sort_keys_tuple_expr('search.')}) > (${sort_keys_tuple('"arg_last_', '"', ', ')}) then
         ${indent}        return;
         ${indent}    end if;
-        ${indent}    found_result = true;
         ${indent}    return next search;
-        ${indent}    num_results = num_results + 1;
         ${indent}end loop;
     `;
 
@@ -106,22 +121,14 @@ function generate({ table, index, keys, sort_keys, history_keys, ...rest }) {
             ${fn_args('first_')}
             ${fn_args('last_')}
             max_results integer
-        ) returns setof chain.${table}
+        ) returns setof ${schema}.${table}
         as $$
             declare
+                ${sort_keys.map(x => `arg_first_${x.name} ${x.type} = ${sort_key_arg_expr(x, 'first_')};`).join('\n                ')}
+                ${sort_keys.map(x => `arg_last_${x.name} ${x.type} = ${sort_key_arg_expr(x, 'last_')};`).join('\n                ')}
                 search record;
-                num_results integer = 0;
-                found_result bool = false;
             begin
-                if max_results <= 0 then
-                    return;
-                end if;
-                ${search('>=', '        ')}
-                loop
-                    exit when not found_result or num_results >= max_results;
-                    found_result = false;
-                    ${search('>', '            ')}
-                end loop;
+                ${key_search('        ')}
             end 
         $$ language plpgsql;
     `;
@@ -130,17 +137,18 @@ function generate({ table, index, keys, sort_keys, history_keys, ...rest }) {
 function generate_state({ table, index, keys, sort_keys, history_keys, ...rest }) {
     generate_index({ table, index, sort_keys, history_keys, ...rest });
 
-    const fn_name = 'chain.' + rest['function'];
+    const fn_name = schema + '.' + rest['function'];
     const fn_args = prefix => sort_keys.map(x => `${prefix}${x.name} ${x.type},`).join('\n            ');
     const keys_tuple_type = (prefix, suffix, sep) => keys.map(x => `${prefix}${x.name}${suffix}::${x.type}`).join(sep);
     const sort_keys_tuple = (prefix, suffix, sep) => sort_keys.map(x => `${prefix}${x.name}${suffix}`).join(sep);
+    const sort_keys_tuple_expr = sort_keys.map(x => sort_key_expr(x, '', true)).join(',');
 
     const key_search = (compare, indent) => `
         ${indent}for key_search in
         ${indent}    select
-        ${indent}        ${sort_keys_tuple('"', '"', ', ')}
+        ${indent}        ${sort_keys_tuple_expr}
         ${indent}    from
-        ${indent}        chain.${table}
+        ${indent}        ${schema}.${table}
         ${indent}    where
         ${indent}        (${sort_keys_tuple('"', '"', ', ')}) ${compare} (${sort_keys_tuple('"first_', '"', ', ')})
         ${indent}    order by
@@ -158,7 +166,7 @@ function generate_state({ table, index, keys, sort_keys, history_keys, ...rest }
         ${indent}        select
         ${indent}            *
         ${indent}        from
-        ${indent}            chain.${table}
+        ${indent}            ${schema}.${table}
         ${indent}        where
         ${indent}            ${sort_keys.map(x => `${table}."${x.name}" = key_search."${x.name}"`).join('\n                    ' + indent + 'and ')}
         ${indent}            and ${table}.block_index <= max_block_index
@@ -189,7 +197,7 @@ function generate_state({ table, index, keys, sort_keys, history_keys, ...rest }
             ${fn_args('first_')}
             ${fn_args('last_')}
             max_results integer
-        ) returns setof chain.${table}
+        ) returns setof ${schema}.${table}
         as $$
             declare
                 key_search record;
@@ -237,7 +245,10 @@ for (let query of config.queries) {
     fill_types(query, query.keys);
     fill_types(query, query.sort_keys);
     fill_types(query, query.history_keys);
-    generate_state(query);
+    if (query.is_state)
+        generate_state(query);
+    else
+        generate_nonstate(query);
 }
 
 console.log(header);

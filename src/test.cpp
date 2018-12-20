@@ -117,6 +117,21 @@ const unsigned char foo[] = {
     0x00,
 };
 
+struct name_le8_0_account_block_trans_action {
+    eosio::name                 name           = {};
+    std::vector<char>           le8_0          = {};
+    eosio::name                 account        = {};
+    uint32_t                    block_index    = {};
+    serial_wrapper<checksum256> transaction_id = {};
+    uint32_t                    action_index   = {};
+};
+
+struct receiver_name_account {
+    eosio::name receipt_receiver = {};
+    eosio::name name             = {};
+    eosio::name account          = {};
+};
+
 struct code_table_pk_scope {
     name     code;
     name     table;
@@ -138,42 +153,50 @@ struct scope_table_pk_code {
     name     code;
 };
 
-struct receiver_name_account {
-    eosio::name receipt_receiver = {};
-    eosio::name name             = {};
-    eosio::name account          = {};
+// todo: version
+struct query_action_trace_nonnotify_executed_range_name_le8_0_account_block_trans_action {
+    name                                  query_name      = "at.ne.nfea"_n; // todo: remove
+    uint32_t                              max_block_index = 0;
+    name_le8_0_account_block_trans_action first           = {};
+    name_le8_0_account_block_trans_action last            = {};
+    uint32_t                              max_results     = 1;
 };
 
+// todo: fix
+// todo: version
+struct query_action_trace_range_receiver_name_account {
+    name                  query_name      = "at.rna"_n; // todo: remove
+    uint32_t              max_block_index = 0;
+    receiver_name_account first           = {};
+    receiver_name_account last            = {};
+    uint32_t              max_results     = 1;
+};
+
+// todo: version
 struct query_contract_row_range_code_table_pk_scope {
-    name                query_name      = "cr.ctps"_n;
+    name                query_name      = "cr.ctps"_n; // todo: remove
     uint32_t            max_block_index = 0;
     code_table_pk_scope first;
     code_table_pk_scope last;
     uint32_t            max_results = 1;
 };
 
+// todo: version
 struct query_contract_row_range_code_table_scope_pk {
-    name                query_name      = "cr.ctsp"_n;
+    name                query_name      = "cr.ctsp"_n; // todo: remove
     uint32_t            max_block_index = 0;
     code_table_scope_pk first;
     code_table_scope_pk last;
     uint32_t            max_results = 1;
 };
 
+// todo: version
 struct query_contract_row_range_scope_table_pk_code {
-    name                query_name      = "cr.stpc"_n;
+    name                query_name      = "cr.stpc"_n; // todo: remove
     uint32_t            max_block_index = 0;
     scope_table_pk_code first;
     scope_table_pk_code last;
     uint32_t            max_results = 1;
-};
-
-struct query_action_trace_range_receiver_name_account {
-    name                  query_name      = "at.rna"_n;
-    uint32_t              max_block_index = 0;
-    receiver_name_account first           = {};
-    receiver_name_account last            = {};
-    uint32_t              max_results     = 1;
 };
 
 extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, cb_alloc_fn* cb_alloc);
@@ -229,12 +252,73 @@ bool for_each_contract_row(const std::vector<char>& bytes, F f) {
     });
 }
 
+struct transfer {
+    eosio::name      from     = {};
+    eosio::name      to       = {};
+    eosio::asset     quantity = {};
+    std::string_view memo     = {nullptr, 0};
+};
+
 struct newaccount {
     eosio::name creator;
     eosio::name name;
     // authority owner;
     // authority active;
 };
+
+void process(outgoing_transfers_request& req) {
+    print("    outgoing_transfers\n");
+    auto s = exec_query(query_action_trace_nonnotify_executed_range_name_le8_0_account_block_trans_action{
+        .max_block_index = req.max_block_index,
+        .first =
+            {
+                .name           = "transfer"_n,
+                .le8_0          = eosio::pack(req.first_key.account),
+                .account        = req.first_key.contract,
+                .block_index    = req.first_key.block_index,
+                .transaction_id = req.first_key.transaction_id,
+                .action_index   = req.first_key.action_index,
+            },
+        .last =
+            {
+                .name           = "transfer"_n,
+                .le8_0          = eosio::pack(req.last_key.account),
+                .account        = req.last_key.contract,
+                .block_index    = req.last_key.block_index,
+                .transaction_id = req.last_key.transaction_id,
+                .action_index   = req.last_key.action_index,
+            },
+        .max_results = req.max_results,
+    });
+
+    print(s.size(), "\n");
+    outgoing_transfers_response response;
+    for_each_query_result<action_trace>(s, [&](action_trace& at) {
+        print("   ", at.block_index, " ", at.action_index, " ", at.account, " ", at.name, "\n");
+        auto unpacked = eosio::unpack<transfer>(at.data.pos(), at.data.remaining());
+        response.rows.push_back(outgoing_transfers_row{
+            .key =
+                outgoing_transfers_key{
+                    .account        = unpacked.from,
+                    .contract       = at.account,
+                    .block_index    = at.block_index,
+                    .transaction_id = at.transaction_id,
+                    .action_index   = at.action_index,
+                },
+            .from     = unpacked.from,
+            .to       = unpacked.to,
+            .quantity = unpacked.quantity,
+            .memo     = unpacked.memo,
+        });
+        return true;
+    });
+    if (!response.rows.empty()) {
+        response.more = response.rows.back().key;
+        ++*response.more;
+    }
+    set_output_data(pack(example_response{std::move(response)}));
+    print("\n");
+}
 
 void process(balances_for_multiple_accounts_request& req) {
     print("    balances_for_multiple_accounts\n");

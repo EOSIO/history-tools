@@ -1,5 +1,7 @@
 // copyright defined in LICENSE.txt
 
+// todo: transaction order within blocks. affects wasm-ql
+
 #include "abieos.hpp"
 
 #include <boost/asio/connect.hpp>
@@ -54,7 +56,7 @@ enum class transaction_status : uint8_t {
     soft_fail = 1, // objectively failed (not executed), error handler executed
     hard_fail = 2, // objectively failed and error handler objectively failed thus no state change
     delayed   = 3, // transaction delayed/deferred/scheduled for future execution
-    expired   = 4, // transaction expired and storage space refuned to user
+    expired   = 4, // transaction expired and storage space refunded to user
 };
 
 string to_string(transaction_status status) {

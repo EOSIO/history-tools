@@ -1,3 +1,5 @@
+// copyright defined in LICENSE.txt
+
 'use strict';
 
 const fs = require('fs');

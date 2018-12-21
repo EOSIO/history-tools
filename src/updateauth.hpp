@@ -1,3 +1,5 @@
+// copyright defined in LICENSE.txt
+
 struct permission_level_weight {
     eosio::permission_level permission;
     uint16_t                weight;

@@ -1,5 +1,7 @@
 // copyright defined in LICENSE.txt
 
+#include "lib-database.hpp"
+
 #include "test-common.hpp"
 
 const unsigned char foo[] = {
@@ -116,141 +118,6 @@ const unsigned char foo[] = {
     0x87, 0xe3, 0x76, 0x28, 0x46, 0xf1, 0x3a, 0xef, 0xc2, 0xc2, 0x35, 0xb7, 0xf5, 0xa5, 0x41, 0xfe, 0x2f, 0xea, 0x69, 0x01, 0x00, 0x00,
     0x00,
 };
-
-struct name_le8_0_account_block_trans_action {
-    eosio::name                 name           = {};
-    std::vector<char>           le8_0          = {};
-    eosio::name                 account        = {};
-    uint32_t                    block_index    = {};
-    serial_wrapper<checksum256> transaction_id = {};
-    uint32_t                    action_index   = {};
-};
-
-struct receiver_name_account {
-    eosio::name receipt_receiver = {};
-    eosio::name name             = {};
-    eosio::name account          = {};
-};
-
-struct code_table_pk_scope {
-    name     code;
-    name     table;
-    uint64_t primary_key = 0;
-    uint64_t scope;
-};
-
-struct code_table_scope_pk {
-    name     code;
-    name     table;
-    uint64_t scope;
-    uint64_t primary_key = 0;
-};
-
-struct scope_table_pk_code {
-    uint64_t scope;
-    name     table;
-    uint64_t primary_key = 0;
-    name     code;
-};
-
-// todo: version
-struct query_action_trace_nonnotify_executed_range_name_le8_0_account_block_trans_action {
-    name                                  query_name      = "at.ne.nfea"_n; // todo: remove
-    uint32_t                              max_block_index = 0;
-    name_le8_0_account_block_trans_action first           = {};
-    name_le8_0_account_block_trans_action last            = {};
-    uint32_t                              max_results     = 1;
-};
-
-// todo: fix
-// todo: version
-struct query_action_trace_range_receiver_name_account {
-    name                  query_name      = "at.rna"_n; // todo: remove
-    uint32_t              max_block_index = 0;
-    receiver_name_account first           = {};
-    receiver_name_account last            = {};
-    uint32_t              max_results     = 1;
-};
-
-// todo: version
-struct query_contract_row_range_code_table_pk_scope {
-    name                query_name      = "cr.ctps"_n; // todo: remove
-    uint32_t            max_block_index = 0;
-    code_table_pk_scope first;
-    code_table_pk_scope last;
-    uint32_t            max_results = 1;
-};
-
-// todo: version
-struct query_contract_row_range_code_table_scope_pk {
-    name                query_name      = "cr.ctsp"_n; // todo: remove
-    uint32_t            max_block_index = 0;
-    code_table_scope_pk first;
-    code_table_scope_pk last;
-    uint32_t            max_results = 1;
-};
-
-// todo: version
-struct query_contract_row_range_scope_table_pk_code {
-    name                query_name      = "cr.stpc"_n; // todo: remove
-    uint32_t            max_block_index = 0;
-    scope_table_pk_code first;
-    scope_table_pk_code last;
-    uint32_t            max_results = 1;
-};
-
-extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, cb_alloc_fn* cb_alloc);
-
-template <typename T, typename Alloc_fn>
-inline void exec_query(const T& req, Alloc_fn alloc_fn) {
-    auto req_data = pack(req);
-    exec_query(req_data.data(), req_data.data() + req_data.size(), &alloc_fn, [](void* cb_alloc_data, size_t size) -> void* { //
-        return (*reinterpret_cast<Alloc_fn*>(cb_alloc_data))(size);
-    });
-}
-
-template <typename T>
-inline std::vector<char> exec_query(const T& req) {
-    std::vector<char> result;
-    exec_query(req, [&result](size_t size) {
-        result.resize(size);
-        return result.data();
-    });
-    return result;
-}
-
-template <typename result, typename F>
-bool for_each_query_result(const std::vector<char>& bytes, F f) {
-    datastream<const char*> ds(bytes.data(), bytes.size());
-    unsigned_int            size;
-    ds >> size;
-    for (uint32_t i = 0; i < size.value; ++i) {
-        datastream<const char*> row{nullptr, 0};
-        ds >> row;
-        result r;
-        row >> r;
-        if (!f(r))
-            return false;
-    }
-    return true;
-}
-
-template <typename payload, typename F>
-bool for_each_contract_row(const std::vector<char>& bytes, F f) {
-    return for_each_query_result<contract_row>(bytes, [&](contract_row& row) {
-        payload p;
-        if (row.present && row.value.remaining()) {
-            // todo: don't assert if serialization fails
-            row.value >> p;
-            if (!f(row, &p))
-                return false;
-        } else {
-            if (!f(row, nullptr))
-                return false;
-        }
-        return true;
-    });
-}
 
 struct transfer {
     eosio::name      from     = {};

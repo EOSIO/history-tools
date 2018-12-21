@@ -16,6 +16,16 @@
 // todo: multiple requests
 // todo: dispatch to multiple wasms
 // todo: fix transaction_id conversion
+// todo: notify wasms of truncated or missing history
+// todo: wasms get whether a query is present
+// todo: indexes on authorized, ram usage, notify
+// todo: namespaces for queries
+//          A standard namespace
+//          ? one for the tokens
+// todo: version on queries
+// todo: version on query api?
+// todo: better naming for queries
+// todo: alternative way for token queries
 
 #include "queries.hpp"
 

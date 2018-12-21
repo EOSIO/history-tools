@@ -158,9 +158,10 @@ async function dump_outgoing_transfer(clientWasm) {
             console.log(
                 row.key.contract.padEnd(13, ' '), row.from.padEnd(13, ' ') + ' -> ' + row.to.padEnd(13, ' '),
                 format_asset(row.quantity), '     ', row.memo);
-        console.log(++i);
         first_key = reply[1].more;
-        if (i >= 4)
+        i += reply[1].rows.length;
+        console.log(i);
+        if (i >= 20)
             break;
     }
 }

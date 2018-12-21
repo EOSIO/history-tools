@@ -133,56 +133,63 @@ struct newaccount {
     // authority active;
 };
 
-void process(outgoing_transfers_request& req) {
-    print("    outgoing_transfers\n");
-    auto s = exec_query(query_action_trace_nonnotify_executed_range_name_le8_0_account_block_trans_action{
+void process(transfers_request& req) {
+    print("    transfers\n");
+    auto s = exec_query(query_action_trace_executed_range_name_receiver_account_block_trans_action{
         .max_block_index = req.max_block_index,
         .first =
             {
-                .name           = "transfer"_n,
-                .le8_0          = eosio::pack(req.first_key.account),
-                .account        = req.first_key.contract,
-                .block_index    = req.first_key.block_index,
-                .transaction_id = req.first_key.transaction_id,
-                .action_index   = req.first_key.action_index,
+                .name             = "transfer"_n,
+                .receipt_receiver = req.first_key.receipt_receiver,
+                .account          = req.first_key.account,
+                .block_index      = req.first_key.block_index,
+                .transaction_id   = req.first_key.transaction_id,
+                .action_index     = req.first_key.action_index,
             },
         .last =
             {
-                .name           = "transfer"_n,
-                .le8_0          = eosio::pack(req.last_key.account),
-                .account        = req.last_key.contract,
-                .block_index    = req.last_key.block_index,
-                .transaction_id = req.last_key.transaction_id,
-                .action_index   = req.last_key.action_index,
+                .name             = "transfer"_n,
+                .receipt_receiver = req.last_key.receipt_receiver,
+                .account          = req.last_key.account,
+                .block_index      = req.last_key.block_index,
+                .transaction_id   = req.last_key.transaction_id,
+                .action_index     = req.last_key.action_index,
             },
         .max_results = req.max_results,
     });
 
     print(s.size(), "\n");
-    outgoing_transfers_response response;
+    transfers_response response;
     for_each_query_result<action_trace>(s, [&](action_trace& at) {
-        print("   ", at.block_index, " ", at.action_index, " ", at.account, " ", at.name, "\n");
+        response.more = transfers_key{
+            .receipt_receiver = at.receipt_receiver,
+            .account          = at.account,
+            .block_index      = at.block_index,
+            .transaction_id   = at.transaction_id,
+            .action_index     = at.action_index,
+        };
+
+        // todo: handle bad unpack
         auto unpacked = eosio::unpack<transfer>(at.data.pos(), at.data.remaining());
-        response.rows.push_back(outgoing_transfers_row{
-            .key =
-                outgoing_transfers_key{
-                    .account        = unpacked.from,
-                    .contract       = at.account,
-                    .block_index    = at.block_index,
-                    .transaction_id = at.transaction_id,
-                    .action_index   = at.action_index,
-                },
-            .from     = unpacked.from,
-            .to       = unpacked.to,
-            .quantity = unpacked.quantity,
-            .memo     = unpacked.memo,
-        });
+
+        bool is_notify = at.receipt_receiver != at.account;
+        if ((req.include_notify_incoming && is_notify && at.receipt_receiver == unpacked.to) ||
+            (req.include_notify_outgoing && is_notify && at.receipt_receiver == unpacked.from) || //
+            (req.include_nonnotify && !is_notify)) {
+
+            print("   ", at.block_index, " ", at.action_index, " ", at.account, " ", at.name, "\n");
+            response.rows.push_back(transfers_row{
+                .key      = *response.more,
+                .from     = unpacked.from,
+                .to       = unpacked.to,
+                .quantity = extended_asset{unpacked.quantity, at.account},
+                .memo     = unpacked.memo,
+            });
+        }
         return true;
     });
-    if (!response.rows.empty()) {
-        response.more = response.rows.back().key;
+    if (response.more)
         ++*response.more;
-    }
     set_output_data(pack(example_response{std::move(response)}));
     print("\n");
 }
@@ -293,7 +300,7 @@ void process(balances_for_multiple_tokens_request& req) {
     set_output_data(pack(example_response{std::move(response)}));
     print("\n");
 }
-
+/*
 void creators(uint32_t max_block_index, uint32_t max_results) {
     print("    creators\n");
     auto s = exec_query(query_action_trace_range_receiver_name_account{
@@ -322,7 +329,7 @@ void creators(uint32_t max_block_index, uint32_t max_results) {
     });
     print("\n");
 }
-
+*/
 #include "updateauth.hpp"
 
 void bar() {

@@ -244,6 +244,12 @@ function fill_types(query, fields) {
 }
 
 for (let query of config.queries) {
+    query = {
+        ...query,
+        keys: query.keys || [],
+        sort_keys: query.sort_keys || [],
+        history_keys: query.history_keys || [],
+    };
     fill_types(query, query.keys);
     fill_types(query, query.sort_keys);
     fill_types(query, query.history_keys);

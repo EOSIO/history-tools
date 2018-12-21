@@ -197,60 +197,53 @@ extern "C" void set_output_data(const char* begin, const char* end);
 inline void     set_output_data(const std::vector<char>& v) { set_output_data(v.data(), v.data() + v.size()); }
 inline void     set_output_data(const std::string_view& v) { set_output_data(v.data(), v.data() + v.size()); }
 
-
-
-
-
-
-
-
-struct outgoing_transfers_key {
-    name                        account        = {};
-    name                        contract       = {};
-    uint32_t                    block_index    = {};
-    serial_wrapper<checksum256> transaction_id = {};
-    uint32_t                    action_index   = {};
+struct transfers_key {
+    name                        receipt_receiver = {};
+    name                        account          = {};
+    uint32_t                    block_index      = {};
+    serial_wrapper<checksum256> transaction_id   = {};
+    uint32_t                    action_index     = {};
 
     // todo: create a shortcut for defining this
-    outgoing_transfers_key& operator++() {
+    transfers_key& operator++() {
         if (++action_index)
             return *this;
         if (!increment(transaction_id.value))
             return *this;
         if (++block_index)
             return *this;
-        if (++contract.value)
-            return *this;
         if (++account.value)
+            return *this;
+        if (++receipt_receiver.value)
             return *this;
         return *this;
     }
 
-    EOSLIB_SERIALIZE(outgoing_transfers_key, (account)(contract)(block_index)(transaction_id)(action_index))
+    EOSLIB_SERIALIZE(transfers_key, (receipt_receiver)(account)(block_index)(transaction_id)(action_index))
 };
 
 template <typename F>
-void for_each_member(outgoing_transfers_key& obj, F f) {
+void for_each_member(transfers_key& obj, F f) {
+    f("receipt_receiver", obj.receipt_receiver);
     f("account", obj.account);
-    f("contract", obj.contract);
     f("block_index", obj.block_index);
     f("transaction_id", obj.transaction_id);
     f("action_index", obj.action_index);
 }
 
 // todo: row?
-struct outgoing_transfers_row {
-    outgoing_transfers_key key      = {};
-    eosio::name            from     = {};
-    eosio::name            to       = {};
-    eosio::asset           quantity = {};
-    std::string_view       memo     = {nullptr, 0};
+struct transfers_row {
+    transfers_key         key      = {};
+    eosio::name           from     = {};
+    eosio::name           to       = {};
+    eosio::extended_asset quantity = {};
+    std::string_view      memo     = {nullptr, 0};
 
-    EOSLIB_SERIALIZE(outgoing_transfers_row, (key)(from)(to)(quantity)(memo))
+    EOSLIB_SERIALIZE(transfers_row, (key)(from)(to)(quantity)(memo))
 };
 
 template <typename F>
-void for_each_member(outgoing_transfers_row& obj, F f) {
+void for_each_member(transfers_row& obj, F f) {
     f("key", obj.key);
     f("from", obj.from);
     f("to", obj.to);
@@ -260,35 +253,40 @@ void for_each_member(outgoing_transfers_row& obj, F f) {
 
 // todo: version
 // todo: max_block_index: head, irreversible options
-// todo: share struct with incoming_transfers_request
-struct outgoing_transfers_request {
-    name                   request         = "out.xfer"_n; // todo: remove
-    uint32_t               max_block_index = {};
-    outgoing_transfers_key first_key       = {};
-    outgoing_transfers_key last_key        = {};
-    uint32_t               max_results     = {};
+struct transfers_request {
+    name          request                 = "transfer"_n; // todo: remove
+    uint32_t      max_block_index         = {};
+    transfers_key first_key               = {};
+    transfers_key last_key                = {};
+    bool          include_notify_incoming = false;
+    bool          include_notify_outgoing = false;
+    bool          include_nonnotify       = false;
+    uint32_t      max_results             = {};
 };
 
 template <typename F>
-void for_each_member(outgoing_transfers_request& obj, F f) {
+void for_each_member(transfers_request& obj, F f) {
     f("request", obj.request);
     f("max_block_index", obj.max_block_index);
     f("first_key", obj.first_key);
     f("last_key", obj.last_key);
+    f("include_notify_incoming", obj.include_notify_incoming);
+    f("include_notify_outgoing", obj.include_notify_outgoing);
+    f("include_nonnotify", obj.include_nonnotify);
     f("max_results", obj.max_results);
 }
 
 // todo: version
 // todo: share struct with incoming_transfers_response
-struct outgoing_transfers_response {
-    std::vector<outgoing_transfers_row>   rows = {}; // todo name: rows?
-    std::optional<outgoing_transfers_key> more = {};
+struct transfers_response {
+    std::vector<transfers_row>   rows = {}; // todo name: rows?
+    std::optional<transfers_key> more = {};
 
-    EOSLIB_SERIALIZE(outgoing_transfers_response, (rows)(more))
+    EOSLIB_SERIALIZE(transfers_response, (rows)(more))
 };
 
 template <typename F>
-void for_each_member(outgoing_transfers_response& obj, F f) {
+void for_each_member(transfers_response& obj, F f) {
     f("rows", obj.rows);
     f("more", obj.more);
 }
@@ -405,11 +403,11 @@ void for_each_member(balances_for_multiple_tokens_response& obj, F f) {
 }
 
 using example_request = named_variant<
-    named_type<"out.xfer"_n, outgoing_transfers_request>,                 //
+    named_type<"transfer"_n, transfers_request>,                          //
     named_type<"bal.mult.acc"_n, balances_for_multiple_accounts_request>, //
     named_type<"bal.mult.tok"_n, balances_for_multiple_tokens_request>>;  //
 
 using example_response = named_variant<
-    named_type<"out.xfer"_n, outgoing_transfers_response>,                 //
+    named_type<"transfer"_n, transfers_response>,                          //
     named_type<"bal.mult.acc"_n, balances_for_multiple_accounts_response>, //
     named_type<"bal.mult.tok"_n, balances_for_multiple_tokens_response>>;  //

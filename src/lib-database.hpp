@@ -71,17 +71,17 @@ struct action_trace {
                           account)(name)(data)(context_free)(elapsed))
 };
 
-struct query_action_trace_nonnotify_executed_range_name_le8_0_account_block_trans_action {
+struct query_action_trace_executed_range_name_receiver_account_block_trans_action {
     struct key {
-        eosio::name                        name           = {};
-        std::vector<char>                  le8_0          = {};
-        eosio::name                        account        = {};
-        uint32_t                           block_index    = {};
-        serial_wrapper<eosio::checksum256> transaction_id = {};
-        uint32_t                           action_index   = {};
+        eosio::name                        name             = {};
+        eosio::name                        receipt_receiver = {};
+        eosio::name                        account          = {};
+        uint32_t                           block_index      = {};
+        serial_wrapper<eosio::checksum256> transaction_id   = {};
+        uint32_t                           action_index     = {};
     };
 
-    eosio::name query_name      = "at.ne.nfea"_n;
+    eosio::name query_name      = "at.e.nra"_n;
     uint32_t    max_block_index = {};
     key         first           = {};
     key         last            = {};
@@ -155,21 +155,6 @@ struct query_contract_row_range_scope_table_pk_code {
     };
 
     eosio::name query_name      = "cr.stpc"_n;
-    uint32_t    max_block_index = {};
-    key         first           = {};
-    key         last            = {};
-    uint32_t    max_results     = {};
-};
-
-// todo: fix
-struct query_action_trace_range_receiver_name_account {
-    struct key {
-        eosio::name receipt_receiver = {};
-        eosio::name name             = {};
-        eosio::name account          = {};
-    };
-
-    eosio::name query_name      = "at.rna"_n;
     uint32_t    max_block_index = {};
     key         first           = {};
     key         last            = {};

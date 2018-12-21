@@ -41,12 +41,16 @@
             and transaction_status = 'executed'
             and octet_length(data) >= 16;
 
-        create index if not exists action_trace_receipt_receiver_name_account_block_index_idx on chain.action_trace(
-            "receipt_receiver",
+        create index if not exists at_executed_range_name_receiver_account_block_trans_action_idx on chain.action_trace(
             "name",
+            "receipt_receiver",
             "account",
-            "block_index"
-        );
+            "block_index",
+            "transaction_id",
+            "action_index"
+        )
+        where
+            transaction_status = 'executed';
 
         create index if not exists contract_row_code_table_primary_key_scope_block_index_prese_idx on chain.contract_row(
             "code",
@@ -194,25 +198,37 @@
             end 
         $$ language plpgsql;
     
-        drop function if exists chain.action_trace_range_receipt_receiver_name_account;
-        create function chain.action_trace_range_receipt_receiver_name_account(
+        drop function if exists chain.at_executed_range_name_receiver_account_block_trans_action;
+        create function chain.at_executed_range_name_receiver_account_block_trans_action(
             max_block_index bigint,
-            first_receipt_receiver varchar(13),
             first_name varchar(13),
+            first_receipt_receiver varchar(13),
             first_account varchar(13),
-            last_receipt_receiver varchar(13),
+            first_block_index bigint,
+            first_transaction_id varchar(64),
+            first_action_index bigint,
             last_name varchar(13),
+            last_receipt_receiver varchar(13),
             last_account varchar(13),
+            last_block_index bigint,
+            last_transaction_id varchar(64),
+            last_action_index bigint,
             max_results integer
         ) returns setof chain.action_trace
         as $$
             declare
-                arg_first_receipt_receiver varchar(13) = "first_receipt_receiver";
                 arg_first_name varchar(13) = "first_name";
+                arg_first_receipt_receiver varchar(13) = "first_receipt_receiver";
                 arg_first_account varchar(13) = "first_account";
-                arg_last_receipt_receiver varchar(13) = "last_receipt_receiver";
+                arg_first_block_index bigint = "first_block_index";
+                arg_first_transaction_id varchar(64) = "first_transaction_id";
+                arg_first_action_index bigint = "first_action_index";
                 arg_last_name varchar(13) = "last_name";
+                arg_last_receipt_receiver varchar(13) = "last_receipt_receiver";
                 arg_last_account varchar(13) = "last_account";
+                arg_last_block_index bigint = "last_block_index";
+                arg_last_transaction_id varchar(64) = "last_transaction_id";
+                arg_last_action_index bigint = "last_action_index";
                 search record;
             begin
                 
@@ -222,14 +238,15 @@
                     from
                         chain.action_trace
                     where
-                        ("receipt_receiver","name","account") >= ("arg_first_receipt_receiver", "arg_first_name", "arg_first_account")
+                        ("name","receipt_receiver","account","block_index","transaction_id","action_index") >= ("arg_first_name", "arg_first_receipt_receiver", "arg_first_account", "arg_first_block_index", "arg_first_transaction_id", "arg_first_action_index")
+                        and transaction_status = 'executed'
                         
                         and action_trace.block_index <= max_block_index
                     order by
-                        "receipt_receiver","name","account"
+                        "name","receipt_receiver","account","block_index","transaction_id","action_index"
                     limit max_results
                 loop
-                    if (search."receipt_receiver",search."name",search."account") > ("arg_last_receipt_receiver", "arg_last_name", "arg_last_account") then
+                    if (search."name",search."receipt_receiver",search."account",search."block_index",search."transaction_id",search."action_index") > ("arg_last_name", "arg_last_receipt_receiver", "arg_last_account", "arg_last_block_index", "arg_last_transaction_id", "arg_last_action_index") then
                         return;
                     end if;
                     return next search;

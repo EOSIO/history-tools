@@ -57,6 +57,20 @@ inline void parse_json(uint32_t& result, char*& pos, char* end) {
     }
 }
 
+inline void parse_json(bool& result, char*& pos, char* end) {
+    if (end - pos >= 4 && !strncmp(pos, "true", 4)) {
+        pos += 4;
+        result = true;
+        return parse_json_skip_space(pos, end);
+    }
+    if (end - pos >= 5 && !strncmp(pos, "false", 5)) {
+        pos += 5;
+        result = false;
+        return parse_json_skip_space(pos, end);
+    }
+    eosio_assert(false, "expected boolean");
+}
+
 inline void parse_json(eosio::name& result, char*& pos, char* end) {
     std::string_view sv;
     parse_json(sv, pos, end);

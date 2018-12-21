@@ -130,17 +130,17 @@ async function dump_tokens(clientWasm, first_key, last_key) {
     } while (first_key);
 }
 
-async function dump_outgoing_transfer(clientWasm) {
+async function dump_transfer(clientWasm) {
     let first_key = {
-        account: 'eosio',
-        contract: 'eosio.token',
+        receipt_receiver: 'eosio.bpay',
+        account: 'eosio.token',
         block_index: 0,
         transaction_id: '0000000000000000000000000000000000000000000000000000000000000000',
         action_index: 0,
     };
     let last_key = {
-        account: 'eosio',
-        contract: 'eosio.token',
+        receipt_receiver: 'eosio.bpay',
+        account: 'eosio.token',
         block_index: 0xffffffff,
         transaction_id: 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
         action_index: 0xffffffff,
@@ -148,16 +148,18 @@ async function dump_outgoing_transfer(clientWasm) {
 
     let i = 0;
     while (first_key) {
-        const reply = await clientWasm.round_trip(['out.xfer', {
+        const reply = await clientWasm.round_trip(['transfer', {
             max_block_index: 100000000,
             first_key,
             last_key,
             max_results: 10,
+            include_notify_incoming: true,
+            include_notify_outgoing: true,
         }]);
         for (let row of reply[1].rows)
             console.log(
-                row.key.contract.padEnd(13, ' '), row.from.padEnd(13, ' ') + ' -> ' + row.to.padEnd(13, ' '),
-                format_asset(row.quantity), '     ', row.memo);
+                row.from.padEnd(13, ' ') + ' -> ' + row.to.padEnd(13, ' '),
+                format_extended_asset(row.quantity), '     ', row.memo);
         first_key = reply[1].more;
         i += reply[1].rows.length;
         console.log(i);
@@ -173,7 +175,7 @@ async function dump_outgoing_transfer(clientWasm) {
         console.log();
         await dump_tokens(clientWasm, { sym: '', code: '' }, { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' });
         console.log();
-        await dump_outgoing_transfer(clientWasm);
+        await dump_transfer(clientWasm);
     } catch (e) {
         console.error(e);
     }

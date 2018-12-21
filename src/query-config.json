@@ -114,11 +114,6 @@
             "index": "at_nonnotify_executed_name_le8_0_account_block_trans_act_idx",
             "function": "at_nonnotify_executed_range_name_le8_0_account_block_trans_act",
             "table": "action_trace",
-            "keys": [
-                {
-                    "name": "name"
-                }
-            ],
             "sort_keys": [
                 {
                     "name": "name"
@@ -142,7 +137,6 @@
                     "name": "action_index"
                 }
             ],
-            "history_keys": [],
             "conditions": [
                 "receipt_receiver = account",
                 "transaction_status = 'executed'",
@@ -154,11 +148,6 @@
             "index": "at_nonnotify_executed_name_le8_8_account_block_trans_act_idx",
             "function": "at_nonnotify_executed_range_name_le8_8_account_block_trans_act",
             "table": "action_trace",
-            "keys": [
-                {
-                    "name": "name"
-                }
-            ],
             "sort_keys": [
                 {
                     "name": "name"
@@ -182,7 +171,6 @@
                     "name": "action_index"
                 }
             ],
-            "history_keys": [],
             "conditions": [
                 "receipt_receiver = account",
                 "transaction_status = 'executed'",
@@ -190,36 +178,32 @@
             ]
         },
         {
-            "wasm_name": "at.rna",
-            "index": "action_trace_receipt_receiver_name_account_block_index_idx",
-            "function": "action_trace_range_receipt_receiver_name_account",
+            "wasm_name": "at.e.nra",
+            "index": "at_executed_range_name_receiver_account_block_trans_action_idx",
+            "function": "at_executed_range_name_receiver_account_block_trans_action",
             "table": "action_trace",
-            "keys": [
-                {
-                    "name": "receipt_receiver"
-                },
-                {
-                    "name": "name"
-                },
-                {
-                    "name": "account"
-                }
-            ],
             "sort_keys": [
                 {
-                    "name": "receipt_receiver"
-                },
-                {
                     "name": "name"
                 },
                 {
+                    "name": "receipt_receiver"
+                },
+                {
                     "name": "account"
-                }
-            ],
-            "history_keys": [
+                },
                 {
                     "name": "block_index"
+                },
+                {
+                    "name": "transaction_id"
+                },
+                {
+                    "name": "action_index"
                 }
+            ],
+            "conditions": [
+                "transaction_status = 'executed'"
             ]
         },
         {

@@ -109,8 +109,8 @@ async function dump_eos_balances(clientWasm, first_account, last_account) {
             last_account: last_account,
             max_results: 100,
         }]);
-        for (let row of reply[1].rows)
-            console.log(row.account.padEnd(13, ' '), format_extended_asset(row.amount));
+        for (let balance of reply[1].balances)
+            console.log(balance.account.padEnd(13, ' '), format_extended_asset(balance.amount));
         first_account = reply[1].more;
     } while (first_account);
 }
@@ -124,13 +124,13 @@ async function dump_tokens(clientWasm, first_key, last_key) {
             last_key,
             max_results: 100,
         }]);
-        for (let row of reply[1].rows)
-            console.log(row.account.padEnd(13, ' '), format_extended_asset(row.amount));
+        for (let balance of reply[1].balances)
+            console.log(balance.account.padEnd(13, ' '), format_extended_asset(balance.amount));
         first_key = reply[1].more;
     } while (first_key);
 }
 
-async function dump_transfer(clientWasm) {
+async function dump_transfers(clientWasm) {
     let first_key = {
         receipt_receiver: 'eosio.bpay',
         account: 'eosio.token',
@@ -156,12 +156,12 @@ async function dump_transfer(clientWasm) {
             include_notify_incoming: true,
             include_notify_outgoing: true,
         }]);
-        for (let row of reply[1].rows)
+        for (let transfer of reply[1].transfers)
             console.log(
-                row.from.padEnd(13, ' ') + ' -> ' + row.to.padEnd(13, ' '),
-                format_extended_asset(row.quantity), '     ', row.memo);
+                transfer.from.padEnd(13, ' ') + ' -> ' + transfer.to.padEnd(13, ' '),
+                format_extended_asset(transfer.quantity), '     ', transfer.memo);
         first_key = reply[1].more;
-        i += reply[1].rows.length;
+        i += reply[1].transfers.length;
         console.log(i);
         if (i >= 20)
             break;
@@ -175,7 +175,7 @@ async function dump_transfer(clientWasm) {
         console.log();
         await dump_tokens(clientWasm, { sym: '', code: '' }, { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' });
         console.log();
-        await dump_transfer(clientWasm);
+        await dump_transfers(clientWasm);
     } catch (e) {
         console.error(e);
     }

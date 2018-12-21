@@ -4,6 +4,12 @@
 #include <eosiolib/name.hpp>
 #include <variant>
 
+template <eosio::name::raw N, typename T>
+struct named_type {
+    static inline constexpr eosio::name name = eosio::name{N};
+    using type                               = T;
+};
+
 // todo: compile-time check for duplicate keys
 template <typename... NamedTypes>
 struct named_variant {

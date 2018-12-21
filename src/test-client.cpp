@@ -2,6 +2,7 @@
 
 #include "lib-database.hpp"
 #include "lib-parse-json.hpp"
+#include "lib-to-json.hpp"
 #include "test-common.hpp"
 
 extern "C" void eosio_assert(uint32_t test, const char* msg) {

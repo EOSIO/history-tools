@@ -4,30 +4,30 @@
 #include "lib-named-variant.hpp"
 #include "lib-placeholders.hpp"
 
-inline void parse_json_skip_space(char*& pos, char* end) {
+__attribute__((noinline)) inline void parse_json_skip_space(char*& pos, char* end) {
     while (pos != end && (*pos == 0x09 || *pos == 0x0a || *pos == 0x0d || *pos == 0x20))
         ++pos;
 }
 
 // todo
-inline void parse_json_skip_value(char*& pos, char* end) {
+__attribute__((noinline)) inline void parse_json_skip_value(char*& pos, char* end) {
     while (pos != end && *pos != ',' && *pos != '}')
         ++pos;
 }
 
-inline void parse_json_expect(char*& pos, char* end, char ch, const char* msg) {
+__attribute__((noinline)) inline void parse_json_expect(char*& pos, char* end, char ch, const char* msg) {
     eosio_assert(pos != end && *pos == ch, msg);
     ++pos;
     parse_json_skip_space(pos, end);
 }
 
-inline void parse_json_expect_end(char*& pos, char* end) { eosio_assert(pos == end, "expected end of json"); }
+__attribute__((noinline)) inline void parse_json_expect_end(char*& pos, char* end) { eosio_assert(pos == end, "expected end of json"); }
 
 template <typename T>
-inline void parse_json(T& obj, char*& pos, char* end);
+__attribute__((noinline)) inline void parse_json(T& obj, char*& pos, char* end);
 
 // todo: escapes
-inline void parse_json(std::string_view& result, char*& pos, char* end) {
+__attribute__((noinline)) inline void parse_json(std::string_view& result, char*& pos, char* end) {
     eosio_assert(pos != end && *pos++ == '"', "expected string");
     auto begin = pos;
     while (pos != end && *pos != '"')
@@ -37,7 +37,7 @@ inline void parse_json(std::string_view& result, char*& pos, char* end) {
     result = std::string_view(begin, e - begin);
 }
 
-inline void parse_json(uint32_t& result, char*& pos, char* end) {
+__attribute__((noinline)) inline void parse_json(uint32_t& result, char*& pos, char* end) {
     bool in_str = false;
     if (pos != end && *pos == '"') {
         in_str = true;
@@ -57,7 +57,7 @@ inline void parse_json(uint32_t& result, char*& pos, char* end) {
     }
 }
 
-inline void parse_json(bool& result, char*& pos, char* end) {
+__attribute__((noinline)) inline void parse_json(bool& result, char*& pos, char* end) {
     if (end - pos >= 4 && !strncmp(pos, "true", 4)) {
         pos += 4;
         result = true;
@@ -71,19 +71,19 @@ inline void parse_json(bool& result, char*& pos, char* end) {
     eosio_assert(false, "expected boolean");
 }
 
-inline void parse_json(eosio::name& result, char*& pos, char* end) {
+__attribute__((noinline)) inline void parse_json(eosio::name& result, char*& pos, char* end) {
     std::string_view sv;
     parse_json(sv, pos, end);
     result = eosio::name{sv};
 }
 
-inline void parse_json(eosio::symbol_code& result, char*& pos, char* end) {
+__attribute__((noinline)) inline void parse_json(eosio::symbol_code& result, char*& pos, char* end) {
     std::string_view sv;
     parse_json(sv, pos, end);
     result = eosio::symbol_code{sv};
 }
 
-inline void parse_json(serial_wrapper<eosio::checksum256>& result, char*& pos, char* end) {
+__attribute__((noinline)) inline void parse_json(serial_wrapper<eosio::checksum256>& result, char*& pos, char* end) {
     auto             bytes = reinterpret_cast<char*>(result.value.data());
     std::string_view sv;
     parse_json(sv, pos, end);
@@ -108,7 +108,7 @@ inline void parse_json(serial_wrapper<eosio::checksum256>& result, char*& pos, c
 }
 
 template <typename F>
-inline void parse_object(char*& pos, char* end, F f) {
+__attribute__((noinline)) inline void parse_object(char*& pos, char* end, F f) {
     parse_json_expect(pos, end, '{', "expected {");
     while (true) {
         std::string_view key;
@@ -124,7 +124,7 @@ inline void parse_object(char*& pos, char* end, F f) {
 }
 
 template <typename T>
-inline void parse_json(T& obj, char*& pos, char* end) {
+__attribute__((noinline)) inline void parse_json(T& obj, char*& pos, char* end) {
     parse_object(pos, end, [&](std::string_view key) {
         bool found = false;
         for_each_member(obj, [&](std::string_view member_name, auto& member) {
@@ -139,7 +139,7 @@ inline void parse_json(T& obj, char*& pos, char* end) {
 }
 
 template <typename T>
-inline T parse_json(std::vector<char>&& v) {
+__attribute__((noinline)) inline T parse_json(std::vector<char>&& v) {
     char* pos = v.data();
     char* end = pos + v.size();
     parse_json_skip_space(pos, end);
@@ -150,7 +150,7 @@ inline T parse_json(std::vector<char>&& v) {
 }
 
 template <size_t I, typename... NamedTypes>
-void parse_named_variant_impl(named_variant<NamedTypes...>& v, size_t i, char*& pos, char* end) {
+__attribute__((noinline)) void parse_named_variant_impl(named_variant<NamedTypes...>& v, size_t i, char*& pos, char* end) {
     if constexpr (I < sizeof...(NamedTypes)) {
         if (i == I) {
             auto& q = v.value;
@@ -165,7 +165,7 @@ void parse_named_variant_impl(named_variant<NamedTypes...>& v, size_t i, char*& 
 }
 
 template <typename... NamedTypes>
-void parse_json(named_variant<NamedTypes...>& result, char*& pos, char* end) {
+__attribute__((noinline)) void parse_json(named_variant<NamedTypes...>& result, char*& pos, char* end) {
     parse_json_skip_space(pos, end);
     parse_json_expect(pos, end, '[', "expected array");
 

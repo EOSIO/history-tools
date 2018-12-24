@@ -25,7 +25,6 @@
 // todo: version on queries
 // todo: version on query api?
 // todo: better naming for queries
-// todo: alternative way for token queries
 
 #include "queries.hpp"
 
@@ -211,7 +210,7 @@ bool print_wasm_str(JSContext* cx, unsigned argc, JS::Value* vp) {
 
 bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
     try {
-        std::fstream file("test.wasm", std::ios_base::in | std::ios_base::binary);
+        std::fstream file("test-server.wasm", std::ios_base::in | std::ios_base::binary);
         file.seekg(0, std::ios_base::end);
         auto len = file.tellg();
         if (len <= 0) {

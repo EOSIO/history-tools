@@ -1,8 +1,8 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include "lib-named-variant.hpp"
 #include "lib-placeholders.hpp"
+#include "lib-tagged-variant.hpp"
 #include <vector>
 
 // todo: replace
@@ -16,6 +16,15 @@ __attribute__((noinline)) inline void to_json(std::string_view sv, std::vector<c
     dest.push_back('"');
     dest.insert(dest.end(), sv.begin(), sv.end());
     dest.push_back('"');
+}
+
+__attribute__((noinline)) inline void to_json(bool value, std::vector<char>& dest) {
+    static const char t[] = "true";
+    static const char f[] = "false";
+    if (value)
+        dest.insert(dest.end(), std::begin(t), std::end(t) - 1);
+    else
+        dest.insert(dest.end(), std::begin(f), std::end(f) - 1);
 }
 
 __attribute__((noinline)) inline void to_json(uint8_t value, std::vector<char>& dest) {
@@ -38,6 +47,14 @@ __attribute__((noinline)) inline void to_json(uint32_t value, std::vector<char>&
     } while (value);
     std::reverse(s, ch);
     dest.insert(dest.end(), s, ch);
+}
+
+__attribute__((noinline)) inline void to_json(int32_t value, std::vector<char>& dest) {
+    if (value < 0) {
+        dest.push_back('-');
+        value = -value;
+    }
+    to_json(uint32_t(value), dest);
 }
 
 __attribute__((noinline)) inline void to_json(int64_t value, std::vector<char>& dest) {
@@ -159,11 +176,17 @@ __attribute__((noinline)) inline std::vector<char> to_json(T& obj) {
 }
 
 // todo: const v
-template <typename... NamedTypes>
-__attribute__((noinline)) inline void to_json(named_variant<NamedTypes...>& v, std::vector<char>& dest) {
+template <tagged_variant_options Options, typename... NamedTypes>
+__attribute__((noinline)) inline void to_json(tagged_variant<Options, NamedTypes...>& v, std::vector<char>& dest) {
     dest.push_back('[');
-    to_json(named_variant<NamedTypes...>::keys[v.value.index()], dest);
-    dest.push_back(',');
-    std::visit([&](auto& x) { to_json(x, dest); }, v.value);
+    to_json(tagged_variant<Options, NamedTypes...>::keys[v.value.index()], dest);
+    std::visit(
+        [&](auto& x) {
+            if constexpr (!is_named_empty_type_v<std::decay_t<decltype(x)>>) {
+                dest.push_back(',');
+                to_json(x, dest);
+            }
+        },
+        v.value);
     dest.push_back(']');
 }

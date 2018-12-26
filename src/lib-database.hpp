@@ -81,11 +81,11 @@ struct query_action_trace_executed_range_name_receiver_account_block_trans_actio
         uint32_t                           action_index     = {};
     };
 
-    eosio::name query_name      = "at.e.nra"_n;
-    uint32_t    max_block_index = {};
-    key         first           = {};
-    key         last            = {};
-    uint32_t    max_results     = {};
+    eosio::name  query_name  = "at.e.nra"_n;
+    block_select max_block   = {};
+    key          first       = {};
+    key          last        = {};
+    uint32_t     max_results = {};
 };
 
 struct contract_row {
@@ -124,11 +124,11 @@ struct query_contract_row_range_code_table_pk_scope {
         uint64_t    scope       = {};
     };
 
-    eosio::name query_name      = "cr.ctps"_n;
-    uint32_t    max_block_index = {};
-    key         first           = {};
-    key         last            = {};
-    uint32_t    max_results     = {};
+    eosio::name  query_name  = "cr.ctps"_n;
+    block_select max_block   = {};
+    key          first       = {};
+    key          last        = {};
+    uint32_t     max_results = {};
 };
 
 struct query_contract_row_range_code_table_scope_pk {
@@ -139,11 +139,11 @@ struct query_contract_row_range_code_table_scope_pk {
         uint64_t    primary_key = {};
     };
 
-    eosio::name query_name      = "cr.ctsp"_n;
-    uint32_t    max_block_index = {};
-    key         first           = {};
-    key         last            = {};
-    uint32_t    max_results     = {};
+    eosio::name  query_name  = "cr.ctsp"_n;
+    block_select max_block   = {};
+    key          first       = {};
+    key          last        = {};
+    uint32_t     max_results = {};
 };
 
 struct query_contract_row_range_scope_table_pk_code {
@@ -154,9 +154,9 @@ struct query_contract_row_range_scope_table_pk_code {
         eosio::name code        = {};
     };
 
-    eosio::name query_name      = "cr.stpc"_n;
-    uint32_t    max_block_index = {};
-    key         first           = {};
-    key         last            = {};
-    uint32_t    max_results     = {};
+    eosio::name  query_name  = "cr.stpc"_n;
+    block_select max_block   = {};
+    key          first       = {};
+    key          last        = {};
+    uint32_t     max_results = {};
 };

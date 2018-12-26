@@ -8,8 +8,6 @@
 // todo: make sure spidermonkey limits stack size
 // todo: global constructors in wasm
 // todo: don't allow queries past head
-// todo: kill a wasm execution if a fork change happens
-//       for now: warn about having multiple queries past irreversible
 // todo: cap max_results
 // todo: reformulate get_input_data and set_output_data for reentrancy
 // todo: switch from eosio_assert to eosio_assert_message
@@ -108,6 +106,23 @@ struct ContextWrapper {
     ~ContextWrapper() { JS_DestroyContext(cx); }
 };
 
+struct block_select {
+    enum {
+        absolute,
+        head,
+        irreversible,
+    };
+
+    abieos::varuint32 position = {};
+    int32_t           offset   = {};
+};
+
+template <typename F>
+constexpr void for_each_field(block_select*, F f) {
+    f("position", member_ptr<&block_select::position>{});
+    f("offset", member_ptr<&block_select::offset>{});
+}
+
 struct foo {
     ContextWrapper       context;
     JS::RootedObject     global;
@@ -115,6 +130,10 @@ struct foo {
     query_config::config config;
     string               schema;
     pqxx::connection     sql_connection;
+    uint32_t             head;
+    abieos::checksum256  head_id;
+    uint32_t             irreversible;
+    abieos::checksum256  irreversible_id;
     std::vector<char>    request;
     std::vector<char>    reply;
 
@@ -313,8 +332,22 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         query_config::query& query = *it->second;
         query_config::table& table = *query.result_table;
 
+        block_select b;
+        if (!abieos::bin_to_native(b, args_buf))
+            return js_assert(false, cx, "exec_query: invalid args");
+        uint32_t max_block_index;
+        if (b.position.value == block_select::absolute)
+            max_block_index = b.offset;
+        else if (b.position.value == block_select::head)
+            max_block_index = foo_global->head + b.offset;
+        else if (b.position.value == block_select::irreversible)
+            max_block_index = foo_global->irreversible + b.offset;
+        else
+            return js_assert(false, cx, "exec_query: invalid args");
+        max_block_index = std::max((int32_t)0, std::min((int32_t)foo_global->head, (int32_t)max_block_index));
+
         std::string query_str = "select * from \"" + foo_global->schema + "\"." + query.function + "(";
-        query_str += sql_conversion::sql_type_for<uint32_t>.bin_to_sql(args_buf); // max_block_index
+        query_str += sql_conversion::sql_str(max_block_index);
         for (auto& type : query.types)
             query_str += sep + type.bin_to_sql(args_buf);
         for (auto& type : query.types)
@@ -393,15 +426,47 @@ void init_glue() {
         throw std::runtime_error("JS::Evaluate failed");
 }
 
-void run() {
-    JSAutoRealm realm(foo_global->context.cx, foo_global->global);
+void fetch_fill_status() {
+    pqxx::work t(foo_global->sql_connection);
+    auto       row      = t.exec("select head, head_id, irreversible, irreversible_id from \"" + foo_global->schema + "\".fill_status")[0];
+    foo_global->head    = row[0].as<uint32_t>();
+    foo_global->head_id = sql_to_checksum256(row[1].c_str());
+    foo_global->irreversible    = row[2].as<uint32_t>();
+    foo_global->irreversible_id = sql_to_checksum256(row[3].c_str());
+}
 
-    JS::RootedValue       rval(foo_global->context.cx);
-    JS::AutoValueArray<1> args(foo_global->context.cx);
-    args[0].set(JS::NumberValue(1234));
-    if (!JS_CallFunctionName(foo_global->context.cx, foo_global->global, "run", args, &rval)) {
-        JS_ClearPendingException(foo_global->context.cx);
-        throw std::runtime_error("JS_CallFunctionName failed");
+bool did_fork() {
+    pqxx::work t(foo_global->sql_connection);
+    auto result = t.exec("select block_id from \"" + foo_global->schema + "\".block_info where block_index=" + sql_str(foo_global->head));
+    if (result.empty()) {
+        std::cerr << "fork detected (prev head not found)\n";
+        return true;
+    }
+    auto id = sql_to_checksum256(result[0][0].c_str());
+    if (id.value != foo_global->head_id.value) {
+        std::cerr << "fork detected (head_id changed)\n";
+        return true;
+    }
+    return false;
+}
+
+void run() {
+    int num_tries = 0;
+    while (true) {
+        fetch_fill_status();
+        JSAutoRealm           realm(foo_global->context.cx, foo_global->global);
+        JS::RootedValue       rval(foo_global->context.cx);
+        JS::AutoValueArray<1> args(foo_global->context.cx);
+        args[0].set(JS::NumberValue(1234));
+        if (!JS_CallFunctionName(foo_global->context.cx, foo_global->global, "run", args, &rval)) {
+            JS_ClearPendingException(foo_global->context.cx);
+            throw std::runtime_error("JS_CallFunctionName failed");
+        }
+        if (!did_fork())
+            break;
+        if (++num_tries >= 4)
+            throw std::runtime_error("too many fork events during request");
+        std::cerr << "retry request\n";
     }
 }
 
@@ -460,8 +525,12 @@ void handle_request(tcp::socket& socket, http::request<http::vector_body<char>> 
         try {
             run();
             return send(ok(std::move(foo_global->reply)));
+        } catch (const std::exception& e) {
+            std::cerr << "wasm execution failed: " << e.what() << "\n";
+            return send(server_error("wasm execution failed: "s + e.what()));
         } catch (...) {
-            return send(server_error("wasm execution failed"));
+            std::cerr << "wasm execution failed: unknown exception\n";
+            return send(server_error("wasm execution failed: unknown exception"));
         }
     }
 

@@ -3,6 +3,7 @@
 // todo: remove or replace everything in this file
 
 #pragma once
+#include "lib-tagged-variant.hpp"
 #include <eosiolib/asset.hpp>
 #include <eosiolib/datastream.hpp>
 #include <eosiolib/varint.hpp>
@@ -141,3 +142,8 @@ inline const char* asset_to_string(const eosio::asset& v) {
     *pos++ = 0;
     return result;
 }
+
+using absolute_block     = tagged_type<"absolute"_n, uint32_t>;
+using head_block         = tagged_type<"head"_n, uint32_t>;
+using irreversible_block = tagged_type<"irreversible"_n, uint32_t>;
+using block_select       = tagged_variant<serialize_tag_as_index, absolute_block, head_block, irreversible_block>;

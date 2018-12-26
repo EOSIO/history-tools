@@ -58,10 +58,9 @@ void for_each_member(token_transfer& obj, F f) {
 }
 
 // todo: version
-// todo: max_block_index: head, irreversible options
 struct token_transfer_request {
     eosio::name        request                 = "transfer"_n; // todo: remove
-    uint32_t           max_block_index         = {};
+    block_select       max_block               = {};
     token_transfer_key first_key               = {};
     token_transfer_key last_key                = {};
     bool               include_notify_incoming = false;
@@ -73,7 +72,7 @@ struct token_transfer_request {
 template <typename F>
 void for_each_member(token_transfer_request& obj, F f) {
     f("request", obj.request);
-    f("max_block_index", obj.max_block_index);
+    f("max_block", obj.max_block);
     f("first_key", obj.first_key);
     f("last_key", obj.last_key);
     f("include_notify_incoming", obj.include_notify_incoming);
@@ -97,21 +96,20 @@ void for_each_member(token_transfer_response& obj, F f) {
 }
 
 // todo: version
-// todo: max_block_index: head, irreversible options
 struct balances_for_multiple_accounts_request {
-    eosio::name        request         = "bal.mult.acc"_n; // todo: remove
-    uint32_t           max_block_index = {};
-    eosio::name        code            = {};
-    eosio::symbol_code sym             = {};
-    eosio::name        first_account   = {};
-    eosio::name        last_account    = {};
-    uint32_t           max_results     = {};
+    eosio::name        request       = "bal.mult.acc"_n; // todo: remove
+    block_select       max_block     = {};
+    eosio::name        code          = {};
+    eosio::symbol_code sym           = {};
+    eosio::name        first_account = {};
+    eosio::name        last_account  = {};
+    uint32_t           max_results   = {};
 };
 
 template <typename F>
 void for_each_member(balances_for_multiple_accounts_request& obj, F f) {
     f("request", obj.request);
-    f("max_block_index", obj.max_block_index);
+    f("max_block", obj.max_block);
     f("code", obj.code);
     f("sym", obj.sym);
     f("first_account", obj.first_account);
@@ -138,19 +136,18 @@ void for_each_member(bfmt_key& obj, F f) {
 }
 
 // todo: version
-// todo: max_block_index: head, irreversible options
 struct balances_for_multiple_tokens_request {
-    eosio::name request         = "bal.mult.tok"_n; // todo: remove
-    uint32_t    max_block_index = {};
-    eosio::name account         = {};
-    bfmt_key    first_key       = {};
-    bfmt_key    last_key        = {};
-    uint32_t    max_results     = {};
+    eosio::name  request     = "bal.mult.tok"_n; // todo: remove
+    block_select max_block   = {};
+    eosio::name  account     = {};
+    bfmt_key     first_key   = {};
+    bfmt_key     last_key    = {};
+    uint32_t     max_results = {};
 };
 
 template <typename F>
 void for_each_member(balances_for_multiple_tokens_request& obj, F f) {
-    f("max_block_index", obj.max_block_index);
+    f("max_block", obj.max_block);
     f("account", obj.account);
     f("first_key", obj.first_key);
     f("last_key", obj.last_key);

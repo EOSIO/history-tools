@@ -14,7 +14,7 @@ struct transfer {
 void process(token_transfer_request& req) {
     print("    transfers\n");
     auto s = exec_query(query_action_trace_executed_range_name_receiver_account_block_trans_action{
-        .max_block_index = req.max_block_index,
+        .max_block = req.max_block,
         .first =
             {
                 .name             = "transfer"_n,
@@ -75,7 +75,7 @@ void process(token_transfer_request& req) {
 void process(balances_for_multiple_accounts_request& req) {
     print("    balances_for_multiple_accounts\n");
     auto s = exec_query(query_contract_row_range_code_table_pk_scope{
-        .max_block_index = req.max_block_index,
+        .max_block = req.max_block,
         .first =
             {
                 .code        = req.code,
@@ -111,7 +111,7 @@ void process(balances_for_multiple_accounts_request& req) {
 void process(balances_for_multiple_tokens_request& req) {
     print("    balances_for_multiple_tokens\n");
     auto s = exec_query(query_contract_row_range_scope_table_pk_code{
-        .max_block_index = req.max_block_index,
+        .max_block = req.max_block,
         .first =
             {
                 .scope       = req.account.value,

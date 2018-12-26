@@ -125,7 +125,7 @@ struct newaccount {
     // authority owner;
     // authority active;
 };
-
+/*
 void proposals(uint32_t max_block_index, name first_account, name first_prop, name last_account, name last_prop, uint32_t max_results) {
     print("    proposals\n");
     auto s = exec_query(query_contract_row_range_code_table_scope_pk{
@@ -155,7 +155,7 @@ void proposals(uint32_t max_block_index, name first_account, name first_prop, na
     });
     print("\n");
 }
-
+*/
 /*
 void creators(uint32_t max_block_index, uint32_t max_results) {
     print("    creators\n");

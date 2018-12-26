@@ -77,7 +77,7 @@ class ClientWasm {
         const requestBin = this.create_request(request);
         const queryReply = await fetch('http://127.0.0.1:8080/wasmql/v1/query', { method: 'POST', body: requestBin });
         if (queryReply.status !== 200)
-            throw new Error(queryReply.status + ": " + queryReply.statusText);
+            throw new Error(queryReply.status + ': ' + queryReply.statusText + ': ' + await queryReply.text());
         return this.decode_response(await queryReply.arrayBuffer());
     }
 }
@@ -102,7 +102,7 @@ function format_extended_asset(amount, number_size = 18) {
 async function dump_eos_balances(clientWasm, first_account, last_account) {
     do {
         const reply = await clientWasm.round_trip(['bal.mult.acc', {
-            max_block_index: 100000000,
+            max_block: ["absolute", 30000000],
             code: 'eosio.token',
             sym: 'EOS',
             first_account: first_account,
@@ -118,7 +118,7 @@ async function dump_eos_balances(clientWasm, first_account, last_account) {
 async function dump_tokens(clientWasm, first_key, last_key) {
     do {
         const reply = await clientWasm.round_trip(['bal.mult.tok', {
-            max_block_index: 100000000,
+            max_block: ["head", 0],
             account: 'b1',
             first_key,
             last_key,
@@ -149,7 +149,7 @@ async function dump_transfers(clientWasm) {
     let i = 0;
     while (first_key) {
         const reply = await clientWasm.round_trip(['transfer', {
-            max_block_index: 100000000,
+            max_block: ["irreversible", 0],
             first_key,
             last_key,
             max_results: 10,

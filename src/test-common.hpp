@@ -5,7 +5,7 @@
 
 #pragma once
 #include "ex-token.hpp"
-#include "lib-named-variant.hpp"
+#include "lib-tagged-variant.hpp"
 
 #include <string_view>
 
@@ -198,12 +198,14 @@ extern "C" void set_output_data(const char* begin, const char* end);
 inline void     set_output_data(const std::vector<char>& v) { set_output_data(v.data(), v.data() + v.size()); }
 inline void     set_output_data(const std::string_view& v) { set_output_data(v.data(), v.data() + v.size()); }
 
-using example_request = named_variant<
-    named_type<"transfer"_n, token_transfer_request>,                     //
-    named_type<"bal.mult.acc"_n, balances_for_multiple_accounts_request>, //
-    named_type<"bal.mult.tok"_n, balances_for_multiple_tokens_request>>;  //
+using example_request = tagged_variant<                                    //
+    serialize_tag_as_name,                                                 //
+    tagged_type<"transfer"_n, token_transfer_request>,                     //
+    tagged_type<"bal.mult.acc"_n, balances_for_multiple_accounts_request>, //
+    tagged_type<"bal.mult.tok"_n, balances_for_multiple_tokens_request>>;  //
 
-using example_response = named_variant<
-    named_type<"transfer"_n, token_transfer_response>,                     //
-    named_type<"bal.mult.acc"_n, balances_for_multiple_accounts_response>, //
-    named_type<"bal.mult.tok"_n, balances_for_multiple_tokens_response>>;  //
+using example_response = tagged_variant<                                    //
+    serialize_tag_as_name,                                                  //
+    tagged_type<"transfer"_n, token_transfer_response>,                     //
+    tagged_type<"bal.mult.acc"_n, balances_for_multiple_accounts_response>, //
+    tagged_type<"bal.mult.tok"_n, balances_for_multiple_tokens_response>>;  //

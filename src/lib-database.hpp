@@ -130,6 +130,46 @@ struct query_action_trace_executed_range_name_receiver_account_block_trans_actio
     uint32_t     max_results = {};
 };
 
+struct account {
+    uint32_t                           block_index      = {};
+    bool                               present          = {};
+    eosio::name                        name             = {};
+    uint8_t                            vm_type          = {};
+    uint8_t                            vm_version       = {};
+    bool                               privileged       = {};
+    eosio::time_point                  last_code_update = eosio::time_point{};
+    serial_wrapper<eosio::checksum256> code_version     = {};
+    eosio::block_timestamp_type        creation_date    = eosio::block_timestamp_type{};
+    eosio::datastream<const char*>     code             = {nullptr, 0};
+    eosio::datastream<const char*>     abi              = {nullptr, 0};
+
+    EOSLIB_SERIALIZE(
+        account, (block_index)(present)(name)(vm_type)(vm_version)(privileged)(last_code_update)(code_version)(creation_date)(code)(abi))
+};
+
+template <typename F>
+void for_each_member(account& obj, F f) {
+    f("block_index", obj.block_index);
+    f("present", obj.present);
+    f("name", obj.name);
+    f("vm_type", obj.vm_type);
+    f("vm_version", obj.vm_version);
+    f("privileged", obj.privileged);
+    f("last_code_update", obj.last_code_update);
+    f("code_version", obj.code_version);
+    f("creation_date", obj.creation_date);
+    f("code", obj.code);
+    f("abi", obj.abi);
+}
+
+struct query_account_range_name {
+    eosio::name  query_name  = "account"_n;
+    block_select max_block   = {};
+    eosio::name  first       = {};
+    eosio::name  last        = {};
+    uint32_t     max_results = {};
+};
+
 struct contract_row {
     uint32_t                       block_index = {};
     bool                           present     = {};

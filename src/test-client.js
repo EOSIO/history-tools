@@ -119,6 +119,21 @@ async function dump_tapos(clientWasm, ref_block, expire_seconds) {
     console.log(JSON.stringify(reply, null, 4));
 }
 
+async function dump_accounts(clientWasm, first, last) {
+    do {
+        const reply = await clientWasm.round_trip(['account', {
+            max_block: ["absolute", 30000000],
+            first: first,
+            last: last,
+            max_results: 100,
+            include_code: false,
+            include_abi: false,
+        }]);
+        console.log(JSON.stringify(reply, null, 4));
+        first = reply[1].more;
+    } while (first);
+}
+
 async function dump_eos_balances(clientWasm, first_account, last_account) {
     do {
         const reply = await clientWasm.round_trip(['bal.mult.acc', {
@@ -194,6 +209,8 @@ async function dump_transfers(clientWasm) {
         await dump_block_info(clientWasm, 30000000, 30000001);
         console.log();
         await dump_tapos(clientWasm, 30000000, 0);
+        console.log();
+        await dump_accounts(clientWasm, 'eosio', 'eosio.bpay')
         console.log();
         await dump_eos_balances(clientWasm, 'eosio', 'eosio.zzzzzzj');
         console.log();

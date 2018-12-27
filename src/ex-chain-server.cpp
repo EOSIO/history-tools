@@ -43,3 +43,28 @@ void process(tapos_request& req) {
     set_output_data(pack(example_response{std::move(response)}));
     print("\n");
 }
+
+void process(account_request& req) {
+    print("    account\n");
+    auto s = exec_query(query_account_range_name{
+        .max_block   = req.max_block,
+        .first       = req.first,
+        .last        = req.last,
+        .max_results = req.max_results,
+    });
+
+    account_response response;
+    for_each_query_result<account>(s, [&](account& a) {
+        response.more = name{a.name.value + 1};
+        if (a.present) {
+            if (!req.include_abi)
+                a.abi = {nullptr, 0};
+            if (!req.include_code)
+                a.code = {nullptr, 0};
+            response.accounts.push_back(a);
+        }
+        return true;
+    });
+    set_output_data(pack(example_response{std::move(response)}));
+    print("\n");
+}

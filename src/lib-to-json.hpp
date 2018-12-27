@@ -134,8 +134,20 @@ __attribute__((noinline)) inline void to_json(serial_wrapper<eosio::checksum256>
     dest.push_back('"');
 }
 
+__attribute__((noinline)) inline void to_json(eosio::time_point& value, std::vector<char>& dest) {
+    append(dest, "\"<<<time_point>>>\""); // todo
+}
+
 __attribute__((noinline)) inline void to_json(eosio::block_timestamp& value, std::vector<char>& dest) {
     append(dest, "\"<<<block_timestamp>>>\""); // todo
+}
+
+// todo
+__attribute__((noinline)) inline void to_json(eosio::datastream<const char*>& value, std::vector<char>& dest) {
+    if (value.remaining())
+        append(dest, "\"<<<datastream>>>\"");
+    else
+        append(dest, "\"<<<empty datastream>>>\"");
 }
 
 template <typename T>

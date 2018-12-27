@@ -52,6 +52,12 @@
         where
             transaction_status = 'executed';
 
+        create index if not exists account_name_block_present_idx on chain.account(
+            "name",
+            "block_index" desc,
+            "present" desc
+        );
+
         create index if not exists contract_row_code_table_primary_key_scope_block_index_prese_idx on chain.contract_row(
             "code",
             "table",
@@ -288,6 +294,127 @@
                     return next search;
                 end loop;
     
+            end 
+        $$ language plpgsql;
+    
+        drop function if exists chain.account_range_name;
+        create function chain.account_range_name(
+            max_block_index bigint,
+            first_name varchar(13),
+            last_name varchar(13),
+            max_results integer
+        ) returns setof chain.account
+        as $$
+            declare
+                key_search record;
+                block_search record;
+                num_results integer = 0;
+                found_key bool = false;
+                found_block bool = false;
+            begin
+                if max_results <= 0 then
+                    return;
+                end if;
+                
+                for key_search in
+                    select
+                        "name"
+                    from
+                        chain.account
+                    where
+                        ("name") >= ("first_name")
+                    order by
+                        "name",
+                        "block_index" desc,
+                        "present" desc
+                    limit 1
+                loop
+                    if (key_search."name") > (last_name) then
+                        return;
+                    end if;
+                    found_key = true;
+                    found_block = false;
+                    first_name = key_search."name";
+                    for block_search in
+                        select
+                            *
+                        from
+                            chain.account
+                        where
+                            account."name" = key_search."name"
+                            and account.block_index <= max_block_index
+                        order by
+                            "name",
+                            "block_index" desc,
+                            "present" desc
+                        limit 1
+                    loop
+                        if block_search.present then
+                            return next block_search;
+                        else
+                            return next row(block_search.block_index, false, key_search."name"::varchar(13), ''::varchar(13), ''::bytea);
+                        end if;
+                        num_results = num_results + 1;
+                        found_block = true;
+                    end loop;
+                    if not found_block then
+                        return next row(0::bigint, false, key_search."name"::varchar(13), ''::varchar(13), ''::bytea);
+                        num_results = num_results + 1;
+                    end if;
+                end loop;
+    
+                loop
+                    exit when not found_key or num_results >= max_results;
+                    found_key = false;
+                    
+                    for key_search in
+                        select
+                            "name"
+                        from
+                            chain.account
+                        where
+                            ("name") > ("first_name")
+                        order by
+                            "name",
+                            "block_index" desc,
+                            "present" desc
+                        limit 1
+                    loop
+                        if (key_search."name") > (last_name) then
+                            return;
+                        end if;
+                        found_key = true;
+                        found_block = false;
+                        first_name = key_search."name";
+                        for block_search in
+                            select
+                                *
+                            from
+                                chain.account
+                            where
+                                account."name" = key_search."name"
+                                and account.block_index <= max_block_index
+                            order by
+                                "name",
+                                "block_index" desc,
+                                "present" desc
+                            limit 1
+                        loop
+                            if block_search.present then
+                                return next block_search;
+                            else
+                                return next row(block_search.block_index, false, key_search."name"::varchar(13), ''::varchar(13), ''::bytea);
+                            end if;
+                            num_results = num_results + 1;
+                            found_block = true;
+                        end loop;
+                        if not found_block then
+                            return next row(0::bigint, false, key_search."name"::varchar(13), ''::varchar(13), ''::bytea);
+                            num_results = num_results + 1;
+                        end if;
+                    end loop;
+    
+                end loop;
             end 
         $$ language plpgsql;
     

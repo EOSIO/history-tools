@@ -115,6 +115,55 @@
             ]
         },
         {
+            "name": "account",
+            "fields": [
+                {
+                    "name": "block_index",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "name",
+                    "type": "name"
+                },
+                {
+                    "name": "vm_type",
+                    "type": "uint8"
+                },
+                {
+                    "name": "vm_version",
+                    "type": "uint8"
+                },
+                {
+                    "name": "privileged",
+                    "type": "bool"
+                },
+                {
+                    "name": "last_code_update",
+                    "type": "time_point"
+                },
+                {
+                    "name": "code_version",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "creation_date",
+                    "type": "block_timestamp_type"
+                },
+                {
+                    "name": "code",
+                    "type": "bytes"
+                },
+                {
+                    "name": "abi",
+                    "type": "bytes"
+                }
+            ]
+        },
+        {
             "name": "contract_row",
             "fields": [
                 {
@@ -262,6 +311,34 @@
             ],
             "conditions": [
                 "transaction_status = 'executed'"
+            ]
+        },
+        {
+            "wasm_name": "account",
+            "index": "account_name_block_present_idx",
+            "function": "account_range_name",
+            "table": "account",
+            "is_state": true,
+            "limit_block_index": true,
+            "keys": [
+                {
+                    "name": "name"
+                }
+            ],
+            "sort_keys": [
+                {
+                    "name": "name"
+                }
+            ],
+            "history_keys": [
+                {
+                    "name": "block_index",
+                    "desc": true
+                },
+                {
+                    "name": "present",
+                    "desc": true
+                }
             ]
         },
         {

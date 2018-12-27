@@ -80,6 +80,42 @@
         );
 
 
+        drop function if exists chain.block_info_range_index;
+        create function chain.block_info_range_index(
+            
+            first_block_index bigint,
+            last_block_index bigint,
+            max_results integer
+        ) returns setof chain.block_info
+        as $$
+            declare
+                arg_first_block_index bigint = "first_block_index";
+                arg_last_block_index bigint = "last_block_index";
+                search record;
+            begin
+                
+                for search in
+                    select
+                        *
+                    from
+                        chain.block_info
+                    where
+                        ("block_index") >= ("arg_first_block_index")
+                        
+                        
+                    order by
+                        "block_index"
+                    limit max_results
+                loop
+                    if (search."block_index") > ("arg_last_block_index") then
+                        return;
+                    end if;
+                    return next search;
+                end loop;
+    
+            end 
+        $$ language plpgsql;
+    
         drop function if exists chain.at_nonnotify_executed_range_name_le8_0_account_block_trans_act;
         create function chain.at_nonnotify_executed_range_name_le8_0_account_block_trans_act(
             max_block_index bigint,

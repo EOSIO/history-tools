@@ -49,6 +49,8 @@ __attribute__((noinline)) inline void to_json(uint32_t value, std::vector<char>&
     dest.insert(dest.end(), s, ch);
 }
 
+inline void to_json(uint16_t value, std::vector<char>& dest) { return to_json(uint32_t(value), dest); }
+
 __attribute__((noinline)) inline void to_json(int32_t value, std::vector<char>& dest) {
     if (value < 0) {
         dest.push_back('-');
@@ -130,6 +132,10 @@ __attribute__((noinline)) inline void to_json(serial_wrapper<eosio::checksum256>
         dest[pos++] = hex_digits[bytes[i] & 15];
     }
     dest.push_back('"');
+}
+
+__attribute__((noinline)) inline void to_json(eosio::block_timestamp& value, std::vector<char>& dest) {
+    append(dest, "\"<<<block_timestamp>>>\""); // todo
 }
 
 template <typename T>

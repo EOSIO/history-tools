@@ -74,6 +74,8 @@ function sort_key_expr(key, prefix, rename) {
 }
 
 function generate_index({ table, index, sort_keys, history_keys, conditions }) {
+    if (!index)
+        return;
     indexes += `
         create index if not exists ${index} on ${schema}.${table}(
             ${sort_keys.map(x => sort_key_expr(x, '', false)).concat(history_keys.map(x => `"${x.name + (x.desc ? '" desc' : '"')}`)).join(',\n            ')}
@@ -85,7 +87,7 @@ function generate_index({ table, index, sort_keys, history_keys, conditions }) {
 
 // todo: This likely needs reoptimization.
 // todo: perf problem with low max_block_index
-function generate_nonstate({ table, index, keys, sort_keys, conditions, ...rest }) {
+function generate_nonstate({ table, index, limit_block_index, keys, sort_keys, conditions, ...rest }) {
     generate_index({ table, index, sort_keys, conditions, ...rest });
     conditions = conditions || [];
 
@@ -104,7 +106,7 @@ function generate_nonstate({ table, index, keys, sort_keys, conditions, ...rest 
         ${indent}    where
         ${indent}        (${sort_keys_tuple_expr('')}) >= (${sort_keys_tuple('"arg_first_', '"', ', ')})
         ${indent}        ${conditions.map(x => `and ${x}\n        ${indent}        `).join('')}
-        ${indent}        and ${table}.block_index <= max_block_index
+        ${indent}        ${limit_block_index ? `and ${table}.block_index <= max_block_index` : ``}
         ${indent}    order by
         ${indent}        ${sort_keys_tuple_expr('')}
         ${indent}    limit max_results
@@ -119,7 +121,7 @@ function generate_nonstate({ table, index, keys, sort_keys, conditions, ...rest 
     functions += `
         drop function if exists ${fn_name};
         create function ${fn_name}(
-            max_block_index bigint,
+            ${limit_block_index ? `max_block_index bigint,` : ``}
             ${fn_args('first_')}
             ${fn_args('last_')}
             max_results integer
@@ -136,7 +138,7 @@ function generate_nonstate({ table, index, keys, sort_keys, conditions, ...rest 
     `;
 } // generate
 
-function generate_state({ table, index, keys, sort_keys, history_keys, ...rest }) {
+function generate_state({ table, index, limit_block_index, keys, sort_keys, history_keys, ...rest }) {
     generate_index({ table, index, sort_keys, history_keys, ...rest });
 
     const fn_name = schema + '.' + rest['function'];
@@ -171,7 +173,7 @@ function generate_state({ table, index, keys, sort_keys, history_keys, ...rest }
         ${indent}            ${schema}.${table}
         ${indent}        where
         ${indent}            ${sort_keys.map(x => `${table}."${x.name}" = key_search."${x.name}"`).join('\n                    ' + indent + 'and ')}
-        ${indent}            and ${table}.block_index <= max_block_index
+        ${indent}            ${limit_block_index ? `and ${table}.block_index <= max_block_index` : ``}
         ${indent}        order by
         ${indent}            ${sort_keys_tuple('"', '"', ',\n                    ' + indent)},
         ${indent}            ${history_keys.map(x => `"${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                    ' + indent)}
@@ -195,7 +197,7 @@ function generate_state({ table, index, keys, sort_keys, history_keys, ...rest }
     functions += `
         drop function if exists ${fn_name};
         create function ${fn_name}(
-            max_block_index bigint,
+            ${limit_block_index ? `max_block_index bigint,` : ``}
             ${fn_args('first_')}
             ${fn_args('last_')}
             max_results integer

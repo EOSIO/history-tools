@@ -196,6 +196,7 @@ void bar() {
     print_range(s.v.data(), s.v.data() + s.v.size());
 }
 
+void process(block_info_request& req);
 void process(token_transfer_request& req);
 void process(balances_for_multiple_accounts_request& req);
 void process(balances_for_multiple_tokens_request& req);

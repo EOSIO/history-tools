@@ -99,6 +99,18 @@ function format_extended_asset(amount, number_size = 18) {
     return amount_to_decimal(amount).padStart(number_size, ' ') + ' ' + amount.symbol + '@' + amount.contract;
 }
 
+async function dump_block_info(clientWasm, first, last) {
+    do {
+        const reply = await clientWasm.round_trip(['block.info', {
+            first, last,
+            max_results: 100,
+        }]);
+        for (let block of reply[1].blocks)
+            console.log(JSON.stringify(block, null, 4));
+        first = reply[1].more;
+    } while (first);
+}
+
 async function dump_eos_balances(clientWasm, first_account, last_account) {
     do {
         const reply = await clientWasm.round_trip(['bal.mult.acc', {
@@ -171,6 +183,8 @@ async function dump_transfers(clientWasm) {
 (async () => {
     try {
         const clientWasm = new ClientWasm();
+        await dump_block_info(clientWasm, 30000000, 30000001);
+        console.log();
         await dump_eos_balances(clientWasm, 'eosio', 'eosio.zzzzzzj');
         console.log();
         await dump_tokens(clientWasm, { sym: '', code: '' }, { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' });

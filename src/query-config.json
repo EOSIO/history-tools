@@ -1,6 +1,51 @@
 {
     "tables": [
         {
+            "name": "block_info",
+            "fields": [
+                {
+                    "name": "block_index",
+                    "type": "uint32"
+                },
+                {
+                    "name": "block_id",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "timestamp",
+                    "type": "block_timestamp_type"
+                },
+                {
+                    "name": "producer",
+                    "type": "name"
+                },
+                {
+                    "name": "confirmed",
+                    "type": "uint16"
+                },
+                {
+                    "name": "previous",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "transaction_mroot",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "action_mroot",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "schedule_version",
+                    "type": "uint32"
+                },
+                {
+                    "name": "new_producers_version",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
             "name": "action_trace",
             "fields": [
                 {
@@ -110,10 +155,21 @@
     ],
     "queries": [
         {
+            "wasm_name": "block.info",
+            "function": "block_info_range_index",
+            "table": "block_info",
+            "sort_keys": [
+                {
+                    "name": "block_index"
+                }
+            ]
+        },
+        {
             "wasm_name": "at.ne.nfea",
             "index": "at_nonnotify_executed_name_le8_0_account_block_trans_act_idx",
             "function": "at_nonnotify_executed_range_name_le8_0_account_block_trans_act",
             "table": "action_trace",
+            "limit_block_index": true,
             "sort_keys": [
                 {
                     "name": "name"
@@ -148,6 +204,7 @@
             "index": "at_nonnotify_executed_name_le8_8_account_block_trans_act_idx",
             "function": "at_nonnotify_executed_range_name_le8_8_account_block_trans_act",
             "table": "action_trace",
+            "limit_block_index": true,
             "sort_keys": [
                 {
                     "name": "name"
@@ -182,6 +239,7 @@
             "index": "at_executed_range_name_receiver_account_block_trans_action_idx",
             "function": "at_executed_range_name_receiver_account_block_trans_action",
             "table": "action_trace",
+            "limit_block_index": true,
             "sort_keys": [
                 {
                     "name": "name"
@@ -212,6 +270,7 @@
             "function": "contract_row_range_code_table_pk_scope",
             "table": "contract_row",
             "is_state": true,
+            "limit_block_index": true,
             "keys": [
                 {
                     "name": "code"
@@ -257,6 +316,7 @@
             "function": "contract_row_range_code_table_scope_pk",
             "table": "contract_row",
             "is_state": true,
+            "limit_block_index": true,
             "keys": [
                 {
                     "name": "code"
@@ -302,6 +362,7 @@
             "function": "contract_row_range_scope_table_pk_code",
             "table": "contract_row",
             "is_state": true,
+            "limit_block_index": true,
             "keys": [
                 {
                     "name": "code"

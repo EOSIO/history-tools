@@ -1,7 +1,7 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include "lib-placeholders.hpp"
+#include "lib-database.hpp"
 
 // todo: block_index: head, irreversible options
 struct token_transfer_key {
@@ -59,7 +59,6 @@ void for_each_member(token_transfer& obj, F f) {
 
 // todo: version
 struct token_transfer_request {
-    eosio::name        request                 = "transfer"_n; // todo: remove
     block_select       max_block               = {};
     token_transfer_key first_key               = {};
     token_transfer_key last_key                = {};
@@ -71,7 +70,6 @@ struct token_transfer_request {
 
 template <typename F>
 void for_each_member(token_transfer_request& obj, F f) {
-    f("request", obj.request);
     f("max_block", obj.max_block);
     f("first_key", obj.first_key);
     f("last_key", obj.last_key);
@@ -97,7 +95,6 @@ void for_each_member(token_transfer_response& obj, F f) {
 
 // todo: version
 struct balances_for_multiple_accounts_request {
-    eosio::name        request       = "bal.mult.acc"_n; // todo: remove
     block_select       max_block     = {};
     eosio::name        code          = {};
     eosio::symbol_code sym           = {};
@@ -108,7 +105,6 @@ struct balances_for_multiple_accounts_request {
 
 template <typename F>
 void for_each_member(balances_for_multiple_accounts_request& obj, F f) {
-    f("request", obj.request);
     f("max_block", obj.max_block);
     f("code", obj.code);
     f("sym", obj.sym);
@@ -137,7 +133,6 @@ void for_each_member(bfmt_key& obj, F f) {
 
 // todo: version
 struct balances_for_multiple_tokens_request {
-    eosio::name  request     = "bal.mult.tok"_n; // todo: remove
     block_select max_block   = {};
     eosio::name  account     = {};
     bfmt_key     first_key   = {};

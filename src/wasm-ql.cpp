@@ -21,6 +21,7 @@
 //          A standard namespace
 //          ? one for the tokens
 // todo: version on queries
+//       vector<extendable<...>>
 // todo: version on query api?
 // todo: better naming for queries
 
@@ -332,26 +333,40 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         query_config::query& query = *it->second;
         query_config::table& table = *query.result_table;
 
-        block_select b;
-        if (!abieos::bin_to_native(b, args_buf))
-            return js_assert(false, cx, "exec_query: invalid args");
-        uint32_t max_block_index;
-        if (b.position.value == block_select::absolute)
-            max_block_index = b.offset;
-        else if (b.position.value == block_select::head)
-            max_block_index = foo_global->head + b.offset;
-        else if (b.position.value == block_select::irreversible)
-            max_block_index = foo_global->irreversible + b.offset;
-        else
-            return js_assert(false, cx, "exec_query: invalid args");
-        max_block_index = std::max((int32_t)0, std::min((int32_t)foo_global->head, (int32_t)max_block_index));
+        uint32_t max_block_index = 0;
+        if (query.limit_block_index) {
+            block_select b;
+            if (!abieos::bin_to_native(b, args_buf))
+                return js_assert(false, cx, "exec_query: invalid args");
+            if (b.position.value == block_select::absolute)
+                max_block_index = b.offset;
+            else if (b.position.value == block_select::head)
+                max_block_index = foo_global->head + b.offset;
+            else if (b.position.value == block_select::irreversible)
+                max_block_index = foo_global->irreversible + b.offset;
+            else
+                return js_assert(false, cx, "exec_query: invalid args");
+            max_block_index = std::max((int32_t)0, std::min((int32_t)foo_global->head, (int32_t)max_block_index));
+        }
 
         std::string query_str = "select * from \"" + foo_global->schema + "\"." + query.function + "(";
-        query_str += sql_conversion::sql_str(max_block_index);
-        for (auto& type : query.types)
-            query_str += sep + type.bin_to_sql(args_buf);
-        for (auto& type : query.types)
-            query_str += sep + type.bin_to_sql(args_buf);
+        bool        need_sep  = false;
+        if (query.limit_block_index) {
+            query_str += sql_conversion::sql_str(max_block_index);
+            need_sep = true;
+        }
+        for (auto& type : query.types) {
+            if (need_sep)
+                query_str += sep;
+            query_str += type.bin_to_sql(args_buf);
+            need_sep = true;
+        }
+        for (auto& type : query.types) {
+            if (need_sep)
+                query_str += sep;
+            query_str += type.bin_to_sql(args_buf);
+            need_sep = true;
+        }
         auto max_results = abieos::read_bin<uint32_t>(args_buf);
         query_str += sep + sql_conversion::sql_str(std::min(max_results, (uint32_t)1000)); // todo: make configurable
         query_str += ")";

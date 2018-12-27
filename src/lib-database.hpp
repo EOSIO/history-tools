@@ -2,6 +2,7 @@
 
 #pragma once
 #include "lib-placeholders.hpp"
+#include <eosiolib/time.hpp>
 
 extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
 
@@ -38,6 +39,47 @@ bool for_each_query_result(const std::vector<char>& bytes, F f) {
     }
     return true;
 }
+
+// todo: split out definitions useful for client-side
+using absolute_block     = tagged_type<"absolute"_n, uint32_t>;
+using head_block         = tagged_type<"head"_n, uint32_t>;
+using irreversible_block = tagged_type<"irreversible"_n, uint32_t>;
+using block_select       = tagged_variant<serialize_tag_as_index, absolute_block, head_block, irreversible_block>;
+
+struct block_info {
+    uint32_t                           block_index           = {};
+    serial_wrapper<eosio::checksum256> block_id              = {};
+    eosio::block_timestamp             timestamp             = eosio::block_timestamp{};
+    eosio::name                        producer              = {};
+    uint16_t                           confirmed             = {};
+    serial_wrapper<eosio::checksum256> previous              = {};
+    serial_wrapper<eosio::checksum256> transaction_mroot     = {};
+    serial_wrapper<eosio::checksum256> action_mroot          = {};
+    uint32_t                           schedule_version      = {};
+    uint32_t                           new_producers_version = {};
+    // std::vector<producer_key>       new_producers         = {}; // todo
+};
+
+template <typename F>
+void for_each_member(block_info& obj, F f) {
+    f("block_index", obj.block_index);
+    f("block_id", obj.block_id);
+    f("timestamp", obj.timestamp);
+    f("producer", obj.producer);
+    f("confirmed", obj.confirmed);
+    f("previous", obj.previous);
+    f("transaction_mroot", obj.transaction_mroot);
+    f("action_mroot", obj.action_mroot);
+    f("schedule_version", obj.schedule_version);
+    f("new_producers_version", obj.new_producers_version);
+}
+
+struct query_block_info_range_index {
+    eosio::name query_name  = "block.info"_n;
+    uint32_t    first       = {}; // todo: block_select
+    uint32_t    last        = {}; // todo: block_select
+    uint32_t    max_results = {};
+};
 
 enum class transaction_status : uint8_t {
     executed  = 0, // succeed, no error handler executed

@@ -197,6 +197,7 @@ void bar() {
 }
 
 void process(block_info_request& req);
+void process(tapos_request& req);
 void process(token_transfer_request& req);
 void process(balances_for_multiple_accounts_request& req);
 void process(balances_for_multiple_tokens_request& req);

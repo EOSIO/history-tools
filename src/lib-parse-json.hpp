@@ -110,6 +110,7 @@ __attribute__((noinline)) inline void parse_json(eosio::symbol_code& result, cha
     result = eosio::symbol_code{sv};
 }
 
+// todo: fix byte order
 __attribute__((noinline)) inline void parse_json(serial_wrapper<eosio::checksum256>& result, char*& pos, char* end) {
     auto             bytes = reinterpret_cast<char*>(result.value.data());
     std::string_view sv;

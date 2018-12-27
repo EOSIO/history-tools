@@ -32,3 +32,28 @@ void for_each_member(block_info_response& obj, F f) {
     f("blocks", obj.blocks);
     f("more", obj.more);
 }
+
+struct tapos_request {
+    uint32_t ref_block      = {}; // todo: block_select
+    uint32_t expire_seconds = {};
+};
+
+template <typename F>
+void for_each_member(tapos_request& obj, F f) {
+    f("ref_block", obj.ref_block);
+    f("expire_seconds", obj.expire_seconds);
+}
+
+// todo: test pushing a transaction with this result
+struct tapos_response {
+    uint16_t               ref_block_num    = {};
+    uint32_t               ref_block_prefix = {};
+    eosio::block_timestamp expiration       = eosio::block_timestamp{};
+};
+
+template <typename F>
+void for_each_member(tapos_response& obj, F f) {
+    f("ref_block_num", obj.ref_block_num);
+    f("ref_block_prefix", obj.ref_block_prefix);
+    f("expiration", obj.expiration);
+}

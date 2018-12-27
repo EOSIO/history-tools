@@ -123,7 +123,7 @@ __attribute__((noinline)) inline void to_json(eosio::extended_asset value, std::
 // todo: move hex conversion to checksum256
 __attribute__((noinline)) inline void to_json(serial_wrapper<eosio::checksum256>& value, std::vector<char>& dest) {
     static const char hex_digits[] = "0123456789ABCDEF";
-    auto              bytes        = reinterpret_cast<const unsigned char*>(value.value.data());
+    auto              bytes        = value.value.extract_as_byte_array();
     dest.push_back('"');
     auto pos = dest.size();
     dest.resize(pos + 64);

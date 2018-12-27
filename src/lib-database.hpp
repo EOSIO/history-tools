@@ -47,7 +47,7 @@ using irreversible_block = tagged_type<"irreversible"_n, uint32_t>;
 using block_select       = tagged_variant<serialize_tag_as_index, absolute_block, head_block, irreversible_block>;
 
 struct block_info {
-    uint32_t                           block_index           = {};
+    uint32_t                           block_num             = {};
     serial_wrapper<eosio::checksum256> block_id              = {};
     eosio::block_timestamp             timestamp             = eosio::block_timestamp{};
     eosio::name                        producer              = {};
@@ -62,7 +62,7 @@ struct block_info {
 
 template <typename F>
 void for_each_member(block_info& obj, F f) {
-    f("block_index", obj.block_index);
+    f("block_num", obj.block_num);
     f("block_id", obj.block_id);
     f("timestamp", obj.timestamp);
     f("producer", obj.producer);

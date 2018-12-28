@@ -13,7 +13,6 @@
 // todo: switch from eosio_assert to eosio_assert_message
 // todo: multiple requests
 // todo: dispatch to multiple wasms
-// todo: fix transaction_id conversion
 // todo: notify wasms of truncated or missing history
 // todo: wasms get whether a query is present
 // todo: indexes on authorized, ram usage, notify
@@ -124,25 +123,27 @@ constexpr void for_each_field(block_select*, F f) {
     f("offset", member_ptr<&block_select::offset>{});
 }
 
-struct foo {
+struct state {
     ContextWrapper       context;
     JS::RootedObject     global;
-    asio::io_context     ioc;
-    query_config::config config;
-    string               schema;
-    pqxx::connection     sql_connection;
-    uint32_t             head;
-    abieos::checksum256  head_id;
-    uint32_t             irreversible;
-    abieos::checksum256  irreversible_id;
-    std::vector<char>    request;
-    std::vector<char>    reply;
+    asio::io_context     ioc             = {};
+    query_config::config config          = {};
+    string               schema          = {};
+    pqxx::connection     sql_connection  = {};
+    uint32_t             head            = {};
+    abieos::checksum256  head_id         = {};
+    uint32_t             irreversible    = {};
+    abieos::checksum256  irreversible_id = {};
+    std::vector<char>    request         = {};
+    std::vector<char>    reply           = {};
 
-    foo()
-        : global(context.cx) {}
+    state()
+        : global(context.cx) {
+        JS_SetContextPrivate(context.cx, this);
+    }
+
+    static state& from_context(JSContext* cx) { return *reinterpret_cast<state*>(JS_GetContextPrivate(cx)); }
 };
-
-std::unique_ptr<foo> foo_global; // todo: store in JS context instead of global variable
 
 bool convert_str(JSContext* cx, JSString* str, string& dest) {
     auto len = JS_GetStringEncodingLength(cx, str);
@@ -258,16 +259,17 @@ bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
 
 // args: callback
 bool get_input_data(JSContext* cx, unsigned argc, JS::Value* vp) {
-    JS::CallArgs args = CallArgsFromVp(argc, vp);
+    auto&        state = ::state::from_context(cx);
+    JS::CallArgs args  = CallArgsFromVp(argc, vp);
     if (!args.requireAtLeast(cx, "get_input_data", 1))
         return false;
     try {
-        if (!js_assert((uint32_t)foo_global->request.size() == foo_global->request.size(), cx, "get_input_data: request is too big"))
+        if (!js_assert((uint32_t)state.request.size() == state.request.size(), cx, "get_input_data: request is too big"))
             return false;
-        auto data = get_mem_from_callback(cx, args, 0, foo_global->request.size());
+        auto data = get_mem_from_callback(cx, args, 0, state.request.size());
         if (!js_assert(data, cx, "get_input_data: failed to fetch buffer from callback"))
             return false;
-        memcpy(data, foo_global->request.data(), foo_global->request.size());
+        memcpy(data, state.request.data(), state.request.size());
         return true;
     } catch (const std::exception& e) {
         std::cerr << "!!!!! c: " << e.what() << "\n";
@@ -282,7 +284,8 @@ bool get_input_data(JSContext* cx, unsigned argc, JS::Value* vp) {
 
 // args: ArrayBuffer, row_request_begin, row_request_end
 bool set_output_data(JSContext* cx, unsigned argc, JS::Value* vp) {
-    JS::CallArgs args = CallArgsFromVp(argc, vp);
+    auto&        state = ::state::from_context(cx);
+    JS::CallArgs args  = CallArgsFromVp(argc, vp);
     if (!args.requireAtLeast(cx, "set_output_data", 3))
         return false;
     bool ok = true;
@@ -291,7 +294,7 @@ bool set_output_data(JSContext* cx, unsigned argc, JS::Value* vp) {
         auto                  b = get_input_buffer(args, 0, 1, 2, checkGC);
         if (b.pos) {
             try {
-                foo_global->reply.assign(b.pos, b.end);
+                state.reply.assign(b.pos, b.end);
             } catch (...) {
                 ok = false;
             }
@@ -302,7 +305,8 @@ bool set_output_data(JSContext* cx, unsigned argc, JS::Value* vp) {
 
 // args: ArrayBuffer, row_request_begin, row_request_end, callback
 bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
-    JS::CallArgs args = CallArgsFromVp(argc, vp);
+    auto&        state = ::state::from_context(cx);
+    JS::CallArgs args  = CallArgsFromVp(argc, vp);
     if (!args.requireAtLeast(cx, "exec_query", 4))
         return false;
     std::vector<char> args_bin;
@@ -327,8 +331,8 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         if (!abieos::bin_to_native(query_name, args_buf))
             return js_assert(false, cx, "exec_query: invalid args");
 
-        auto it = foo_global->config.query_map.find(query_name);
-        if (it == foo_global->config.query_map.end())
+        auto it = state.config.query_map.find(query_name);
+        if (it == state.config.query_map.end())
             return js_assert(false, cx, ("exec_query: unknown query: " + (string)query_name).c_str());
         query_config::query& query = *it->second;
         query_config::table& table = *query.result_table;
@@ -341,15 +345,15 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
             if (b.position.value == block_select::absolute)
                 max_block_index = b.offset;
             else if (b.position.value == block_select::head)
-                max_block_index = foo_global->head + b.offset;
+                max_block_index = state.head + b.offset;
             else if (b.position.value == block_select::irreversible)
-                max_block_index = foo_global->irreversible + b.offset;
+                max_block_index = state.irreversible + b.offset;
             else
                 return js_assert(false, cx, "exec_query: invalid args");
-            max_block_index = std::max((int32_t)0, std::min((int32_t)foo_global->head, (int32_t)max_block_index));
+            max_block_index = std::max((int32_t)0, std::min((int32_t)state.head, (int32_t)max_block_index));
         }
 
-        std::string query_str = "select * from \"" + foo_global->schema + "\"." + query.function + "(";
+        std::string query_str = "select * from \"" + state.schema + "\"." + query.function + "(";
         bool        need_sep  = false;
         if (query.limit_block_index) {
             query_str += sql_conversion::sql_str(max_block_index);
@@ -372,7 +376,7 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         query_str += ")";
         // std::cerr << query_str << "\n";
 
-        pqxx::work        t(foo_global->sql_connection);
+        pqxx::work        t(state.sql_connection);
         auto              exec_result = t.exec(query_str);
         std::vector<char> result_bin;
         std::vector<char> row_bin;
@@ -416,68 +420,68 @@ static const JSFunctionSpec functions[] = {
     JS_FS_END                                        //
 };
 
-void init_glue() {
+void init_glue(::state& state) {
     JS::RealmOptions options;
-    foo_global->global.set(JS_NewGlobalObject(foo_global->context.cx, &global_class, nullptr, JS::FireOnNewGlobalHook, options));
-    if (!foo_global->global)
+    state.global.set(JS_NewGlobalObject(state.context.cx, &global_class, nullptr, JS::FireOnNewGlobalHook, options));
+    if (!state.global)
         throw std::runtime_error("JS_NewGlobalObject failed");
 
-    JSAutoRealm realm(foo_global->context.cx, foo_global->global);
-    if (!JS::InitRealmStandardClasses(foo_global->context.cx))
+    JSAutoRealm realm(state.context.cx, state.global);
+    if (!JS::InitRealmStandardClasses(state.context.cx))
         throw std::runtime_error("JS::InitRealmStandardClasses failed");
-    if (!JS_DefineFunctions(foo_global->context.cx, foo_global->global, functions))
+    if (!JS_DefineFunctions(state.context.cx, state.global, functions))
         throw std::runtime_error("JS_DefineFunctions failed");
-    if (!JS_DefineProperty(foo_global->context.cx, foo_global->global, "global", foo_global->global, 0))
+    if (!JS_DefineProperty(state.context.cx, state.global, "global", state.global, 0))
         throw std::runtime_error("JS_DefineProperty failed");
 
     auto               script   = readStr("../src/glue.js");
     const char*        filename = "noname";
     int                lineno   = 1;
-    JS::CompileOptions opts(foo_global->context.cx);
+    JS::CompileOptions opts(state.context.cx);
     opts.setFileAndLine(filename, lineno);
-    JS::RootedValue rval(foo_global->context.cx);
-    bool            ok = JS::EvaluateUtf8(foo_global->context.cx, opts, script.c_str(), script.size(), &rval);
+    JS::RootedValue rval(state.context.cx);
+    bool            ok = JS::EvaluateUtf8(state.context.cx, opts, script.c_str(), script.size(), &rval);
     if (!ok)
         throw std::runtime_error("JS::Evaluate failed");
 }
 
-void fetch_fill_status() {
-    pqxx::work t(foo_global->sql_connection);
-    auto       row      = t.exec("select head, head_id, irreversible, irreversible_id from \"" + foo_global->schema + "\".fill_status")[0];
-    foo_global->head    = row[0].as<uint32_t>();
-    foo_global->head_id = sql_to_checksum256(row[1].c_str());
-    foo_global->irreversible    = row[2].as<uint32_t>();
-    foo_global->irreversible_id = sql_to_checksum256(row[3].c_str());
+void fetch_fill_status(::state& state) {
+    pqxx::work t(state.sql_connection);
+    auto       row        = t.exec("select head, head_id, irreversible, irreversible_id from \"" + state.schema + "\".fill_status")[0];
+    state.head            = row[0].as<uint32_t>();
+    state.head_id         = sql_to_checksum256(row[1].c_str());
+    state.irreversible    = row[2].as<uint32_t>();
+    state.irreversible_id = sql_to_checksum256(row[3].c_str());
 }
 
-bool did_fork() {
-    pqxx::work t(foo_global->sql_connection);
-    auto result = t.exec("select block_id from \"" + foo_global->schema + "\".block_info where block_index=" + sql_str(foo_global->head));
+bool did_fork(::state& state) {
+    pqxx::work t(state.sql_connection);
+    auto       result = t.exec("select block_id from \"" + state.schema + "\".block_info where block_index=" + sql_str(state.head));
     if (result.empty()) {
         std::cerr << "fork detected (prev head not found)\n";
         return true;
     }
     auto id = sql_to_checksum256(result[0][0].c_str());
-    if (id.value != foo_global->head_id.value) {
+    if (id.value != state.head_id.value) {
         std::cerr << "fork detected (head_id changed)\n";
         return true;
     }
     return false;
 }
 
-void run() {
+void run(::state& state) {
     int num_tries = 0;
     while (true) {
-        fetch_fill_status();
-        JSAutoRealm           realm(foo_global->context.cx, foo_global->global);
-        JS::RootedValue       rval(foo_global->context.cx);
-        JS::AutoValueArray<1> args(foo_global->context.cx);
+        fetch_fill_status(state);
+        JSAutoRealm           realm(state.context.cx, state.global);
+        JS::RootedValue       rval(state.context.cx);
+        JS::AutoValueArray<1> args(state.context.cx);
         args[0].set(JS::NumberValue(1234));
-        if (!JS_CallFunctionName(foo_global->context.cx, foo_global->global, "run", args, &rval)) {
-            JS_ClearPendingException(foo_global->context.cx);
+        if (!JS_CallFunctionName(state.context.cx, state.global, "run", args, &rval)) {
+            JS_ClearPendingException(state.context.cx);
             throw std::runtime_error("JS_CallFunctionName failed");
         }
-        if (!did_fork())
+        if (!did_fork(state))
             break;
         if (++num_tries >= 4)
             throw std::runtime_error("too many fork events during request");
@@ -487,7 +491,7 @@ void run() {
 
 void fail(beast::error_code ec, char const* what) { std::cerr << what << ": " << ec.message() << "\n"; }
 
-void handle_request(tcp::socket& socket, http::request<http::vector_body<char>> req, beast::error_code& ec) {
+void handle_request(::state& state, tcp::socket& socket, http::request<http::vector_body<char>> req, beast::error_code& ec) {
     auto const bad_request = [&req](beast::string_view why) {
         http::response<http::string_body> res{http::status::bad_request, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
@@ -536,10 +540,10 @@ void handle_request(tcp::socket& socket, http::request<http::vector_body<char>> 
     if (req.target() == "/wasmql/v1/query") {
         if (req.method() != http::verb::post)
             return send(bad_request("Unsupported HTTP-method\n"));
-        foo_global->request = std::move(req.body());
+        state.request = std::move(req.body());
         try {
-            run();
-            return send(ok(std::move(foo_global->reply)));
+            run(state);
+            return send(ok(std::move(state.reply)));
         } catch (const std::exception& e) {
             std::cerr << "wasm execution failed: " << e.what() << "\n";
             return send(server_error("wasm execution failed: "s + e.what()));
@@ -552,7 +556,7 @@ void handle_request(tcp::socket& socket, http::request<http::vector_body<char>> 
     return send(not_found(req.target()));
 }
 
-void accepted(tcp::socket socket) {
+void accepted(::state& state, tcp::socket socket) {
     beast::error_code ec;
 
     beast::flat_buffer buffer;
@@ -564,7 +568,7 @@ void accepted(tcp::socket socket) {
         if (ec)
             return fail(ec, "read");
 
-        handle_request(socket, std::move(req), ec);
+        handle_request(state, socket, std::move(req), ec);
         if (ec)
             return fail(ec, "write");
     }
@@ -592,27 +596,27 @@ int main(int argc, const char* argv[]) {
         }
 
         JS_Init();
-        foo_global         = std::make_unique<foo>();
-        foo_global->schema = vm["schema"].as<string>();
+        ::state state;
+        state.schema = vm["schema"].as<string>();
 
         auto x = readStr(vm["query-config"].as<string>().c_str());
-        if (!json_to_native(foo_global->config, x))
+        if (!json_to_native(state.config, x))
             throw std::runtime_error("error processing " + vm["query-config"].as<string>());
-        foo_global->config.prepare();
+        state.config.prepare();
 
-        init_glue();
+        init_glue(state);
 
-        tcp::resolver resolver(foo_global->ioc);
+        tcp::resolver resolver(state.ioc);
         auto          addr = resolver.resolve(tcp::resolver::query(tcp::v4(), vm["address"].as<string>(), vm["port"].as<string>()));
-        tcp::acceptor acceptor{foo_global->ioc, *addr.begin()};
+        tcp::acceptor acceptor{state.ioc, *addr.begin()};
         std::cerr << "listening on " << vm["address"].as<string>() << ":" << vm["port"].as<string>() << "\n";
 
         for (;;) {
             try {
-                tcp::socket socket{foo_global->ioc};
+                tcp::socket socket{state.ioc};
                 acceptor.accept(socket);
                 std::cerr << "accepted\n";
-                accepted(std::move(socket));
+                accepted(state, std::move(socket));
             } catch (const std::exception& e) {
                 std::cerr << "error: " << e.what() << "\n";
             } catch (...) {

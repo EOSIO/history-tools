@@ -53,7 +53,7 @@ using tcp       = asio::ip::tcp;
 
 using std::string;
 
-string readStr(const char* filename) {
+string read_string(const char* filename) {
     try {
         std::fstream file(filename, std::ios_base::in | std::ios_base::binary);
         file.seekg(0, std::ios_base::end);
@@ -88,10 +88,10 @@ static JSClass global_class = {
     {},
 };
 
-struct ContextWrapper {
+struct context_wrapper {
     JSContext* cx;
 
-    ContextWrapper() {
+    context_wrapper() {
         cx = JS_NewContext(8L * 1024 * 1024);
         if (!cx)
             throw std::runtime_error("JS_NewContext failed");
@@ -101,7 +101,7 @@ struct ContextWrapper {
         }
     }
 
-    ~ContextWrapper() { JS_DestroyContext(cx); }
+    ~context_wrapper() { JS_DestroyContext(cx); }
 };
 
 struct block_select {
@@ -122,7 +122,7 @@ constexpr void for_each_field(block_select*, F f) {
 }
 
 struct state {
-    ContextWrapper       context;
+    context_wrapper      context;
     JS::RootedObject     global;
     bool                 console         = {};
     asio::io_context     ioc             = {};
@@ -421,7 +421,7 @@ void init_glue(::state& state) {
     if (!JS_DefineProperty(state.context.cx, state.global, "global", state.global, 0))
         throw std::runtime_error("JS_DefineProperty failed");
 
-    auto               script   = readStr("../src/glue.js");
+    auto               script   = read_string("../src/glue.js");
     const char*        filename = "noname";
     int                lineno   = 1;
     JS::CompileOptions opts(state.context.cx);
@@ -589,7 +589,7 @@ int main(int argc, const char* argv[]) {
         state.console = vm.count("console");
         state.schema  = vm["schema"].as<string>();
 
-        auto x = readStr(vm["query-config"].as<string>().c_str());
+        auto x = read_string(vm["query-config"].as<string>().c_str());
         if (!json_to_native(state.config, x))
             throw std::runtime_error("error processing " + vm["query-config"].as<string>());
         state.config.prepare();

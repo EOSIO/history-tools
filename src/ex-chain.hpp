@@ -1,5 +1,8 @@
 // copyright defined in LICENSE.txt
 
+// todo: remaining tables
+// todo: read-only non-contract capabilities in /v1/chain
+
 #pragma once
 #include "lib-database.hpp"
 
@@ -92,4 +95,43 @@ template <typename F>
 void for_each_member(account_response& obj, F f) {
     f("accounts", obj.accounts);
     f("more", obj.more);
+}
+
+struct abis_request {
+    block_select             max_block = {};
+    std::vector<eosio::name> names     = {};
+
+    EOSLIB_SERIALIZE(abis_request, (max_block)(names))
+};
+
+template <typename F>
+void for_each_member(abis_request& obj, F f) {
+    f("max_block", obj.max_block);
+    f("names", obj.names);
+}
+
+struct name_abi {
+    eosio::name                    name           = {};
+    bool                           account_exists = {};
+    eosio::datastream<const char*> abi            = {nullptr, 0};
+
+    EOSLIB_SERIALIZE(name_abi, (name)(account_exists)(abi))
+};
+
+template <typename F>
+void for_each_member(name_abi& obj, F f) {
+    f("name", obj.name);
+    f("account_exists", obj.account_exists);
+    f("abi", obj.abi);
+}
+
+struct abis_response {
+    std::vector<name_abi> abis = {};
+
+    EOSLIB_SERIALIZE(abis_response, (abis))
+};
+
+template <typename F>
+void for_each_member(abis_response& obj, F f) {
+    f("abis", obj.abis);
 }

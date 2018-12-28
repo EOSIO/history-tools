@@ -204,6 +204,7 @@ using example_request = tagged_variant<                                    //
     tagged_type<"block.info"_n, block_info_request>,                       //
     tagged_type<"tapos"_n, tapos_request>,                                 //
     tagged_type<"account"_n, account_request>,                             //
+    tagged_type<"abis"_n, abis_request>,                                   //
     tagged_type<"transfer"_n, token_transfer_request>,                     //
     tagged_type<"bal.mult.acc"_n, balances_for_multiple_accounts_request>, //
     tagged_type<"bal.mult.tok"_n, balances_for_multiple_tokens_request>>;  //
@@ -213,6 +214,7 @@ using example_response = tagged_variant<                                    //
     tagged_type<"block.info"_n, block_info_response>,                       //
     tagged_type<"tapos"_n, tapos_response>,                                 //
     tagged_type<"account"_n, account_response>,                             //
+    tagged_type<"abis"_n, abis_response>,                                   //
     tagged_type<"transfer"_n, token_transfer_response>,                     //
     tagged_type<"bal.mult.acc"_n, balances_for_multiple_accounts_response>, //
     tagged_type<"bal.mult.tok"_n, balances_for_multiple_tokens_response>>;  //

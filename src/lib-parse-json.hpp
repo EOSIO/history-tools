@@ -135,18 +135,38 @@ __attribute__((noinline)) inline void parse_json(serial_wrapper<eosio::checksum2
     }
 }
 
+template <typename T>
+__attribute__((noinline)) inline void parse_json(std::vector<T>& obj, char*& pos, char* end) {
+    parse_json_expect(pos, end, '[', "expected [");
+    if (pos != end && *pos != ']') {
+        while (true) {
+            obj.emplace_back();
+            parse_json(obj.back(), pos, end);
+            if (pos != end && *pos == ',') {
+                ++pos;
+                parse_json_skip_space(pos, end);
+            } else
+                break;
+        }
+    }
+    parse_json_expect(pos, end, ']', "expected ]");
+}
+
 template <typename F>
-__attribute__((noinline)) inline void parse_object(char*& pos, char* end, F f) {
+inline void parse_object(char*& pos, char* end, F f) {
     parse_json_expect(pos, end, '{', "expected {");
-    while (true) {
-        std::string_view key;
-        parse_json(key, pos, end);
-        parse_json_expect(pos, end, ':', "expected :");
-        f(key);
-        if (pos != end && *pos == ',')
-            ++pos;
-        else
-            break;
+    if (pos != end && *pos != '}') {
+        while (true) {
+            std::string_view key;
+            parse_json(key, pos, end);
+            parse_json_expect(pos, end, ':', "expected :");
+            f(key);
+            if (pos != end && *pos == ',') {
+                ++pos;
+                parse_json_skip_space(pos, end);
+            } else
+                break;
+        }
     }
     parse_json_expect(pos, end, '}', "expected }");
 }

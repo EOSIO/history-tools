@@ -10,6 +10,8 @@ extern "C" void eosio_assert(uint32_t test, const char* msg) {
         eosio_assert_message(test, msg, strlen(msg));
 }
 
+static constexpr bool show_request = false;
+
 // static char      mem_pool[64 * 1024 * 1024];
 // static char*     next_addr = mem_pool;
 // extern "C" void* malloc(size_t s) {
@@ -25,6 +27,12 @@ extern "C" void eosio_assert(uint32_t test, const char* msg) {
 // extern "C" void free(void*) {}
 
 extern "C" void create_request() { //
+    if constexpr (show_request) {
+        auto x = to_json(lvalue(parse_json<example_request>(get_input_data())));
+        print_range(x.data(), x.data() + x.size());
+        print("\n");
+    }
+
     // 19k
     set_output_data(pack(parse_json<example_request>(get_input_data())));
 

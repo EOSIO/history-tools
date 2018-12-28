@@ -68,3 +68,28 @@ void process(account_request& req) {
     set_output_data(pack(example_response{std::move(response)}));
     print("\n");
 }
+
+void process(abis_request& req) {
+    print("    abis\n");
+    abis_response response;
+    for (auto name : req.names) {
+        auto s     = exec_query(query_account_range_name{
+            .max_block   = req.max_block,
+            .first       = name,
+            .last        = name,
+            .max_results = 1,
+        });
+        bool found = false;
+        for_each_query_result<account>(s, [&](account& a) {
+            if (a.present) {
+                found = true;
+                response.abis.push_back(name_abi{a.name, true, a.abi});
+            }
+            return true;
+        });
+        if (!found)
+            response.abis.push_back(name_abi{name, false, {nullptr, 0}});
+    }
+    set_output_data(pack(example_response{std::move(response)}));
+    print("\n");
+}

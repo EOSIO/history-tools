@@ -207,6 +207,7 @@
             "wasm_name": "block.info",
             "function": "block_info_range_index",
             "table": "block_info",
+            "max_results": 100,
             "sort_keys": [
                 {
                     "name": "block_index"
@@ -218,6 +219,7 @@
             "index": "at_nonnotify_executed_name_le8_0_account_block_trans_act_idx",
             "function": "at_nonnotify_executed_range_name_le8_0_account_block_trans_act",
             "table": "action_trace",
+            "max_results": 100,
             "limit_block_index": true,
             "sort_keys": [
                 {
@@ -253,6 +255,7 @@
             "index": "at_nonnotify_executed_name_le8_8_account_block_trans_act_idx",
             "function": "at_nonnotify_executed_range_name_le8_8_account_block_trans_act",
             "table": "action_trace",
+            "max_results": 100,
             "limit_block_index": true,
             "sort_keys": [
                 {
@@ -288,6 +291,7 @@
             "index": "at_executed_range_name_receiver_account_block_trans_action_idx",
             "function": "at_executed_range_name_receiver_account_block_trans_action",
             "table": "action_trace",
+            "max_results": 100,
             "limit_block_index": true,
             "sort_keys": [
                 {
@@ -318,6 +322,7 @@
             "index": "account_name_block_present_idx",
             "function": "account_range_name",
             "table": "account",
+            "max_results": 100,
             "is_state": true,
             "limit_block_index": true,
             "keys": [
@@ -346,6 +351,7 @@
             "index": "contract_row_code_table_primary_key_scope_block_index_prese_idx",
             "function": "contract_row_range_code_table_pk_scope",
             "table": "contract_row",
+            "max_results": 100,
             "is_state": true,
             "limit_block_index": true,
             "keys": [
@@ -392,6 +398,7 @@
             "index": "contract_row_code_table_scope_primary_key_block_index_prese_idx",
             "function": "contract_row_range_code_table_scope_pk",
             "table": "contract_row",
+            "max_results": 100,
             "is_state": true,
             "limit_block_index": true,
             "keys": [
@@ -438,6 +445,7 @@
             "index": "contract_row_scope_table_primary_key_code_block_index_prese_idx",
             "function": "contract_row_range_scope_table_pk_code",
             "table": "contract_row",
+            "max_results": 100,
             "is_state": true,
             "limit_block_index": true,
             "keys": [

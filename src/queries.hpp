@@ -246,6 +246,7 @@ struct query {
     std::string              _table            = {};
     bool                     is_state          = {};
     bool                     limit_block_index = {};
+    uint32_t                 max_results       = {};
     std::vector<key>         keys              = {};
     std::vector<key>         sort_keys         = {};
     std::vector<key>         history_keys      = {};
@@ -263,6 +264,7 @@ constexpr void for_each_field(query*, F f) {
     f("table", abieos::member_ptr<&query::_table>{});
     f("is_state", abieos::member_ptr<&query::is_state>{});
     f("limit_block_index", abieos::member_ptr<&query::limit_block_index>{});
+    f("max_results", abieos::member_ptr<&query::max_results>{});
     f("keys", abieos::member_ptr<&query::keys>{});
     f("sort_keys", abieos::member_ptr<&query::sort_keys>{});
     f("history_keys", abieos::member_ptr<&query::history_keys>{});

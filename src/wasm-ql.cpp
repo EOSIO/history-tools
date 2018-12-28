@@ -7,8 +7,7 @@
 // todo: check callbacks for recursion to limit stack size
 // todo: make sure spidermonkey limits stack size
 // todo: global constructors in wasm
-// todo: don't allow queries past head
-// todo: cap max_results
+// todo: remove block_select and handle in wasm instead
 // todo: reformulate get_input_data and set_output_data for reentrancy
 // todo: multiple requests
 // todo: dispatch to multiple wasms
@@ -364,7 +363,7 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
             need_sep = true;
         }
         auto max_results = abieos::read_bin<uint32_t>(args_buf);
-        query_str += sep + sql_conversion::sql_str(std::min(max_results, (uint32_t)1000)); // todo: make configurable
+        query_str += sep + sql_conversion::sql_str(std::min(max_results, query.max_results));
         query_str += ")";
         // std::cerr << query_str << "\n";
 

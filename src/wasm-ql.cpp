@@ -10,7 +10,6 @@
 // todo: don't allow queries past head
 // todo: cap max_results
 // todo: reformulate get_input_data and set_output_data for reentrancy
-// todo: switch from eosio_assert to eosio_assert_message
 // todo: multiple requests
 // todo: dispatch to multiple wasms
 // todo: notify wasms of truncated or missing history
@@ -126,6 +125,7 @@ constexpr void for_each_field(block_select*, F f) {
 struct state {
     ContextWrapper       context;
     JS::RootedObject     global;
+    bool                 console         = {};
     asio::io_context     ioc             = {};
     query_config::config config          = {};
     string               schema          = {};
@@ -215,9 +215,12 @@ char* get_mem_from_callback(JSContext* cx, JS::CallArgs& args, unsigned callback
 }
 
 bool print_wasm_str(JSContext* cx, unsigned argc, JS::Value* vp) {
-    JS::CallArgs args = CallArgsFromVp(argc, vp);
+    auto&        state = ::state::from_context(cx);
+    JS::CallArgs args  = CallArgsFromVp(argc, vp);
     if (!args.requireAtLeast(cx, "print_wasm_str", 3))
         return false;
+    if (!state.console)
+        return true;
     {
         JS::AutoCheckCannotGC checkGC;
         auto                  buf = get_input_buffer(args, 0, 1, 2, checkGC);
@@ -463,6 +466,7 @@ void run(::state& state) {
         JS::AutoValueArray<1> args(state.context.cx);
         args[0].set(JS::NumberValue(1234));
         if (!JS_CallFunctionName(state.context.cx, state.global, "run", args, &rval)) {
+            // todo: detect assert
             JS_ClearPendingException(state.context.cx);
             throw std::runtime_error("JS_CallFunctionName failed");
         }
@@ -571,6 +575,7 @@ int main(int argc, const char* argv[]) {
         op("query-config,q", bpo::value<string>()->default_value("../src/query-config.json"), "Query configuration");
         op("address,a", bpo::value<string>()->default_value("localhost"), "Address to listen on");
         op("port,p", bpo::value<string>()->default_value("8080"), "Port to listen on)");
+        op("console,c", "Show console output");
         bpo::variables_map vm;
         bpo::store(bpo::parse_command_line(argc, argv, desc), vm);
         bpo::notify(vm);
@@ -582,7 +587,8 @@ int main(int argc, const char* argv[]) {
 
         JS_Init();
         ::state state;
-        state.schema = vm["schema"].as<string>();
+        state.console = vm.count("console");
+        state.schema  = vm["schema"].as<string>();
 
         auto x = readStr(vm["query-config"].as<string>().c_str());
         if (!json_to_native(state.config, x))
@@ -600,7 +606,7 @@ int main(int argc, const char* argv[]) {
             try {
                 tcp::socket socket{state.ioc};
                 acceptor.accept(socket);
-                std::cerr << "accepted\n";
+                std::cerr << "connection accepted\n";
                 accepted(state, std::move(socket));
             } catch (const std::exception& e) {
                 std::cerr << "error: " << e.what() << "\n";

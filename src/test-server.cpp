@@ -119,6 +119,11 @@ const unsigned char foo[] = {
     0x00,
 };
 
+extern "C" void eosio_assert(uint32_t test, const char* msg) {
+    if (!test)
+        eosio_assert_message(test, msg, strlen(msg));
+}
+
 struct newaccount {
     eosio::name creator;
     eosio::name name;

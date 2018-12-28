@@ -7,15 +7,15 @@ const env = {
     abort() {
         throw new Error('called abort');
     },
-    eosio_assert(test, msg) {
+    eosio_assert_message(test, msg, msg_len) {
         if (!test)
-            throw new Error('assert failed');
+            throw new Error('assert failed'); // todo: msg
     },
     get_blockchain_parameters_packed() {
-        throw new Error('called get_blockchain_parameters_packed');
+        throw new Error('called get_blockchain_parameters_packed'); // todo: remove
     },
     set_blockchain_parameters_packed() {
-        throw new Error('called set_blockchain_parameters_packed');
+        throw new Error('called set_blockchain_parameters_packed'); // todo: remove
     },
     get_input_data(cb_alloc_data, cb_alloc) {
         get_input_data(size => {

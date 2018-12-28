@@ -41,9 +41,9 @@ bool for_each_query_result(const std::vector<char>& bytes, F f) {
 }
 
 // todo: split out definitions useful for client-side
-using absolute_block     = tagged_type<"absolute"_n, uint32_t>;
-using head_block         = tagged_type<"head"_n, uint32_t>;
-using irreversible_block = tagged_type<"irreversible"_n, uint32_t>;
+using absolute_block     = tagged_type<"absolute"_n, int32_t>;
+using head_block         = tagged_type<"head"_n, int32_t>;
+using irreversible_block = tagged_type<"irreversible"_n, int32_t>;
 using block_select       = tagged_variant<serialize_tag_as_index, absolute_block, head_block, irreversible_block>;
 
 struct block_info {

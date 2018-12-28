@@ -230,30 +230,23 @@ bool print_wasm_str(JSContext* cx, unsigned argc, JS::Value* vp) {
 }
 
 bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
+    std::string filename = "test-server.wasm";
     try {
-        std::fstream file("test-server.wasm", std::ios_base::in | std::ios_base::binary);
+        std::fstream file(filename, std::ios_base::in | std::ios_base::binary);
         file.seekg(0, std::ios_base::end);
         auto len = file.tellg();
-        if (len <= 0) {
-            std::cerr << "!!!!! d\n";
-            JS_ReportOutOfMemory(cx);
-            return false;
-        }
+        if (len <= 0)
+            return js_assert(false, cx, ("can not read " + filename).c_str());
         file.seekg(0, std::ios_base::beg);
         auto data = malloc(len);
-        if (!data) {
-            std::cerr << "!!!!! a\n";
-            JS_ReportOutOfMemory(cx);
-            return false;
-        }
+        if (!data)
+            return js_assert(false, cx, ("out of memory reading " + filename).c_str());
         file.read(reinterpret_cast<char*>(data), len);
         JS::CallArgs args = CallArgsFromVp(argc, vp);
         args.rval().setObjectOrNull(JS_NewArrayBufferWithContents(cx, len, data));
         return true;
     } catch (...) {
-        std::cerr << "!!!!! b\n";
-        JS_ReportOutOfMemory(cx);
-        return false;
+        return js_assert(false, cx, ("error reading " + filename).c_str());
     }
 }
 
@@ -272,13 +265,9 @@ bool get_input_data(JSContext* cx, unsigned argc, JS::Value* vp) {
         memcpy(data, state.request.data(), state.request.size());
         return true;
     } catch (const std::exception& e) {
-        std::cerr << "!!!!! c: " << e.what() << "\n";
-        JS_ReportOutOfMemory(cx);
-        return false;
+        return js_assert(false, cx, ("get_input_data: "s + e.what()).c_str());
     } catch (...) {
-        std::cerr << "!!!!! c\n";
-        JS_ReportOutOfMemory(cx);
-        return false;
+        return js_assert(false, cx, "get_input_data error");
     }
 } // get_input_data
 
@@ -400,13 +389,9 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         memcpy(data, result_bin.data(), result_bin.size());
         return true;
     } catch (const std::exception& e) {
-        std::cerr << "!!!!! c: " << e.what() << "\n";
-        JS_ReportOutOfMemory(cx);
-        return false;
+        return js_assert(false, cx, ("exec_query: "s + e.what()).c_str());
     } catch (...) {
-        std::cerr << "!!!!! c\n";
-        JS_ReportOutOfMemory(cx);
-        return false;
+        return js_assert(false, cx, "exec_query error");
     }
 } // exec_query
 

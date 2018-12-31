@@ -15,7 +15,9 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
-FIND_PACKAGE(Boost 1.58 REQUIRED COMPONENTS date_time system program_options)
+find_package(Boost 1.58 REQUIRED COMPONENTS date_time system program_options)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(JS REQUIRED mozjs-64)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,8 +25,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_executable(wasm-ql src/wasm-ql.cpp)
 target_include_directories(wasm-ql PUBLIC external/abieos/src external/abieos/external/rapidjson/include PRIVATE ${Boost_INCLUDE_DIR})
-target_compile_options(wasm-ql PRIVATE -include /usr/local/include/mozjs-64/js/RequiredDefines.h -I/usr/local/include/mozjs-64)
-target_link_libraries(wasm-ql Boost::date_time Boost::system Boost::program_options mozjs-64 pqxx pq -lpthread)
+target_include_directories(wasm-ql PUBLIC ${JS_INCLUDE_DIRS})
+target_compile_options(wasm-ql PUBLIC ${JS_CFLAGS_OTHER})
+target_link_libraries(wasm-ql Boost::date_time Boost::system Boost::program_options pqxx pq -lpthread)
+target_link_libraries(wasm-ql ${JS_LIBRARIES})
 
 string(TOLOWER ${CMAKE_BUILD_TYPE} LOWERCASE_CMAKE_BUILD_TYPE)
 if (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")

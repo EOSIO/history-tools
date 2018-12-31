@@ -11,34 +11,12 @@ cd firefox-64.0/js/src/
 autoconf2.13
 ```
 
-Edit `old-configure.in`. Replace: 
-```
-if test "$JS_STANDALONE" -a -z "$MOZ_MEMORY"; then
-  MOZ_GLUE_IN_PROGRAM=
-else
-  case "${OS_TARGET}" in
-  Android|WINNT|Darwin)
-    MOZ_GLUE_IN_PROGRAM=
-    ;;
-  *)
-    dnl On !Android !Windows !OSX, we only want to link executables against mozglue
-    MOZ_GLUE_IN_PROGRAM=1
-    AC_DEFINE(MOZ_GLUE_IN_PROGRAM)
-    ;;
-  esac
-fi
-```
-With:
-```
-MOZ_GLUE_IN_PROGRAM=
-```
-
 ## SpiderMonkey Debug build (Ubuntu 18.10)
 
 ```
 mkdir build_DBG.OBJ
 cd build_DBG.OBJ
-../configure --enable-debug --disable-optimize
+../configure --enable-debug --disable-optimize --disable-jemalloc --disable-replace-malloc
 make -j
 sudo make install
 ```
@@ -48,7 +26,7 @@ sudo make install
 ```
 mkdir build_REL.OBJ
 cd build_REL.OBJ
-../configure --disable-debug --enable-optimize
+../configure --disable-debug --enable-optimize --disable-jemalloc --disable-replace-malloc
 make -j
 sudo make install
 ```

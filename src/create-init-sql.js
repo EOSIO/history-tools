@@ -25,11 +25,38 @@ const type_map = {
     'string': 'varchar',
     'time_point': 'timestamp',
     'time_point_sec': 'timestamp',
-    'block_timestamp': 'timestamp',
+    'block_timestamp_type': 'timestamp',
     'checksum256': 'varchar(64)',
     'public_key': 'varchar',
     'bytes': 'bytea',
     'transaction_status': 'transaction_status_type',
+};
+
+const empty_value_map = {
+    "bool": "false",
+    "varuint32": "0",
+    "varint32": "0",
+    "uint8": "0",
+    "uint16": "0",
+    "uint32": "0",
+    "uint64": "0",
+    "uint128": "0",
+    "int8": "0",
+    "int16": "0",
+    "int32": "0",
+    "int64": "0",
+    "int128": "0",
+    "double": "0",
+    "float128": "''",
+    "name": "''",
+    "string": "''",
+    "time_point": "null",
+    "time_point_sec": "null",
+    "block_timestamp_type": "null",
+    "checksum256": "''",
+    "public_key": "''",
+    "bytes": "''",
+    "transaction_status": "''",
 };
 
 const header = `
@@ -138,14 +165,19 @@ function generate_nonstate({ table, index, limit_block_index, keys, sort_keys, c
     `;
 } // generate
 
-function generate_state({ table, index, limit_block_index, keys, sort_keys, history_keys, ...rest }) {
-    generate_index({ table, index, sort_keys, history_keys, ...rest });
+function generate_state({ table, index, limit_block_index, keys, sort_keys, history_keys, ordered_fields, ...rest }) {
+    generate_index({ table, index, sort_keys, history_keys, ordered_fields, ...rest });
 
     const fn_name = schema + '.' + rest['function'];
     const fn_args = prefix => sort_keys.map(x => `${prefix}${x.name} ${x.type},`).join('\n            ');
     const keys_tuple_type = (prefix, suffix, sep) => keys.map(x => `${prefix}${x.name}${suffix}::${x.type}`).join(sep);
     const sort_keys_tuple = (prefix, suffix, sep) => sort_keys.map(x => `${prefix}${x.name}${suffix}`).join(sep);
     const sort_keys_tuple_expr = sort_keys.map(x => sort_key_expr(x, '', true)).join(',');
+
+    let keys_by_name = {};
+    for (let key of [...keys, ...sort_keys, ...history_keys])
+        keys_by_name[key.name] = key;
+    let empty_data = ordered_fields.filter(f => !(f.name in keys_by_name)).map(f => ', ' + empty_value_map[f.type] + '::' + type_map[f.type]).join('');
 
     const key_search = (compare, indent) => `
         ${indent}for key_search in
@@ -182,13 +214,13 @@ function generate_state({ table, index, limit_block_index, keys, sort_keys, hist
         ${indent}        if block_search.present then
         ${indent}            return next block_search;
         ${indent}        else
-        ${indent}            return next row(block_search.block_index, false, ${keys_tuple_type('key_search."', '"', ', ')})::${table};
+        ${indent}            return next row(block_search.block_index, false, ${keys_tuple_type('key_search."', '"', ', ')}${empty_data});
         ${indent}        end if;
         ${indent}        num_results = num_results + 1;
         ${indent}        found_block = true;
         ${indent}    end loop;
         ${indent}    if not found_block then
-        ${indent}        return next row(0::bigint, false, ${keys_tuple_type('key_search."', '"', ', ')})::${table};
+        ${indent}        return next row(0::bigint, false, ${keys_tuple_type('key_search."', '"', ', ')}${empty_data});
         ${indent}        num_results = num_results + 1;
         ${indent}    end if;
         ${indent}end loop;
@@ -227,10 +259,10 @@ function generate_state({ table, index, limit_block_index, keys, sort_keys, hist
 const config = JSON.parse(fs.readFileSync('../src/query-config.json', 'utf8'));
 const tables = {};
 for (let table of config.tables) {
-    const fields = [];
+    const fields = {};
     for (let field of table.fields)
         fields[field.name] = field;
-    tables[table.name] = { fields };
+    tables[table.name] = { fields, ordered_fields: table.fields };
 }
 
 function get_type(type) {
@@ -251,6 +283,7 @@ for (let query of config.queries) {
         keys: query.keys || [],
         sort_keys: query.sort_keys || [],
         history_keys: query.history_keys || [],
+        ordered_fields: tables[query.table].ordered_fields,
     };
     fill_types(query, query.keys);
     fill_types(query, query.sort_keys);

@@ -182,13 +182,13 @@ function generate_state({ table, index, limit_block_index, keys, sort_keys, hist
         ${indent}        if block_search.present then
         ${indent}            return next block_search;
         ${indent}        else
-        ${indent}            return next row(block_search.block_index, false, ${keys_tuple_type('key_search."', '"', ', ')}, ''::varchar(13), ''::bytea);
+        ${indent}            return next row(block_search.block_index, false, ${keys_tuple_type('key_search."', '"', ', ')})::${table};
         ${indent}        end if;
         ${indent}        num_results = num_results + 1;
         ${indent}        found_block = true;
         ${indent}    end loop;
         ${indent}    if not found_block then
-        ${indent}        return next row(0::bigint, false, ${keys_tuple_type('key_search."', '"', ', ')}, ''::varchar(13), ''::bytea);
+        ${indent}        return next row(0::bigint, false, ${keys_tuple_type('key_search."', '"', ', ')})::${table};
         ${indent}        num_results = num_results + 1;
         ${indent}    end if;
         ${indent}end loop;

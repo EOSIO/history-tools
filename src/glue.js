@@ -1,6 +1,6 @@
 // copyright defined in LICENSE.txt
 
-let mod;
+let modules = {};
 let inst;
 
 const env = {
@@ -39,9 +39,11 @@ const env = {
     },
 };
 
-function run() {
+function run(wasm_name) {
     try {
-        inst = new WebAssembly.Instance(mod, { env });
+        if (!modules[wasm_name])
+            modules[wasm_name] = new WebAssembly.Module(get_wasm(wasm_name));
+        inst = new WebAssembly.Instance(modules[wasm_name], { env });
         inst.exports.startup();
     } catch (e) {
         print_js_str('Caught: ' + e + '\n');
@@ -49,11 +51,4 @@ function run() {
     }
 }
 
-try {
-    let wasm = get_wasm();
-    mod = new WebAssembly.Module(get_wasm());
-    print_js_str('glue initialized\n');
-} catch (e) {
-    print_js_str('Caught: ' + e + '\n');
-    throw e;
-}
+print_js_str('glue initialized\n');

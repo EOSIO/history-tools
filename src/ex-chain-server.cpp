@@ -4,6 +4,12 @@
 #include "lib-database.hpp"
 #include "test-common.hpp"
 
+// todo: move
+extern "C" void eosio_assert(uint32_t test, const char* msg) {
+    if (!test)
+        eosio_assert_message(test, msg, strlen(msg));
+}
+
 void process(block_info_request& req) {
     print("    block_info_request\n");
     auto s = exec_query(query_block_info_range_index{
@@ -18,7 +24,7 @@ void process(block_info_request& req) {
         response.blocks.push_back(b);
         return true;
     });
-    set_output_data(pack(example_response{std::move(response)}));
+    set_output_data(pack(chain_response{std::move(response)}));
     print("\n");
 }
 
@@ -40,7 +46,7 @@ void process(tapos_request& req) {
         return true;
     });
 
-    set_output_data(pack(example_response{std::move(response)}));
+    set_output_data(pack(chain_response{std::move(response)}));
     print("\n");
 }
 
@@ -65,7 +71,7 @@ void process(account_request& req) {
         }
         return true;
     });
-    set_output_data(pack(example_response{std::move(response)}));
+    set_output_data(pack(chain_response{std::move(response)}));
     print("\n");
 }
 
@@ -90,6 +96,12 @@ void process(abis_request& req) {
         if (!found)
             response.abis.push_back(name_abi{name, false, {nullptr, 0}});
     }
-    set_output_data(pack(example_response{std::move(response)}));
+    set_output_data(pack(chain_response{std::move(response)}));
     print("\n");
+}
+
+extern "C" void startup() {
+    auto request = unpack<chain_request>(get_input_data());
+    print("request: ", chain_request::keys[request.value.index()], "\n");
+    std::visit([](auto& x) { process(x); }, request.value);
 }

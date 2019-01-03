@@ -81,8 +81,7 @@ std::string bin_to_sql(abieos::input_buffer& bin) {
 template <>
 inline std::string bin_to_sql<abieos::bytes>(abieos::input_buffer& bin) {
     abieos::input_buffer b;
-    if (!bin_to_native(b, bin))
-        throw std::runtime_error("invalid bytes");
+    bin_to_native(b, bin);
     std::string result;
     boost::algorithm::hex(b.pos, b.end, back_inserter(result));
     return quote_bytea(result);

@@ -10,7 +10,6 @@
 // todo: remove block_select and handle in wasm instead
 // todo: reformulate get_input_data and set_output_data for reentrancy
 // todo: multiple requests
-// todo: dispatch to multiple wasms
 // todo: notify wasms of truncated or missing history
 // todo: wasms get whether a query is present
 // todo: indexes on authorized, ram usage, notify
@@ -133,7 +132,7 @@ struct state {
     abieos::checksum256  head_id         = {};
     uint32_t             irreversible    = {};
     abieos::checksum256  irreversible_id = {};
-    std::vector<char>    request         = {};
+    input_buffer         request         = {};
     std::vector<char>    reply           = {};
 
     state()
@@ -231,24 +230,34 @@ bool print_wasm_str(JSContext* cx, unsigned argc, JS::Value* vp) {
     return js_assert(false, cx, "print_wasm_str: invalid args");
 }
 
+// args: wasm_name
 bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
-    std::string filename = "test-server.wasm";
+    JS::CallArgs args = CallArgsFromVp(argc, vp);
+    if (!args.requireAtLeast(cx, "get_wasm", 1))
+        return false;
+    std::string wasm_name;
+    if (!js_assert(args[0].isString() && convert_str(cx, args[0].toString(), wasm_name), cx, "get_wasm: invalid args"))
+        return false;
+
+    // todo: sanitize wasm_name
+    wasm_name += "-server.wasm";
+
     try {
-        std::fstream file(filename, std::ios_base::in | std::ios_base::binary);
+        std::fstream file(wasm_name, std::ios_base::in | std::ios_base::binary);
         file.seekg(0, std::ios_base::end);
         auto len = file.tellg();
         if (len <= 0)
-            return js_assert(false, cx, ("can not read " + filename).c_str());
+            return js_assert(false, cx, ("can not read " + wasm_name).c_str());
         file.seekg(0, std::ios_base::beg);
         auto data = malloc(len);
         if (!data)
-            return js_assert(false, cx, ("out of memory reading " + filename).c_str());
+            return js_assert(false, cx, ("out of memory reading " + wasm_name).c_str());
         file.read(reinterpret_cast<char*>(data), len);
         JS::CallArgs args = CallArgsFromVp(argc, vp);
         args.rval().setObjectOrNull(JS_NewArrayBufferWithContents(cx, len, data));
         return true;
     } catch (...) {
-        return js_assert(false, cx, ("error reading " + filename).c_str());
+        return js_assert(false, cx, ("error reading " + wasm_name).c_str());
     }
 }
 
@@ -259,12 +268,13 @@ bool get_input_data(JSContext* cx, unsigned argc, JS::Value* vp) {
     if (!args.requireAtLeast(cx, "get_input_data", 1))
         return false;
     try {
-        if (!js_assert((uint32_t)state.request.size() == state.request.size(), cx, "get_input_data: request is too big"))
+        auto size = state.request.end - state.request.pos;
+        if (!js_assert((uint32_t)size == size, cx, "get_input_data: request is too big"))
             return false;
-        auto data = get_mem_from_callback(cx, args, 0, state.request.size());
+        auto data = get_mem_from_callback(cx, args, 0, size);
         if (!js_assert(data, cx, "get_input_data: failed to fetch buffer from callback"))
             return false;
-        memcpy(data, state.request.data(), state.request.size());
+        memcpy(data, state.request.pos, size);
         return true;
     } catch (const std::exception& e) {
         return js_assert(false, cx, ("get_input_data: "s + e.what()).c_str());
@@ -319,8 +329,7 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
     try {
         abieos::input_buffer args_buf{args_bin.data(), args_bin.data() + args_bin.size()};
         abieos::name         query_name;
-        if (!abieos::bin_to_native(query_name, args_buf))
-            return js_assert(false, cx, "exec_query: invalid args");
+        abieos::bin_to_native(query_name, args_buf);
 
         auto it = state.config.query_map.find(query_name);
         if (it == state.config.query_map.end())
@@ -331,8 +340,7 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         uint32_t max_block_index = 0;
         if (query.limit_block_index) {
             block_select b;
-            if (!abieos::bin_to_native(b, args_buf))
-                return js_assert(false, cx, "exec_query: invalid args");
+            abieos::bin_to_native(b, args_buf);
             if (b.position.value == block_select::absolute)
                 max_block_index = b.offset;
             else if (b.position.value == block_select::head)
@@ -456,14 +464,22 @@ bool did_fork(::state& state) {
     return false;
 }
 
-void run(::state& state) {
+void run(::state& state, const std::vector<char>& request) {
     int num_tries = 0;
     while (true) {
         fetch_fill_status(state);
+
+        input_buffer bin{request.data(), request.data() + request.size()};
+        auto         ns_name = bin_to_native<name>(bin);
+        if (ns_name != "local"_n)
+            throw std::runtime_error("unknown namespace: " + (string)ns_name);
+        auto wasm_name = abieos::bin_to_native<name>(bin);
+        state.request  = bin;
+
         JSAutoRealm           realm(state.context.cx, state.global);
         JS::RootedValue       rval(state.context.cx);
         JS::AutoValueArray<1> args(state.context.cx);
-        args[0].set(JS::NumberValue(1234));
+        args[0].set(JS::StringValue(JS_NewStringCopyZ(state.context.cx, ((string)wasm_name).c_str())));
         if (!JS_CallFunctionName(state.context.cx, state.global, "run", args, &rval)) {
             // todo: detect assert
             JS_ClearPendingException(state.context.cx);
@@ -528,16 +544,15 @@ void handle_request(::state& state, tcp::socket& socket, http::request<http::vec
     if (req.target() == "/wasmql/v1/query") {
         if (req.method() != http::verb::post)
             return send(bad_request("Unsupported HTTP-method\n"));
-        state.request = std::move(req.body());
         try {
-            run(state);
+            run(state, req.body());
             return send(ok(std::move(state.reply)));
         } catch (const std::exception& e) {
-            std::cerr << "wasm execution failed: " << e.what() << "\n";
-            return send(server_error("wasm execution failed: "s + e.what()));
+            std::cerr << "query failed: " << e.what() << "\n";
+            return send(server_error("query failed: "s + e.what()));
         } catch (...) {
-            std::cerr << "wasm execution failed: unknown exception\n";
-            return send(server_error("wasm execution failed: unknown exception"));
+            std::cerr << "query failed: unknown exception\n";
+            return send(server_error("query failed: unknown exception"));
         }
     }
 

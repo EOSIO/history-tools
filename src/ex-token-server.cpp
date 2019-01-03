@@ -4,6 +4,12 @@
 #include "lib-database.hpp"
 #include "test-common.hpp"
 
+// todo: move
+extern "C" void eosio_assert(uint32_t test, const char* msg) {
+    if (!test)
+        eosio_assert_message(test, msg, strlen(msg));
+}
+
 struct transfer {
     eosio::name      from     = {};
     eosio::name      to       = {};
@@ -68,7 +74,7 @@ void process(token_transfer_request& req) {
     });
     if (response.more)
         ++*response.more;
-    set_output_data(pack(example_response{std::move(response)}));
+    set_output_data(pack(token_response{std::move(response)}));
     print("\n");
 }
 
@@ -104,7 +110,7 @@ void process(balances_for_multiple_accounts_request& req) {
         print("\n");
         return true;
     });
-    set_output_data(pack(example_response{std::move(response)}));
+    set_output_data(pack(token_response{std::move(response)}));
     print("\n");
 }
 
@@ -145,6 +151,12 @@ void process(balances_for_multiple_tokens_request& req) {
             response.balances.push_back({.account = name{r.scope}, .amount = extended_asset{a, r.code}});
         return true;
     });
-    set_output_data(pack(example_response{std::move(response)}));
+    set_output_data(pack(token_response{std::move(response)}));
     print("\n");
+}
+
+extern "C" void startup() {
+    auto request = unpack<token_request>(get_input_data());
+    print("request: ", token_request::keys[request.value.index()], "\n");
+    std::visit([](auto& x) { process(x); }, request.value);
 }

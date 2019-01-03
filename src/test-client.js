@@ -8,7 +8,7 @@ const encoder = new TextEncoder('utf8');
 const decoder = new TextDecoder('utf8');
 
 class ClientWasm {
-    constructor() {
+    constructor(path) {
         const self = this;
         this.env = {
             abort() {
@@ -48,7 +48,7 @@ class ClientWasm {
             },
         };
 
-        const wasm = fs.readFileSync('./test-client.wasm');
+        const wasm = fs.readFileSync(path);
         this.input_data = new Uint8Array(0);
         this.mod = new WebAssembly.Module(wasm);
         this.reset();
@@ -213,20 +213,22 @@ async function dump_transfers(clientWasm) {
 
 (async () => {
     try {
-        const clientWasm = new ClientWasm();
-        await dump_block_info(clientWasm, 30000000, 30000001);
+        const chainWasm = new ClientWasm('./chain-client.wasm');
+        const tokenWasm = new ClientWasm('./token-client.wasm');
+
+        await dump_block_info(chainWasm, 30000000, 30000001);
         console.log();
-        await dump_tapos(clientWasm, 30000000, 0);
+        await dump_tapos(chainWasm, 30000000, 0);
         console.log();
-        await dump_accounts(clientWasm, 'eosio', 'eosio.bpay')
+        await dump_accounts(chainWasm, 'eosio', 'eosio.bpay')
         console.log();
-        await get_abis(clientWasm, ['eosio', 'eosio.token', 'eosio.null', 'eosio.nope']);
+        await get_abis(chainWasm, ['eosio', 'eosio.token', 'eosio.null', 'eosio.nope']);
         console.log();
-        await dump_eos_balances(clientWasm, 'eosio', 'eosio.zzzzzzj');
+        await dump_eos_balances(tokenWasm, 'eosio', 'eosio.zzzzzzj');
         console.log();
-        await dump_tokens(clientWasm, { sym: '', code: '' }, { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' });
+        await dump_tokens(tokenWasm, { sym: '', code: '' }, { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' });
         console.log();
-        await dump_transfers(clientWasm);
+        await dump_transfers(tokenWasm);
     } catch (e) {
         console.error(e);
     }

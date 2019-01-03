@@ -715,11 +715,14 @@ struct session : enable_shared_from_this<session> {
     uint32_t                              stop_before     = 0;
     bool                                  drop_schema     = false;
     bool                                  create_schema   = false;
+    bool                                  enable_trim     = false;
     bool                                  received_abi    = false;
+    bool                                  created_trim    = false;
     uint32_t                              head            = 0;
     string                                head_id         = "";
     uint32_t                              irreversible    = 0;
     string                                irreversible_id = "";
+    uint32_t                              first           = 0;
     uint32_t                              first_bulk      = 0;
     abi_def                               abi{};
     map<string, abi_type>                 abi_types;
@@ -727,7 +730,7 @@ struct session : enable_shared_from_this<session> {
 
     explicit session(
         asio::io_context& ioc, string host, string port, string schema, uint32_t skip_to, uint32_t stop_before, bool drop_schema,
-        bool create_schema)
+        bool create_schema, bool enable_trim)
         : resolver(ioc)
         , stream(ioc)
         , host(move(host))
@@ -736,7 +739,8 @@ struct session : enable_shared_from_this<session> {
         , skip_to(skip_to)
         , stop_before(stop_before)
         , drop_schema(drop_schema)
-        , create_schema(create_schema) {
+        , create_schema(create_schema)
+        , enable_trim(enable_trim) {
 
         stream.binary(true);
         stream.read_message_max(1024 * 1024 * 1024);
@@ -862,9 +866,9 @@ struct session : enable_shared_from_this<session> {
             R"(.received_block ("block_index" bigint, "block_id" varchar(64), primary key("block_index")))");
         t.exec(
             "create table " + t.quote_name(schema) +
-            R"(.fill_status ("head" bigint, "head_id" varchar(64), "irreversible" bigint, "irreversible_id" varchar(64)))");
+            R"(.fill_status ("head" bigint, "head_id" varchar(64), "irreversible" bigint, "irreversible_id" varchar(64), "first" bigint))");
         t.exec("create unique index on " + t.quote_name(schema) + R"(.fill_status ((true)))");
-        t.exec("insert into " + t.quote_name(schema) + R"(.fill_status values (0, '', 0, ''))");
+        t.exec("insert into " + t.quote_name(schema) + R"(.fill_status values (0, '', 0, '', 0))");
 
         // clang-format off
         create_table<action_trace_authorization>(   t, "action_trace_authorization",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(schema) + ".transaction_status_type");
@@ -909,12 +913,134 @@ struct session : enable_shared_from_this<session> {
         t.commit();
     } // create_tables()
 
+    void create_trim() {
+        if (created_trim)
+            return;
+        pqxx::work t(sql_connection);
+        log_time();
+        std::cerr << "create_trim\n";
+        for (auto& table : abi.tables) {
+            if (table.key_names.empty())
+                continue;
+            string query = "create index if not exists " + table.type;
+            for (auto& k : table.key_names)
+                query += "_" + k;
+            query += "_idx on " + t.quote_name(schema) + "." + t.quote_name(table.type) + "(\n";
+            for (auto& k : table.key_names)
+                query += "    " + t.quote_name(k) + ",\n";
+            query += "    block_index desc,\n    present desc\n)";
+            // std::cout << query << ";\n\n";
+            t.exec(query);
+        }
+
+        string query = R"(
+            drop function if exists chain.trim_history;
+        )";
+        // std::cout << query << "\n";
+        t.exec(query);
+
+        query = R"(
+            create function chain.trim_history(
+                prev_block_index bigint,
+                irrev_block_index bigint
+            ) returns void
+            as $$
+                declare
+                    key_search record;
+                begin)";
+
+        static const char* const simple_tables[] = {
+            "received_block",
+            "action_trace_authorization",
+            "action_trace_auth_sequence",
+            "action_trace_ram_delta",
+            "action_trace",
+            "transaction_trace",
+            "block_info",
+        };
+
+        for (const char* table : simple_tables) {
+            query += R"(
+                    delete from )" +
+                     t.quote_name(schema) + "." + t.quote_name(table) + R"(
+                    where
+                        block_index < irrev_block_index;
+                    )";
+        }
+
+        for (auto& table : abi.tables) {
+            if (table.key_names.empty()) {
+                query += R"(
+                    for key_search in
+                        select
+                            block_index
+                        from
+                            )" +
+                         t.quote_name(schema) + "." + t.quote_name(table.type) + R"(
+                        where
+                            block_index > prev_block_index and block_index <= irrev_block_index
+                        order by block_index desc, present desc
+                        limit 1
+                    loop
+                        delete from )" +
+                         t.quote_name(schema) + "." + t.quote_name(table.type) + R"(
+                        where
+                            block_index < key_search.block_index;
+                    end loop;
+                    )";
+            } else {
+                string keys, search_keys;
+                for (auto& k : table.key_names) {
+                    if (&k != &table.key_names.front()) {
+                        keys += ", ";
+                        search_keys += ", ";
+                    }
+                    keys += t.quote_name(k);
+                    search_keys += "key_search." + t.quote_name(k);
+                }
+                query += R"(
+                    for key_search in
+                        select
+                            distinct on()" +
+                         keys + R"()
+                            )" +
+                         keys + R"(, block_index
+                        from
+                            )" +
+                         t.quote_name(schema) + "." + t.quote_name(table.type) + R"(
+                        where
+                            block_index > prev_block_index and block_index <= irrev_block_index
+                        order by )" +
+                         keys + R"(, block_index desc, present desc
+                    loop
+                        delete from )" +
+                         t.quote_name(schema) + "." + t.quote_name(table.type) + R"(
+                        where
+                            ()" +
+                         keys + R"() = ()" + search_keys + R"()
+                            and block_index < key_search.block_index;
+                    end loop;
+                    )";
+            };
+        }
+        query += R"(
+                end 
+            $$ language plpgsql;
+        )";
+
+        // std::cout << query << "\n\n";
+        t.exec(query);
+        t.commit();
+        created_trim = true;
+    } // create_trim
+
     void load_fill_status(pqxx::work& t) {
-        auto r          = t.exec("select head, head_id, irreversible, irreversible_id from " + t.quote_name(schema) + ".fill_status")[0];
-        head            = r[0].as<uint32_t>();
-        head_id         = r[1].as<string>();
+        auto r  = t.exec("select head, head_id, irreversible, irreversible_id, first from " + t.quote_name(schema) + ".fill_status")[0];
+        head    = r[0].as<uint32_t>();
+        head_id = r[1].as<string>();
         irreversible    = r[2].as<uint32_t>();
         irreversible_id = r[3].as<string>();
+        first           = r[4].as<uint32_t>();
     }
 
     jarray get_positions(pqxx::work& t) {
@@ -937,6 +1063,7 @@ struct session : enable_shared_from_this<session> {
             query += "irreversible=" + to_string(irreversible) + ", irreversible_id=" + quote(irreversible_id);
         else
             query += "irreversible=" + to_string(head) + ", irreversible_id=" + quote(head_id);
+        query += ", first=" + to_string(first);
         pipeline.insert(query);
     }
 
@@ -963,6 +1090,7 @@ struct session : enable_shared_from_this<session> {
             head    = block - 1;
             head_id = result.front()[0].as<string>();
         }
+        first = std::min(first, head);
     } // truncate
 
     bool receive_result(const shared_ptr<flat_buffer>& p) {
@@ -1002,6 +1130,8 @@ struct session : enable_shared_from_this<session> {
 
         if (!bulk || large_deltas || !(result.this_block->block_num % 200))
             close_streams();
+        if (table_streams.empty())
+            trim();
         if (!bulk) {
             log_time();
             cerr << "block " << result.this_block->block_num << "\n";
@@ -1024,6 +1154,8 @@ struct session : enable_shared_from_this<session> {
         head_id         = (string)result.this_block->block_id;
         irreversible    = result.last_irreversible.block_num;
         irreversible_id = (string)result.last_irreversible.block_id;
+        if (!first)
+            first = head;
         if (!bulk)
             write_fill_status(t, pipeline);
         pipeline.insert(
@@ -1298,6 +1430,21 @@ struct session : enable_shared_from_this<session> {
         write(block_num, t, pipeline, bulk, name, fields, values);
     } // write
 
+    void trim() {
+        if (!enable_trim)
+            return;
+        auto end_trim = min(head, irreversible);
+        if (first >= end_trim)
+            return;
+        create_trim();
+        pqxx::work t(sql_connection);
+        log_time();
+        cerr << "trim  " << first << " - " << end_trim << "\n";
+        t.exec("select * from chain.trim_history(" + to_string(first) + ", " + to_string(end_trim) + ")");
+        t.commit();
+        first = end_trim;
+    }
+
     void send_request(const jarray& positions) {
         send(jvalue{jarray{{"get_blocks_request_v0"s},
                            {jobject{
@@ -1392,6 +1539,7 @@ int main(int argc, char** argv) {
         op("stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
         op("drop,d", "Drop (delete) schema and tables");
         op("create,c", "Create schema and tables");
+        op("trim,t", "Trim history before irreversible");
 
         bpo::variables_map vm;
         bpo::store(bpo::parse_command_line(argc, argv, desc), vm);
@@ -1404,7 +1552,7 @@ int main(int argc, char** argv) {
             auto             s = make_shared<session>(
                 ioc, vm["host"].as<string>(), vm["port"].as<string>(), vm["schema"].as<string>(),
                 vm.count("skip-to") ? vm["skip-to"].as<uint32_t>() : 0, vm.count("stop") ? vm["stop"].as<uint32_t>() : 0, vm.count("drop"),
-                vm.count("create"));
+                vm.count("create"), vm.count("trim"));
             cerr.imbue(std::locale(""));
             s->start();
             ioc.run();

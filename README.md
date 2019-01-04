@@ -81,6 +81,8 @@ Use the `psql` utility to verify your connection.
 
 ## Fast start without history on existing chains
 
+This option creates a database which tracks the chain state, but lacks most historical information.
+
 * Get the following:
   * A portable snapshot (`data/snapshots/snapshot-xxxxxxx.bin`)
   * Optional: a block log which includes the block the snapshot was taken at

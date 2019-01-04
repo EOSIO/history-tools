@@ -588,7 +588,7 @@ int main(int argc, const char* argv[]) {
         op("schema,s", bpo::value<string>()->default_value("chain"), "Database schema");
         op("query-config,q", bpo::value<string>()->default_value("../src/query-config.json"), "Query configuration");
         op("address,a", bpo::value<string>()->default_value("localhost"), "Address to listen on");
-        op("port,p", bpo::value<string>()->default_value("8080"), "Port to listen on)");
+        op("port,p", bpo::value<string>()->default_value("8880"), "Port to listen on)");
         op("console,c", "Show console output");
         bpo::variables_map vm;
         bpo::store(bpo::parse_command_line(argc, argv, desc), vm);

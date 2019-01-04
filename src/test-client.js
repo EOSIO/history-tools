@@ -75,7 +75,7 @@ class ClientWasm {
 
     async round_trip(request) {
         const requestBin = this.create_request(request);
-        const queryReply = await fetch('http://127.0.0.1:8080/wasmql/v1/query', { method: 'POST', body: requestBin });
+        const queryReply = await fetch('http://127.0.0.1:8880/wasmql/v1/query', { method: 'POST', body: requestBin });
         if (queryReply.status !== 200)
             throw new Error(queryReply.status + ': ' + queryReply.statusText + ': ' + await queryReply.text());
         return this.decode_response(await queryReply.arrayBuffer());
@@ -145,7 +145,7 @@ async function get_abis(clientWasm, names) {
 async function dump_eos_balances(clientWasm, first_account, last_account) {
     do {
         const reply = await clientWasm.round_trip(['bal.mult.acc', {
-            max_block: ["absolute", 30000000],
+            max_block: ["absolute", 35000000],
             code: 'eosio.token',
             sym: 'EOS',
             first_account: first_account,
@@ -158,11 +158,11 @@ async function dump_eos_balances(clientWasm, first_account, last_account) {
     } while (first_account);
 }
 
-async function dump_tokens(clientWasm, first_key, last_key) {
+async function dump_tokens(clientWasm, account, max_block, first_key, last_key) {
     do {
         const reply = await clientWasm.round_trip(['bal.mult.tok', {
-            max_block: ["head", 0],
-            account: 'b1',
+            max_block,
+            account,
             first_key,
             last_key,
             max_results: 100,
@@ -226,7 +226,7 @@ async function dump_transfers(clientWasm) {
         console.log();
         await dump_eos_balances(tokenWasm, 'eosio', 'eosio.zzzzzzj');
         console.log();
-        await dump_tokens(tokenWasm, { sym: '', code: '' }, { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' });
+        await dump_tokens(tokenWasm, 'b1', ["irreversible", 0], { sym: '', code: '' }, { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' });
         console.log();
         await dump_transfers(tokenWasm);
     } catch (e) {

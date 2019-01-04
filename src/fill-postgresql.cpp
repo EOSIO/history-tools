@@ -925,10 +925,10 @@ struct session : enable_shared_from_this<session> {
             string query = "create index if not exists " + table.type;
             for (auto& k : table.key_names)
                 query += "_" + k;
-            query += "_idx on " + t.quote_name(schema) + "." + t.quote_name(table.type) + "(\n";
+            query += "_block_present_idx on " + t.quote_name(schema) + "." + t.quote_name(table.type) + "(\n";
             for (auto& k : table.key_names)
                 query += "    " + t.quote_name(k) + ",\n";
-            query += "    block_index desc,\n    present desc\n)";
+            query += "    \"block_index\" desc,\n    \"present\" desc\n)";
             // std::cout << query << ";\n\n";
             t.exec(query);
         }

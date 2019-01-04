@@ -949,7 +949,7 @@ struct session : enable_shared_from_this<session> {
                     key_search record;
                 begin)";
 
-        static const char* const simple_tables[] = {
+        static const char* const simple_cases[] = {
             "received_block",
             "action_trace_authorization",
             "action_trace_auth_sequence",
@@ -959,12 +959,13 @@ struct session : enable_shared_from_this<session> {
             "block_info",
         };
 
-        for (const char* table : simple_tables) {
+        for (const char* table : simple_cases) {
             query += R"(
                     delete from )" +
                      t.quote_name(schema) + "." + t.quote_name(table) + R"(
                     where
-                        block_index < irrev_block_index;
+                        block_index >= prev_block_index
+                        and block_index < irrev_block_index;
                     )";
         }
 
@@ -1442,6 +1443,8 @@ struct session : enable_shared_from_this<session> {
         cerr << "trim  " << first << " - " << end_trim << "\n";
         t.exec("select * from chain.trim_history(" + to_string(first) + ", " + to_string(end_trim) + ")");
         t.commit();
+        log_time();
+        cerr << "      done\n";
         first = end_trim;
     }
 

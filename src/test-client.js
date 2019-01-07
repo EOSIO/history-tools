@@ -7,6 +7,87 @@ const fetch = require('node-fetch');
 const encoder = new TextEncoder('utf8');
 const decoder = new TextDecoder('utf8');
 
+class SerialBuffer {
+    constructor({ array } = {}) {
+        this.array = array || new Uint8Array(1024);
+        this.length = array ? array.length : 0;
+        this.readPos = 0;
+    }
+
+    reserve(size) {
+        if (this.length + size <= this.array.length) {
+            return;
+        }
+        let l = this.array.length;
+        while (this.length + size > l) {
+            l = Math.ceil(l * 1.5);
+        }
+        const newArray = new Uint8Array(l);
+        newArray.set(this.array);
+        this.array = newArray;
+    }
+
+    asUint8Array() {
+        return new Uint8Array(this.array.buffer, this.array.byteOffset, this.length);
+    }
+
+    pushArray(v) {
+        this.reserve(v.length);
+        this.array.set(v, this.length);
+        this.length += v.length;
+    }
+
+    get() {
+        if (this.readPos < this.length) {
+            return this.array[this.readPos++];
+        }
+        throw new Error("Read past end of buffer");
+    }
+
+    pushVaruint32(v) {
+        while (true) {
+            if (v >>> 7) {
+                this.pushArray([0x80 | (v & 0x7f)]);
+                v = v >>> 7;
+            } else {
+                this.pushArray([v]);
+                break;
+            }
+        }
+    }
+
+    getVaruint32() {
+        let v = 0;
+        let bit = 0;
+        while (true) {
+            const b = this.get();
+            v |= (b & 0x7f) << bit;
+            bit += 7;
+            if (!(b & 0x80)) {
+                break;
+            }
+        }
+        return v >>> 0;
+    }
+
+    getUint8Array(len) {
+        if (this.readPos + len > this.length)
+            throw new Error("Read past end of buffer");
+        const result = new Uint8Array(this.array.buffer, this.array.byteOffset + this.readPos, len);
+        this.readPos += len;
+        return result;
+    }
+
+    pushBytes(v) {
+        this.pushVaruint32(v.length);
+        this.pushArray(v);
+    }
+
+    getBytes() {
+        return this.getUint8Array(this.getVaruint32());
+    }
+} // SerialBuffer
+
 class ClientWasm {
     constructor(path) {
         const self = this;
@@ -75,12 +156,18 @@ class ClientWasm {
 
     async round_trip(request) {
         const requestBin = this.create_request(request);
-        const queryReply = await fetch('http://127.0.0.1:8880/wasmql/v1/query', { method: 'POST', body: requestBin });
+        const bin = new SerialBuffer();
+        bin.pushVaruint32(1);
+        bin.pushBytes(requestBin);
+        const queryReply = await fetch('http://127.0.0.1:8880/wasmql/v1/query', { method: 'POST', body: bin.asUint8Array() });
         if (queryReply.status !== 200)
             throw new Error(queryReply.status + ': ' + queryReply.statusText + ': ' + await queryReply.text());
-        return this.decode_response(await queryReply.arrayBuffer());
+        const reply = new SerialBuffer({ array: new Uint8Array(await queryReply.arrayBuffer()) });
+        if (reply.getVaruint32() != 1)
+            throw new Error("expected 1 reply")
+        return this.decode_response(reply.getBytes());
     }
-}
+} // ClientWasm
 
 function amount_to_decimal(amount) {
     let s;

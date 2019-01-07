@@ -9,7 +9,6 @@
 // todo: global constructors in wasm
 // todo: remove block_select and handle in wasm instead
 // todo: reformulate get_input_data and set_output_data for reentrancy
-// todo: multiple requests
 // todo: notify wasms of truncated or missing history
 // todo: wasms get whether a query is present
 // todo: indexes on authorized, ram usage, notify
@@ -464,29 +463,43 @@ bool did_fork(::state& state) {
     return false;
 }
 
-void run(::state& state, const std::vector<char>& request) {
-    int num_tries = 0;
+std::vector<char> run(::state& state, const std::vector<char>& request) {
+    std::vector<char> result;
+    int               num_tries = 0;
     while (true) {
+        bool forked = false;
         fetch_fill_status(state);
+        input_buffer request_bin{request.data(), request.data() + request.size()};
+        auto         num_requests = bin_to_native<varuint32>(request_bin).value;
+        result.clear();
+        push_varuint32(result, num_requests);
+        for (uint32_t request_index = 0; request_index < num_requests; ++request_index) {
+            state.request = bin_to_native<input_buffer>(request_bin);
+            auto ns_name  = bin_to_native<name>(state.request);
+            if (ns_name != "local"_n)
+                throw std::runtime_error("unknown namespace: " + (string)ns_name);
+            auto wasm_name = bin_to_native<name>(state.request);
 
-        input_buffer bin{request.data(), request.data() + request.size()};
-        auto         ns_name = bin_to_native<name>(bin);
-        if (ns_name != "local"_n)
-            throw std::runtime_error("unknown namespace: " + (string)ns_name);
-        auto wasm_name = abieos::bin_to_native<name>(bin);
-        state.request  = bin;
+            JSAutoRealm           realm(state.context.cx, state.global);
+            JS::RootedValue       rval(state.context.cx);
+            JS::AutoValueArray<1> args(state.context.cx);
+            args[0].set(JS::StringValue(JS_NewStringCopyZ(state.context.cx, ((string)wasm_name).c_str())));
+            if (!JS_CallFunctionName(state.context.cx, state.global, "run", args, &rval)) {
+                // todo: detect assert
+                JS_ClearPendingException(state.context.cx);
+                throw std::runtime_error("JS_CallFunctionName failed");
+            }
 
-        JSAutoRealm           realm(state.context.cx, state.global);
-        JS::RootedValue       rval(state.context.cx);
-        JS::AutoValueArray<1> args(state.context.cx);
-        args[0].set(JS::StringValue(JS_NewStringCopyZ(state.context.cx, ((string)wasm_name).c_str())));
-        if (!JS_CallFunctionName(state.context.cx, state.global, "run", args, &rval)) {
-            // todo: detect assert
-            JS_ClearPendingException(state.context.cx);
-            throw std::runtime_error("JS_CallFunctionName failed");
+            if (did_fork(state)) {
+                forked = true;
+                break;
+            }
+
+            push_varuint32(result, state.reply.size());
+            result.insert(result.end(), state.reply.begin(), state.reply.end());
         }
-        if (!did_fork(state))
-            break;
+        if (!forked)
+            return result;
         if (++num_tries >= 4)
             throw std::runtime_error("too many fork events during request");
         std::cerr << "retry request\n";
@@ -545,8 +558,7 @@ void handle_request(::state& state, tcp::socket& socket, http::request<http::vec
         if (req.method() != http::verb::post)
             return send(bad_request("Unsupported HTTP-method\n"));
         try {
-            run(state, req.body());
-            return send(ok(std::move(state.reply)));
+            return send(ok(run(state, req.body())));
         } catch (const std::exception& e) {
             std::cerr << "query failed: " << e.what() << "\n";
             return send(server_error("query failed: "s + e.what()));

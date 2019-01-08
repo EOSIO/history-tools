@@ -2,6 +2,8 @@
 
 // todo: transaction order within blocks. affects wasm-ql
 
+#include "fill_postgresql_plugin.hpp"
+
 #include "abieos.hpp"
 
 #include <boost/asio/connect.hpp>
@@ -12,8 +14,8 @@
 #include <boost/iostreams/filter/zlib.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/program_options.hpp>
-#include <chrono>
 #include <cstdlib>
+#include <fc/exception/exception.hpp>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -22,9 +24,9 @@
 #include <string_view>
 
 using namespace abieos;
+using namespace appbase;
 using namespace std::literals;
 
-using std::cerr;
 using std::enable_shared_from_this;
 using std::exception;
 using std::make_shared;
@@ -699,23 +701,32 @@ struct table_stream {
         , writer(t, name) {}
 };
 
-void log_time() {
-    auto n = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    cerr << std::put_time(std::localtime(&n), "%F %T: ");
-}
+struct session;
+
+struct fill_postgresql_config {
+    string   host;
+    string   port;
+    string   schema;
+    uint32_t skip_to       = 0;
+    uint32_t stop_before   = 0;
+    bool     drop_schema   = false;
+    bool     create_schema = false;
+    bool     enable_trim   = false;
+};
+
+struct fill_postgresql_plugin_impl : std::enable_shared_from_this<fill_postgresql_plugin_impl> {
+    shared_ptr<fill_postgresql_config> config = make_shared<fill_postgresql_config>();
+    shared_ptr<::session>              session;
+
+    ~fill_postgresql_plugin_impl();
+};
 
 struct session : enable_shared_from_this<session> {
-    pqxx::connection                      sql_connection;
+    fill_postgresql_plugin_impl*          my = nullptr;
+    shared_ptr<fill_postgresql_config>    config;
+    std::optional<pqxx::connection>       sql_connection;
     tcp::resolver                         resolver;
     websocket::stream<tcp::socket>        stream;
-    string                                host;
-    string                                port;
-    string                                schema;
-    uint32_t                              skip_to         = 0;
-    uint32_t                              stop_before     = 0;
-    bool                                  drop_schema     = false;
-    bool                                  create_schema   = false;
-    bool                                  enable_trim     = false;
     bool                                  received_abi    = false;
     bool                                  created_trim    = false;
     uint32_t                              head            = 0;
@@ -728,46 +739,42 @@ struct session : enable_shared_from_this<session> {
     map<string, abi_type>                 abi_types;
     map<string, unique_ptr<table_stream>> table_streams;
 
-    explicit session(
-        asio::io_context& ioc, string host, string port, string schema, uint32_t skip_to, uint32_t stop_before, bool drop_schema,
-        bool create_schema, bool enable_trim)
-        : resolver(ioc)
-        , stream(ioc)
-        , host(move(host))
-        , port(move(port))
-        , schema(move(schema))
-        , skip_to(skip_to)
-        , stop_before(stop_before)
-        , drop_schema(drop_schema)
-        , create_schema(create_schema)
-        , enable_trim(enable_trim) {
+    session(fill_postgresql_plugin_impl* my, asio::io_context& ioc)
+        : my(my)
+        , config(my->config)
+        , resolver(ioc)
+        , stream(ioc) {
 
+        ilog("connect to postgresql");
+        sql_connection.emplace();
         stream.binary(true);
         stream.read_message_max(1024 * 1024 * 1024);
-        if (drop_schema) {
-            pqxx::work t(sql_connection);
-            t.exec("drop schema if exists " + t.quote_name(this->schema) + " cascade");
-            t.commit();
-        }
     }
 
     void start() {
-        resolver.async_resolve(host, port, [self = shared_from_this(), this](error_code ec, tcp::resolver::results_type results) {
-            if (ec)
-                cerr << "during lookup of " << host << " " << port << ": ";
-            callback(ec, "resolve", [&] {
-                asio::async_connect(
-                    stream.next_layer(), results.begin(), results.end(), [self = shared_from_this(), this](error_code ec, auto&) {
-                        callback(ec, "connect", [&] {
-                            stream.async_handshake(host, "/", [self = shared_from_this(), this](error_code ec) {
-                                callback(ec, "handshake", [&] { //
-                                    start_read();
+        if (config->drop_schema) {
+            pqxx::work t(*sql_connection);
+            ilog("drop schema ${s}", ("s", t.quote_name(config->schema)));
+            t.exec("drop schema if exists " + t.quote_name(config->schema) + " cascade");
+            t.commit();
+        }
+
+        ilog("connect to ${h}:${p}", ("h", config->host)("p", config->port));
+        resolver.async_resolve(
+            config->host, config->port, [self = shared_from_this(), this](error_code ec, tcp::resolver::results_type results) {
+                callback(ec, "resolve", [&] {
+                    asio::async_connect(
+                        stream.next_layer(), results.begin(), results.end(), [self = shared_from_this(), this](error_code ec, auto&) {
+                            callback(ec, "connect", [&] {
+                                stream.async_handshake(config->host, "/", [self = shared_from_this(), this](error_code ec) {
+                                    callback(ec, "handshake", [&] { //
+                                        start_read();
+                                    });
                                 });
                             });
                         });
-                    });
+                });
             });
-        });
     }
 
     void start_read() {
@@ -777,8 +784,10 @@ struct session : enable_shared_from_this<session> {
                 if (!received_abi)
                     receive_abi(in_buffer);
                 else {
-                    if (!receive_result(in_buffer))
+                    if (!receive_result(in_buffer)) {
+                        close();
                         return;
+                    }
                 }
                 start_read();
             });
@@ -793,10 +802,10 @@ struct session : enable_shared_from_this<session> {
         abi_types    = create_contract(abi).abi_types;
         received_abi = true;
 
-        if (create_schema)
+        if (config->create_schema)
             create_tables();
 
-        pqxx::work t(sql_connection);
+        pqxx::work t(*sql_connection);
         load_fill_status(t);
         auto           positions = get_positions(t);
         pqxx::pipeline pipeline(t);
@@ -815,12 +824,13 @@ struct session : enable_shared_from_this<session> {
             if constexpr (is_known_type(sql_type)) {
                 string type = sql_type.type;
                 if (type == "transaction_status_type")
-                    type = t.quote_name(schema) + "." + type;
+                    type = t.quote_name(config->schema) + "." + type;
                 fields += ", "s + t.quote_name(field_name) + " " + type;
             }
         });
 
-        string query = "create table " + t.quote_name(schema) + "." + t.quote_name(name) + "(" + fields + ", primary key (" + pk + "))";
+        string query =
+            "create table " + t.quote_name(config->schema) + "." + t.quote_name(name) + "(" + fields + ", primary key (" + pk + "))";
         t.exec(query);
     }
 
@@ -835,10 +845,10 @@ struct session : enable_shared_from_this<session> {
             string sub_fields;
             for (auto& f : field.type->array_of->fields)
                 fill_field(t, "", sub_fields, f);
-            string query = "create type " + t.quote_name(schema) + "." + t.quote_name(field.type->array_of->name) + " as (" +
+            string query = "create type " + t.quote_name(config->schema) + "." + t.quote_name(field.type->array_of->name) + " as (" +
                            sub_fields.substr(2) + ")";
             t.exec(query);
-            fields += ", " + t.quote_name(base_name + field.name) + " " + t.quote_name(schema) + "." +
+            fields += ", " + t.quote_name(base_name + field.name) + " " + t.quote_name(config->schema) + "." +
                       t.quote_name(field.type->array_of->name) + "[]";
         } else {
             auto abi_type = field.type->name;
@@ -849,32 +859,33 @@ struct session : enable_shared_from_this<session> {
                 throw std::runtime_error("don't know sql type for abi type: " + abi_type);
             string type = it->second.type;
             if (type == "transaction_status_type")
-                type = t.quote_name(schema) + "." + type;
+                type = t.quote_name(config->schema) + "." + type;
             fields += ", " + t.quote_name(base_name + field.name) + " " + it->second.type;
         }
     }; // fill_field
 
     void create_tables() {
-        pqxx::work t(sql_connection);
+        pqxx::work t(*sql_connection);
 
-        t.exec("create schema " + t.quote_name(schema));
+        ilog("create schema ${s}", ("s", t.quote_name(config->schema)));
+        t.exec("create schema " + t.quote_name(config->schema));
         t.exec(
-            "create type " + t.quote_name(schema) +
+            "create type " + t.quote_name(config->schema) +
             ".transaction_status_type as enum('executed', 'soft_fail', 'hard_fail', 'delayed', 'expired')");
         t.exec(
-            "create table " + t.quote_name(schema) +
+            "create table " + t.quote_name(config->schema) +
             R"(.received_block ("block_index" bigint, "block_id" varchar(64), primary key("block_index")))");
         t.exec(
-            "create table " + t.quote_name(schema) +
+            "create table " + t.quote_name(config->schema) +
             R"(.fill_status ("head" bigint, "head_id" varchar(64), "irreversible" bigint, "irreversible_id" varchar(64), "first" bigint))");
-        t.exec("create unique index on " + t.quote_name(schema) + R"(.fill_status ((true)))");
-        t.exec("insert into " + t.quote_name(schema) + R"(.fill_status values (0, '', 0, '', 0))");
+        t.exec("create unique index on " + t.quote_name(config->schema) + R"(.fill_status ((true)))");
+        t.exec("insert into " + t.quote_name(config->schema) + R"(.fill_status values (0, '', 0, '', 0))");
 
         // clang-format off
-        create_table<action_trace_authorization>(   t, "action_trace_authorization",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(schema) + ".transaction_status_type");
-        create_table<action_trace_auth_sequence>(   t, "action_trace_auth_sequence",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(schema) + ".transaction_status_type");
-        create_table<action_trace_ram_delta>(       t, "action_trace_ram_delta",      "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(schema) + ".transaction_status_type");
-        create_table<action_trace>(                 t, "action_trace",                "block_index, transaction_id, action_index",            "block_index bigint, transaction_id varchar(64), action_index integer, parent_action_index integer, transaction_status " + t.quote_name(schema) + ".transaction_status_type");
+        create_table<action_trace_authorization>(   t, "action_trace_authorization",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+        create_table<action_trace_auth_sequence>(   t, "action_trace_auth_sequence",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+        create_table<action_trace_ram_delta>(       t, "action_trace_ram_delta",      "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+        create_table<action_trace>(                 t, "action_trace",                "block_index, transaction_id, action_index",            "block_index bigint, transaction_id varchar(64), action_index integer, parent_action_index integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<transaction_trace>(            t, "transaction_trace",           "block_index, transaction_id",                          "block_index bigint, failed_dtrx_trace varchar(64)");
         // clang-format on
 
@@ -889,12 +900,13 @@ struct session : enable_shared_from_this<session> {
             string keys = "block_index, present";
             for (auto& key : table.key_names)
                 keys += ", " + t.quote_name(key);
-            string query = "create table " + t.quote_name(schema) + "." + table.type + "(" + fields + ", primary key(" + keys + "))";
+            string query =
+                "create table " + t.quote_name(config->schema) + "." + table.type + "(" + fields + ", primary key(" + keys + "))";
             t.exec(query);
         }
 
         t.exec(
-            "create table " + t.quote_name(schema) +
+            "create table " + t.quote_name(config->schema) +
             R"(.block_info(                   
                 "block_index" bigint,
                 "block_id" varchar(64),
@@ -907,7 +919,7 @@ struct session : enable_shared_from_this<session> {
                 "schedule_version" bigint,
                 "new_producers_version" bigint,
                 "new_producers" )" +
-            t.quote_name(schema) + R"(.producer_key[],
+            t.quote_name(config->schema) + R"(.producer_key[],
                 primary key("block_index")))");
 
         t.commit();
@@ -916,16 +928,15 @@ struct session : enable_shared_from_this<session> {
     void create_trim() {
         if (created_trim)
             return;
-        pqxx::work t(sql_connection);
-        log_time();
-        std::cerr << "create_trim\n";
+        pqxx::work t(*sql_connection);
+        ilog("create_trim");
         for (auto& table : abi.tables) {
             if (table.key_names.empty())
                 continue;
             string query = "create index if not exists " + table.type;
             for (auto& k : table.key_names)
                 query += "_" + k;
-            query += "_block_present_idx on " + t.quote_name(schema) + "." + t.quote_name(table.type) + "(\n";
+            query += "_block_present_idx on " + t.quote_name(config->schema) + "." + t.quote_name(table.type) + "(\n";
             for (auto& k : table.key_names)
                 query += "    " + t.quote_name(k) + ",\n";
             query += "    \"block_index\" desc,\n    \"present\" desc\n)";
@@ -962,7 +973,7 @@ struct session : enable_shared_from_this<session> {
         for (const char* table : simple_cases) {
             query += R"(
                     delete from )" +
-                     t.quote_name(schema) + "." + t.quote_name(table) + R"(
+                     t.quote_name(config->schema) + "." + t.quote_name(table) + R"(
                     where
                         block_index >= prev_block_index
                         and block_index < irrev_block_index;
@@ -977,14 +988,14 @@ struct session : enable_shared_from_this<session> {
                             block_index
                         from
                             )" +
-                         t.quote_name(schema) + "." + t.quote_name(table.type) + R"(
+                         t.quote_name(config->schema) + "." + t.quote_name(table.type) + R"(
                         where
                             block_index > prev_block_index and block_index <= irrev_block_index
                         order by block_index desc, present desc
                         limit 1
                     loop
                         delete from )" +
-                         t.quote_name(schema) + "." + t.quote_name(table.type) + R"(
+                         t.quote_name(config->schema) + "." + t.quote_name(table.type) + R"(
                         where
                             block_index < key_search.block_index;
                     end loop;
@@ -1008,14 +1019,14 @@ struct session : enable_shared_from_this<session> {
                          keys + R"(, block_index
                         from
                             )" +
-                         t.quote_name(schema) + "." + t.quote_name(table.type) + R"(
+                         t.quote_name(config->schema) + "." + t.quote_name(table.type) + R"(
                         where
                             block_index > prev_block_index and block_index <= irrev_block_index
                         order by )" +
                          keys + R"(, block_index desc, present desc
                     loop
                         delete from )" +
-                         t.quote_name(schema) + "." + t.quote_name(table.type) + R"(
+                         t.quote_name(config->schema) + "." + t.quote_name(table.type) + R"(
                         where
                             ()" +
                          keys + R"() = ()" + search_keys + R"()
@@ -1036,9 +1047,10 @@ struct session : enable_shared_from_this<session> {
     } // create_trim
 
     void load_fill_status(pqxx::work& t) {
-        auto r  = t.exec("select head, head_id, irreversible, irreversible_id, first from " + t.quote_name(schema) + ".fill_status")[0];
-        head    = r[0].as<uint32_t>();
-        head_id = r[1].as<string>();
+        auto r =
+            t.exec("select head, head_id, irreversible, irreversible_id, first from " + t.quote_name(config->schema) + ".fill_status")[0];
+        head            = r[0].as<uint32_t>();
+        head_id         = r[1].as<string>();
         irreversible    = r[2].as<uint32_t>();
         irreversible_id = r[3].as<string>();
         first           = r[4].as<uint32_t>();
@@ -1047,7 +1059,7 @@ struct session : enable_shared_from_this<session> {
     jarray get_positions(pqxx::work& t) {
         jarray result;
         auto   rows = t.exec(
-            "select block_index, block_id from " + t.quote_name(schema) + ".received_block where block_index >= " +
+            "select block_index, block_id from " + t.quote_name(config->schema) + ".received_block where block_index >= " +
             to_string(irreversible) + " and block_index <= " + to_string(head) + " order by block_index");
         for (auto row : rows) {
             result.push_back(jvalue{jobject{
@@ -1059,7 +1071,8 @@ struct session : enable_shared_from_this<session> {
     }
 
     void write_fill_status(pqxx::work& t, pqxx::pipeline& pipeline) {
-        string query = "update " + t.quote_name(schema) + ".fill_status set head=" + to_string(head) + ", head_id=" + quote(head_id) + ", ";
+        string query =
+            "update " + t.quote_name(config->schema) + ".fill_status set head=" + to_string(head) + ", head_id=" + quote(head_id) + ", ";
         if (irreversible < head)
             query += "irreversible=" + to_string(irreversible) + ", irreversible_id=" + quote(irreversible_id);
         else
@@ -1070,7 +1083,8 @@ struct session : enable_shared_from_this<session> {
 
     void truncate(pqxx::work& t, pqxx::pipeline& pipeline, uint32_t block) {
         auto trunc = [&](const std::string& name) {
-            pipeline.insert("delete from " + t.quote_name(schema) + "." + t.quote_name(name) + " where block_index >= " + to_string(block));
+            pipeline.insert(
+                "delete from " + t.quote_name(config->schema) + "." + t.quote_name(name) + " where block_index >= " + to_string(block));
         };
         trunc("received_block");
         trunc("action_trace_authorization");
@@ -1082,8 +1096,8 @@ struct session : enable_shared_from_this<session> {
         for (auto& table : abi.tables)
             trunc(table.type);
 
-        auto result = pipeline.retrieve(
-            pipeline.insert("select block_id from " + t.quote_name(schema) + ".received_block where block_index=" + to_string(block - 1)));
+        auto result = pipeline.retrieve(pipeline.insert(
+            "select block_id from " + t.quote_name(config->schema) + ".received_block where block_index=" + to_string(block - 1)));
         if (result.empty()) {
             head    = 0;
             head_id = "";
@@ -1109,23 +1123,20 @@ struct session : enable_shared_from_this<session> {
         bool bulk         = result.this_block->block_num + 4 < result.last_irreversible.block_num;
         bool large_deltas = false;
         if (!bulk && result.deltas && result.deltas->end - result.deltas->pos >= 10 * 1024 * 1024) {
-            log_time();
-            cerr << "large deltas size: " << (result.deltas->end - result.deltas->pos) << "\n";
+            ilog("large deltas size: ${s}", ("s", uint64_t(result.deltas->end - result.deltas->pos)));
             bulk         = true;
             large_deltas = true;
         }
 
-        if (stop_before && result.this_block->block_num >= stop_before) {
+        if (config->stop_before && result.this_block->block_num >= config->stop_before) {
             close_streams();
-            log_time();
-            cerr << "block " << result.this_block->block_num << ": stop requested\n";
+            ilog("block ${b}: stop requested", ("b", result.this_block->block_num));
             return false;
         }
 
         if (result.this_block->block_num <= head) {
             close_streams();
-            log_time();
-            cerr << "switch forks at block " << result.this_block->block_num << "\n";
+            ilog("switch forks at block ${b}", ("b", result.this_block->block_num));
             bulk = false;
         }
 
@@ -1133,12 +1144,10 @@ struct session : enable_shared_from_this<session> {
             close_streams();
         if (table_streams.empty())
             trim();
-        if (!bulk) {
-            log_time();
-            cerr << "block " << result.this_block->block_num << "\n";
-        }
+        if (!bulk)
+            ilog("block ${b}", ("b", result.this_block->block_num));
 
-        pqxx::work     t(sql_connection);
+        pqxx::work     t(*sql_connection);
         pqxx::pipeline pipeline(t);
         if (result.this_block->block_num <= head)
             truncate(t, pipeline, result.this_block->block_num);
@@ -1160,7 +1169,7 @@ struct session : enable_shared_from_this<session> {
         if (!bulk)
             write_fill_status(t, pipeline);
         pipeline.insert(
-            "insert into " + t.quote_name(schema) + ".received_block (block_index, block_id) values (" +
+            "insert into " + t.quote_name(config->schema) + ".received_block (block_index, block_id) values (" +
             to_string(result.this_block->block_num) + ", " + quote(string(result.this_block->block_id)) + ")");
 
         pipeline.complete();
@@ -1175,7 +1184,7 @@ struct session : enable_shared_from_this<session> {
             first_bulk = block_num;
         auto& ts = table_streams[name];
         if (!ts)
-            ts = make_unique<table_stream>(t.quote_name(schema) + "." + t.quote_name(name));
+            ts = make_unique<table_stream>(t.quote_name(config->schema) + "." + t.quote_name(name));
         ts->writer.write_raw_line(values);
     }
 
@@ -1189,14 +1198,13 @@ struct session : enable_shared_from_this<session> {
         }
         table_streams.clear();
 
-        pqxx::work     t(sql_connection);
+        pqxx::work     t(*sql_connection);
         pqxx::pipeline pipeline(t);
         write_fill_status(t, pipeline);
         pipeline.complete();
         t.commit();
 
-        log_time();
-        cerr << "block " << first_bulk << " - " << head << "\n";
+        ilog("block ${b} - ${e}", ("b", first_bulk)("e", head));
         first_bulk = 0;
     }
 
@@ -1230,7 +1238,7 @@ struct session : enable_shared_from_this<session> {
                     values += struct_values.substr(2);
                 values += end_object_in_array(bulk);
             }
-            values += end_array(bulk, t, schema, field.type->array_of->name);
+            values += end_array(bulk, t, config->schema, field.type->array_of->name);
         } else {
             auto abi_type    = field.type->name;
             bool is_optional = false;
@@ -1251,12 +1259,12 @@ struct session : enable_shared_from_this<session> {
                 else
                     values += "\t";
                 if (!is_optional || read_bin<bool>(bin))
-                    values += it->second.bin_to_sql(sql_connection, bulk, bin);
+                    values += it->second.bin_to_sql(*sql_connection, bulk, bin);
                 else
                     values += "\\N";
             } else {
                 if (!is_optional || read_bin<bool>(bin))
-                    values += ", " + it->second.bin_to_sql(sql_connection, bulk, bin);
+                    values += ", " + it->second.bin_to_sql(*sql_connection, bulk, bin);
                 else
                     values += ", null";
             }
@@ -1290,7 +1298,7 @@ struct session : enable_shared_from_this<session> {
                 values += begin_object_in_array(bulk) + quote(bulk, (string)x.producer_name) + "," +
                           quote(bulk, public_key_to_string(x.block_signing_key)) + end_object_in_array(bulk);
             }
-            values += end_array(bulk, t, schema, "producer_key");
+            values += end_array(bulk, t, config->schema, "producer_key");
         } else {
             values += sep(bulk) + null_value(bulk);
         }
@@ -1317,11 +1325,10 @@ struct session : enable_shared_from_this<session> {
 
             size_t num_processed = 0;
             for (auto& row : table_delta.rows) {
-                if (table_delta.rows.size() > 10000 && !(num_processed % 10000)) {
-                    log_time();
-                    cerr << "block " << block_num << " " << table_delta.name << " " << num_processed << " of " << table_delta.rows.size()
-                         << " bulk=" << bulk << "\n";
-                }
+                if (table_delta.rows.size() > 10000 && !(num_processed % 10000))
+                    ilog(
+                        "block ${b} ${t} ${n} of ${r} bulk=${bulk}",
+                        ("b", block_num)("t", table_delta.name)("n", num_processed)("r", table_delta.rows.size())("bulk", bulk));
                 check_variant(row.data, variant_type, 0u);
                 string fields = "block_index, present";
                 string values = to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);
@@ -1410,7 +1417,8 @@ struct session : enable_shared_from_this<session> {
         if (bulk) {
             write_stream(block_num, t, name, values);
         } else {
-            string query = "insert into " + t.quote_name(schema) + "." + t.quote_name(name) + "(" + fields + ") values (" + values + ")";
+            string query =
+                "insert into " + t.quote_name(config->schema) + "." + t.quote_name(name) + "(" + fields + ") values (" + values + ")";
             pipeline.insert(query);
         }
     }
@@ -1425,33 +1433,31 @@ struct session : enable_shared_from_this<session> {
             constexpr auto sql_type = sql_type_for<type>;
             if constexpr (is_known_type(sql_type)) {
                 fields += ", " + t.quote_name(field_name);
-                values += sep(bulk) + sql_type.native_to_sql(sql_connection, bulk, &member_from_void(member_ptr, &obj));
+                values += sep(bulk) + sql_type.native_to_sql(*sql_connection, bulk, &member_from_void(member_ptr, &obj));
             }
         });
         write(block_num, t, pipeline, bulk, name, fields, values);
     } // write
 
     void trim() {
-        if (!enable_trim)
+        if (!config->enable_trim)
             return;
         auto end_trim = min(head, irreversible);
         if (first >= end_trim)
             return;
         create_trim();
-        pqxx::work t(sql_connection);
-        log_time();
-        cerr << "trim  " << first << " - " << end_trim << "\n";
+        pqxx::work t(*sql_connection);
+        ilog("trim  ${b} - ${e}", ("b", first)("e", end_trim));
         t.exec("select * from chain.trim_history(" + to_string(first) + ", " + to_string(end_trim) + ")");
         t.commit();
-        log_time();
-        cerr << "      done\n";
+        ilog("      done");
         first = end_trim;
     }
 
     void send_request(const jarray& positions) {
         send(jvalue{jarray{{"get_blocks_request_v0"s},
                            {jobject{
-                               {{"start_block_num"s}, {to_string(max(skip_to, head + 1))}},
+                               {{"start_block_num"s}, {to_string(max(config->skip_to, head + 1))}},
                                {{"end_block_num"s}, {"4294967295"s}},
                                {{"max_messages_in_flight"s}, {"4294967295"s}},
                                {{"have_positions"s}, {positions}},
@@ -1503,10 +1509,10 @@ struct session : enable_shared_from_this<session> {
         try {
             f();
         } catch (const exception& e) {
-            cerr << "error: " << e.what() << "\n";
+            elog("${e}", ("e", e.what()));
             close();
         } catch (...) {
-            cerr << "error: unknown exception\n";
+            elog("unknown exception");
             close();
         }
     }
@@ -1520,49 +1526,69 @@ struct session : enable_shared_from_this<session> {
 
     void on_fail(error_code ec, const char* what) {
         try {
-            cerr << what << ": " << ec.message() << "\n";
+            elog("${w}: ${m}", ("w", what)("m", ec.message()));
             close();
         } catch (...) {
-            cerr << "error: exception while closing\n";
+            elog("exception while closing");
         }
     }
 
-    void close() { stream.next_layer().close(); }
+    void close() {
+        stream.next_layer().close();
+        if (my)
+            my->session.reset();
+    }
+
+    ~session() { ilog("fill-postgresql stopped"); }
 }; // session
 
-int main(int argc, char** argv) {
+static abstract_plugin& _fill_postgresql_plugin = app().register_plugin<fill_postgresql_plugin>();
+
+fill_postgresql_plugin_impl::~fill_postgresql_plugin_impl() {
+    if (session)
+        session->my = nullptr;
+}
+
+fill_postgresql_plugin::fill_postgresql_plugin()
+    : my(make_shared<fill_postgresql_plugin_impl>()) {}
+
+fill_postgresql_plugin::~fill_postgresql_plugin() {}
+
+void fill_postgresql_plugin::set_program_options(options_description& cli, options_description& cfg) {
+    auto op   = cfg.add_options();
+    auto clop = cli.add_options();
+    op("endpoint,e", bpo::value<string>()->default_value("localhost:8080"), "State-history endpoint to connect to (nodeos)");
+    op("schema,s", bpo::value<string>()->default_value("chain"), "Database schema");
+    op("trim,t", "Trim history before irreversible");
+    clop("skip-to,k", bpo::value<uint32_t>(), "Skip blocks before [arg]");
+    clop("stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
+    clop("drop,D", "Drop (delete) schema and tables");
+    clop("create,C", "Create schema and tables");
+}
+
+void fill_postgresql_plugin::plugin_initialize(const variables_map& options) {
     try {
-        bpo::options_description desc{"Options"};
-        auto                     op = desc.add_options();
-        op("help,h", "Help screen");
-        op("host,H", bpo::value<string>()->default_value("localhost"), "Host to connect to (nodeos)");
-        op("port,p", bpo::value<string>()->default_value("8080"), "Port to connect to (nodeos state-history plugin)");
-        op("schema,s", bpo::value<string>()->default_value("chain"), "Database schema");
-        op("skip-to,k", bpo::value<uint32_t>(), "Skip blocks before [arg]");
-        op("stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
-        op("drop,d", "Drop (delete) schema and tables");
-        op("create,c", "Create schema and tables");
-        op("trim,t", "Trim history before irreversible");
-
-        bpo::variables_map vm;
-        bpo::store(bpo::parse_command_line(argc, argv, desc), vm);
-        bpo::notify(vm);
-
-        if (vm.count("help"))
-            std::cout << desc << '\n';
-        else {
-            asio::io_context ioc;
-            auto             s = make_shared<session>(
-                ioc, vm["host"].as<string>(), vm["port"].as<string>(), vm["schema"].as<string>(),
-                vm.count("skip-to") ? vm["skip-to"].as<uint32_t>() : 0, vm.count("stop") ? vm["stop"].as<uint32_t>() : 0, vm.count("drop"),
-                vm.count("create"), vm.count("trim"));
-            cerr.imbue(std::locale(""));
-            s->start();
-            ioc.run();
-        }
-        return 0;
-    } catch (const std::exception& e) {
-        std::cerr << "error: " << e.what() << '\n';
-        return 1;
+        auto endpoint             = options.at("endpoint").as<string>();
+        auto port                 = endpoint.substr(endpoint.find(':') + 1, endpoint.size());
+        auto host                 = endpoint.substr(0, endpoint.find(':'));
+        my->config->host          = host;
+        my->config->port          = port;
+        my->config->schema        = options["schema"].as<string>();
+        my->config->skip_to       = options.count("skip-to") ? options["skip-to"].as<uint32_t>() : 0;
+        my->config->stop_before   = options.count("stop") ? options["stop"].as<uint32_t>() : 0;
+        my->config->drop_schema   = options.count("drop");
+        my->config->create_schema = options.count("create");
+        my->config->enable_trim   = options.count("trim");
     }
-} // main
+    FC_LOG_AND_RETHROW()
+}
+
+void fill_postgresql_plugin::plugin_startup() {
+    my->session = make_shared<session>(my.get(), app().get_io_service());
+    my->session->start();
+}
+
+void fill_postgresql_plugin::plugin_shutdown() {
+    if (my->session)
+        my->session->close();
+}

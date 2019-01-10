@@ -20,19 +20,16 @@
 // todo: version on query api?
 // todo: better naming for queries
 
+#include "wasm_ql_plugin.hpp"
 #include "queries.hpp"
 
-#include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http/vector_body.hpp>
 #include <boost/beast/websocket.hpp>
-#include <boost/program_options.hpp>
+#include <boost/signals2/connection.hpp>
+#include <fc/exception/exception.hpp>
+#include <fc/io/datastream.hpp>
 #include <fstream>
-#include <iostream>
-#include <memory>
-#include <sstream>
-#include <string>
-#include <variant>
 
 #include "jsapi.h"
 
@@ -41,23 +38,21 @@
 #include "jsfriendapi.h"
 
 using namespace abieos;
+using namespace appbase;
 using namespace std::literals;
-using namespace sql_conversion;
-namespace bpo   = boost::program_options;
 namespace asio  = boost::asio;
 namespace beast = boost::beast;
 namespace http  = beast::http;
+namespace ws    = boost::beast::websocket;
 using tcp       = asio::ip::tcp;
 
-using std::string;
-
-string read_string(const char* filename) {
+std::string read_string(const char* filename) {
     try {
         std::fstream file(filename, std::ios_base::in | std::ios_base::binary);
         file.seekg(0, std::ios_base::end);
         auto len = file.tellg();
         file.seekg(0, std::ios_base::beg);
-        string result(len, 0);
+        std::string result(len, 0);
         file.read(result.data(), len);
         return result;
     } catch (const std::exception& e) {
@@ -125,7 +120,7 @@ struct state {
     bool                 console         = {};
     asio::io_context     ioc             = {};
     query_config::config config          = {};
-    string               schema          = {};
+    std::string          schema          = {};
     pqxx::connection     sql_connection  = {};
     uint32_t             head            = {};
     abieos::checksum256  head_id         = {};
@@ -142,7 +137,7 @@ struct state {
     static state& from_context(JSContext* cx) { return *reinterpret_cast<state*>(JS_GetContextPrivate(cx)); }
 };
 
-bool convert_str(JSContext* cx, JSString* str, string& dest) {
+bool convert_str(JSContext* cx, JSString* str, std::string& dest) {
     auto len = JS_GetStringEncodingLength(cx, str);
     if (len == size_t(-1))
         return false;
@@ -153,7 +148,7 @@ bool convert_str(JSContext* cx, JSString* str, string& dest) {
 
 bool print_js_str(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::CallArgs args = CallArgsFromVp(argc, vp);
-    string       s;
+    std::string  s;
     for (unsigned i = 0; i < args.length(); ++i)
         if (args[i].isString() && convert_str(cx, args[i].toString(), s))
             std::cerr << s;
@@ -332,7 +327,7 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
 
         auto it = state.config.query_map.find(query_name);
         if (it == state.config.query_map.end())
-            return js_assert(false, cx, ("exec_query: unknown query: " + (string)query_name).c_str());
+            return js_assert(false, cx, ("exec_query: unknown query: " + (std::string)query_name).c_str());
         query_config::query& query = *it->second;
         query_config::table& table = *query.result_table;
 
@@ -359,18 +354,18 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         }
         for (auto& type : query.types) {
             if (need_sep)
-                query_str += sep;
+                query_str += query_config::sep;
             query_str += type.bin_to_sql(args_buf);
             need_sep = true;
         }
         for (auto& type : query.types) {
             if (need_sep)
-                query_str += sep;
+                query_str += query_config::sep;
             query_str += type.bin_to_sql(args_buf);
             need_sep = true;
         }
         auto max_results = abieos::read_bin<uint32_t>(args_buf);
-        query_str += sep + sql_conversion::sql_str(std::min(max_results, query.max_results));
+        query_str += query_config::sep + sql_conversion::sql_str(std::min(max_results, query.max_results));
         query_str += ")";
         // std::cerr << query_str << "\n";
 
@@ -443,19 +438,19 @@ void fetch_fill_status(::state& state) {
     pqxx::work t(state.sql_connection);
     auto       row        = t.exec("select head, head_id, irreversible, irreversible_id from \"" + state.schema + "\".fill_status")[0];
     state.head            = row[0].as<uint32_t>();
-    state.head_id         = sql_to_checksum256(row[1].c_str());
+    state.head_id         = query_config::sql_to_checksum256(row[1].c_str());
     state.irreversible    = row[2].as<uint32_t>();
-    state.irreversible_id = sql_to_checksum256(row[3].c_str());
+    state.irreversible_id = query_config::sql_to_checksum256(row[3].c_str());
 }
 
 bool did_fork(::state& state) {
     pqxx::work t(state.sql_connection);
-    auto       result = t.exec("select block_id from \"" + state.schema + "\".block_info where block_index=" + sql_str(state.head));
+    auto result = t.exec("select block_id from \"" + state.schema + "\".block_info where block_index=" + query_config::sql_str(state.head));
     if (result.empty()) {
         std::cerr << "fork detected (prev head not found)\n";
         return true;
     }
-    auto id = sql_to_checksum256(result[0][0].c_str());
+    auto id = query_config::sql_to_checksum256(result[0][0].c_str());
     if (id.value != state.head_id.value) {
         std::cerr << "fork detected (head_id changed)\n";
         return true;
@@ -477,13 +472,13 @@ std::vector<char> run(::state& state, const std::vector<char>& request) {
             state.request = bin_to_native<input_buffer>(request_bin);
             auto ns_name  = bin_to_native<name>(state.request);
             if (ns_name != "local"_n)
-                throw std::runtime_error("unknown namespace: " + (string)ns_name);
+                throw std::runtime_error("unknown namespace: " + (std::string)ns_name);
             auto wasm_name = bin_to_native<name>(state.request);
 
             JSAutoRealm           realm(state.context.cx, state.global);
             JS::RootedValue       rval(state.context.cx);
             JS::AutoValueArray<1> args(state.context.cx);
-            args[0].set(JS::StringValue(JS_NewStringCopyZ(state.context.cx, ((string)wasm_name).c_str())));
+            args[0].set(JS::StringValue(JS_NewStringCopyZ(state.context.cx, ((std::string)wasm_name).c_str())));
             if (!JS_CallFunctionName(state.context.cx, state.global, "run", args, &rval)) {
                 // todo: detect assert
                 JS_ClearPendingException(state.context.cx);
@@ -590,63 +585,95 @@ void accepted(::state& state, tcp::socket socket) {
     socket.shutdown(tcp::socket::shutdown_send, ec);
 }
 
-int main(int argc, const char* argv[]) {
-    std::cerr << std::unitbuf;
+static abstract_plugin& _wasm_ql_plugin = app().register_plugin<wasm_ql_plugin>();
 
+using boost::signals2::scoped_connection;
+
+template <typename F>
+auto catch_and_log(F f) {
     try {
-        bpo::options_description desc{"Options"};
-        auto                     op = desc.add_options();
-        op("help,h", "Help screen");
-        op("schema,s", bpo::value<string>()->default_value("chain"), "Database schema");
-        op("query-config,q", bpo::value<string>()->default_value("../src/query-config.json"), "Query configuration");
-        op("address,a", bpo::value<string>()->default_value("localhost"), "Address to listen on");
-        op("port,p", bpo::value<string>()->default_value("8880"), "Port to listen on)");
-        op("console,c", "Show console output");
-        bpo::variables_map vm;
-        bpo::store(bpo::parse_command_line(argc, argv, desc), vm);
-        bpo::notify(vm);
-
-        if (vm.count("help")) {
-            std::cout << desc << '\n';
-            return 0;
-        }
-
-        JS_Init();
-        ::state state;
-        state.console = vm.count("console");
-        state.schema  = vm["schema"].as<string>();
-
-        auto x = read_string(vm["query-config"].as<string>().c_str());
-        if (!json_to_native(state.config, x))
-            throw std::runtime_error("error processing " + vm["query-config"].as<string>());
-        state.config.prepare();
-
-        init_glue(state);
-
-        tcp::resolver resolver(state.ioc);
-        auto          addr = resolver.resolve(tcp::resolver::query(tcp::v4(), vm["address"].as<string>(), vm["port"].as<string>()));
-        tcp::acceptor acceptor{state.ioc, *addr.begin()};
-        std::cerr << "listening on " << vm["address"].as<string>() << ":" << vm["port"].as<string>() << "\n";
-
-        for (;;) {
-            try {
-                tcp::socket socket{state.ioc};
-                acceptor.accept(socket);
-                std::cerr << "connection accepted\n";
-                accepted(state, std::move(socket));
-            } catch (const std::exception& e) {
-                std::cerr << "error: " << e.what() << "\n";
-            } catch (...) {
-                std::cerr << "error: unknown exception\n";
-            }
-        }
-
-        return 0;
+        return f();
+    } catch (const fc::exception& e) {
+        elog("${e}", ("e", e.to_detail_string()));
     } catch (const std::exception& e) {
-        std::cerr << "error: " << e.what() << '\n';
-        return 1;
+        elog("${e}", ("e", e.what()));
     } catch (...) {
-        std::cerr << "error: unknown exception\n";
-        return 1;
+        elog("unknown exception");
     }
 }
+
+struct wasm_ql_plugin_impl : std::enable_shared_from_this<wasm_ql_plugin_impl> {
+    bool                           stopping = false;
+    std::string                    endpoint_address;
+    std::string                    endpoint_port;
+    std::unique_ptr<tcp::acceptor> acceptor;
+    std::unique_ptr<::state>       state;
+
+    void listen() {
+        boost::system::error_code ec;
+        auto                      check_ec = [&](const char* what) {
+            if (!ec)
+                return;
+            elog("${w}: ${m}", ("w", what)("m", ec.message()));
+            FC_ASSERT(false, "unable to open listen socket");
+        };
+
+        tcp::resolver resolver(app().get_io_service());
+        auto          addr = resolver.resolve(tcp::resolver::query(tcp::v4(), endpoint_address, endpoint_port));
+        acceptor           = std::make_unique<tcp::acceptor>(app().get_io_service(), *addr.begin(), true);
+        acceptor->listen(boost::asio::socket_base::max_listen_connections, ec);
+        check_ec("listen");
+        do_accept();
+    }
+
+    void do_accept() {
+        auto socket = std::make_shared<tcp::socket>(app().get_io_service());
+        acceptor->async_accept(*socket, [self = shared_from_this(), socket, this](auto ec) {
+            if (stopping)
+                return;
+            if (ec) {
+                if (ec == boost::system::errc::too_many_files_open)
+                    catch_and_log([&] { do_accept(); });
+                return;
+            }
+            catch_and_log([&] { accepted(*state, std::move(*socket)); });
+            catch_and_log([&] { do_accept(); });
+        });
+    }
+}; // wasm_ql_plugin_impl
+
+wasm_ql_plugin::wasm_ql_plugin()
+    : my(std::make_shared<wasm_ql_plugin_impl>()) {}
+
+wasm_ql_plugin::~wasm_ql_plugin() { ilog("wasm_ql stopped"); }
+
+void wasm_ql_plugin::set_program_options(options_description& cli, options_description& cfg) {
+    auto op = cfg.add_options();
+    op("schema,s", bpo::value<std::string>()->default_value("chain"), "Database schema");
+    op("query-config,q", bpo::value<std::string>()->default_value("../src/query-config.json"), "Query configuration");
+    op("endpoint,e", bpo::value<std::string>()->default_value("localhost:8880"), "Endpoint to listen on");
+    op("console,C", "Show console output");
+}
+
+void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
+    try {
+        JS_Init();
+        auto ip_port         = options.at("endpoint").as<std::string>();
+        my->state            = std::make_unique<::state>();
+        my->state->console   = options.count("console");
+        my->state->schema    = options["schema"].as<std::string>();
+        my->endpoint_port    = ip_port.substr(ip_port.find(':') + 1, ip_port.size());
+        my->endpoint_address = ip_port.substr(0, ip_port.find(':'));
+
+        auto x = read_string(options["query-config"].as<std::string>().c_str());
+        if (!json_to_native(my->state->config, x))
+            throw std::runtime_error("error processing " + options["query-config"].as<std::string>());
+        my->state->config.prepare();
+
+        init_glue(*my->state);
+    }
+    FC_LOG_AND_RETHROW()
+}
+
+void wasm_ql_plugin::plugin_startup() { my->listen(); }
+void wasm_ql_plugin::plugin_shutdown() { my->stopping = true; }

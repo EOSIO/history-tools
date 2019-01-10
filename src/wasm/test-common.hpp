@@ -17,7 +17,7 @@
 #include <vector>
 
 #define ripemd160 internal_ripemd160
-#include "../external/abieos/src/ripemd160.hpp"
+#include "../../external/abieos/src/ripemd160.hpp"
 #undef ripemd160
 
 using namespace eosio;

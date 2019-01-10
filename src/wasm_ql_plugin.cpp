@@ -118,7 +118,6 @@ struct state {
     context_wrapper      context;
     JS::RootedObject     global;
     bool                 console         = {};
-    asio::io_context     ioc             = {};
     query_config::config config          = {};
     std::string          schema          = {};
     pqxx::connection     sql_connection  = {};

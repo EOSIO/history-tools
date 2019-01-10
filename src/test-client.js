@@ -229,10 +229,10 @@ async function get_abis(clientWasm, names) {
     console.log(JSON.stringify(reply, null, 4));
 }
 
-async function dump_eos_balances(clientWasm, first_account, last_account) {
+async function dump_eos_balances(max_block, clientWasm, first_account, last_account) {
     do {
         const reply = await clientWasm.round_trip(['bal.mult.acc', {
-            max_block: ["absolute", 35000000],
+            max_block,
             code: 'eosio.token',
             sym: 'EOS',
             first_account: first_account,
@@ -311,7 +311,7 @@ async function dump_transfers(clientWasm) {
         console.log();
         await get_abis(chainWasm, ['eosio', 'eosio.token', 'eosio.null', 'eosio.nope']);
         console.log();
-        await dump_eos_balances(tokenWasm, 'eosio', 'eosio.zzzzzzj');
+        await dump_eos_balances(["absolute", 20000000], tokenWasm, 'eosio', 'eosio.zzzzzzj');
         console.log();
         await dump_tokens(tokenWasm, 'b1', ["irreversible", 0], { sym: '', code: '' }, { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' });
         console.log();

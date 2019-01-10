@@ -447,12 +447,12 @@ bool did_fork(::state& state) {
     pqxx::work t(state.sql_connection);
     auto result = t.exec("select block_id from \"" + state.schema + "\".block_info where block_index=" + query_config::sql_str(state.head));
     if (result.empty()) {
-        std::cerr << "fork detected (prev head not found)\n";
+        ilog("fork detected (prev head not found)");
         return true;
     }
     auto id = query_config::sql_to_checksum256(result[0][0].c_str());
     if (id.value != state.head_id.value) {
-        std::cerr << "fork detected (head_id changed)\n";
+        ilog("fork detected (head_id changed)");
         return true;
     }
     return false;
@@ -497,11 +497,11 @@ std::vector<char> run(::state& state, const std::vector<char>& request) {
             return result;
         if (++num_tries >= 4)
             throw std::runtime_error("too many fork events during request");
-        std::cerr << "retry request\n";
+        ilog("retry request");
     }
 }
 
-void fail(beast::error_code ec, char const* what) { std::cerr << what << ": " << ec.message() << "\n"; }
+void fail(beast::error_code ec, char const* what) { elog("${w}: ${s}", ("w", what)("s", ec.message())); }
 
 void handle_request(::state& state, tcp::socket& socket, http::request<http::vector_body<char>> req, beast::error_code& ec) {
     auto const bad_request = [&req](beast::string_view why) {
@@ -555,10 +555,10 @@ void handle_request(::state& state, tcp::socket& socket, http::request<http::vec
         try {
             return send(ok(run(state, req.body())));
         } catch (const std::exception& e) {
-            std::cerr << "query failed: " << e.what() << "\n";
+            elog("query failed: ${s}", ("s", e.what()));
             return send(server_error("query failed: "s + e.what()));
         } catch (...) {
-            std::cerr << "query failed: unknown exception\n";
+            elog("query failed: unknown exception");
             return send(server_error("query failed: unknown exception"));
         }
     }

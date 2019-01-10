@@ -3,7 +3,7 @@
 ```
 sudo apt update
 sudo apt upgrade
-sudo apt install build-essential cmake libboost-all-dev git libpq-dev libpqxx-dev autoconf2.13 rustc clang-7
+sudo apt install build-essential cmake libboost-all-dev git libpq-dev libpqxx-dev autoconf2.13 rustc cargo clang-7
 cd ~
 wget https://archive.mozilla.org/pub/firefox/releases/64.0/source/firefox-64.0.source.tar.xz
 tar xf firefox-64.0.source.tar.xz

@@ -49,7 +49,7 @@ include(VersionMacros)
 add_subdirectory(external/appbase)
 add_subdirectory(external/fc)
 
-add_executable(wasm-ql src/main.cpp src/wasm_ql_plugin.cpp)
+add_executable(wasm-ql src/main.cpp src/wasm_ql_plugin.cpp src/wasm_interface.cpp)
 target_include_directories(wasm-ql
     PUBLIC
         external/abieos/src

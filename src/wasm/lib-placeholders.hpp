@@ -71,13 +71,11 @@ inline datastream<Stream>& operator<<(datastream<Stream>& ds, const std::string_
 } // namespace eosio
 
 inline bool increment(eosio::checksum256& v) {
-    auto bytes = reinterpret_cast<char*>(v.data());
-    for (int i = 0; i < 64; ++i) {
-        auto& x = bytes[63 - i];
-        if (++x)
-            return false;
-    }
-    return true;
+    if (++v.data()[1])
+        return true;
+    if (++v.data()[0])
+        return true;
+    return false;
 }
 
 // todo: don't return static storage

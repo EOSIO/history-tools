@@ -26,7 +26,7 @@ void process(token_transfer_request& req, const context_data& context) {
                 .name             = "transfer"_n,
                 .receipt_receiver = req.first_key.receipt_receiver,
                 .account          = req.first_key.account,
-                .block_index      = req.first_key.block_index,
+                .block_index      = get_block_num(req.first_key.block, context),
                 .transaction_id   = req.first_key.transaction_id,
                 .action_index     = req.first_key.action_index,
             },
@@ -35,7 +35,7 @@ void process(token_transfer_request& req, const context_data& context) {
                 .name             = "transfer"_n,
                 .receipt_receiver = req.last_key.receipt_receiver,
                 .account          = req.last_key.account,
-                .block_index      = req.last_key.block_index,
+                .block_index      = get_block_num(req.last_key.block, context),
                 .transaction_id   = req.last_key.transaction_id,
                 .action_index     = req.last_key.action_index,
             },
@@ -48,7 +48,7 @@ void process(token_transfer_request& req, const context_data& context) {
         response.more = token_transfer_key{
             .receipt_receiver = at.receipt_receiver,
             .account          = at.account,
-            .block_index      = at.block_index,
+            .block            = make_absolute_block(at.block_index),
             .transaction_id   = at.transaction_id,
             .action_index     = at.action_index,
         };

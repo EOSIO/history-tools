@@ -81,6 +81,12 @@ using head_block         = tagged_type<"head"_n, int32_t>;
 using irreversible_block = tagged_type<"irreversible"_n, int32_t>;
 using block_select       = tagged_variant<serialize_tag_as_index, absolute_block, head_block, irreversible_block>;
 
+inline block_select make_absolute_block(int32_t i) {
+    block_select result;
+    result.value.emplace<0>(i);
+    return result;
+}
+
 inline uint32_t get_block_num(const block_select& sel, const context_data& context) {
     switch (sel.value.index()) {
     case 0: return std::max((int32_t)0, std::get<0>(sel.value));
@@ -88,6 +94,15 @@ inline uint32_t get_block_num(const block_select& sel, const context_data& conte
     case 2: return std::max((int32_t)0, (int32_t)context.irreversible + std::get<2>(sel.value));
     default: return 0x7fff'ffff;
     }
+}
+
+inline uint32_t increment(block_select& sel) {
+    eosio_assert(sel.value.index() == 0, "can only increment absolute block_select");
+    int32_t& result = std::get<0>(sel.value);
+    result          = uint32_t(result) + 1;
+    if (result < 0)
+        result = 0;
+    return result;
 }
 
 struct block_info {

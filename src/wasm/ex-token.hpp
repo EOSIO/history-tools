@@ -3,11 +3,10 @@
 #pragma once
 #include "lib-database.hpp"
 
-// todo: block_index: head, irreversible options
 struct token_transfer_key {
     eosio::name                        receipt_receiver = {};
     eosio::name                        account          = {};
-    uint32_t                           block_index      = {};
+    block_select                       block            = {};
     serial_wrapper<eosio::checksum256> transaction_id   = {};
     uint32_t                           action_index     = {};
 
@@ -15,9 +14,9 @@ struct token_transfer_key {
     token_transfer_key& operator++() {
         if (++action_index)
             return *this;
-        if (!increment(transaction_id.value))
+        if (increment(transaction_id.value))
             return *this;
-        if (++block_index)
+        if (increment(block))
             return *this;
         if (++account.value)
             return *this;
@@ -26,14 +25,14 @@ struct token_transfer_key {
         return *this;
     }
 
-    EOSLIB_SERIALIZE(token_transfer_key, (receipt_receiver)(account)(block_index)(transaction_id)(action_index))
+    EOSLIB_SERIALIZE(token_transfer_key, (receipt_receiver)(account)(block)(transaction_id)(action_index))
 };
 
 template <typename F>
 void for_each_member(token_transfer_key& obj, F f) {
     f("receipt_receiver", obj.receipt_receiver);
     f("account", obj.account);
-    f("block_index", obj.block_index);
+    f("block", obj.block);
     f("transaction_id", obj.transaction_id);
     f("action_index", obj.action_index);
 }

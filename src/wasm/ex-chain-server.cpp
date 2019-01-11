@@ -10,17 +10,17 @@ extern "C" void eosio_assert(uint32_t test, const char* msg) {
         eosio_assert_message(test, msg, strlen(msg));
 }
 
-void process(block_info_request& req, const context_data&) {
+void process(block_info_request& req, const context_data& context) {
     print("    block_info_request\n");
     auto s = exec_query(query_block_info_range_index{
-        .first       = req.first,
-        .last        = req.last,
+        .first       = get_block_num(req.first, context),
+        .last        = get_block_num(req.last, context),
         .max_results = req.max_results,
     });
 
     block_info_response response;
     for_each_query_result<block_info>(s, [&](block_info& b) {
-        response.more = b.block_num + 1;
+        response.more = make_absolute_block(b.block_num + 1);
         response.blocks.push_back(b);
         return true;
     });
@@ -28,11 +28,11 @@ void process(block_info_request& req, const context_data&) {
     print("\n");
 }
 
-void process(tapos_request& req, const context_data&) {
+void process(tapos_request& req, const context_data& context) {
     print("    tapos_request\n");
     auto s = exec_query(query_block_info_range_index{
-        .first       = req.ref_block,
-        .last        = req.ref_block,
+        .first       = get_block_num(req.ref_block, context),
+        .last        = get_block_num(req.ref_block, context),
         .max_results = 1,
     });
 

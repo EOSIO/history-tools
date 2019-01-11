@@ -7,9 +7,9 @@
 #include "lib-database.hpp"
 
 struct block_info_request {
-    uint32_t first       = {}; // todo: block_select
-    uint32_t last        = {}; // todo: block_select
-    uint32_t max_results = {};
+    block_select first       = {};
+    block_select last        = {};
+    uint32_t     max_results = {};
 
     EOSLIB_SERIALIZE(block_info_request, (first)(last)(max_results))
 };
@@ -24,8 +24,8 @@ void for_each_member(block_info_request& obj, F f) {
 // todo: versioning issues
 // todo: vector<extendable<...>>
 struct block_info_response {
-    std::vector<block_info> blocks = {};
-    std::optional<uint32_t> more   = {};
+    std::vector<block_info>     blocks = {};
+    std::optional<block_select> more   = {};
 
     EOSLIB_SERIALIZE(block_info_response, (blocks)(more))
 };
@@ -37,8 +37,8 @@ void for_each_member(block_info_response& obj, F f) {
 }
 
 struct tapos_request {
-    uint32_t ref_block      = {}; // todo: block_select
-    uint32_t expire_seconds = {};
+    block_select ref_block      = {};
+    uint32_t     expire_seconds = {};
 };
 
 template <typename F>

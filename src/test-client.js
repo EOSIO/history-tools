@@ -303,9 +303,9 @@ async function dump_transfers(clientWasm) {
         const chainWasm = new ClientWasm('./chain-client.wasm');
         const tokenWasm = new ClientWasm('./token-client.wasm');
 
-        await dump_block_info(chainWasm, 30000000, 30000001);
+        await dump_block_info(chainWasm, ["irreversible", 0], ["irreversible", 1]);
         console.log();
-        await dump_tapos(chainWasm, 30000000, 0);
+        await dump_tapos(chainWasm, ["head", -3], 0);
         console.log();
         await dump_accounts(chainWasm, 'eosio', 'eosio.bpay')
         console.log();

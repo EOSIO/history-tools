@@ -7,7 +7,6 @@
 // todo: check callbacks for recursion to limit stack size
 // todo: make sure spidermonkey limits stack size
 // todo: global constructors in wasm
-// todo: remove block_select and handle in wasm instead
 // todo: reformulate get_input_data and set_output_data for reentrancy
 // todo: notify wasms of truncated or missing history
 // todo: wasms get whether a query is present
@@ -56,23 +55,6 @@ std::string read_string(const char* filename) {
     }
 }
 
-struct block_select {
-    enum {
-        absolute,
-        head,
-        irreversible,
-    };
-
-    abieos::varuint32 position = {};
-    int32_t           offset   = {};
-};
-
-template <typename F>
-constexpr void for_each_field(block_select*, F f) {
-    f("position", member_ptr<&block_select::position>{});
-    f("offset", member_ptr<&block_select::offset>{});
-}
-
 struct state : wasm_state {
     query_config::config config          = {};
     std::string          schema          = {};
@@ -81,6 +63,7 @@ struct state : wasm_state {
     abieos::checksum256  head_id         = {};
     uint32_t             irreversible    = {};
     abieos::checksum256  irreversible_id = {};
+    uint32_t             first           = {};
 
     static state& from_context(JSContext* cx) { return *reinterpret_cast<state*>(JS_GetContextPrivate(cx)); }
 };
@@ -150,20 +133,8 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         query_config::table& table = *query.result_table;
 
         uint32_t max_block_index = 0;
-        if (query.limit_block_index) {
-            block_select b;
-            abieos::bin_to_native(b, args_buf);
-            if (b.position.value == block_select::absolute)
-                max_block_index = b.offset;
-            else if (b.position.value == block_select::head)
-                max_block_index = state.head + b.offset;
-            else if (b.position.value == block_select::irreversible)
-                max_block_index = state.irreversible + b.offset;
-            else
-                return js_assert(false, cx, "exec_query: invalid args");
-            max_block_index = std::max((int32_t)0, std::min((int32_t)state.head, (int32_t)max_block_index));
-        }
-
+        if (query.limit_block_index)
+            max_block_index = std::min(state.head, abieos::bin_to_native<uint32_t>(args_buf));
         std::string query_str = "select * from \"" + state.schema + "\"." + query.function + "(";
         bool        need_sep  = false;
         if (query.limit_block_index) {
@@ -218,13 +189,14 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
 } // exec_query
 
 static const JSFunctionSpec functions[] = {
-    JS_FN("exec_query", exec_query, 0, 0),           //
-    JS_FN("get_input_data", get_input_data, 0, 0),   //
-    JS_FN("get_wasm", get_wasm, 0, 0),               //
-    JS_FN("print_js_str", print_js_str, 0, 0),       //
-    JS_FN("print_wasm_str", print_wasm_str, 0, 0),   //
-    JS_FN("set_output_data", set_output_data, 0, 0), //
-    JS_FS_END                                        //
+    JS_FN("exec_query", exec_query, 0, 0),             //
+    JS_FN("get_context_data", get_context_data, 0, 0), //
+    JS_FN("get_input_data", get_input_data, 0, 0),     //
+    JS_FN("get_wasm", get_wasm, 0, 0),                 //
+    JS_FN("print_js_str", print_js_str, 0, 0),         //
+    JS_FN("print_wasm_str", print_wasm_str, 0, 0),     //
+    JS_FN("set_output_data", set_output_data, 0, 0),   //
+    JS_FS_END                                          //
 };
 
 void init_glue(::state& state) {
@@ -234,11 +206,20 @@ void init_glue(::state& state) {
 
 void fetch_fill_status(::state& state) {
     pqxx::work t(state.sql_connection);
-    auto       row        = t.exec("select head, head_id, irreversible, irreversible_id from \"" + state.schema + "\".fill_status")[0];
+    auto       row = t.exec("select head, head_id, irreversible, irreversible_id, first from \"" + state.schema + "\".fill_status")[0];
+
     state.head            = row[0].as<uint32_t>();
     state.head_id         = query_config::sql_to_checksum256(row[1].c_str());
     state.irreversible    = row[2].as<uint32_t>();
     state.irreversible_id = query_config::sql_to_checksum256(row[3].c_str());
+    state.first           = row[4].as<uint32_t>();
+}
+
+void fill_context_data(::state& state) {
+    state.context_data.clear();
+    abieos::native_to_bin(state.context_data, state.head);
+    abieos::native_to_bin(state.context_data, state.irreversible);
+    abieos::native_to_bin(state.context_data, state.first);
 }
 
 bool did_fork(::state& state) {
@@ -262,6 +243,7 @@ std::vector<char> run(::state& state, const std::vector<char>& request) {
     while (true) {
         bool forked = false;
         fetch_fill_status(state);
+        fill_context_data(state);
         input_buffer request_bin{request.data(), request.data() + request.size()};
         auto         num_requests = bin_to_native<varuint32>(request_bin).value;
         result.clear();
@@ -302,32 +284,12 @@ std::vector<char> run(::state& state, const std::vector<char>& request) {
 void fail(beast::error_code ec, char const* what) { elog("${w}: ${s}", ("w", what)("s", ec.message())); }
 
 void handle_request(::state& state, tcp::socket& socket, http::request<http::vector_body<char>> req, beast::error_code& ec) {
-    auto const bad_request = [&req](beast::string_view why) {
-        http::response<http::string_body> res{http::status::bad_request, req.version()};
+    auto const error = [&req](http::status status, beast::string_view why) {
+        http::response<http::string_body> res{status, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, "text/html");
         res.keep_alive(req.keep_alive());
         res.body() = why.to_string();
-        res.prepare_payload();
-        return res;
-    };
-
-    auto const not_found = [&req](beast::string_view target) {
-        http::response<http::string_body> res{http::status::not_found, req.version()};
-        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-        res.set(http::field::content_type, "text/html");
-        res.keep_alive(req.keep_alive());
-        res.body() = "The resource '" + target.to_string() + "' was not found.\n";
-        res.prepare_payload();
-        return res;
-    };
-
-    auto const server_error = [&req](beast::string_view what) {
-        http::response<http::string_body> res{http::status::internal_server_error, req.version()};
-        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-        res.set(http::field::content_type, "text/html");
-        res.keep_alive(req.keep_alive());
-        res.body() = what.to_string() + "\n";
         res.prepare_payload();
         return res;
     };
@@ -349,19 +311,19 @@ void handle_request(::state& state, tcp::socket& socket, http::request<http::vec
 
     if (req.target() == "/wasmql/v1/query") {
         if (req.method() != http::verb::post)
-            return send(bad_request("Unsupported HTTP-method\n"));
+            return send(error(http::status::bad_request, "Unsupported HTTP-method\n"));
         try {
             return send(ok(run(state, req.body())));
         } catch (const std::exception& e) {
             elog("query failed: ${s}", ("s", e.what()));
-            return send(server_error("query failed: "s + e.what()));
+            return send(error(http::status::internal_server_error, "query failed: "s + e.what() + "\n"));
         } catch (...) {
             elog("query failed: unknown exception");
-            return send(server_error("query failed: unknown exception"));
+            return send(error(http::status::internal_server_error, "query failed: unknown exception\n"));
         }
     }
 
-    return send(not_found(req.target()));
+    return send(error(http::status::not_found, "The resource '" + req.target().to_string() + "' was not found.\n"));
 }
 
 void accepted(::state& state, tcp::socket socket) {

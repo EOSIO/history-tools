@@ -10,7 +10,7 @@ extern "C" void eosio_assert(uint32_t test, const char* msg) {
         eosio_assert_message(test, msg, strlen(msg));
 }
 
-void process(block_info_request& req) {
+void process(block_info_request& req, const context_data&) {
     print("    block_info_request\n");
     auto s = exec_query(query_block_info_range_index{
         .first       = req.first,
@@ -28,7 +28,7 @@ void process(block_info_request& req) {
     print("\n");
 }
 
-void process(tapos_request& req) {
+void process(tapos_request& req, const context_data&) {
     print("    tapos_request\n");
     auto s = exec_query(query_block_info_range_index{
         .first       = req.ref_block,
@@ -50,10 +50,10 @@ void process(tapos_request& req) {
     print("\n");
 }
 
-void process(account_request& req) {
+void process(account_request& req, const context_data& context) {
     print("    account\n");
     auto s = exec_query(query_account_range_name{
-        .max_block   = req.max_block,
+        .max_block   = get_block_num(req.max_block, context),
         .first       = req.first,
         .last        = req.last,
         .max_results = req.max_results,
@@ -75,12 +75,12 @@ void process(account_request& req) {
     print("\n");
 }
 
-void process(abis_request& req) {
+void process(abis_request& req, const context_data& context) {
     print("    abis\n");
     abis_response response;
     for (auto name : req.names) {
         auto s     = exec_query(query_account_range_name{
-            .max_block   = req.max_block,
+            .max_block   = get_block_num(req.max_block, context),
             .first       = name,
             .last        = name,
             .max_results = 1,
@@ -103,5 +103,5 @@ void process(abis_request& req) {
 extern "C" void startup() {
     auto request = unpack<chain_request>(get_input_data());
     print("request: ", chain_request::keys[request.value.index()], "\n");
-    std::visit([](auto& x) { process(x); }, request.value);
+    std::visit([](auto& x) { process(x, get_context_data()); }, request.value);
 }

@@ -17,10 +17,10 @@ struct transfer {
     std::string_view memo     = {nullptr, 0};
 };
 
-void process(token_transfer_request& req) {
+void process(token_transfer_request& req, const context_data& context) {
     print("    transfers\n");
     auto s = exec_query(query_action_trace_executed_range_name_receiver_account_block_trans_action{
-        .max_block = req.max_block,
+        .max_block = get_block_num(req.max_block, context),
         .first =
             {
                 .name             = "transfer"_n,
@@ -78,10 +78,10 @@ void process(token_transfer_request& req) {
     print("\n");
 }
 
-void process(balances_for_multiple_accounts_request& req) {
+void process(balances_for_multiple_accounts_request& req, const context_data& context) {
     print("    balances_for_multiple_accounts\n");
     auto s = exec_query(query_contract_row_range_code_table_pk_scope{
-        .max_block = req.max_block,
+        .max_block = get_block_num(req.max_block, context),
         .first =
             {
                 .code        = req.code,
@@ -114,10 +114,10 @@ void process(balances_for_multiple_accounts_request& req) {
     print("\n");
 }
 
-void process(balances_for_multiple_tokens_request& req) {
+void process(balances_for_multiple_tokens_request& req, const context_data& context) {
     print("    balances_for_multiple_tokens\n");
     auto s = exec_query(query_contract_row_range_scope_table_pk_code{
-        .max_block = req.max_block,
+        .max_block = get_block_num(req.max_block, context),
         .first =
             {
                 .scope       = req.account.value,
@@ -158,5 +158,5 @@ void process(balances_for_multiple_tokens_request& req) {
 extern "C" void startup() {
     auto request = unpack<token_request>(get_input_data());
     print("request: ", token_request::keys[request.value.index()], "\n");
-    std::visit([](auto& x) { process(x); }, request.value);
+    std::visit([](auto& x) { process(x, get_context_data()); }, request.value);
 }

@@ -17,6 +17,13 @@ const env = {
     set_blockchain_parameters_packed() {
         throw new Error('called set_blockchain_parameters_packed'); // todo: remove
     },
+    get_context_data(cb_alloc_data, cb_alloc) {
+        get_context_data(size => {
+            // cb_alloc may resize memory, causing inst.exports.memory.buffer to change
+            let ptr = inst.exports.__indirect_function_table.get(cb_alloc)(cb_alloc_data, size);
+            return [inst.exports.memory.buffer, ptr];
+        });
+    },
     get_input_data(cb_alloc_data, cb_alloc) {
         get_input_data(size => {
             // cb_alloc may resize memory, causing inst.exports.memory.buffer to change

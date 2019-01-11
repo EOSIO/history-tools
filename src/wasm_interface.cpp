@@ -135,6 +135,25 @@ bool print_wasm_str(JSContext* cx, unsigned argc, JS::Value* vp) {
 }
 
 // args: callback
+bool get_context_data(JSContext* cx, unsigned argc, JS::Value* vp) {
+    auto&        state = wasm_state::from_context(cx);
+    JS::CallArgs args  = CallArgsFromVp(argc, vp);
+    if (!args.requireAtLeast(cx, "get_context_data", 1))
+        return false;
+    try {
+        auto data = get_mem_from_callback(cx, args, 0, state.context_data.size());
+        if (!js_assert(data, cx, "get_context_data: failed to fetch buffer from callback"))
+            return false;
+        memcpy(data, state.context_data.data(), state.context_data.size());
+        return true;
+    } catch (const std::exception& e) {
+        return js_assert(false, cx, ("get_context_data: "s + e.what()).c_str());
+    } catch (...) {
+        return js_assert(false, cx, "get_context_data error");
+    }
+} // get_context_data
+
+// args: callback
 bool get_input_data(JSContext* cx, unsigned argc, JS::Value* vp) {
     auto&        state = wasm_state::from_context(cx);
     JS::CallArgs args  = CallArgsFromVp(argc, vp);

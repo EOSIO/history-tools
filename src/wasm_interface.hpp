@@ -31,9 +31,10 @@ struct context_wrapper {
 struct wasm_state {
     context_wrapper      context;
     JS::RootedObject     global;
-    bool                 console = {};
-    abieos::input_buffer request = {};
-    std::vector<char>    reply   = {};
+    bool                 console      = {};
+    std::vector<char>    context_data = {};
+    abieos::input_buffer request      = {}; // todo: rename
+    std::vector<char>    reply        = {}; // todo: rename
 
     wasm_state()
         : global(context.cx) {
@@ -59,6 +60,7 @@ char* get_mem_from_callback(JSContext* cx, JS::CallArgs& args, unsigned callback
 
 bool print_js_str(JSContext* cx, unsigned argc, JS::Value* vp);
 bool print_wasm_str(JSContext* cx, unsigned argc, JS::Value* vp);
+bool get_context_data(JSContext* cx, unsigned argc, JS::Value* vp);
 bool get_input_data(JSContext* cx, unsigned argc, JS::Value* vp);
 bool set_output_data(JSContext* cx, unsigned argc, JS::Value* vp);
 

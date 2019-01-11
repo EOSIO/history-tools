@@ -40,11 +40,55 @@ bool for_each_query_result(const std::vector<char>& bytes, F f) {
     return true;
 }
 
+// todo: head_id, irreversible_id; waiting on compiler-rt
+struct context_data {
+    uint32_t head         = {};
+    uint32_t irreversible = {};
+    uint32_t first        = {};
+};
+
+template <typename F>
+void for_each_member(context_data& obj, F f) {
+    f("head", obj.head);
+    f("irreversible", obj.irreversible);
+    f("first", obj.first);
+}
+
+extern "C" void get_context_data(void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
+
+template <typename Alloc_fn>
+inline void get_context_data(Alloc_fn alloc_fn) {
+    get_context_data(&alloc_fn, [](void* cb_alloc_data, size_t size) -> void* { //
+        return (*reinterpret_cast<Alloc_fn*>(cb_alloc_data))(size);
+    });
+}
+
+inline context_data get_context_data() {
+    context_data      result;
+    std::vector<char> bin;
+    get_context_data([&bin](size_t size) {
+        bin.resize(size);
+        return bin.data();
+    });
+    eosio::datastream<const char*> ds(bin.data(), bin.size());
+    ds >> result;
+    return result;
+}
+
 // todo: split out definitions useful for client-side
 using absolute_block     = tagged_type<"absolute"_n, int32_t>;
 using head_block         = tagged_type<"head"_n, int32_t>;
 using irreversible_block = tagged_type<"irreversible"_n, int32_t>;
 using block_select       = tagged_variant<serialize_tag_as_index, absolute_block, head_block, irreversible_block>;
+
+inline uint32_t get_block_num(const block_select& sel, const context_data& context) {
+    switch (sel.value.index()) {
+    case 0: return std::max((int32_t)0, std::get<0>(sel.value));
+    case 1: return std::max((int32_t)0, (int32_t)context.head + std::get<1>(sel.value));
+    case 2: return std::max((int32_t)0, (int32_t)context.irreversible + std::get<2>(sel.value));
+    default: return 0x7fff'ffff;
+    }
+}
 
 struct block_info {
     uint32_t                           block_num             = {};
@@ -76,8 +120,8 @@ void for_each_member(block_info& obj, F f) {
 
 struct query_block_info_range_index {
     eosio::name query_name  = "block.info"_n;
-    uint32_t    first       = {}; // todo: block_select
-    uint32_t    last        = {}; // todo: block_select
+    uint32_t    first       = {};
+    uint32_t    last        = {};
     uint32_t    max_results = {};
 };
 
@@ -123,11 +167,11 @@ struct query_action_trace_executed_range_name_receiver_account_block_trans_actio
         uint32_t                           action_index     = {};
     };
 
-    eosio::name  query_name  = "at.e.nra"_n;
-    block_select max_block   = {};
-    key          first       = {};
-    key          last        = {};
-    uint32_t     max_results = {};
+    eosio::name query_name  = "at.e.nra"_n;
+    uint32_t    max_block   = {};
+    key         first       = {};
+    key         last        = {};
+    uint32_t    max_results = {};
 };
 
 struct account {
@@ -163,11 +207,11 @@ void for_each_member(account& obj, F f) {
 }
 
 struct query_account_range_name {
-    eosio::name  query_name  = "account"_n;
-    block_select max_block   = {};
-    eosio::name  first       = {};
-    eosio::name  last        = {};
-    uint32_t     max_results = {};
+    eosio::name query_name  = "account"_n;
+    uint32_t    max_block   = {};
+    eosio::name first       = {};
+    eosio::name last        = {};
+    uint32_t    max_results = {};
 };
 
 struct contract_row {
@@ -206,11 +250,11 @@ struct query_contract_row_range_code_table_pk_scope {
         uint64_t    scope       = {};
     };
 
-    eosio::name  query_name  = "cr.ctps"_n;
-    block_select max_block   = {};
-    key          first       = {};
-    key          last        = {};
-    uint32_t     max_results = {};
+    eosio::name query_name  = "cr.ctps"_n;
+    uint32_t    max_block   = {};
+    key         first       = {};
+    key         last        = {};
+    uint32_t    max_results = {};
 };
 
 struct query_contract_row_range_code_table_scope_pk {
@@ -221,11 +265,11 @@ struct query_contract_row_range_code_table_scope_pk {
         uint64_t    primary_key = {};
     };
 
-    eosio::name  query_name  = "cr.ctsp"_n;
-    block_select max_block   = {};
-    key          first       = {};
-    key          last        = {};
-    uint32_t     max_results = {};
+    eosio::name query_name  = "cr.ctsp"_n;
+    uint32_t    max_block   = {};
+    key         first       = {};
+    key         last        = {};
+    uint32_t    max_results = {};
 };
 
 struct query_contract_row_range_scope_table_pk_code {
@@ -236,9 +280,9 @@ struct query_contract_row_range_scope_table_pk_code {
         eosio::name code        = {};
     };
 
-    eosio::name  query_name  = "cr.stpc"_n;
-    block_select max_block   = {};
-    key          first       = {};
-    key          last        = {};
-    uint32_t     max_results = {};
+    eosio::name query_name  = "cr.stpc"_n;
+    uint32_t    max_block   = {};
+    key         first       = {};
+    key         last        = {};
+    uint32_t    max_results = {};
 };

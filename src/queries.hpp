@@ -25,7 +25,7 @@ inline abieos::bytes sql_to_bytes(const char* ch) {
     if (!ch || ch[0] != '\\' || ch[1] != 'x')
         return result;
     try {
-        boost::algorithm::unhex(ch + 2, ch + strlen(ch), std::back_inserter(result.data));
+        abieos::unhex(ch + 2, ch + strlen(ch), std::back_inserter(result.data));
     } catch (...) {
         result.data.clear();
     }
@@ -37,7 +37,7 @@ inline abieos::checksum256 sql_to_checksum256(const char* ch) {
         return {};
     std::vector<uint8_t> v;
     try {
-        boost::algorithm::unhex(ch, ch + strlen(ch), std::back_inserter(v));
+        abieos::unhex(ch, ch + strlen(ch), std::back_inserter(v));
     } catch (...) {
         throw std::runtime_error("expected hex string");
     }
@@ -83,7 +83,7 @@ inline std::string bin_to_sql<abieos::bytes>(abieos::input_buffer& bin) {
     abieos::input_buffer b;
     bin_to_native(b, bin);
     std::string result;
-    boost::algorithm::hex(b.pos, b.end, back_inserter(result));
+    abieos::hex(b.pos, b.end, back_inserter(result));
     return quote_bytea(result);
 }
 

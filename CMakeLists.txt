@@ -51,12 +51,12 @@ add_subdirectory(external/fc)
 
 add_executable(wasm-ql src/main.cpp src/wasm_ql_plugin.cpp src/wasm_interface.cpp)
 target_include_directories(wasm-ql
-    PUBLIC
+    PRIVATE
         external/abieos/src
+        external/abieos/external/date/include
         external/abieos/external/rapidjson/include
         external/appbase/include
         external/fc/include
-    PRIVATE
         ${Boost_INCLUDE_DIR}
         ${JS_INCLUDE_DIRS}
 )

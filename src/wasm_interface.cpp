@@ -1,6 +1,7 @@
 // copyright defined in LICENSE.txt
 
 #include "wasm_interface.hpp"
+#include <iostream>
 
 using namespace std::literals;
 

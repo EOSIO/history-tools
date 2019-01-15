@@ -3,6 +3,7 @@
 #pragma once
 #include "lib-placeholders.hpp"
 #include "lib-tagged-variant.hpp"
+#include <date/date.h>
 #include <vector>
 
 // todo: replace
@@ -27,6 +28,8 @@ __attribute__((noinline)) inline void to_json(bool value, std::vector<char>& des
         dest.insert(dest.end(), std::begin(f), std::end(f) - 1);
 }
 
+// todo: unify decimal conversions
+
 __attribute__((noinline)) inline void to_json(uint8_t value, std::vector<char>& dest) {
     char  s[4];
     char* ch = s;
@@ -45,6 +48,17 @@ __attribute__((noinline)) inline void to_json(uint32_t value, std::vector<char>&
         *ch++ = '0' + (value % 10);
         value /= 10;
     } while (value);
+    std::reverse(s, ch);
+    dest.insert(dest.end(), s, ch);
+}
+
+__attribute__((noinline)) inline void to_json(uint32_t value, int digits, std::vector<char>& dest) {
+    char  s[20];
+    char* ch = s;
+    while (digits--) {
+        *ch++ = '0' + (value % 10);
+        value /= 10;
+    };
     std::reverse(s, ch);
     dest.insert(dest.end(), s, ch);
 }
@@ -134,12 +148,36 @@ __attribute__((noinline)) inline void to_json(serial_wrapper<eosio::checksum256>
     dest.push_back('"');
 }
 
-__attribute__((noinline)) inline void to_json(eosio::time_point& value, std::vector<char>& dest) {
-    append(dest, "\"<<<time_point>>>\""); // todo
+__attribute__((noinline)) inline void to_str_us(uint64_t microseconds, std::vector<char>& dest) {
+    std::chrono::microseconds us{microseconds};
+    date::sys_days            sd(std::chrono::floor<date::days>(us));
+    auto                      ymd = date::year_month_day{sd};
+    uint32_t                  ms  = (std::chrono::round<std::chrono::milliseconds>(us) - sd.time_since_epoch()).count();
+    us -= sd.time_since_epoch();
+    to_json((uint32_t)(int)ymd.year(), 4, dest);
+    dest.push_back('-');
+    to_json((uint32_t)(unsigned)ymd.month(), 2, dest);
+    dest.push_back('-');
+    to_json((uint32_t)(unsigned)ymd.day(), 2, dest);
+    dest.push_back('T');
+    to_json((uint32_t)ms / 3600000 % 60, 2, dest);
+    dest.push_back(':');
+    to_json((uint32_t)ms / 60000 % 60, 2, dest);
+    dest.push_back(':');
+    to_json((uint32_t)ms / 1000 % 60, 2, dest);
+    dest.push_back('.');
+    to_json((uint32_t)ms % 1000, 3, dest);
 }
 
-__attribute__((noinline)) inline void to_json(eosio::block_timestamp& value, std::vector<char>& dest) {
-    append(dest, "\"<<<block_timestamp>>>\""); // todo
+// todo: move conversion to time_point
+__attribute__((noinline)) inline void to_json(eosio::time_point value, std::vector<char>& dest) {
+    dest.push_back('"');
+    to_str_us(value.elapsed.count(), dest);
+    dest.push_back('"');
+}
+
+__attribute__((noinline)) inline void to_json(eosio::block_timestamp value, std::vector<char>& dest) {
+    to_json(value.to_time_point(), dest);
 }
 
 // todo

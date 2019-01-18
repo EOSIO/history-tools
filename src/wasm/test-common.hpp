@@ -16,9 +16,7 @@
 #include <string>
 #include <vector>
 
-#define ripemd160 internal_ripemd160
-#include "../../external/abieos/src/ripemd160.hpp"
-#undef ripemd160
+#include "../../external/abieos/src/abieos_ripemd160.hpp"
 
 using namespace eosio;
 using namespace std;
@@ -137,12 +135,12 @@ html binary_to_base58(const std::array<char, size>& bin) {
 
 template <size_t size, int suffix_size>
 inline auto digest_suffix_ripemd160(const std::array<char, size>& data, const char (&suffix)[suffix_size]) {
-    std::array<unsigned char, 20>       digest;
-    internal_ripemd160::ripemd160_state self;
-    internal_ripemd160::ripemd160_init(&self);
-    internal_ripemd160::ripemd160_update(&self, (uint8_t*)data.data(), data.size());
-    internal_ripemd160::ripemd160_update(&self, (uint8_t*)suffix, suffix_size - 1);
-    if (!internal_ripemd160::ripemd160_digest(&self, digest.data()))
+    std::array<unsigned char, 20>     digest;
+    abieos_ripemd160::ripemd160_state self;
+    abieos_ripemd160::ripemd160_init(&self);
+    abieos_ripemd160::ripemd160_update(&self, (uint8_t*)data.data(), data.size());
+    abieos_ripemd160::ripemd160_update(&self, (uint8_t*)suffix, suffix_size - 1);
+    if (!abieos_ripemd160::ripemd160_digest(&self, digest.data()))
         ; // !!! throw error("ripemd failed");
     return digest;
 }

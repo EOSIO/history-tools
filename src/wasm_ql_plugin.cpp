@@ -153,7 +153,7 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
             query_str += type.bin_to_sql(args_buf);
             need_sep = true;
         }
-        auto max_results = abieos::read_bin<uint32_t>(args_buf);
+        auto max_results = abieos::read_raw<uint32_t>(args_buf);
         query_str += query_config::sep + sql_conversion::sql_str(std::min(max_results, query.max_results));
         query_str += ")";
         // std::cerr << query_str << "\n";
@@ -426,8 +426,11 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
         my->endpoint_address = ip_port.substr(0, ip_port.find(':'));
 
         auto x = read_string(options["query-config"].as<std::string>().c_str());
-        if (!json_to_native(my->state->config, x))
-            throw std::runtime_error("error processing " + options["query-config"].as<std::string>());
+        try {
+            json_to_native(my->state->config, x);
+        } catch (const std::exception& e) {
+            throw std::runtime_error("error processing " + options["query-config"].as<std::string>() + ": " + e.what());
+        }
         my->state->config.prepare();
 
         init_glue(*my->state);

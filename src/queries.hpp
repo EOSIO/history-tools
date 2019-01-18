@@ -1,6 +1,6 @@
 // copyright defined in LICENSE.txt
 
-#include "abieos.hpp"
+#include "abieos_exception.hpp"
 
 #include <pqxx/pqxx>
 
@@ -24,11 +24,9 @@ inline abieos::bytes sql_to_bytes(const char* ch) {
     abieos::bytes result;
     if (!ch || ch[0] != '\\' || ch[1] != 'x')
         return result;
-    try {
-        abieos::unhex(ch + 2, ch + strlen(ch), std::back_inserter(result.data));
-    } catch (...) {
+    std::string error;
+    if (!abieos::unhex(error, ch + 2, ch + strlen(ch), std::back_inserter(result.data)))
         result.data.clear();
-    }
     return result;
 }
 
@@ -36,11 +34,9 @@ inline abieos::checksum256 sql_to_checksum256(const char* ch) {
     if (!*ch)
         return {};
     std::vector<uint8_t> v;
-    try {
-        abieos::unhex(ch, ch + strlen(ch), std::back_inserter(v));
-    } catch (...) {
+    std::string          error;
+    if (!abieos::unhex(error, ch, ch + strlen(ch), std::back_inserter(v)))
         throw std::runtime_error("expected hex string");
-    }
     abieos::checksum256 result;
     if (v.size() != result.value.size())
         throw std::runtime_error("hex string has incorrect length");
@@ -75,7 +71,7 @@ inline std::string sql_str(transaction_status)              { throw std::runtime
 
 template <typename T>
 std::string bin_to_sql(abieos::input_buffer& bin) {
-    return sql_str(abieos::read_bin<T>(bin));
+    return sql_str(abieos::read_raw<T>(bin));
 }
 
 template <>
@@ -87,12 +83,18 @@ inline std::string bin_to_sql<abieos::bytes>(abieos::input_buffer& bin) {
     return quote_bytea(result);
 }
 
-template <typename T>
-inline T sql_timestamp_to(std::string s) {
+inline abieos::time_point sql_to_time_point(std::string s) {
     if (s.empty())
         return {};
     std::replace(s.begin(), s.end(), ' ', 'T');
-    return T(s);
+    return abieos::string_to_time_point(s);
+}
+
+inline abieos::block_timestamp sql_to_block_timestamp(std::string s) {
+    if (s.empty())
+        return {};
+    std::replace(s.begin(), s.end(), ' ', 'T');
+    return abieos::block_timestamp{abieos::string_to_time_point(s)};
 }
 
 template <typename T>
@@ -123,9 +125,9 @@ template <> void sql_to_bin<abieos::int128>             (std::vector<char>& bin,
 template <> void sql_to_bin<abieos::uint128>            (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<abieos::uint128> not implemented"); }
 template <> void sql_to_bin<abieos::float128>           (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<abieos::float128> not implemented"); }
 template <> void sql_to_bin<abieos::name>               (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, abieos::name{f.c_str()}); }
-template <> void sql_to_bin<abieos::time_point>         (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_timestamp_to<abieos::time_point>(f.c_str())); }
+template <> void sql_to_bin<abieos::time_point>         (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_to_time_point(f.c_str())); }
 template <> void sql_to_bin<abieos::time_point_sec>     (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<abieos::time_point_sec> not implemented"); }
-template <> void sql_to_bin<abieos::block_timestamp>    (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_timestamp_to<abieos::block_timestamp>(f.c_str())); }
+template <> void sql_to_bin<abieos::block_timestamp>    (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_to_block_timestamp(f.c_str())); }
 template <> void sql_to_bin<abieos::checksum256>        (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_to_checksum256(f.c_str())); }
 template <> void sql_to_bin<abieos::public_key>         (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<abieos::public_key> not implemented"); }
 template <> void sql_to_bin<abieos::bytes>              (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_to_bytes(f.c_str())); }

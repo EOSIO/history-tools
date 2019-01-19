@@ -222,6 +222,7 @@ void fill_context_data(::state& state) {
     abieos::native_to_bin(state.context_data, state.first);
 }
 
+// todo: detect state.first changing (history trim)
 bool did_fork(::state& state) {
     pqxx::work t(state.sql_connection);
     auto result = t.exec("select block_id from \"" + state.schema + "\".block_info where block_index=" + query_config::sql_str(state.head));
@@ -237,13 +238,23 @@ bool did_fork(::state& state) {
     return false;
 }
 
-std::vector<char> run(::state& state, const std::vector<char>& request) {
-    std::vector<char> result;
-    int               num_tries = 0;
+template <typename F>
+void retry_loop(::state& state, F f) {
+    int num_tries = 0;
     while (true) {
-        bool forked = false;
         fetch_fill_status(state);
         fill_context_data(state);
+        if (f())
+            return;
+        if (++num_tries >= 4)
+            throw std::runtime_error("too many fork events during request");
+        ilog("retry request");
+    }
+}
+
+std::vector<char> query(::state& state, const std::vector<char>& request) {
+    std::vector<char> result;
+    retry_loop(state, [&] {
         input_buffer request_bin{request.data(), request.data() + request.size()};
         auto         num_requests = bin_to_native<varuint32>(request_bin).value;
         result.clear();
@@ -259,26 +270,41 @@ std::vector<char> run(::state& state, const std::vector<char>& request) {
             JS::RootedValue       rval(state.context.cx);
             JS::AutoValueArray<1> args(state.context.cx);
             args[0].set(JS::StringValue(JS_NewStringCopyZ(state.context.cx, ((std::string)wasm_name).c_str())));
-            if (!JS_CallFunctionName(state.context.cx, state.global, "run", args, &rval)) {
+            if (!JS_CallFunctionName(state.context.cx, state.global, "query", args, &rval)) {
                 // todo: detect assert
                 JS_ClearPendingException(state.context.cx);
                 throw std::runtime_error("JS_CallFunctionName failed");
             }
 
-            if (did_fork(state)) {
-                forked = true;
-                break;
-            }
+            if (did_fork(state))
+                return false;
 
             push_varuint32(result, state.reply.size());
             result.insert(result.end(), state.reply.begin(), state.reply.end());
         }
-        if (!forked)
-            return result;
-        if (++num_tries >= 4)
-            throw std::runtime_error("too many fork events during request");
-        ilog("retry request");
-    }
+        return true;
+    });
+    return result;
+}
+
+const std::vector<char>& legacy_query(::state& state, const std::string& target, const std::vector<char>& request) {
+    std::vector<char> req;
+    abieos::native_to_bin(req, target);
+    abieos::native_to_bin(req, request);
+    state.request = input_buffer{req.data(), req.data() + req.size()};
+    retry_loop(state, [&] {
+        JSAutoRealm           realm(state.context.cx, state.global);
+        JS::RootedValue       rval(state.context.cx);
+        JS::AutoValueArray<1> args(state.context.cx);
+        args[0].set(JS::StringValue(JS_NewStringCopyZ(state.context.cx, "legacy")));
+        if (!JS_CallFunctionName(state.context.cx, state.global, "query", args, &rval)) {
+            // todo: detect assert
+            JS_ClearPendingException(state.context.cx);
+            throw std::runtime_error("JS_CallFunctionName failed");
+        }
+        return !did_fork(state);
+    });
+    return state.reply;
 }
 
 void fail(beast::error_code ec, char const* what) { elog("${w}: ${s}", ("w", what)("s", ec.message())); }
@@ -294,10 +320,10 @@ void handle_request(::state& state, tcp::socket& socket, http::request<http::vec
         return res;
     };
 
-    auto const ok = [&req](std::vector<char> reply) {
+    auto const ok = [&req](std::vector<char> reply, const char* content_type) {
         http::response<http::vector_body<char>> res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-        res.set(http::field::content_type, "application/octet-stream");
+        res.set(http::field::content_type, content_type);
         res.keep_alive(req.keep_alive());
         res.body() = std::move(reply);
         res.prepare_payload();
@@ -309,18 +335,23 @@ void handle_request(::state& state, tcp::socket& socket, http::request<http::vec
         http::write(socket, sr, ec);
     };
 
-    if (req.target() == "/wasmql/v1/query") {
-        if (req.method() != http::verb::post)
-            return send(error(http::status::bad_request, "Unsupported HTTP-method\n"));
-        try {
-            return send(ok(run(state, req.body())));
-        } catch (const std::exception& e) {
-            elog("query failed: ${s}", ("s", e.what()));
-            return send(error(http::status::internal_server_error, "query failed: "s + e.what() + "\n"));
-        } catch (...) {
-            elog("query failed: unknown exception");
-            return send(error(http::status::internal_server_error, "query failed: unknown exception\n"));
+    auto target = req.target();
+    try {
+        if (target == "/wasmql/v1/query") {
+            if (req.method() != http::verb::post)
+                return send(error(http::status::bad_request, "Unsupported HTTP-method\n"));
+            return send(ok(query(state, req.body()), "application/octet-stream"));
+        } else if (target.starts_with("/v1/")) {
+            if (req.method() != http::verb::post)
+                return send(error(http::status::bad_request, "Unsupported HTTP-method\n"));
+            return send(ok(legacy_query(state, std::string(target.begin(), target.end()), req.body()), "application/octet-stream"));
         }
+    } catch (const std::exception& e) {
+        elog("query failed: ${s}", ("s", e.what()));
+        return send(error(http::status::internal_server_error, "query failed: "s + e.what() + "\n"));
+    } catch (...) {
+        elog("query failed: unknown exception");
+        return send(error(http::status::internal_server_error, "query failed: unknown exception\n"));
     }
 
     return send(error(http::status::not_found, "The resource '" + req.target().to_string() + "' was not found.\n"));

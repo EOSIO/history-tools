@@ -46,7 +46,7 @@ const env = {
     },
 };
 
-function run(wasm_name) {
+function query(wasm_name) {
     try {
         if (!modules[wasm_name])
             modules[wasm_name] = new WebAssembly.Module(get_wasm(wasm_name));

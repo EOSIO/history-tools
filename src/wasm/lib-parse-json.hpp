@@ -197,6 +197,18 @@ __attribute__((noinline)) inline T parse_json(std::vector<char>&& v) {
     return result;
 }
 
+template <typename T>
+__attribute__((noinline)) inline T parse_json(std::string_view s) {
+    // todo: fix const
+    char* pos = const_cast<char*>(s.data());
+    char* end = pos + s.size();
+    parse_json_skip_space(pos, end);
+    T result;
+    parse_json(result, pos, end);
+    parse_json_expect_end(pos, end);
+    return result;
+}
+
 template <size_t I, tagged_variant_options Options, typename... NamedTypes>
 __attribute__((noinline)) void parse_named_variant_impl(tagged_variant<Options, NamedTypes...>& v, size_t i, char*& pos, char* end) {
     if constexpr (I < sizeof...(NamedTypes)) {

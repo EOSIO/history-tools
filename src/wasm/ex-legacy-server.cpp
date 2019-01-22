@@ -132,7 +132,7 @@ void get_table_rows(std::string_view request, const context_data& context) {
             result += ',';
         found = true;
         if (params.show_payer)
-            result += "{\"payer\":\"" + r.payer.to_string() + "\",\"data\":";
+            result += "{\"data\":";
         bool decoded = false;
         if (table_type) {
             print("yyyy\n");
@@ -150,7 +150,7 @@ void get_table_rows(std::string_view request, const context_data& context) {
             result += '"';
         }
         if (params.show_payer)
-            result += "}";
+            result += ",\"payer\":\"" + r.payer.to_string() + "\"}";
         return true;
     });
     result += "]}";

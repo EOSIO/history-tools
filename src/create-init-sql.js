@@ -59,23 +59,7 @@ const empty_value_map = {
     "transaction_status": "''",
 };
 
-const header = `
-        drop function if exists ${schema}.little8;
-        create function ${schema}.little8(value bytea, pos int) returns bytea immutable as $$
-        begin
-            return
-                substring(value from pos + 8 for 1) ||
-                substring(value from pos + 7 for 1) ||
-                substring(value from pos + 6 for 1) ||
-                substring(value from pos + 5 for 1) ||
-                substring(value from pos + 4 for 1) ||
-                substring(value from pos + 3 for 1) ||
-                substring(value from pos + 2 for 1) ||
-                substring(value from pos + 1 for 1);
-        end; $$
-        language plpgsql;
-`;
-
+const header = ``;
 let indexes = '';
 let functions = '';
 

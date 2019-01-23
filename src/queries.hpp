@@ -209,20 +209,6 @@ constexpr void for_each_field(field*, F f) {
     f("type", abieos::member_ptr<&field::type>{});
 };
 
-struct table {
-    std::string           name   = {};
-    std::vector<field>    fields = {};
-    std::vector<sql_type> types  = {};
-
-    std::map<std::string, field*> field_map = {};
-};
-
-template <typename F>
-constexpr void for_each_field(table*, F f) {
-    f("name", abieos::member_ptr<&table::name>{});
-    f("fields", abieos::member_ptr<&table::fields>{});
-};
-
 struct key {
     std::string name           = {};
     std::string type           = {};
@@ -240,6 +226,24 @@ constexpr void for_each_field(key*, F f) {
     f("desc", abieos::member_ptr<&key::desc>{});
 };
 
+struct table {
+    std::string           name         = {};
+    std::vector<field>    fields       = {};
+    std::vector<sql_type> types        = {};
+    std::vector<key>      history_keys = {};
+    std::vector<key>      keys         = {};
+
+    std::map<std::string, field*> field_map = {};
+};
+
+template <typename F>
+constexpr void for_each_field(table*, F f) {
+    f("name", abieos::member_ptr<&table::name>{});
+    f("fields", abieos::member_ptr<&table::fields>{});
+    f("history_keys", abieos::member_ptr<&table::history_keys>{});
+    f("keys", abieos::member_ptr<&table::keys>{});
+};
+
 struct query {
     abieos::name             wasm_name         = {};
     std::string              index             = {};
@@ -248,9 +252,7 @@ struct query {
     bool                     is_state          = {};
     bool                     limit_block_index = {};
     uint32_t                 max_results       = {};
-    std::vector<key>         keys              = {};
     std::vector<key>         sort_keys         = {};
-    std::vector<key>         history_keys      = {};
     std::vector<std::string> conditions        = {};
 
     std::vector<sql_type> types        = {};
@@ -266,9 +268,7 @@ constexpr void for_each_field(query*, F f) {
     f("is_state", abieos::member_ptr<&query::is_state>{});
     f("limit_block_index", abieos::member_ptr<&query::limit_block_index>{});
     f("max_results", abieos::member_ptr<&query::max_results>{});
-    f("keys", abieos::member_ptr<&query::keys>{});
     f("sort_keys", abieos::member_ptr<&query::sort_keys>{});
-    f("history_keys", abieos::member_ptr<&query::history_keys>{});
     f("conditions", abieos::member_ptr<&query::conditions>{});
 };
 

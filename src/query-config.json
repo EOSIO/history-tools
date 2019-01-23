@@ -116,6 +116,21 @@
         },
         {
             "name": "account",
+            "history_keys": [
+                {
+                    "name": "block_index",
+                    "desc": true
+                },
+                {
+                    "name": "present",
+                    "desc": true
+                }
+            ],
+            "keys": [
+                {
+                    "name": "name"
+                }
+            ],
             "fields": [
                 {
                     "name": "block_index",
@@ -165,6 +180,30 @@
         },
         {
             "name": "contract_row",
+            "history_keys": [
+                {
+                    "name": "block_index",
+                    "desc": true
+                },
+                {
+                    "name": "present",
+                    "desc": true
+                }
+            ],
+            "keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
             "fields": [
                 {
                     "name": "block_index",
@@ -253,24 +292,9 @@
             "max_results": 100,
             "is_state": true,
             "limit_block_index": true,
-            "keys": [
-                {
-                    "name": "name"
-                }
-            ],
             "sort_keys": [
                 {
                     "name": "name"
-                }
-            ],
-            "history_keys": [
-                {
-                    "name": "block_index",
-                    "desc": true
-                },
-                {
-                    "name": "present",
-                    "desc": true
                 }
             ]
         },
@@ -282,20 +306,6 @@
             "max_results": 100,
             "is_state": true,
             "limit_block_index": true,
-            "keys": [
-                {
-                    "name": "code"
-                },
-                {
-                    "name": "scope"
-                },
-                {
-                    "name": "table"
-                },
-                {
-                    "name": "primary_key"
-                }
-            ],
             "sort_keys": [
                 {
                     "name": "code"
@@ -308,16 +318,6 @@
                 },
                 {
                     "name": "scope"
-                }
-            ],
-            "history_keys": [
-                {
-                    "name": "block_index",
-                    "desc": true
-                },
-                {
-                    "name": "present",
-                    "desc": true
                 }
             ]
         },
@@ -329,20 +329,6 @@
             "max_results": 100,
             "is_state": true,
             "limit_block_index": true,
-            "keys": [
-                {
-                    "name": "code"
-                },
-                {
-                    "name": "scope"
-                },
-                {
-                    "name": "table"
-                },
-                {
-                    "name": "primary_key"
-                }
-            ],
             "sort_keys": [
                 {
                     "name": "code"
@@ -355,16 +341,6 @@
                 },
                 {
                     "name": "primary_key"
-                }
-            ],
-            "history_keys": [
-                {
-                    "name": "block_index",
-                    "desc": true
-                },
-                {
-                    "name": "present",
-                    "desc": true
                 }
             ]
         },
@@ -376,20 +352,6 @@
             "max_results": 100,
             "is_state": true,
             "limit_block_index": true,
-            "keys": [
-                {
-                    "name": "code"
-                },
-                {
-                    "name": "scope"
-                },
-                {
-                    "name": "table"
-                },
-                {
-                    "name": "primary_key"
-                }
-            ],
             "sort_keys": [
                 {
                     "name": "scope"
@@ -402,16 +364,6 @@
                 },
                 {
                     "name": "code"
-                }
-            ],
-            "history_keys": [
-                {
-                    "name": "block_index",
-                    "desc": true
-                },
-                {
-                    "name": "present",
-                    "desc": true
                 }
             ]
         }

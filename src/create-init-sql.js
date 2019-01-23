@@ -98,13 +98,12 @@ function generate_index({ table, index, sort_keys, history_keys, conditions }) {
 
 // todo: This likely needs reoptimization.
 // todo: perf problem with low max_block_index
-function generate_nonstate({ table, index, limit_block_index, keys, sort_keys, conditions, ...rest }) {
+function generate_nonstate({ table, index, limit_block_index, sort_keys, conditions, ...rest }) {
     generate_index({ table, index, sort_keys, conditions, ...rest });
     conditions = conditions || [];
 
     const fn_name = schema + '.' + rest['function'];
     const fn_args = prefix => sort_keys.map(x => `${prefix}${x.name} ${x.type},`).join('\n            ');
-    const keys_tuple_type = (prefix, suffix, sep) => keys.map(x => `${prefix}${x.name}${suffix}::${x.type}`).join(sep);
     const sort_keys_tuple = (prefix, suffix, sep) => sort_keys.map(x => `${prefix}${x.name}${suffix}`).join(sep);
     const sort_keys_tuple_expr = prefix => sort_keys.map(x => sort_key_expr(x, prefix, false)).join(',');
 
@@ -246,11 +245,11 @@ for (let table of config.tables) {
     const fields = {};
     for (let field of table.fields)
         fields[field.name] = field;
-    tables[table.name] = { fields, ordered_fields: table.fields };
+    tables[table.name] = { fields, ordered_fields: table.fields, keys: table.keys, history_keys: table.history_keys };
 }
 
 function get_type(type) {
-    return type_map[type] || '???' + type;
+    return type_map[type] || type;
 }
 
 function fill_types(query, fields) {
@@ -264,9 +263,9 @@ function fill_types(query, fields) {
 for (let query of config.queries) {
     query = {
         ...query,
-        keys: query.keys || [],
+        keys: tables[query.table].keys || [],
         sort_keys: query.sort_keys || [],
-        history_keys: query.history_keys || [],
+        history_keys: tables[query.table].history_keys || [],
         ordered_fields: tables[query.table].ordered_fields,
     };
     fill_types(query, query.keys);

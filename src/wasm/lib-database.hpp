@@ -40,20 +40,24 @@ bool for_each_query_result(const std::vector<char>& bytes, F f) {
     return true;
 }
 
-// todo: head_id, irreversible_id; waiting on compiler-rt
 struct context_data {
-    uint32_t head         = {};
-    uint32_t irreversible = {};
-    uint32_t first        = {};
+    uint32_t           head            = {};
+    eosio::checksum256 head_id         = {};
+    uint32_t           irreversible    = {};
+    eosio::checksum256 irreversible_id = {};
+    uint32_t           first           = {};
 };
 
 template <typename F>
 void for_each_member(context_data& obj, F f) {
     f("head", obj.head);
+    f("head_id", obj.head_id);
     f("irreversible", obj.irreversible);
+    f("irreversible_id", obj.irreversible_id);
     f("first", obj.first);
 }
 
+// todo: version number argument
 extern "C" void get_context_data(void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
 
 template <typename Alloc_fn>

@@ -218,7 +218,9 @@ void fetch_fill_status(::state& state) {
 void fill_context_data(::state& state) {
     state.context_data.clear();
     abieos::native_to_bin(state.context_data, state.head);
+    abieos::native_to_bin(state.context_data, state.head_id);
     abieos::native_to_bin(state.context_data, state.irreversible);
+    abieos::native_to_bin(state.context_data, state.irreversible_id);
     abieos::native_to_bin(state.context_data, state.first);
 }
 

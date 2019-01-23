@@ -70,10 +70,10 @@ abieos::abi_type* get_table_type(::abi* abi, abieos::name table) {
 }
 
 struct get_table_rows_params {
-    bool json  = false;
-    name code  = {};
-    name scope = {}; // todo: check this type
-    name table = {};
+    bool             json  = false;
+    name             code  = {};
+    std::string_view scope = {};
+    name             table = {};
     // std::string_view table_key      = {};
     std::string_view lower_bound    = {};
     std::string_view upper_bound    = {};
@@ -107,6 +107,36 @@ bool starts_with(std::string_view s, const char (&prefix)[size]) {
     if (s.size() < size)
         return false;
     return !strncmp(s.begin(), prefix, size);
+}
+
+template <typename Type>
+Type fuzzy_convert_to_type(std::string_view str, std::string_view desc);
+
+template <>
+uint64_t fuzzy_convert_to_type(std::string_view str, std::string_view desc) {
+    std::string error;
+    uint64_t    result;
+
+    if (abieos::decimal_to_binary(result, error, str))
+        return result;
+
+    while (!str.empty() && str.front() == ' ')
+        str.remove_prefix(1);
+    while (!str.empty() && str.back() == ' ')
+        str.remove_suffix(1);
+
+    if (abieos::string_to_name_strict(str, result))
+        return result;
+    if (str.find(',') != string_view::npos && abieos::string_to_symbol(result, error, str))
+        return result;
+    if (abieos::string_to_symbol_code(result, error, str))
+        return result;
+
+    eosio_assert(
+        false, ("Could not convert " + std::string(desc) + " string '" + std::string(str) +
+                "' to any of the following: uint64_t, name, symbol, or symbol_code")
+                   .c_str());
+    return 0;
 }
 
 eosio::name get_table_index_name(const get_table_rows_params& p, bool& primary) {
@@ -162,6 +192,13 @@ void get_table_rows(std::string_view request, const context_data& context) {
     uint64_t               upper_bound      = 0xffff'ffff'ffff'ffff;
 
     eosio_assert(primary, "secondary not yet implemented");
+    auto scope = fuzzy_convert_to_type<uint64_t>(params.scope, "scope");
+
+    // print("orig: ", std::string(params.scope), "\n");
+    // print("64:   ", scope, "\n");
+    // print("name: ", eosio::name{scope}.to_string(), "\n");
+    // print("sym:  ", abieos::symbol_to_string(scope), "\n");
+    // print("symc: ", abieos::symbol_code_to_string(scope), "\n");
 
     auto convert_key = [&](std::string_view key, uint64_t& dest) {
         if (key.empty())
@@ -183,14 +220,14 @@ void get_table_rows(std::string_view request, const context_data& context) {
             {
                 .code        = params.code,
                 .table       = params.table,
-                .scope       = params.scope.value,
+                .scope       = scope,
                 .primary_key = lower_bound,
             },
         .last =
             {
                 .code        = params.code,
                 .table       = params.table,
-                .scope       = params.scope.value,
+                .scope       = scope,
                 .primary_key = upper_bound,
             },
         .max_results = std::min((uint32_t)100, params.limit),

@@ -56,7 +56,7 @@ make -j
 # Install SpiderMonkey 64.0 (OSX)
 
 ```
-brew install autoconf@2.13 llvm@7
+brew install autoconf@2.13 llvm@7 rust
 cd ~
 wget https://archive.mozilla.org/pub/firefox/releases/64.0/source/firefox-64.0.source.tar.xz
 tar xf firefox-64.0.source.tar.xz

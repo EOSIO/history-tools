@@ -153,14 +153,14 @@ function generate_state({ table, index, limit_block_index, keys, sort_keys, hist
 
     const fn_name = schema + '.' + rest['function'];
     const fn_args = prefix => sort_keys.map(x => `${prefix}${x.name} ${x.type},`).join('\n            ');
-    const keys_tuple_type = (prefix, suffix, sep) => keys.map(x => `${prefix}${x.name}${suffix}::${x.type}`).join(sep);
     const sort_keys_tuple = (prefix, suffix, sep) => sort_keys.map(x => `${prefix}${x.name}${suffix}`).join(sep);
-    const sort_keys_tuple_expr = sort_keys.map(x => sort_key_expr(x, '', true)).join(',');
+    const sort_keys_tuple_expr = sort_keys.map(x => sort_key_expr(x, `${table}.`, true)).join(',');
 
     let keys_by_name = {};
     for (let key of [...keys, ...sort_keys, ...history_keys])
         keys_by_name[key.name] = key;
-    let empty_data = ordered_fields.filter(f => !(f.name in keys_by_name)).map(f => ', ' + empty_value_map[f.type] + '::' + type_map[f.type]).join('');
+    let data_fields = ordered_fields.filter(f => !(f.name in keys_by_name));
+    let return_type = ordered_fields.map(f => '"' + f.name + '" ' + type_map[f.type]).join(', ');
 
     const key_search = (compare, indent) => `
         ${indent}for key_search in
@@ -169,10 +169,10 @@ function generate_state({ table, index, limit_block_index, keys, sort_keys, hist
         ${indent}    from
         ${indent}        ${schema}.${table}
         ${indent}    where
-        ${indent}        (${sort_keys_tuple('"', '"', ', ')}) ${compare} (${sort_keys_tuple('"first_', '"', ', ')})
+        ${indent}        (${sort_keys_tuple(`${table}."`, '"', ', ')}) ${compare} (${sort_keys_tuple('"first_', '"', ', ')})
         ${indent}    order by
-        ${indent}        ${sort_keys_tuple('"', '"', ',\n                ' + indent)},
-        ${indent}        ${history_keys.map(x => `"${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                ' + indent)}
+        ${indent}        ${sort_keys_tuple(`${table}."`, '"', ',\n                ' + indent)},
+        ${indent}        ${history_keys.map(x => `${table}."${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                ' + indent)}
         ${indent}    limit 1
         ${indent}loop
         ${indent}    if (${sort_keys_tuple('key_search."', '"', ', ')}) > (${sort_keys_tuple('last_', '', ', ')}) then
@@ -190,20 +190,29 @@ function generate_state({ table, index, limit_block_index, keys, sort_keys, hist
         ${indent}            ${sort_keys.map(x => `${table}."${x.name}" = key_search."${x.name}"`).join('\n                    ' + indent + 'and ')}
         ${indent}            ${limit_block_index ? `and ${table}.block_index <= max_block_index` : ``}
         ${indent}        order by
-        ${indent}            ${sort_keys_tuple('"', '"', ',\n                    ' + indent)},
-        ${indent}            ${history_keys.map(x => `"${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                    ' + indent)}
+        ${indent}            ${sort_keys_tuple(`${table}."`, '"', ',\n                    ' + indent)},
+        ${indent}            ${history_keys.map(x => `${table}."${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                    ' + indent)}
         ${indent}        limit 1
         ${indent}    loop
         ${indent}        if block_search.present then
-        ${indent}            return next block_search;
+        ${indent}            ${ordered_fields.map(f => `"${f.name}" = block_search."${f.name}";`).join('\n                    ' + indent)}
+        ${indent}            return next;
         ${indent}        else
-        ${indent}            return next row(block_search.block_index, false, ${keys_tuple_type('key_search."', '"', ', ')}${empty_data});
+        ${indent}            "block_index" = block_search."block_index";
+        ${indent}            "present" = false;
+        ${indent}            ${keys.map(f => `"${f.name}" = key_search."${f.name}";`).join('\n                    ' + indent)}
+        ${indent}            ${data_fields.map(f => `"${f.name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                    ' + indent)}
+        ${indent}            return next;
         ${indent}        end if;
         ${indent}        num_results = num_results + 1;
         ${indent}        found_block = true;
         ${indent}    end loop;
         ${indent}    if not found_block then
-        ${indent}        return next row(0::bigint, false, ${keys_tuple_type('key_search."', '"', ', ')}${empty_data});
+        ${indent}        "block_index" = 0;
+        ${indent}        "present" = false;
+        ${indent}        ${keys.map(f => `"${f.name}" = key_search."${f.name}";`).join('\n                ' + indent)}
+        ${indent}        ${data_fields.map(f => `"${f.name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                ' + indent)}
+        ${indent}        return next;
         ${indent}        num_results = num_results + 1;
         ${indent}    end if;
         ${indent}end loop;
@@ -216,7 +225,7 @@ function generate_state({ table, index, limit_block_index, keys, sort_keys, hist
             ${fn_args('first_')}
             ${fn_args('last_')}
             max_results integer
-        ) returns setof ${schema}.${table}
+        ) returns table(${return_type})
         as $$
             declare
                 key_search record;

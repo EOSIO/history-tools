@@ -130,7 +130,6 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         if (it == state.config.query_map.end())
             return js_assert(false, cx, ("exec_query: unknown query: " + (std::string)query_name).c_str());
         query_config::query& query = *it->second;
-        query_config::table& table = *query.result_table;
 
         uint32_t max_block_index = 0;
         if (query.limit_block_index)
@@ -141,18 +140,17 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
             query_str += sql_conversion::sql_str(max_block_index);
             need_sep = true;
         }
-        for (auto& type : query.types) {
-            if (need_sep)
-                query_str += query_config::sep;
-            query_str += type.bin_to_sql(args_buf);
-            need_sep = true;
-        }
-        for (auto& type : query.types) {
-            if (need_sep)
-                query_str += query_config::sep;
-            query_str += type.bin_to_sql(args_buf);
-            need_sep = true;
-        }
+        auto add_args = [&](auto& args) {
+            for (auto& arg : args) {
+                if (need_sep)
+                    query_str += query_config::sep;
+                query_str += arg.bin_to_sql(args_buf);
+                need_sep = true;
+            }
+        };
+        add_args(query.arg_types);
+        add_args(query.range_types);
+        add_args(query.range_types);
         auto max_results = abieos::read_raw<uint32_t>(args_buf);
         query_str += query_config::sep + sql_conversion::sql_str(std::min(max_results, query.max_results));
         query_str += ")";
@@ -166,7 +164,7 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         for (const auto& r : exec_result) {
             row_bin.clear();
             int i = 0;
-            for (auto& type : table.types)
+            for (auto& type : query.result_types)
                 type.sql_to_bin(row_bin, r[i++]);
             if (!js_assert((uint32_t)row_bin.size() == row_bin.size(), cx, "exec_query: row is too big"))
                 return false;

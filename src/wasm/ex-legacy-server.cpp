@@ -109,11 +109,7 @@ bool starts_with(std::string_view s, const char (&prefix)[size]) {
     return !strncmp(s.begin(), prefix, size);
 }
 
-template <typename Type>
-Type fuzzy_convert_to_type(std::string_view str, std::string_view desc);
-
-template <>
-uint64_t fuzzy_convert_to_type(std::string_view str, std::string_view desc) {
+uint64_t guess_uint64(std::string_view str, std::string_view desc) {
     std::string error;
     uint64_t    result;
 
@@ -138,6 +134,17 @@ uint64_t fuzzy_convert_to_type(std::string_view str, std::string_view desc) {
                    .c_str());
     return 0;
 }
+
+uint64_t convert_key(std::string_view key_type, std::string_view key, uint64_t default_value) {
+    if (key.empty())
+        return default_value;
+    if (key_type == "name")
+        return eosio::name(key).value;
+    std::string error;
+    if (!abieos::decimal_to_binary(default_value, error, key))
+        eosio_assert(false, ("Invalid key: " + std::string(key)).c_str());
+    return default_value;
+};
 
 eosio::name get_table_index_name(const get_table_rows_params& p, bool& primary) {
     auto table = p.table;
@@ -181,38 +188,11 @@ eosio::name get_table_index_name(const get_table_rows_params& p, bool& primary) 
     return eosio::name{index};
 } // get_table_index_name
 
-// todo: more
-void get_table_rows(std::string_view request, const context_data& context) {
-    auto                   params           = parse_json<get_table_rows_params>(request);
-    bool                   primary          = false;
-    auto                   table_with_index = get_table_index_name(params, primary);
-    std::unique_ptr<::abi> abi              = params.json ? get_abi(params.code, context.head) : nullptr;
-    auto                   table_type       = get_table_type(abi.get(), abieos::name{params.table.value});
-    uint64_t               lower_bound      = 0;
-    uint64_t               upper_bound      = 0xffff'ffff'ffff'ffff;
+void get_table_rows_primary(
+    const get_table_rows_params& params, const context_data& context, uint64_t scope, abieos::abi_type* table_type) {
 
-    eosio_assert(primary, "secondary not yet implemented");
-    auto scope = fuzzy_convert_to_type<uint64_t>(params.scope, "scope");
-
-    // print("orig: ", std::string(params.scope), "\n");
-    // print("64:   ", scope, "\n");
-    // print("name: ", eosio::name{scope}.to_string(), "\n");
-    // print("sym:  ", abieos::symbol_to_string(scope), "\n");
-    // print("symc: ", abieos::symbol_code_to_string(scope), "\n");
-
-    auto convert_key = [&](std::string_view key, uint64_t& dest) {
-        if (key.empty())
-            return;
-        if (params.key_type == "name")
-            dest = eosio::name(key).value;
-        else {
-            std::string error;
-            if (!abieos::decimal_to_binary(dest, error, key))
-                eosio_assert(false, ("Invalid key: " + std::string(key)).c_str());
-        }
-    };
-    convert_key(params.upper_bound, upper_bound);
-    convert_key(params.lower_bound, lower_bound);
+    auto lower_bound = convert_key(params.key_type, params.lower_bound, (uint64_t)0);
+    auto upper_bound = convert_key(params.key_type, params.upper_bound, (uint64_t)0xffff'ffff'ffff'ffff);
 
     auto s = exec_query(query_contract_row_range_code_table_scope_pk{
         .max_block = context.head,
@@ -237,6 +217,8 @@ void get_table_rows(std::string_view request, const context_data& context) {
     std::string result = "{\"rows\":[";
     bool        found  = false;
     for_each_query_result<contract_row>(s, [&](contract_row& r) {
+        if (!r.present)
+            return true;
         if (found)
             result += ',';
         found = true;
@@ -263,6 +245,85 @@ void get_table_rows(std::string_view request, const context_data& context) {
     });
     result += "]}";
     set_output_data(result);
+} // get_table_rows_primary
+
+template <typename T>
+void get_table_rows_secondary(
+    const get_table_rows_params& params, const context_data& context, uint64_t scope, abieos::abi_type* table_type) {
+
+    auto lower_bound = convert_key(params.key_type, params.lower_bound, (T)0);
+    auto upper_bound = convert_key(params.key_type, params.upper_bound, (T)0xffff'ffff'ffff'ffff);
+
+    auto s = exec_query(query_contract_index64_range_code_table_scope_sk_pk{
+        .max_block = context.head,
+        .first =
+            {
+                .code          = params.code,
+                .table         = params.table,
+                .scope         = scope,
+                .secondary_key = lower_bound,
+                .primary_key   = 0,
+            },
+        .last =
+            {
+                .code          = params.code,
+                .table         = params.table,
+                .scope         = scope,
+                .secondary_key = upper_bound,
+                .primary_key   = 0xffff'ffff'ffff'ffff,
+            },
+        .max_results = std::min((uint32_t)100, params.limit),
+    });
+
+    // todo: rope
+    std::string result = "{\"rows\":[";
+    bool        found  = false;
+    for_each_query_result<contract_secondary_index_with_row<T>>(s, [&](contract_secondary_index_with_row<T>& r) {
+        if (!r.present || !r.row_present)
+            return true;
+        if (found)
+            result += ',';
+        found = true;
+        if (params.show_payer)
+            result += "{\"data\":";
+        bool decoded = false;
+        if (table_type) {
+            abieos::input_buffer bin{r.row_value.pos(), r.row_value.pos() + r.row_value.remaining()};
+            std::string          error;
+            std::string          json_row;
+            if (bin_to_json(bin, error, table_type, json_row)) {
+                result += json_row;
+                decoded = true;
+            }
+        }
+        if (!decoded) {
+            result += '"';
+            abieos::hex(r.row_value.pos(), r.row_value.pos() + r.row_value.remaining(), std::back_inserter(result));
+            result += '"';
+        }
+        if (params.show_payer)
+            result += ",\"payer\":\"" + r.payer.to_string() + "\"}";
+        return true;
+    });
+    result += "]}";
+    set_output_data(result);
+} // get_table_rows_secondary
+
+// todo: more
+void get_table_rows(std::string_view request, const context_data& context) {
+    auto                   params           = parse_json<get_table_rows_params>(request);
+    bool                   primary          = false;
+    auto                   table_with_index = get_table_index_name(params, primary);
+    std::unique_ptr<::abi> abi              = params.json ? get_abi(params.code, context.head) : nullptr;
+    auto                   table_type       = get_table_type(abi.get(), abieos::name{params.table.value});
+    auto                   scope            = guess_uint64(params.scope, "scope");
+
+    if (primary)
+        get_table_rows_primary(params, context, scope, table_type);
+    else if (params.key_type == "i64" || params.key_type == "name")
+        get_table_rows_secondary<uint64_t>(params, context, scope, table_type);
+    else
+        eosio_assert(false, ("unsupported key_type: " + (std::string)params.key_type).c_str());
 }
 
 struct request_data {
@@ -272,10 +333,26 @@ struct request_data {
 
 extern "C" void startup() {
     auto request = unpack<request_data>(get_input_data());
+    auto context = get_context_data();
     print_range(request.target.begin(), request.target.end());
     print("\n");
+
+    {
+        auto        b = context.head_id.extract_as_byte_array();
+        std::string s;
+        abieos::hex(b.begin(), b.end(), std::back_inserter(s));
+        print("head ", context.head, " ", s, "\n");
+    }
+    {
+        auto        b = context.irreversible_id.extract_as_byte_array();
+        std::string s;
+        abieos::hex(b.begin(), b.end(), std::back_inserter(s));
+        print("irreversible ", context.irreversible, " ", s, "\n");
+    }
+    print("first ", context.first, "\n");
+
     if (request.target == "/v1/chain/get_table_rows")
-        get_table_rows(request.request, get_context_data());
+        get_table_rows(request.request, context);
     else
         eosio_assert(false, "not found");
 }

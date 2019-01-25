@@ -211,6 +211,7 @@ constexpr void for_each_field(field*, F f) {
 
 struct key {
     std::string name           = {};
+    std::string new_name       = {};
     std::string type           = {};
     std::string expression     = {};
     std::string arg_expression = {};
@@ -220,6 +221,7 @@ struct key {
 template <typename F>
 constexpr void for_each_field(key*, F f) {
     f("name", abieos::member_ptr<&key::name>{});
+    f("new_name", abieos::member_ptr<&key::new_name>{});
     f("type", abieos::member_ptr<&key::type>{});
     f("expression", abieos::member_ptr<&key::expression>{});
     f("arg_expression", abieos::member_ptr<&key::arg_expression>{});
@@ -252,11 +254,18 @@ struct query {
     bool                     is_state          = {};
     bool                     limit_block_index = {};
     uint32_t                 max_results       = {};
+    std::string              join              = {};
+    std::vector<key>         args              = {};
     std::vector<key>         sort_keys         = {};
+    std::vector<key>         join_key_values   = {};
+    std::vector<key>         fields_from_join  = {};
     std::vector<std::string> conditions        = {};
 
-    std::vector<sql_type> types        = {};
+    std::vector<sql_type> arg_types    = {};
+    std::vector<sql_type> range_types  = {};
+    std::vector<sql_type> result_types = {};
     table*                result_table = {};
+    table*                join_table   = {};
 };
 
 template <typename F>
@@ -268,7 +277,11 @@ constexpr void for_each_field(query*, F f) {
     f("is_state", abieos::member_ptr<&query::is_state>{});
     f("limit_block_index", abieos::member_ptr<&query::limit_block_index>{});
     f("max_results", abieos::member_ptr<&query::max_results>{});
+    f("join", abieos::member_ptr<&query::join>{});
+    f("args", abieos::member_ptr<&query::args>{});
     f("sort_keys", abieos::member_ptr<&query::sort_keys>{});
+    f("join_key_values", abieos::member_ptr<&query::join_key_values>{});
+    f("fields_from_join", abieos::member_ptr<&query::fields_from_join>{});
     f("conditions", abieos::member_ptr<&query::conditions>{});
 };
 
@@ -297,19 +310,37 @@ struct config {
             if (it == table_map.end())
                 throw std::runtime_error("query " + (std::string)query.wasm_name + ": unknown table: " + query._table);
             query.result_table = it->second;
-            for (auto& key : query.sort_keys) {
-                std::string type = key.type;
-                if (type.empty()) {
-                    auto field_it = query.result_table->field_map.find(key.name);
-                    if (field_it == query.result_table->field_map.end())
-                        throw std::runtime_error("query " + (std::string)query.wasm_name + ": unknown field: " + key.name);
-                    type = field_it->second->type;
-                }
-
-                auto type_it = abi_type_to_sql_type.find(type);
+            for (auto& arg : query.args) {
+                auto type_it = abi_type_to_sql_type.find(arg.type);
                 if (type_it == abi_type_to_sql_type.end())
-                    throw std::runtime_error("query " + (std::string)query.wasm_name + " key " + key.name + ": unknown type: " + type);
-                query.types.push_back(type_it->second);
+                    throw std::runtime_error("query " + (std::string)query.wasm_name + " arg " + arg.name + ": unknown type: " + arg.type);
+                query.arg_types.push_back(type_it->second);
+            }
+            auto add_types = [&](auto& dest, auto& fields, table* t) {
+                for (auto& key : fields) {
+                    std::string type = key.type;
+                    if (type.empty()) {
+                        auto field_it = t->field_map.find(key.name);
+                        if (field_it == t->field_map.end())
+                            throw std::runtime_error("query " + (std::string)query.wasm_name + ": unknown field: " + key.name);
+                        type = field_it->second->type;
+                    }
+
+                    auto type_it = abi_type_to_sql_type.find(type);
+                    if (type_it == abi_type_to_sql_type.end())
+                        throw std::runtime_error("query " + (std::string)query.wasm_name + " key " + key.name + ": unknown type: " + type);
+                    dest.push_back(type_it->second);
+                }
+            };
+            add_types(query.range_types, query.sort_keys, query.result_table);
+
+            query.result_types = query.result_table->types;
+            if (!query.join.empty()) {
+                auto it = table_map.find(query.join);
+                if (it == table_map.end())
+                    throw std::runtime_error("query " + (std::string)query.wasm_name + ": unknown table: " + query.join);
+                query.join_table = it->second;
+                add_types(query.result_types, query.fields_from_join, query.join_table);
             }
         }
     }

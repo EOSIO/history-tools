@@ -44,6 +44,16 @@
             "present" desc
         );
 
+        create index if not exists contract_index64_code_table_scope_sk_pk_block_index_prese_idx on chain.contract_index64(
+            "code",
+            "table",
+            "scope",
+            "secondary_key",
+            "primary_key",
+            "block_index" desc,
+            "present" desc
+        );
+
 
         drop function if exists chain.block_info_range_index;
         create function chain.block_info_range_index(
@@ -141,6 +151,7 @@
         drop function if exists chain.account_range_name;
         create function chain.account_range_name(
             max_block_index bigint,
+            
             first_name varchar(13),
             last_name varchar(13),
             max_results integer
@@ -149,9 +160,11 @@
             declare
                 key_search record;
                 block_search record;
+                join_block_search record;
                 num_results integer = 0;
                 found_key bool = false;
                 found_block bool = false;
+                found_join_block bool = false;
             begin
                 if max_results <= 0 then
                     return;
@@ -191,6 +204,7 @@
                         limit 1
                     loop
                         if block_search.present then
+                            
                             "block_index" = block_search."block_index";
                             "present" = block_search."present";
                             "name" = block_search."name";
@@ -203,6 +217,7 @@
                             "code" = block_search."code";
                             "abi" = block_search."abi";
                             return next;
+    
                         else
                             "block_index" = block_search."block_index";
                             "present" = false;
@@ -215,6 +230,7 @@
                             "creation_date" = null::timestamp;
                             "code" = ''::bytea;
                             "abi" = ''::bytea;
+                            
                             return next;
                         end if;
                         num_results = num_results + 1;
@@ -232,6 +248,7 @@
                         "creation_date" = null::timestamp;
                         "code" = ''::bytea;
                         "abi" = ''::bytea;
+                        
                         return next;
                         num_results = num_results + 1;
                     end if;
@@ -275,6 +292,7 @@
                             limit 1
                         loop
                             if block_search.present then
+                                
                                 "block_index" = block_search."block_index";
                                 "present" = block_search."present";
                                 "name" = block_search."name";
@@ -287,6 +305,7 @@
                                 "code" = block_search."code";
                                 "abi" = block_search."abi";
                                 return next;
+    
                             else
                                 "block_index" = block_search."block_index";
                                 "present" = false;
@@ -299,6 +318,7 @@
                                 "creation_date" = null::timestamp;
                                 "code" = ''::bytea;
                                 "abi" = ''::bytea;
+                                
                                 return next;
                             end if;
                             num_results = num_results + 1;
@@ -316,6 +336,7 @@
                             "creation_date" = null::timestamp;
                             "code" = ''::bytea;
                             "abi" = ''::bytea;
+                            
                             return next;
                             num_results = num_results + 1;
                         end if;
@@ -328,6 +349,7 @@
         drop function if exists chain.contract_row_range_code_table_pk_scope;
         create function chain.contract_row_range_code_table_pk_scope(
             max_block_index bigint,
+            
             first_code varchar(13),
             first_table varchar(13),
             first_primary_key decimal,
@@ -342,9 +364,11 @@
             declare
                 key_search record;
                 block_search record;
+                join_block_search record;
                 num_results integer = 0;
                 found_key bool = false;
                 found_block bool = false;
+                found_join_block bool = false;
             begin
                 if max_results <= 0 then
                     return;
@@ -396,6 +420,7 @@
                         limit 1
                     loop
                         if block_search.present then
+                            
                             "block_index" = block_search."block_index";
                             "present" = block_search."present";
                             "code" = block_search."code";
@@ -405,6 +430,7 @@
                             "payer" = block_search."payer";
                             "value" = block_search."value";
                             return next;
+    
                         else
                             "block_index" = block_search."block_index";
                             "present" = false;
@@ -414,6 +440,7 @@
                             "primary_key" = key_search."primary_key";
                             "payer" = ''::varchar(13);
                             "value" = ''::bytea;
+                            
                             return next;
                         end if;
                         num_results = num_results + 1;
@@ -428,6 +455,7 @@
                         "primary_key" = key_search."primary_key";
                         "payer" = ''::varchar(13);
                         "value" = ''::bytea;
+                        
                         return next;
                         num_results = num_results + 1;
                     end if;
@@ -483,6 +511,7 @@
                             limit 1
                         loop
                             if block_search.present then
+                                
                                 "block_index" = block_search."block_index";
                                 "present" = block_search."present";
                                 "code" = block_search."code";
@@ -492,6 +521,7 @@
                                 "payer" = block_search."payer";
                                 "value" = block_search."value";
                                 return next;
+    
                             else
                                 "block_index" = block_search."block_index";
                                 "present" = false;
@@ -501,6 +531,7 @@
                                 "primary_key" = key_search."primary_key";
                                 "payer" = ''::varchar(13);
                                 "value" = ''::bytea;
+                                
                                 return next;
                             end if;
                             num_results = num_results + 1;
@@ -515,6 +546,7 @@
                             "primary_key" = key_search."primary_key";
                             "payer" = ''::varchar(13);
                             "value" = ''::bytea;
+                            
                             return next;
                             num_results = num_results + 1;
                         end if;
@@ -527,6 +559,7 @@
         drop function if exists chain.contract_row_range_code_table_scope_pk;
         create function chain.contract_row_range_code_table_scope_pk(
             max_block_index bigint,
+            
             first_code varchar(13),
             first_table varchar(13),
             first_scope varchar(13),
@@ -541,9 +574,11 @@
             declare
                 key_search record;
                 block_search record;
+                join_block_search record;
                 num_results integer = 0;
                 found_key bool = false;
                 found_block bool = false;
+                found_join_block bool = false;
             begin
                 if max_results <= 0 then
                     return;
@@ -595,6 +630,7 @@
                         limit 1
                     loop
                         if block_search.present then
+                            
                             "block_index" = block_search."block_index";
                             "present" = block_search."present";
                             "code" = block_search."code";
@@ -604,6 +640,7 @@
                             "payer" = block_search."payer";
                             "value" = block_search."value";
                             return next;
+    
                         else
                             "block_index" = block_search."block_index";
                             "present" = false;
@@ -613,6 +650,7 @@
                             "primary_key" = key_search."primary_key";
                             "payer" = ''::varchar(13);
                             "value" = ''::bytea;
+                            
                             return next;
                         end if;
                         num_results = num_results + 1;
@@ -627,6 +665,7 @@
                         "primary_key" = key_search."primary_key";
                         "payer" = ''::varchar(13);
                         "value" = ''::bytea;
+                        
                         return next;
                         num_results = num_results + 1;
                     end if;
@@ -682,6 +721,7 @@
                             limit 1
                         loop
                             if block_search.present then
+                                
                                 "block_index" = block_search."block_index";
                                 "present" = block_search."present";
                                 "code" = block_search."code";
@@ -691,6 +731,7 @@
                                 "payer" = block_search."payer";
                                 "value" = block_search."value";
                                 return next;
+    
                             else
                                 "block_index" = block_search."block_index";
                                 "present" = false;
@@ -700,6 +741,7 @@
                                 "primary_key" = key_search."primary_key";
                                 "payer" = ''::varchar(13);
                                 "value" = ''::bytea;
+                                
                                 return next;
                             end if;
                             num_results = num_results + 1;
@@ -714,6 +756,7 @@
                             "primary_key" = key_search."primary_key";
                             "payer" = ''::varchar(13);
                             "value" = ''::bytea;
+                            
                             return next;
                             num_results = num_results + 1;
                         end if;
@@ -726,6 +769,7 @@
         drop function if exists chain.contract_row_range_scope_table_pk_code;
         create function chain.contract_row_range_scope_table_pk_code(
             max_block_index bigint,
+            
             first_scope varchar(13),
             first_table varchar(13),
             first_primary_key decimal,
@@ -740,9 +784,11 @@
             declare
                 key_search record;
                 block_search record;
+                join_block_search record;
                 num_results integer = 0;
                 found_key bool = false;
                 found_block bool = false;
+                found_join_block bool = false;
             begin
                 if max_results <= 0 then
                     return;
@@ -794,6 +840,7 @@
                         limit 1
                     loop
                         if block_search.present then
+                            
                             "block_index" = block_search."block_index";
                             "present" = block_search."present";
                             "code" = block_search."code";
@@ -803,6 +850,7 @@
                             "payer" = block_search."payer";
                             "value" = block_search."value";
                             return next;
+    
                         else
                             "block_index" = block_search."block_index";
                             "present" = false;
@@ -812,6 +860,7 @@
                             "primary_key" = key_search."primary_key";
                             "payer" = ''::varchar(13);
                             "value" = ''::bytea;
+                            
                             return next;
                         end if;
                         num_results = num_results + 1;
@@ -826,6 +875,7 @@
                         "primary_key" = key_search."primary_key";
                         "payer" = ''::varchar(13);
                         "value" = ''::bytea;
+                        
                         return next;
                         num_results = num_results + 1;
                     end if;
@@ -881,6 +931,7 @@
                             limit 1
                         loop
                             if block_search.present then
+                                
                                 "block_index" = block_search."block_index";
                                 "present" = block_search."present";
                                 "code" = block_search."code";
@@ -890,6 +941,7 @@
                                 "payer" = block_search."payer";
                                 "value" = block_search."value";
                                 return next;
+    
                             else
                                 "block_index" = block_search."block_index";
                                 "present" = false;
@@ -899,6 +951,7 @@
                                 "primary_key" = key_search."primary_key";
                                 "payer" = ''::varchar(13);
                                 "value" = ''::bytea;
+                                
                                 return next;
                             end if;
                             num_results = num_results + 1;
@@ -913,6 +966,333 @@
                             "primary_key" = key_search."primary_key";
                             "payer" = ''::varchar(13);
                             "value" = ''::bytea;
+                            
+                            return next;
+                            num_results = num_results + 1;
+                        end if;
+                    end loop;
+    
+                end loop;
+            end 
+        $$ language plpgsql;
+    
+        drop function if exists chain.contract_index64_range_code_table_scope_sk_pk;
+        create function chain.contract_index64_range_code_table_scope_sk_pk(
+            max_block_index bigint,
+            
+            first_code varchar(13),
+            first_table varchar(13),
+            first_scope varchar(13),
+            first_secondary_key decimal,
+            first_primary_key decimal,
+            last_code varchar(13),
+            last_table varchar(13),
+            last_scope varchar(13),
+            last_secondary_key decimal,
+            last_primary_key decimal,
+            max_results integer
+        ) returns table("block_index" bigint, "present" bool, "code" varchar(13), "scope" varchar(13), "table" varchar(13), "primary_key" decimal, "payer" varchar(13), "secondary_key" decimal, "row_block_index" bigint, "row_present" bool, "row_payer" varchar(13), "row_value" bytea)
+        as $$
+            declare
+                key_search record;
+                block_search record;
+                join_block_search record;
+                num_results integer = 0;
+                found_key bool = false;
+                found_block bool = false;
+                found_join_block bool = false;
+            begin
+                if max_results <= 0 then
+                    return;
+                end if;
+                
+                for key_search in
+                    select
+                        contract_index64."code",contract_index64."table",contract_index64."scope",contract_index64."secondary_key",contract_index64."primary_key"
+                    from
+                        chain.contract_index64
+                    where
+                        (contract_index64."code", contract_index64."table", contract_index64."scope", contract_index64."secondary_key", contract_index64."primary_key") >= ("first_code", "first_table", "first_scope", "first_secondary_key", "first_primary_key")
+                    order by
+                        contract_index64."code",
+                        contract_index64."table",
+                        contract_index64."scope",
+                        contract_index64."secondary_key",
+                        contract_index64."primary_key",
+                        contract_index64."block_index" desc,
+                        contract_index64."present" desc
+                    limit 1
+                loop
+                    if (key_search."code", key_search."table", key_search."scope", key_search."secondary_key", key_search."primary_key") > (last_code, last_table, last_scope, last_secondary_key, last_primary_key) then
+                        return;
+                    end if;
+                    found_key = true;
+                    found_block = false;
+                    first_code = key_search."code";
+                    first_table = key_search."table";
+                    first_scope = key_search."scope";
+                    first_secondary_key = key_search."secondary_key";
+                    first_primary_key = key_search."primary_key";
+                    for block_search in
+                        select
+                            *
+                        from
+                            chain.contract_index64
+                        where
+                            contract_index64."code" = key_search."code"
+                            and contract_index64."table" = key_search."table"
+                            and contract_index64."scope" = key_search."scope"
+                            and contract_index64."secondary_key" = key_search."secondary_key"
+                            and contract_index64."primary_key" = key_search."primary_key"
+                            and contract_index64.block_index <= max_block_index
+                        order by
+                            contract_index64."code",
+                            contract_index64."table",
+                            contract_index64."scope",
+                            contract_index64."secondary_key",
+                            contract_index64."primary_key",
+                            contract_index64."block_index" desc,
+                            contract_index64."present" desc
+                        limit 1
+                    loop
+                        if block_search.present then
+                            
+                            found_join_block = false;
+                            for join_block_search in
+                                select
+                                    contract_row."block_index",
+                                    contract_row."present",
+                                    contract_row."payer",
+                                    contract_row."value"
+                                from
+                                    chain.contract_row
+                                where
+                                    contract_row."code" = block_search."code"
+                                    and contract_row."table" = substring(block_search."table" for 12)
+                                    and contract_row."scope" = block_search."scope"
+                                    and contract_row."primary_key" = block_search."primary_key"
+                                    and contract_row.block_index <= max_block_index
+                                order by
+                                    contract_row."code",
+                                    contract_row."table",
+                                    contract_row."scope",
+                                    contract_row."primary_key",
+                                    contract_row."block_index" desc,
+                                    contract_row."present" desc
+                                limit 1
+                            loop
+                                if join_block_search.present then
+                                    found_join_block = true;
+                                    "block_index" = block_search."block_index";
+                                    "present" = block_search."present";
+                                    "code" = block_search."code";
+                                    "scope" = block_search."scope";
+                                    "table" = block_search."table";
+                                    "primary_key" = block_search."primary_key";
+                                    "payer" = block_search."payer";
+                                    "secondary_key" = block_search."secondary_key";
+                                    "row_block_index" = join_block_search."block_index";
+                                    "row_present" = join_block_search."present";
+                                    "row_payer" = join_block_search."payer";
+                                    "row_value" = join_block_search."value";
+                                    return next;
+                                end if;
+                            end loop;
+                            if not found_join_block then
+                                "block_index" = block_search."block_index";
+                                "present" = block_search."present";
+                                "code" = block_search."code";
+                                "scope" = block_search."scope";
+                                "table" = block_search."table";
+                                "primary_key" = block_search."primary_key";
+                                "payer" = block_search."payer";
+                                "secondary_key" = block_search."secondary_key";
+                                "row_block_index" = 0::bigint;
+                                "row_present" = false::bool;
+                                "row_payer" = ''::varchar(13);
+                                "row_value" = ''::bytea;
+                                return next;
+                            end if;
+    
+                        else
+                            "block_index" = block_search."block_index";
+                            "present" = false;
+                            "code" = key_search."code";
+                            "scope" = key_search."scope";
+                            "table" = key_search."table";
+                            "primary_key" = key_search."primary_key";
+                            "payer" = ''::varchar(13);
+                            "secondary_key" = 0::decimal;
+                            "row_block_index" = 0::bigint;
+                            "row_present" = false::bool;
+                            "row_payer" = ''::varchar(13);
+                            "row_value" = ''::bytea;
+                            return next;
+                        end if;
+                        num_results = num_results + 1;
+                        found_block = true;
+                    end loop;
+                    if not found_block then
+                        "block_index" = 0;
+                        "present" = false;
+                        "code" = key_search."code";
+                        "scope" = key_search."scope";
+                        "table" = key_search."table";
+                        "primary_key" = key_search."primary_key";
+                        "payer" = ''::varchar(13);
+                        "secondary_key" = 0::decimal;
+                        "row_block_index" = 0::bigint;
+                        "row_present" = false::bool;
+                        "row_payer" = ''::varchar(13);
+                        "row_value" = ''::bytea;
+                        return next;
+                        num_results = num_results + 1;
+                    end if;
+                end loop;
+    
+                loop
+                    exit when not found_key or num_results >= max_results;
+                    found_key = false;
+                    
+                    for key_search in
+                        select
+                            contract_index64."code",contract_index64."table",contract_index64."scope",contract_index64."secondary_key",contract_index64."primary_key"
+                        from
+                            chain.contract_index64
+                        where
+                            (contract_index64."code", contract_index64."table", contract_index64."scope", contract_index64."secondary_key", contract_index64."primary_key") > ("first_code", "first_table", "first_scope", "first_secondary_key", "first_primary_key")
+                        order by
+                            contract_index64."code",
+                            contract_index64."table",
+                            contract_index64."scope",
+                            contract_index64."secondary_key",
+                            contract_index64."primary_key",
+                            contract_index64."block_index" desc,
+                            contract_index64."present" desc
+                        limit 1
+                    loop
+                        if (key_search."code", key_search."table", key_search."scope", key_search."secondary_key", key_search."primary_key") > (last_code, last_table, last_scope, last_secondary_key, last_primary_key) then
+                            return;
+                        end if;
+                        found_key = true;
+                        found_block = false;
+                        first_code = key_search."code";
+                        first_table = key_search."table";
+                        first_scope = key_search."scope";
+                        first_secondary_key = key_search."secondary_key";
+                        first_primary_key = key_search."primary_key";
+                        for block_search in
+                            select
+                                *
+                            from
+                                chain.contract_index64
+                            where
+                                contract_index64."code" = key_search."code"
+                                and contract_index64."table" = key_search."table"
+                                and contract_index64."scope" = key_search."scope"
+                                and contract_index64."secondary_key" = key_search."secondary_key"
+                                and contract_index64."primary_key" = key_search."primary_key"
+                                and contract_index64.block_index <= max_block_index
+                            order by
+                                contract_index64."code",
+                                contract_index64."table",
+                                contract_index64."scope",
+                                contract_index64."secondary_key",
+                                contract_index64."primary_key",
+                                contract_index64."block_index" desc,
+                                contract_index64."present" desc
+                            limit 1
+                        loop
+                            if block_search.present then
+                                
+                                found_join_block = false;
+                                for join_block_search in
+                                    select
+                                        contract_row."block_index",
+                                        contract_row."present",
+                                        contract_row."payer",
+                                        contract_row."value"
+                                    from
+                                        chain.contract_row
+                                    where
+                                        contract_row."code" = block_search."code"
+                                        and contract_row."table" = substring(block_search."table" for 12)
+                                        and contract_row."scope" = block_search."scope"
+                                        and contract_row."primary_key" = block_search."primary_key"
+                                        and contract_row.block_index <= max_block_index
+                                    order by
+                                        contract_row."code",
+                                        contract_row."table",
+                                        contract_row."scope",
+                                        contract_row."primary_key",
+                                        contract_row."block_index" desc,
+                                        contract_row."present" desc
+                                    limit 1
+                                loop
+                                    if join_block_search.present then
+                                        found_join_block = true;
+                                        "block_index" = block_search."block_index";
+                                        "present" = block_search."present";
+                                        "code" = block_search."code";
+                                        "scope" = block_search."scope";
+                                        "table" = block_search."table";
+                                        "primary_key" = block_search."primary_key";
+                                        "payer" = block_search."payer";
+                                        "secondary_key" = block_search."secondary_key";
+                                        "row_block_index" = join_block_search."block_index";
+                                        "row_present" = join_block_search."present";
+                                        "row_payer" = join_block_search."payer";
+                                        "row_value" = join_block_search."value";
+                                        return next;
+                                    end if;
+                                end loop;
+                                if not found_join_block then
+                                    "block_index" = block_search."block_index";
+                                    "present" = block_search."present";
+                                    "code" = block_search."code";
+                                    "scope" = block_search."scope";
+                                    "table" = block_search."table";
+                                    "primary_key" = block_search."primary_key";
+                                    "payer" = block_search."payer";
+                                    "secondary_key" = block_search."secondary_key";
+                                    "row_block_index" = 0::bigint;
+                                    "row_present" = false::bool;
+                                    "row_payer" = ''::varchar(13);
+                                    "row_value" = ''::bytea;
+                                    return next;
+                                end if;
+    
+                            else
+                                "block_index" = block_search."block_index";
+                                "present" = false;
+                                "code" = key_search."code";
+                                "scope" = key_search."scope";
+                                "table" = key_search."table";
+                                "primary_key" = key_search."primary_key";
+                                "payer" = ''::varchar(13);
+                                "secondary_key" = 0::decimal;
+                                "row_block_index" = 0::bigint;
+                                "row_present" = false::bool;
+                                "row_payer" = ''::varchar(13);
+                                "row_value" = ''::bytea;
+                                return next;
+                            end if;
+                            num_results = num_results + 1;
+                            found_block = true;
+                        end loop;
+                        if not found_block then
+                            "block_index" = 0;
+                            "present" = false;
+                            "code" = key_search."code";
+                            "scope" = key_search."scope";
+                            "table" = key_search."table";
+                            "primary_key" = key_search."primary_key";
+                            "payer" = ''::varchar(13);
+                            "secondary_key" = 0::decimal;
+                            "row_block_index" = 0::bigint;
+                            "row_present" = false::bool;
+                            "row_payer" = ''::varchar(13);
+                            "row_value" = ''::bytea;
                             return next;
                             num_results = num_results + 1;
                         end if;

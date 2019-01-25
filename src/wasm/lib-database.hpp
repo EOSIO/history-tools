@@ -305,3 +305,37 @@ struct query_contract_row_range_scope_table_pk_code {
     key         last        = {};
     uint32_t    max_results = {};
 };
+
+template <typename T>
+struct contract_secondary_index_with_row {
+    uint32_t                       block_index     = {};
+    bool                           present         = {};
+    eosio::name                    code            = {};
+    uint64_t                       scope           = {};
+    eosio::name                    table           = {};
+    uint64_t                       primary_key     = {};
+    eosio::name                    payer           = {};
+    T                              secondary_key   = {};
+    uint32_t                       row_block_index = {};
+    bool                           row_present     = {};
+    eosio::name                    row_payer       = {};
+    eosio::datastream<const char*> row_value       = {nullptr, 0};
+};
+
+// todo: for_each_...
+
+struct query_contract_index64_range_code_table_scope_sk_pk {
+    struct key {
+        eosio::name code          = {};
+        eosio::name table         = {};
+        uint64_t    scope         = {};
+        uint64_t    secondary_key = {};
+        uint64_t    primary_key   = {};
+    };
+
+    eosio::name query_name  = "ci1.cts2p"_n;
+    uint32_t    max_block   = {};
+    key         first       = {};
+    key         last        = {};
+    uint32_t    max_results = {};
+};

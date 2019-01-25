@@ -8,8 +8,12 @@ const env = {
         throw new Error('called abort');
     },
     eosio_assert_message(test, msg, msg_len) {
+        // todo: pass assert message through RPC API
+        print_js_str("assert: ");
+        print_wasm_str(inst.exports.memory.buffer, msg, msg + msg_len);
+        print_js_str("\n");
         if (!test)
-            throw new Error('assert failed'); // todo: msg
+            throw new Error('assert failed');
     },
     get_blockchain_parameters_packed() {
         throw new Error('called get_blockchain_parameters_packed'); // todo: remove

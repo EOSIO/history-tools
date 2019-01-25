@@ -148,7 +148,7 @@ function generate_nonstate({ table, index, limit_block_index, sort_keys, conditi
     `;
 } // generate
 
-function generate_state({ table, index, limit_block_index, keys, sort_keys, history_keys, ordered_fields, ...rest }) {
+function generate_state({ table, index, limit_block_index, args, keys, sort_keys, history_keys, ordered_fields, join, join_key_values, fields_from_join, ...rest }) {
     generate_index({ table, index, sort_keys, history_keys, ordered_fields, ...rest });
 
     const fn_name = schema + '.' + rest['function'];
@@ -157,10 +157,44 @@ function generate_state({ table, index, limit_block_index, keys, sort_keys, hist
     const sort_keys_tuple_expr = sort_keys.map(x => sort_key_expr(x, `${table}.`, true)).join(',');
 
     let keys_by_name = {};
-    for (let key of [...keys, ...sort_keys, ...history_keys])
+    for (let key of [...keys, ...history_keys])
         keys_by_name[key.name] = key;
     let data_fields = ordered_fields.filter(f => !(f.name in keys_by_name));
-    let return_type = ordered_fields.map(f => '"' + f.name + '" ' + type_map[f.type]).join(', ');
+    let return_type = ordered_fields.map(f => '"' + f.name + '" ' + type_map[f.type]).join(', ') + fields_from_join.map(f => ', "' + f.new_name + '" ' + type_map[f.type]).join('');
+
+    const non_joined = (compare, indent) => `
+        ${indent}            ${ordered_fields.map(f => `"${f.name}" = block_search."${f.name}";`).join('\n                    ' + indent)}
+        ${indent}            return next;
+    `;
+
+    const joined = (compare, indent) => `
+        ${indent}            found_join_block = false;
+        ${indent}            for join_block_search in
+        ${indent}                select
+        ${indent}                    ${fields_from_join.map(x => `${join}."${x.name}"`).join(',\n                            ' + indent)}
+        ${indent}                from
+        ${indent}                    ${schema}.${join}
+        ${indent}                where
+        ${indent}                    ${join_key_values.map(x => `${join}."${x.name}" = ${x.expression.replace('${table}', 'block_search')}`).join('\n                            ' + indent + 'and ')}
+        ${indent}                    ${limit_block_index ? `and ${join}.block_index <= max_block_index` : ``}
+        ${indent}                order by
+        ${indent}                    ${join_key_values.map(x => `${join}."${x.name}"`).join(',\n                            ' + indent)},
+        ${indent}                    ${history_keys.map(x => `${join}."${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                            ' + indent)}
+        ${indent}                limit 1
+        ${indent}            loop
+        ${indent}                if join_block_search.present then
+        ${indent}                    found_join_block = true;
+        ${indent}                    ${ordered_fields.map(f => `"${f.name}" = block_search."${f.name}";`).join('\n                            ' + indent)}
+        ${indent}                    ${fields_from_join.map(f => `"${f.new_name}" = join_block_search."${f.name}";`).join('\n                            ' + indent)}
+        ${indent}                    return next;
+        ${indent}                end if;
+        ${indent}            end loop;
+        ${indent}            if not found_join_block then
+        ${indent}                ${ordered_fields.map(f => `"${f.name}" = block_search."${f.name}";`).join('\n                        ' + indent)}
+        ${indent}                ${fields_from_join.map(f => `"${f.new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                        ' + indent)}
+        ${indent}                return next;
+        ${indent}            end if;
+    `;
 
     const key_search = (compare, indent) => `
         ${indent}for key_search in
@@ -195,13 +229,13 @@ function generate_state({ table, index, limit_block_index, keys, sort_keys, hist
         ${indent}        limit 1
         ${indent}    loop
         ${indent}        if block_search.present then
-        ${indent}            ${ordered_fields.map(f => `"${f.name}" = block_search."${f.name}";`).join('\n                    ' + indent)}
-        ${indent}            return next;
+        ${indent}            ${join ? joined(compare, indent) : non_joined(compare, indent)}
         ${indent}        else
         ${indent}            "block_index" = block_search."block_index";
         ${indent}            "present" = false;
         ${indent}            ${keys.map(f => `"${f.name}" = key_search."${f.name}";`).join('\n                    ' + indent)}
         ${indent}            ${data_fields.map(f => `"${f.name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                    ' + indent)}
+        ${indent}            ${fields_from_join.map(f => `"${f.new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                    ' + indent)}
         ${indent}            return next;
         ${indent}        end if;
         ${indent}        num_results = num_results + 1;
@@ -212,6 +246,7 @@ function generate_state({ table, index, limit_block_index, keys, sort_keys, hist
         ${indent}        "present" = false;
         ${indent}        ${keys.map(f => `"${f.name}" = key_search."${f.name}";`).join('\n                ' + indent)}
         ${indent}        ${data_fields.map(f => `"${f.name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                ' + indent)}
+        ${indent}        ${fields_from_join.map(f => `"${f.new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                ' + indent)}
         ${indent}        return next;
         ${indent}        num_results = num_results + 1;
         ${indent}    end if;
@@ -222,6 +257,7 @@ function generate_state({ table, index, limit_block_index, keys, sort_keys, hist
         drop function if exists ${fn_name};
         create function ${fn_name}(
             ${limit_block_index ? `max_block_index bigint,` : ``}
+            ${args.map(x => `"${x.name}" ${x.type},`).join('\n            ')}
             ${fn_args('first_')}
             ${fn_args('last_')}
             max_results integer
@@ -230,9 +266,11 @@ function generate_state({ table, index, limit_block_index, keys, sort_keys, hist
             declare
                 key_search record;
                 block_search record;
+                join_block_search record;
                 num_results integer = 0;
                 found_key bool = false;
                 found_block bool = false;
+                found_join_block bool = false;
             begin
                 if max_results <= 0 then
                     return;
@@ -272,11 +310,15 @@ function fill_types(query, fields) {
 for (let query of config.queries) {
     query = {
         ...query,
+        args: query.args || [],
         keys: tables[query.table].keys || [],
         sort_keys: query.sort_keys || [],
         history_keys: tables[query.table].history_keys || [],
         ordered_fields: tables[query.table].ordered_fields,
+        join_key_values: (query.join_key_values || []).map(({ name, expression }) => ({ name, expression, type: tables[query.join].fields[name].type })),
+        fields_from_join: (query.fields_from_join || []).map(({ name, new_name }) => ({ name, new_name, type: tables[query.join].fields[name].type })),
     };
+    fill_types(query, query.args);
     fill_types(query, query.keys);
     fill_types(query, query.sort_keys);
     fill_types(query, query.history_keys);

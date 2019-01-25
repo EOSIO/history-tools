@@ -239,6 +239,69 @@
                     "type": "bytes"
                 }
             ]
+        },
+        {
+            "name": "contract_index64",
+            "history_keys": [
+                {
+                    "name": "block_index",
+                    "desc": true
+                },
+                {
+                    "name": "present",
+                    "desc": true
+                }
+            ],
+            "keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "block_index",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "code",
+                    "type": "name"
+                },
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "table",
+                    "type": "name"
+                },
+                {
+                    "name": "primary_key",
+                    "short_name": "pk",
+                    "type": "uint64"
+                },
+                {
+                    "name": "payer",
+                    "type": "name"
+                },
+                {
+                    "name": "secondary_key",
+                    "short_name": "sk",
+                    "type": "uint64"
+                }
+            ]
         }
     ],
     "queries": [
@@ -364,6 +427,69 @@
                 },
                 {
                     "name": "code"
+                }
+            ]
+        },
+        {
+            "wasm_name": "ci1.cts2p",
+            "index": "contract_index64_code_table_scope_sk_pk_block_index_prese_idx",
+            "function": "contract_index64_range_code_table_scope_sk_pk",
+            "table": "contract_index64",
+            "max_results": 100,
+            "is_state": true,
+            "limit_block_index": true,
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "secondary_key"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
+            "join": "contract_row",
+            "join_key_values": [
+                {
+                    "name": "code",
+                    "expression": "${table}.\"code\""
+                },
+                {
+                    "name": "table",
+                    "expression": "substring(${table}.\"table\" for 12)"
+                },
+                {
+                    "name": "scope",
+                    "expression": "${table}.\"scope\""
+                },
+                {
+                    "name": "primary_key",
+                    "expression": "${table}.\"primary_key\""
+                }
+            ],
+            "fields_from_join": [
+                {
+                    "name": "block_index",
+                    "new_name": "row_block_index"
+                },
+                {
+                    "name": "present",
+                    "new_name": "row_present"
+                },
+                {
+                    "name": "payer",
+                    "new_name": "row_payer"
+                },
+                {
+                    "name": "value",
+                    "new_name": "row_value"
                 }
             ]
         }

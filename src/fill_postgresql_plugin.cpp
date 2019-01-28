@@ -1,10 +1,12 @@
 // copyright defined in LICENSE.txt
 
 // todo: transaction order within blocks. affects wasm-ql
+// todo: trim: n behind head
+// todo: trim: remove last !present
 
 #include "fill_postgresql_plugin.hpp"
 
-#include "abieos.hpp"
+#include "abieos_exception.hpp"
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -73,7 +75,7 @@ string to_string(transaction_status status) {
 }
 
 bool bin_to_native(transaction_status& status, bin_to_native_state& state, bool) {
-    status = transaction_status(read_bin<uint8_t>(state.bin));
+    status = transaction_status(read_raw<uint8_t>(state.bin));
     return true;
 }
 
@@ -185,7 +187,7 @@ string sql_str(pqxx::connection& c, bool bulk, const std::string& s) {
         string result;
         if (!bulk)
             result = "'";
-        boost::algorithm::hex(s.begin(), s.end(), back_inserter(result));
+        abieos::hex(s.begin(), s.end(), back_inserter(result));
         if (!bulk)
             result += "'";
         return result;
@@ -246,14 +248,14 @@ string sql_str(pqxx::connection& c, bool bulk, const T& obj) {
 template <typename T>
 string bin_to_sql(pqxx::connection& c, bool bulk, input_buffer& bin) {
     if constexpr (is_optional_v<T>) {
-        if (read_bin<bool>(bin))
+        if (read_raw<bool>(bin))
             return bin_to_sql<typename T::value_type>(c, bulk, bin);
         else if (is_string_v<typename T::value_type>)
             return quote(bulk, "");
         else
             return null_value(bulk);
     } else {
-        return sql_str(c, bulk, read_bin<T>(bin));
+        return sql_str(c, bulk, read_raw<T>(bin));
     }
 }
 
@@ -278,7 +280,7 @@ string bin_to_sql<bytes>(pqxx::connection&, bool bulk, input_buffer& bin) {
     if (size > bin.end - bin.pos)
         throw error("invalid bytes size");
     string result;
-    boost::algorithm::hex(bin.pos, bin.pos + size, back_inserter(result));
+    abieos::hex(bin.pos, bin.pos + size, back_inserter(result));
     bin.pos += size;
     return quote_bytea(bulk, result);
 }
@@ -287,7 +289,7 @@ template <>
 string native_to_sql<bytes>(pqxx::connection&, bool bulk, const void* p) {
     auto&  obj = reinterpret_cast<const bytes*>(p)->data;
     string result;
-    boost::algorithm::hex(obj.data(), obj.data() + obj.size(), back_inserter(result));
+    abieos::hex(obj.data(), obj.data() + obj.size(), back_inserter(result));
     return quote_bytea(bulk, result);
 }
 
@@ -300,7 +302,7 @@ template <>
 string native_to_sql<input_buffer>(pqxx::connection&, bool bulk, const void* p) {
     auto&  obj = *reinterpret_cast<const input_buffer*>(p);
     string result;
-    boost::algorithm::hex(obj.pos, obj.end, back_inserter(result));
+    abieos::hex(obj.pos, obj.end, back_inserter(result));
     return quote_bytea(bulk, result);
 }
 
@@ -796,8 +798,7 @@ struct session : enable_shared_from_this<session> {
 
     void receive_abi(const shared_ptr<flat_buffer>& p) {
         auto data = p->data();
-        if (!json_to_native(abi, string_view{(const char*)data.data(), data.size()}))
-            throw runtime_error("abi parse error");
+        json_to_native(abi, string_view{(const char*)data.data(), data.size()});
         check_abi_version(abi.version);
         abi_types    = create_contract(abi).abi_types;
         received_abi = true;
@@ -1114,8 +1115,7 @@ struct session : enable_shared_from_this<session> {
         check_variant(bin, get_type("result"), "get_blocks_result_v0");
 
         get_blocks_result_v0 result;
-        if (!bin_to_native(result, bin))
-            throw runtime_error("result conversion error");
+        bin_to_native(result, bin);
 
         if (!result.this_block)
             return true;
@@ -1258,12 +1258,12 @@ struct session : enable_shared_from_this<session> {
                     values += ",";
                 else
                     values += "\t";
-                if (!is_optional || read_bin<bool>(bin))
+                if (!is_optional || read_raw<bool>(bin))
                     values += it->second.bin_to_sql(*sql_connection, bulk, bin);
                 else
                     values += "\\N";
             } else {
-                if (!is_optional || read_bin<bool>(bin))
+                if (!is_optional || read_raw<bool>(bin))
                     values += ", " + it->second.bin_to_sql(*sql_connection, bulk, bin);
                 else
                     values += ", null";
@@ -1274,8 +1274,7 @@ struct session : enable_shared_from_this<session> {
     void
     receive_block(uint32_t block_index, const checksum256& block_id, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
         signed_block block;
-        if (!bin_to_native(block, bin))
-            throw runtime_error("block conversion error");
+        bin_to_native(block, bin);
 
         string fields = "block_index, block_id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, "
                         "schedule_version, new_producers_version, new_producers";
@@ -1315,8 +1314,7 @@ struct session : enable_shared_from_this<session> {
         for (uint32_t i = 0; i < num; ++i) {
             check_variant(bin, get_type("table_delta"), "table_delta_v0");
             table_delta_v0 table_delta;
-            if (!bin_to_native(table_delta, bin))
-                throw runtime_error("table_delta conversion error (1)");
+            bin_to_native(table_delta, bin);
 
             auto& variant_type = get_type(table_delta.name);
             if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
@@ -1347,8 +1345,7 @@ struct session : enable_shared_from_this<session> {
         auto         num = read_varuint32(bin);
         for (uint32_t i = 0; i < num; ++i) {
             transaction_trace trace;
-            if (!bin_to_native(trace, bin))
-                throw runtime_error("transaction_trace conversion error (1)");
+            bin_to_native(trace, bin);
             write_transaction_trace(block_num, trace, bulk, t, pipeline);
         }
     }
@@ -1477,9 +1474,7 @@ struct session : enable_shared_from_this<session> {
 
     void send(const jvalue& value) {
         auto bin = make_shared<vector<char>>();
-        if (!json_to_bin(*bin, &get_type("request"), value))
-            throw runtime_error("failed to convert during send");
-
+        json_to_bin(*bin, &get_type("request"), value);
         stream.async_write(
             asio::buffer(*bin), [self = shared_from_this(), bin, this](error_code ec, size_t) { callback(ec, "async_write", [&] {}); });
     }

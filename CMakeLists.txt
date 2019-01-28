@@ -1,5 +1,7 @@
 # copyright defined in LICENSE.txt
 
+set(CMAKE_OSX_DEPLOYMENT_TARGET 10.14)
+
 cmake_minimum_required (VERSION 3.11)
 project(fill-postgresql VERSION 0.1 LANGUAGES CXX)
 
@@ -49,6 +51,7 @@ add_executable(fill-postgresql src/main.cpp src/fill_postgresql_plugin.cpp)
 target_include_directories(fill-postgresql
     PUBLIC
         external/abieos/src
+        external/abieos/external/date/include
         external/abieos/external/rapidjson/include
         external/appbase/include
         external/fc/include

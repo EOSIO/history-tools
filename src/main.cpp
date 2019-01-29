@@ -1,7 +1,5 @@
 // copyright defined in LICENSE.txt
 
-#include "wasm_ql_plugin.hpp"
-
 #include <appbase/application.hpp>
 
 #include <fc/exception/exception.hpp>
@@ -78,7 +76,7 @@ int main(int argc, char** argv) {
         auto root = fc::app_path();
         app().set_default_data_dir(root / "eosio/wasm-ql/data");
         app().set_default_config_dir(root / "eosio/wasm-ql/config");
-        if (!app().initialize<wasm_ql_plugin>(argc, argv))
+        if (!app().initialize<>(argc, argv))
             return initialize_fail;
         initialize_logging();
         ilog("wasm-ql version ${ver}", ("ver", app().version_string()));

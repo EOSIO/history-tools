@@ -49,7 +49,7 @@ include(VersionMacros)
 add_subdirectory(external/appbase)
 add_subdirectory(external/fc)
 
-add_executable(wasm-ql src/main.cpp src/wasm_ql_plugin.cpp src/wasm_interface.cpp)
+add_executable(wasm-ql src/main.cpp src/wasm_ql_plugin.cpp src/wasm_interface.cpp src/fill_lmdb_plugin.cpp)
 target_include_directories(wasm-ql
     PRIVATE
         external/abieos/src
@@ -60,7 +60,7 @@ target_include_directories(wasm-ql
         ${Boost_INCLUDE_DIR}
         ${JS_INCLUDE_DIRS}
 )
-target_link_libraries(wasm-ql appbase fc Boost::date_time Boost::filesystem Boost::system Boost::iostreams Boost::program_options pqxx pq ${JS_LIBRARIES} -lpthread)
+target_link_libraries(wasm-ql appbase fc Boost::date_time Boost::filesystem Boost::system Boost::iostreams Boost::program_options pqxx pq ${JS_LIBRARIES} lmdb -lpthread)
 target_compile_options(wasm-ql PUBLIC ${JS_CFLAGS_OTHER})
 
 string(TOLOWER ${CMAKE_BUILD_TYPE} LOWERCASE_CMAKE_BUILD_TYPE)

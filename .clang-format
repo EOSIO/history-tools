@@ -9,3 +9,4 @@ BreakConstructorInitializers: BeforeComma
 ColumnLimit: 140
 IndentWidth: 4
 PointerAlignment: Left
+ReflowComments: false

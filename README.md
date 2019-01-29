@@ -36,21 +36,29 @@ sudo make install
 ## Debug build (Ubuntu 18.10)
 
 ```
+git clone --recursive git@github.com:EOSIO/wasm-api.git
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug
 make -j
 ../build-test
+export LD_LIBRARY_PATH=/usr/local/lib/
+./wasm-ql -e 0.0.0.0:8880 
+curl localhost:8880/v1/chain/get_table_rows -d '{"code":"eosio", "scope":"eosio", "table":"namebids", "show_payer":true, "json":true, "key_type": "name", "index_position": "2", "limit":100}' | json_pp
 ```
 
 ## Release build (Ubuntu 18.10)
 
 ```
+git clone --recursive git@github.com:EOSIO/wasm-api.git
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j
 ../build-test
+export LD_LIBRARY_PATH=/usr/local/lib/
+./wasm-ql -e 0.0.0.0:8880 
+curl localhost:8880/v1/chain/get_table_rows -d '{"code":"eosio", "scope":"eosio", "table":"namebids", "show_payer":true, "json":true, "key_type": "name", "index_position": "2", "limit":100}' | json_pp
 ```
 
 # Install SpiderMonkey 64.0 (OSX)

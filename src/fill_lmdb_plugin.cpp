@@ -3,14 +3,12 @@
 #include "fill_lmdb_plugin.hpp"
 #include "queries.hpp"
 #include "state_history_lmdb.hpp"
+#include "util.hpp"
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
-#include <boost/iostreams/device/back_inserter.hpp>
-#include <boost/iostreams/filter/zlib.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
 #include <fc/exception/exception.hpp>
 
 using namespace abieos;
@@ -36,7 +34,6 @@ using std::variant;
 using std::vector;
 
 namespace asio      = boost::asio;
-namespace bio       = boost::iostreams;
 namespace bpo       = boost::program_options;
 namespace websocket = boost::beast::websocket;
 
@@ -108,16 +105,6 @@ const map<string, lmdb_type> abi_type_to_lmdb_type = {
     {"transaction_status",      make_lmdb_type_for<state_history::transaction_status>()},
 };
 // clang-format on
-
-std::vector<char> zlib_decompress(input_buffer data) {
-    std::vector<char>      out;
-    bio::filtering_ostream decomp;
-    decomp.push(bio::zlib_decompressor());
-    decomp.push(bio::back_inserter(out));
-    bio::write(decomp, data.pos, data.end - data.pos);
-    bio::close(decomp);
-    return out;
-}
 
 struct session;
 

@@ -1,25 +1,6 @@
 // copyright defined in LICENSE.txt
 
-#pragma once
-
 #include "abieos_exception.hpp"
-
-#include <fstream>
-
-// todo: move this
-inline std::string read_string(const char* filename) {
-    try {
-        std::fstream file(filename, std::ios_base::in | std::ios_base::binary);
-        file.seekg(0, std::ios_base::end);
-        auto len = file.tellg();
-        file.seekg(0, std::ios_base::beg);
-        std::string result(len, 0);
-        file.read(result.data(), len);
-        return result;
-    } catch (const std::exception& e) {
-        throw std::runtime_error("Error reading " + std::string(filename));
-    }
-}
 
 namespace query_config {
 

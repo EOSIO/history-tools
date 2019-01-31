@@ -22,6 +22,7 @@
 #include "wasm_ql_plugin.hpp"
 #include "queries.hpp"
 #include "state_history_sql.hpp"
+#include "util.hpp"
 #include "wasm_interface.hpp"
 
 #include <boost/beast/core.hpp>

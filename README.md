@@ -36,21 +36,35 @@ sudo make install
 ## Debug build (Ubuntu 18.10)
 
 ```
+cd ~
+git clone --recursive git@github.com:EOSIO/wasm-api.git
+cd wasm-api
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug
 make -j
 ../build-test
+export LD_LIBRARY_PATH=/usr/local/lib/:$LD_LIBRARY_PATH
+sudo apt install nodejs
+cd ../src
+npm install node-fetch
 ```
 
 ## Release build (Ubuntu 18.10)
 
 ```
+cd ~
+git clone --recursive git@github.com:EOSIO/wasm-api.git
+cd wasm-api
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j
 ../build-test
+export LD_LIBRARY_PATH=/usr/local/lib/:$LD_LIBRARY_PATH
+sudo apt install nodejs
+cd ../src
+npm install node-fetch
 ```
 
 # Install SpiderMonkey 64.0 (OSX)
@@ -91,21 +105,41 @@ make install
 ## Debug build (OSX)
 
 ```
+cd ~
+git clone --recursive git@github.com:EOSIO/wasm-api.git
+cd wasm-api
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug
 cp ~/firefox-64.0/js/src/build_DBG.OBJ/dist/bin/libmozglue.dylib .
 make -j
 ../build-test
+brew install node
+cd ../src
+npm install node-fetch
 ```
 
 ## Release build (OSX)
 
 ```
+cd ~
+git clone --recursive git@github.com:EOSIO/wasm-api.git
+cd wasm-api
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cp ~/firefox-64.0/js/src/build_DBG.OBJ/dist/bin/libmozglue.dylib .
 make -j
 ../build-test
+brew install node
+cd ../src
+npm install node-fetch
 ```
+
+# Run wasm-ql (common steps for Ubuntu 18.10 and OSX)
+```
+cd ../build
+./wasm-ql -e 0.0.0.0:8880 
+curl localhost:8880/v1/chain/get_table_rows -d '{"code":"eosio", "scope":"eosio", "table":"namebids", "show_payer":true, "json":true, "key_type": "name", "index_position": "2", "limit":100}' | json_pp
+node ../src/test-client.js
+ ```

@@ -7,6 +7,34 @@
 namespace state_history {
 namespace lmdb {
 
+using namespace abieos::literals;
+
+// clang-format off
+inline const std::map<std::string, abieos::name> table_names = {
+    {"account",                     "account"_n},
+    {"contract_table",              "c.table"_n},
+    {"contract_row",                "c.row"_n},
+    {"contract_index64",            "c.index64"_n},
+    {"contract_index128",           "c.index128"_n},
+    {"contract_index256",           "c.index128"_n},
+    {"contract_index_double",       "c.index.d"_n},
+    {"contract_index_long_double",  "c.index.ld"_n},
+    {"global_property",             "glob.prop"_n},
+    {"generated_transaction",       "gen.tx"_n},
+    {"permission",                  "permission"_n},
+    {"permission_link",             "perm.link"_n},
+    {"resource_limits",             "res.lim"_n},
+    {"resource_usage",              "res.usage"_n},
+    {"resource_limits_state",       "res.lim.stat"_n},
+    {"resource_limits_config",      "res.lim.conf"_n},
+};
+// clang-format on
+
+template <typename T>
+inline T* addr(T&& x) {
+    return &x;
+}
+
 inline void check(int stat, const char* prefix) {
     if (!stat)
         return;
@@ -22,13 +50,18 @@ struct env {
     env(uint32_t db_size_mb = 0) {
         check(mdb_env_create(&e), "mdb_env_create: ");
         if (db_size_mb)
-            check(mdb_env_set_mapsize(e, db_size_mb * 1024 * 1024), "mdb_env_set_mapsize");
+            check(mdb_env_set_mapsize(e, size_t(db_size_mb) * 1024 * 1024), "mdb_env_set_mapsize");
         auto stat = mdb_env_open(e, "foo", 0, 0600);
         if (stat) {
             mdb_env_close(e);
             check(stat, "mdb_env_open: ");
         }
     }
+
+    env(const env&) = delete;
+    env(env&&)      = delete;
+    env& operator=(const env&) = delete;
+    env& operator=(env&&) = delete;
 
     ~env() { mdb_env_close(e); }
 };
@@ -40,6 +73,11 @@ struct transaction {
     transaction(struct env& env, bool enable_write) {
         check(mdb_txn_begin(env.e, nullptr, enable_write ? 0 : MDB_RDONLY, &tx), "mdb_txn_begin: ");
     }
+
+    transaction(const transaction&) = delete;
+    transaction(transaction&&)      = delete;
+    transaction& operator=(const transaction&) = delete;
+    transaction& operator=(transaction&&) = delete;
 
     ~transaction() {
         if (tx)
@@ -60,22 +98,45 @@ struct database {
         transaction t{env, true};
         check(mdb_dbi_open(t.tx, nullptr, 0, &db), "mdb_dbi_open: ");
     }
+
+    database(const database&) = delete;
+    database(database&&)      = delete;
+    database& operator=(const database&) = delete;
+    database& operator=(database&&) = delete;
 };
 
+struct cursor {
+    MDB_cursor* c = nullptr;
+
+    cursor(transaction& t, database& d) { check(mdb_cursor_open(t.tx, d.db, &c), "mdb_cursor_open: "); }
+    cursor(const cursor&) = delete;
+    cursor(cursor&&)      = delete;
+    cursor& operator=(const cursor&) = delete;
+    cursor& operator=(cursor&&) = delete;
+
+    ~cursor() { mdb_cursor_close(c); }
+};
+
+inline MDB_val to_val(std::vector<char>& v) { return {v.size(), v.data()}; }
+
+inline MDB_val to_const_val(const std::vector<char>& v) { return {v.size(), const_cast<char*>(v.data())}; }
+
+inline MDB_val to_const_val(abieos::input_buffer v) { return {size_t(v.end - v.pos), const_cast<char*>(v.pos)}; }
+
+inline abieos::input_buffer to_input_buffer(MDB_val v) { return {(char*)v.mv_data, (char*)v.mv_data + v.mv_size}; }
+
 inline abieos::input_buffer get_raw(transaction& t, database& d, const std::vector<char>& key, bool required = true) {
-    MDB_val k{key.size(), const_cast<char*>(key.data())};
     MDB_val v;
-    auto    stat = mdb_get(t.tx, d.db, &k, &v);
+    auto    stat = mdb_get(t.tx, d.db, addr(to_const_val(key)), &v);
     if (stat == MDB_NOTFOUND && !required)
         return {};
     check(stat, "mdb_get: ");
-    return {(char*)v.mv_data, (char*)v.mv_data + v.mv_size};
+    return to_input_buffer(v);
 }
 
 inline void put(transaction& t, database& d, const std::vector<char>& key, const std::vector<char>& value, bool overwrite = false) {
-    MDB_val k{key.size(), const_cast<char*>(key.data())};
-    MDB_val v{value.size(), const_cast<char*>(value.data())};
-    check(mdb_put(t.tx, d.db, &k, &v, overwrite ? 0 : MDB_NOOVERWRITE), "mdb_put: ");
+    auto v = to_const_val(value);
+    check(mdb_put(t.tx, d.db, addr(to_const_val(key)), &v, overwrite ? 0 : MDB_NOOVERWRITE), "mdb_put: ");
 }
 
 template <typename T>
@@ -91,6 +152,20 @@ T get(transaction& t, database& d, const std::vector<char>& key, bool required =
     return abieos::bin_to_native<T>(bin);
 }
 
+template <typename F>
+void for_each(transaction& t, database& d, const std::vector<char>& lower, const std::vector<char>& upper, F f) {
+    cursor  c{t, d};
+    auto    k = to_const_val(lower);
+    MDB_val v;
+    auto    stat = mdb_cursor_get(c.c, &k, &v, MDB_SET_RANGE);
+    while (!stat && memcmp(k.mv_data, upper.data(), std::min(k.mv_size, upper.size())) <= 0) {
+        f(to_input_buffer(k), to_input_buffer(v));
+        stat = mdb_cursor_get(c.c, &k, &v, MDB_NEXT_NODUP);
+    }
+    if (stat != MDB_NOTFOUND)
+        check(stat, "for_each: ");
+}
+
 enum class key_tag : uint8_t {
     fill_status,
     block,
@@ -100,11 +175,39 @@ enum class key_tag : uint8_t {
     table_index,
 };
 
-template <typename T>
-void reversed_native_to_bin(std::vector<char>& bin, const T& obj) {
+template <typename F>
+void reverse_bin(std::vector<char>& bin, F f) {
     auto s = bin.size();
-    abieos::native_to_bin(bin, obj);
+    f();
     std::reverse(bin.begin() + s, bin.end());
+}
+
+// Modify serialization of types so lexigraphical sort matches data sort
+template <typename T, typename F>
+void fixup_key(std::vector<char>& bin, F f) {
+    if constexpr (
+        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128>)
+        reverse_bin(bin, f);
+    else
+        throw std::runtime_error("unsupported key type");
+}
+
+template <typename T>
+void native_to_bin_key(std::vector<char>& bin, const T& obj) {
+    fixup_key<T>(bin, [&] { abieos::native_to_bin(bin, obj); });
+}
+
+inline std::vector<char> make_block_key() {
+    std::vector<char> result;
+    native_to_bin_key(result, (uint8_t)key_tag::block);
+    return result;
+}
+
+inline std::vector<char> make_block_key(uint32_t block) {
+    std::vector<char> result;
+    native_to_bin_key(result, (uint8_t)key_tag::block);
+    native_to_bin_key(result, block);
+    return result;
 }
 
 struct fill_status {
@@ -126,24 +229,26 @@ constexpr void for_each_field(fill_status*, F f) {
 
 inline std::vector<char> make_fill_status_key() {
     std::vector<char> result;
-    reversed_native_to_bin(result, (uint8_t)key_tag::fill_status);
+    native_to_bin_key(result, (uint8_t)key_tag::fill_status);
     return result;
 }
 
 struct received_block {
-    abieos::checksum256 block_id = {};
+    uint32_t            block_index = {};
+    abieos::checksum256 block_id    = {};
 };
 
 template <typename F>
 constexpr void for_each_field(received_block*, F f) {
+    f("block_index", abieos::member_ptr<&received_block::block_index>{});
     f("block_id", abieos::member_ptr<&received_block::block_id>{});
 }
 
 inline std::vector<char> make_received_block_key(uint32_t block) {
     std::vector<char> result;
-    reversed_native_to_bin(result, (uint8_t)key_tag::block);
-    reversed_native_to_bin(result, block);
-    reversed_native_to_bin(result, (uint8_t)key_tag::received_block);
+    native_to_bin_key(result, (uint8_t)key_tag::block);
+    native_to_bin_key(result, block);
+    native_to_bin_key(result, (uint8_t)key_tag::received_block);
     return result;
 }
 
@@ -176,32 +281,32 @@ constexpr void for_each_field(block_info*, F f) {
 
 inline std::vector<char> make_block_info_key(uint32_t block_index) {
     std::vector<char> result;
-    reversed_native_to_bin(result, (uint8_t)key_tag::block);
-    reversed_native_to_bin(result, block_index);
-    reversed_native_to_bin(result, (uint8_t)key_tag::block_info);
+    native_to_bin_key(result, (uint8_t)key_tag::block);
+    native_to_bin_key(result, block_index);
+    native_to_bin_key(result, (uint8_t)key_tag::block_info);
     return result;
 }
 
 inline std::vector<char> make_delta_key(uint32_t block, bool present, abieos::name table) {
     std::vector<char> result;
-    reversed_native_to_bin(result, (uint8_t)key_tag::delta);
-    reversed_native_to_bin(result, table);
-    reversed_native_to_bin(result, block);
-    reversed_native_to_bin(result, present);
-    // !!! pk fields
+    native_to_bin_key(result, (uint8_t)key_tag::delta);
+    native_to_bin_key(result, table);
+    native_to_bin_key(result, block);
+    native_to_bin_key(result, present);
     return result;
 }
 
-inline std::vector<char> make_table_index_key(uint32_t block, bool present, abieos::name table, abieos::name index) {
+inline std::vector<char> make_table_index_key_prefix(abieos::name table, abieos::name index) {
     std::vector<char> result;
-    reversed_native_to_bin(result, (uint8_t)key_tag::table_index);
-    reversed_native_to_bin(result, table);
-    reversed_native_to_bin(result, index);
-    // !!! index fields
-    // !!! pk fields
-    reversed_native_to_bin(result, ~block);
-    reversed_native_to_bin(result, !present);
+    native_to_bin_key(result, (uint8_t)key_tag::table_index);
+    native_to_bin_key(result, table);
+    native_to_bin_key(result, index);
     return result;
+}
+
+inline void append_table_index_key_suffix(std::vector<char>& dest, uint32_t block, bool present) {
+    native_to_bin_key(dest, ~block);
+    native_to_bin_key(dest, !present);
 }
 
 } // namespace lmdb

@@ -21,6 +21,7 @@
 
 #include "wasm_ql_plugin.hpp"
 #include "queries.hpp"
+#include "state_history_sql.hpp"
 #include "wasm_interface.hpp"
 
 #include <boost/beast/core.hpp>
@@ -41,29 +42,17 @@ namespace http  = beast::http;
 namespace ws    = boost::beast::websocket;
 using tcp       = asio::ip::tcp;
 
-std::string read_string(const char* filename) {
-    try {
-        std::fstream file(filename, std::ios_base::in | std::ios_base::binary);
-        file.seekg(0, std::ios_base::end);
-        auto len = file.tellg();
-        file.seekg(0, std::ios_base::beg);
-        std::string result(len, 0);
-        file.read(result.data(), len);
-        return result;
-    } catch (const std::exception& e) {
-        throw std::runtime_error("Error reading "s + filename);
-    }
-}
+namespace sql = state_history::sql;
 
 struct state : wasm_state {
-    query_config::config config          = {};
-    std::string          schema          = {};
-    pqxx::connection     sql_connection  = {};
-    uint32_t             head            = {};
-    abieos::checksum256  head_id         = {};
-    uint32_t             irreversible    = {};
-    abieos::checksum256  irreversible_id = {};
-    uint32_t             first           = {};
+    query_config::config<sql::sql_type> config          = {};
+    std::string                         schema          = {};
+    pqxx::connection                    sql_connection  = {};
+    uint32_t                            head            = {};
+    abieos::checksum256                 head_id         = {};
+    uint32_t                            irreversible    = {};
+    abieos::checksum256                 irreversible_id = {};
+    uint32_t                            first           = {};
 
     static state& from_context(JSContext* cx) { return *reinterpret_cast<state*>(JS_GetContextPrivate(cx)); }
 };
@@ -129,7 +118,7 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         auto it = state.config.query_map.find(query_name);
         if (it == state.config.query_map.end())
             return js_assert(false, cx, ("exec_query: unknown query: " + (std::string)query_name).c_str());
-        query_config::query& query = *it->second;
+        query_config::query<sql::sql_type>& query = *it->second;
 
         uint32_t max_block_index = 0;
         if (query.limit_block_index)
@@ -137,13 +126,13 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         std::string query_str = "select * from \"" + state.schema + "\"." + query.function + "(";
         bool        need_sep  = false;
         if (query.limit_block_index) {
-            query_str += sql_conversion::sql_str(max_block_index);
+            query_str += state_history::sql::sql_str(max_block_index);
             need_sep = true;
         }
         auto add_args = [&](auto& args) {
             for (auto& arg : args) {
                 if (need_sep)
-                    query_str += query_config::sep;
+                    query_str += sql::sep;
                 query_str += arg.bin_to_sql(args_buf);
                 need_sep = true;
             }
@@ -152,7 +141,7 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         add_args(query.range_types);
         add_args(query.range_types);
         auto max_results = abieos::read_raw<uint32_t>(args_buf);
-        query_str += query_config::sep + sql_conversion::sql_str(std::min(max_results, query.max_results));
+        query_str += sql::sep + state_history::sql::sql_str(std::min(max_results, query.max_results));
         query_str += ")";
         // std::cerr << query_str << "\n";
 
@@ -207,9 +196,9 @@ void fetch_fill_status(::state& state) {
     auto       row = t.exec("select head, head_id, irreversible, irreversible_id, first from \"" + state.schema + "\".fill_status")[0];
 
     state.head            = row[0].as<uint32_t>();
-    state.head_id         = query_config::sql_to_checksum256(row[1].c_str());
+    state.head_id         = sql::sql_to_checksum256(row[1].c_str());
     state.irreversible    = row[2].as<uint32_t>();
-    state.irreversible_id = query_config::sql_to_checksum256(row[3].c_str());
+    state.irreversible_id = sql::sql_to_checksum256(row[3].c_str());
     state.first           = row[4].as<uint32_t>();
 }
 
@@ -225,12 +214,12 @@ void fill_context_data(::state& state) {
 // todo: detect state.first changing (history trim)
 bool did_fork(::state& state) {
     pqxx::work t(state.sql_connection);
-    auto result = t.exec("select block_id from \"" + state.schema + "\".block_info where block_index=" + query_config::sql_str(state.head));
+    auto       result = t.exec("select block_id from \"" + state.schema + "\".block_info where block_index=" + sql::sql_str(state.head));
     if (result.empty()) {
         ilog("fork detected (prev head not found)");
         return true;
     }
-    auto id = query_config::sql_to_checksum256(result[0][0].c_str());
+    auto id = sql::sql_to_checksum256(result[0][0].c_str());
     if (id.value != state.head_id.value) {
         ilog("fork detected (head_id changed)");
         return true;
@@ -462,7 +451,7 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
         } catch (const std::exception& e) {
             throw std::runtime_error("error processing " + options["query-config"].as<std::string>() + ": " + e.what());
         }
-        my->state->config.prepare();
+        my->state->config.prepare(state_history::sql::abi_type_to_sql_type);
 
         init_glue(*my->state);
     }

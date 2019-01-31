@@ -1,8 +1,8 @@
 // copyright defined in LICENSE.txt
 
-#include "state_history_lmdb.hpp"
-
 #include "fill_lmdb_plugin.hpp"
+#include "queries.hpp"
+#include "state_history_lmdb.hpp"
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -84,7 +84,7 @@ constexpr lmdb_type make_lmdb_type_for() {
 // clang-format off
 const map<string, lmdb_type> abi_type_to_lmdb_type = {
     {"bool",                    make_lmdb_type_for<bool>()},
-    {"varuint",                 make_lmdb_type_for<varuint32>()},
+    {"varuint32",               make_lmdb_type_for<varuint32>()},
     {"uint8",                   make_lmdb_type_for<uint8_t>()},
     {"uint16",                  make_lmdb_type_for<uint16_t>()},
     {"uint32",                  make_lmdb_type_for<uint32_t>()},
@@ -122,13 +122,13 @@ std::vector<char> zlib_decompress(input_buffer data) {
 struct session;
 
 struct fill_lmdb_config {
-    string   host;
-    string   port;
-    string   schema;
-    uint32_t db_size_mb  = 0;
-    uint32_t skip_to     = 0;
-    uint32_t stop_before = 0;
-    bool     enable_trim = false;
+    string                            host;
+    string                            port;
+    uint32_t                          db_size_mb   = 0;
+    uint32_t                          skip_to      = 0;
+    uint32_t                          stop_before  = 0;
+    bool                              enable_trim  = false;
+    ::query_config::config<lmdb_type> query_config = {};
 };
 
 struct fill_lmdb_plugin_impl : std::enable_shared_from_this<fill_lmdb_plugin_impl> {
@@ -559,7 +559,7 @@ void fill_lmdb_plugin::set_program_options(options_description& cli, options_des
     auto op   = cfg.add_options();
     auto clop = cli.add_options();
     op("endpoint,e", bpo::value<string>()->default_value("localhost:8080"), "State-history endpoint to connect to (nodeos)");
-    op("schema,s", bpo::value<string>()->default_value("chain"), "Database schema");
+    op("query-config,q", bpo::value<std::string>()->default_value("../src/query-config.json"), "Query configuration");
     op("trim,t", "Trim history before irreversible");
     clop(
         "set-db-size-mb", bpo::value<uint32_t>(),
@@ -575,11 +575,18 @@ void fill_lmdb_plugin::plugin_initialize(const variables_map& options) {
         auto host               = endpoint.substr(0, endpoint.find(':'));
         my->config->host        = host;
         my->config->port        = port;
-        my->config->schema      = options["schema"].as<string>();
         my->config->db_size_mb  = options.count("set-db-size-mb") ? options["set-db-size-mb"].as<uint32_t>() : 0;
         my->config->skip_to     = options.count("skip-to") ? options["skip-to"].as<uint32_t>() : 0;
         my->config->stop_before = options.count("stop") ? options["stop"].as<uint32_t>() : 0;
         my->config->enable_trim = options.count("trim");
+
+        auto x = read_string(options["query-config"].as<std::string>().c_str());
+        try {
+            json_to_native(my->config->query_config, x);
+        } catch (const std::exception& e) {
+            throw std::runtime_error("error processing " + options["query-config"].as<std::string>() + ": " + e.what());
+        }
+        my->config->query_config.prepare(abi_type_to_lmdb_type);
     }
     FC_LOG_AND_RETHROW()
 }

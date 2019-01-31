@@ -1,5 +1,6 @@
 // copyright defined in LICENSE.txt
 
+#pragma once
 #include "state_history.hpp"
 
 #include <lmdb.h>

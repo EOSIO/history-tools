@@ -106,7 +106,7 @@ const map<string, lmdb_type> abi_type_to_lmdb_type = {
 };
 // clang-format on
 
-struct session;
+struct flm_session;
 
 struct fill_lmdb_config {
     string                            host;
@@ -120,12 +120,12 @@ struct fill_lmdb_config {
 
 struct fill_lmdb_plugin_impl : std::enable_shared_from_this<fill_lmdb_plugin_impl> {
     shared_ptr<fill_lmdb_config> config = make_shared<fill_lmdb_config>();
-    shared_ptr<::session>        session;
+    shared_ptr<::flm_session>    session;
 
     ~fill_lmdb_plugin_impl();
 };
 
-struct session : enable_shared_from_this<session> {
+struct flm_session : enable_shared_from_this<flm_session> {
     fill_lmdb_plugin_impl*                          my = nullptr;
     shared_ptr<fill_lmdb_config>                    config;
     lmdb::env                                       lmdb_env;
@@ -144,7 +144,7 @@ struct session : enable_shared_from_this<session> {
     abi_def                                         abi             = {};
     map<string, abi_type>                           abi_types       = {};
 
-    session(fill_lmdb_plugin_impl* my, asio::io_context& ioc)
+    flm_session(fill_lmdb_plugin_impl* my, asio::io_context& ioc)
         : my(my)
         , config(my->config)
         , lmdb_env(config->db_size_mb)
@@ -527,8 +527,8 @@ struct session : enable_shared_from_this<session> {
             my->session.reset();
     }
 
-    ~session() { ilog("fill-lmdb stopped"); }
-}; // session
+    ~flm_session() { ilog("fill-lmdb stopped"); }
+}; // flm_session
 
 static abstract_plugin& _fill_lmdb_plugin = app().register_plugin<fill_lmdb_plugin>();
 
@@ -545,27 +545,26 @@ fill_lmdb_plugin::~fill_lmdb_plugin() {}
 void fill_lmdb_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op   = cfg.add_options();
     auto clop = cli.add_options();
-    op("endpoint,e", bpo::value<string>()->default_value("localhost:8080"), "State-history endpoint to connect to (nodeos)");
-    op("query-config,q", bpo::value<std::string>()->default_value("../src/query-config.json"), "Query configuration");
-    op("trim,t", "Trim history before irreversible");
-    clop(
-        "set-db-size-mb", bpo::value<uint32_t>(),
-        "Increase database size to [arg]. This option will grow the database size limit, but not shrink it");
-    clop("skip-to,k", bpo::value<uint32_t>(), "Skip blocks before [arg]");
-    clop("stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
+    op("flm-endpoint,e", bpo::value<string>()->default_value("localhost:8080"), "State-history endpoint to connect to (nodeos)");
+    op("flm-query-config,q", bpo::value<std::string>()->default_value("../src/query-config.json"), "Query configuration");
+    op("flm-trim,t", "Trim history before irreversible");
+    op("flm-set-db-size-mb", bpo::value<uint32_t>(),
+       "Increase database size to [arg]. This option will grow the database size limit, but not shrink it");
+    clop("flm-skip-to,k", bpo::value<uint32_t>(), "Skip blocks before [arg]");
+    clop("flm-stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
 }
 
 void fill_lmdb_plugin::plugin_initialize(const variables_map& options) {
     try {
-        auto endpoint           = options.at("endpoint").as<string>();
+        auto endpoint           = options.at("flm-endpoint").as<string>();
         auto port               = endpoint.substr(endpoint.find(':') + 1, endpoint.size());
         auto host               = endpoint.substr(0, endpoint.find(':'));
         my->config->host        = host;
         my->config->port        = port;
-        my->config->db_size_mb  = options.count("set-db-size-mb") ? options["set-db-size-mb"].as<uint32_t>() : 0;
-        my->config->skip_to     = options.count("skip-to") ? options["skip-to"].as<uint32_t>() : 0;
-        my->config->stop_before = options.count("stop") ? options["stop"].as<uint32_t>() : 0;
-        my->config->enable_trim = options.count("trim");
+        my->config->db_size_mb  = options.count("flm-set-db-size-mb") ? options["flm-set-db-size-mb"].as<uint32_t>() : 0;
+        my->config->skip_to     = options.count("flm-skip-to") ? options["flm-skip-to"].as<uint32_t>() : 0;
+        my->config->stop_before = options.count("flm-stop") ? options["flm-stop"].as<uint32_t>() : 0;
+        my->config->enable_trim = options.count("flm-trim");
 
         auto x = read_string(options["query-config"].as<std::string>().c_str());
         try {
@@ -579,7 +578,7 @@ void fill_lmdb_plugin::plugin_initialize(const variables_map& options) {
 }
 
 void fill_lmdb_plugin::plugin_startup() {
-    my->session = make_shared<session>(my.get(), app().get_io_service());
+    my->session = make_shared<flm_session>(my.get(), app().get_io_service());
     my->session->start();
 }
 

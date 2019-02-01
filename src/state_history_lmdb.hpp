@@ -64,19 +64,19 @@ void bin_to_bin(std::vector<char>& dest, abieos::input_buffer& bin) {
 }
 
 template <>
-void bin_to_bin<abieos::uint128>(std::vector<char>& dest, abieos::input_buffer& bin) {
+inline void bin_to_bin<abieos::uint128>(std::vector<char>& dest, abieos::input_buffer& bin) {
     bin_to_bin<uint64_t>(dest, bin);
     bin_to_bin<uint64_t>(dest, bin);
 }
 
 template <>
-void bin_to_bin<abieos::int128>(std::vector<char>& dest, abieos::input_buffer& bin) {
+inline void bin_to_bin<abieos::int128>(std::vector<char>& dest, abieos::input_buffer& bin) {
     bin_to_bin<uint64_t>(dest, bin);
     bin_to_bin<uint64_t>(dest, bin);
 }
 
 template <>
-void bin_to_bin<state_history::transaction_status>(std::vector<char>& dest, abieos::input_buffer& bin) {
+inline void bin_to_bin<state_history::transaction_status>(std::vector<char>& dest, abieos::input_buffer& bin) {
     return bin_to_bin<std::underlying_type_t<state_history::transaction_status>>(dest, bin);
 }
 
@@ -91,7 +91,7 @@ constexpr lmdb_type make_lmdb_type_for() {
 }
 
 // clang-format off
-const std::map<std::string, lmdb_type> abi_type_to_lmdb_type = {
+const inline std::map<std::string, lmdb_type> abi_type_to_lmdb_type = {
     {"bool",                    make_lmdb_type_for<bool>()},
     {"varuint32",               make_lmdb_type_for<abieos::varuint32>()},
     {"uint8",                   make_lmdb_type_for<uint8_t>()},

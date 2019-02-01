@@ -4,50 +4,24 @@
 // todo: trim: n behind head
 // todo: trim: remove last !present
 
-#include "fill_postgresql_plugin.hpp"
+#include "state_history_sql.hpp"
 
-#include "abieos_exception.hpp"
+#include "fill_postgresql_plugin.hpp"
+#include "util.hpp"
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
-#include <boost/iostreams/device/back_inserter.hpp>
-#include <boost/iostreams/filter/zlib.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
-#include <boost/program_options.hpp>
-#include <cstdlib>
 #include <fc/exception/exception.hpp>
-#include <functional>
-#include <iostream>
-#include <memory>
-#include <pqxx/pqxx>
-#include <string>
-#include <string_view>
 
 using namespace abieos;
 using namespace appbase;
+using namespace state_history;
+using namespace state_history::sql;
 using namespace std::literals;
 
-using std::enable_shared_from_this;
-using std::exception;
-using std::make_shared;
-using std::make_unique;
-using std::map;
-using std::max;
-using std::min;
-using std::optional;
-using std::runtime_error;
-using std::shared_ptr;
-using std::string;
-using std::string_view;
-using std::to_string;
-using std::unique_ptr;
-using std::variant;
-using std::vector;
-
 namespace asio      = boost::asio;
-namespace bio       = boost::iostreams;
 namespace bpo       = boost::program_options;
 namespace websocket = boost::beast::websocket;
 
@@ -55,650 +29,12 @@ using asio::ip::tcp;
 using boost::beast::flat_buffer;
 using boost::system::error_code;
 
-enum class transaction_status : uint8_t {
-    executed  = 0, // succeed, no error handler executed
-    soft_fail = 1, // objectively failed (not executed), error handler executed
-    hard_fail = 2, // objectively failed and error handler objectively failed thus no state change
-    delayed   = 3, // transaction delayed/deferred/scheduled for future execution
-    expired   = 4, // transaction expired and storage space refunded to user
-};
-
-string to_string(transaction_status status) {
-    switch (status) {
-    case transaction_status::executed: return "executed";
-    case transaction_status::soft_fail: return "soft_fail";
-    case transaction_status::hard_fail: return "hard_fail";
-    case transaction_status::delayed: return "delayed";
-    case transaction_status::expired: return "expired";
-    }
-    throw runtime_error("unknown status: " + to_string((uint8_t)status));
-}
-
-bool bin_to_native(transaction_status& status, bin_to_native_state& state, bool) {
-    status = transaction_status(read_raw<uint8_t>(state.bin));
-    return true;
-}
-
-bool json_to_native(transaction_status&, json_to_native_state&, event_type, bool) {
-    throw error("json_to_native: transaction_status unsupported");
-}
-
-struct sql_type {
-    const char* type                                              = "";
-    string (*bin_to_sql)(pqxx::connection&, bool, input_buffer&)  = nullptr;
-    string (*native_to_sql)(pqxx::connection&, bool, const void*) = nullptr;
-};
-
-template <typename T>
-struct unknown_type {};
-
-inline constexpr bool is_known_type(sql_type) { return true; }
-
-template <typename T>
-inline constexpr bool is_known_type(unknown_type<T>) {
-    return false;
-}
-
-template <typename T>
-inline constexpr unknown_type<T> sql_type_for;
-
-inline string null_value(bool bulk) {
-    if (bulk)
-        return "\\N"s;
-    else
-        return "null"s;
-}
-
-inline string sep(bool bulk) {
-    if (bulk)
-        return "\t";
-    else
-        return ",";
-}
-
-inline string quote(bool bulk, string s) {
-    if (bulk)
-        return s;
-    else
-        return "'" + s + "'";
-}
-
-inline string quote(string s) { return quote(false, s); }
-
-inline string quote_bytea(bool bulk, string s) {
-    if (bulk)
-        return "\\\\x" + s;
-    else
-        return "'\\x" + s + "'";
-}
-
-inline string begin_array(bool bulk) {
-    if (bulk)
-        return "{";
-    else
-        return "array[";
-}
-
-inline string end_array(bool bulk, pqxx::work& t, const std::string& schema, const std::string& type) {
-    if (bulk)
-        return "}";
-    else
-        return "]::" + t.quote_name(schema) + "." + t.quote_name(type) + "[]";
-}
-
-inline string begin_object_in_array(bool bulk) {
-    if (bulk)
-        return "\"(";
-    else
-        return "(";
-}
-
-inline string end_object_in_array(bool bulk) {
-    if (bulk)
-        return ")\"";
-    else
-        return ")";
-}
-
-template <typename T>
-string sql_str(pqxx::connection& c, bool bulk, const T& obj);
-
-string sql_str(pqxx::connection& c, bool bulk, const std::string& s) {
-    try {
-        string tmp = c.esc(s);
-        string result;
-        result.reserve(tmp.size() + 2);
-        if (!bulk)
-            result += "'";
-        for (auto ch : tmp) {
-            if (ch == '\t')
-                result += "\\t";
-            else if (ch == '\r')
-                result += "\\r";
-            else if (ch == '\n')
-                result += "\\n";
-            else
-                result += ch;
-        }
-        if (!bulk)
-            result += "'";
-        return result;
-    } catch (...) {
-        string result;
-        if (!bulk)
-            result = "'";
-        abieos::hex(s.begin(), s.end(), back_inserter(result));
-        if (!bulk)
-            result += "'";
-        return result;
-    }
-}
-
-template <typename T>
-string sql_str(bool bulk, const T& v);
-
-// clang-format off
-inline string sql_str(bool bulk, bool v)                                  { if(bulk) return v ? "t" : "f"; return v ? "true" : "false";}
-inline string sql_str(bool bulk, uint16_t v)                              { return to_string(v); }
-inline string sql_str(bool bulk, int16_t v)                               { return to_string(v); }
-inline string sql_str(bool bulk, uint32_t v)                              { return to_string(v); }
-inline string sql_str(bool bulk, int32_t v)                               { return to_string(v); }
-inline string sql_str(bool bulk, varuint32 v)                             { return string(v); }
-inline string sql_str(bool bulk, varint32 v)                              { return string(v); }
-inline string sql_str(bool bulk, int128 v)                                { return string(v); }
-inline string sql_str(bool bulk, uint128 v)                               { return string(v); }
-inline string sql_str(bool bulk, float128 v)                              { return quote_bytea(bulk, string(v)); }
-inline string sql_str(bool bulk, name v)                                  { return quote(bulk, v.value ? string(v) : ""s); }
-inline string sql_str(bool bulk, time_point v)                            { return v.microseconds ? quote(bulk, string(v)): null_value(bulk); }
-inline string sql_str(bool bulk, time_point_sec v)                        { return v.utc_seconds ? quote(bulk, string(v)): null_value(bulk); }
-inline string sql_str(bool bulk, block_timestamp v)                       { return v.slot ?  quote(bulk, string(v)) : null_value(bulk); }
-inline string sql_str(bool bulk, checksum256 v)                           { return quote(bulk, v.value == checksum256{}.value ? "" : string(v)); }
-inline string sql_str(bool bulk, const public_key& v)                     { return quote(bulk, public_key_to_string(v)); }
-inline string sql_str(bool bulk, transaction_status v)                    { return quote(bulk, to_string(v)); }
-
-inline string sql_str(pqxx::connection&, bool bulk, bool v)               { return sql_str(bulk, v); }
-inline string sql_str(pqxx::connection&, bool bulk, varuint32 v)          { return sql_str(bulk, v); }
-inline string sql_str(pqxx::connection&, bool bulk, varint32 v)           { return sql_str(bulk, v); }
-inline string sql_str(pqxx::connection&, bool bulk, int128 v)             { return sql_str(bulk, v); }
-inline string sql_str(pqxx::connection&, bool bulk, uint128 v)            { return sql_str(bulk, v); }
-inline string sql_str(pqxx::connection&, bool bulk, float128 v)           { return sql_str(bulk, v); }
-inline string sql_str(pqxx::connection&, bool bulk, name v)               { return sql_str(bulk, v); }
-inline string sql_str(pqxx::connection&, bool bulk, time_point v)         { return sql_str(bulk, v); }
-inline string sql_str(pqxx::connection&, bool bulk, time_point_sec v)     { return sql_str(bulk, v); }
-inline string sql_str(pqxx::connection&, bool bulk, block_timestamp v)    { return sql_str(bulk, v); }
-inline string sql_str(pqxx::connection&, bool bulk, checksum256 v)        { return sql_str(bulk, v); }
-inline string sql_str(pqxx::connection&, bool bulk, const public_key& v)  { return sql_str(bulk, v); }
-inline string sql_str(pqxx::connection&, bool bulk, transaction_status v) { return sql_str(bulk, v); }
-// clang-format on
-
-template <typename T>
-string sql_str(pqxx::connection& c, bool bulk, const T& obj) {
-    if constexpr (is_optional_v<T>) {
-        if (obj)
-            return sql_str(c, bulk, *obj);
-        else if (is_string_v<typename T::value_type>)
-            return quote(bulk, "");
-        else
-            return null_value(bulk);
-    } else {
-        return to_string(obj);
-    }
-}
-
-template <typename T>
-string bin_to_sql(pqxx::connection& c, bool bulk, input_buffer& bin) {
-    if constexpr (is_optional_v<T>) {
-        if (read_raw<bool>(bin))
-            return bin_to_sql<typename T::value_type>(c, bulk, bin);
-        else if (is_string_v<typename T::value_type>)
-            return quote(bulk, "");
-        else
-            return null_value(bulk);
-    } else {
-        return sql_str(c, bulk, read_raw<T>(bin));
-    }
-}
-
-template <typename T>
-string native_to_sql(pqxx::connection& c, bool bulk, const void* p) {
-    return sql_str(c, bulk, *reinterpret_cast<const T*>(p));
-}
-
-template <typename T>
-constexpr sql_type make_sql_type_for(const char* name) {
-    return sql_type{name, bin_to_sql<T>, native_to_sql<T>};
-}
-
-template <>
-string bin_to_sql<string>(pqxx::connection& c, bool bulk, input_buffer& bin) {
-    return sql_str(c, bulk, read_string(bin));
-}
-
-template <>
-string bin_to_sql<bytes>(pqxx::connection&, bool bulk, input_buffer& bin) {
-    auto size = read_varuint32(bin);
-    if (size > bin.end - bin.pos)
-        throw error("invalid bytes size");
-    string result;
-    abieos::hex(bin.pos, bin.pos + size, back_inserter(result));
-    bin.pos += size;
-    return quote_bytea(bulk, result);
-}
-
-template <>
-string native_to_sql<bytes>(pqxx::connection&, bool bulk, const void* p) {
-    auto&  obj = reinterpret_cast<const bytes*>(p)->data;
-    string result;
-    abieos::hex(obj.data(), obj.data() + obj.size(), back_inserter(result));
-    return quote_bytea(bulk, result);
-}
-
-template <>
-string bin_to_sql<input_buffer>(pqxx::connection&, bool, input_buffer& bin) {
-    throw error("bin_to_sql: input_buffer unsupported");
-}
-
-template <>
-string native_to_sql<input_buffer>(pqxx::connection&, bool bulk, const void* p) {
-    auto&  obj = *reinterpret_cast<const input_buffer*>(p);
-    string result;
-    abieos::hex(obj.pos, obj.end, back_inserter(result));
-    return quote_bytea(bulk, result);
-}
-
-// clang-format off
-template<> inline constexpr sql_type sql_type_for<bool>                 = make_sql_type_for<bool>(                  "bool"                      );
-template<> inline constexpr sql_type sql_type_for<varuint32>            = make_sql_type_for<varuint32>(             "bigint"                    );
-template<> inline constexpr sql_type sql_type_for<varint32>             = make_sql_type_for<varint32>(              "integer"                   );
-template<> inline constexpr sql_type sql_type_for<uint8_t>              = make_sql_type_for<uint8_t>(               "smallint"                  );
-template<> inline constexpr sql_type sql_type_for<uint16_t>             = make_sql_type_for<uint16_t>(              "integer"                   );
-template<> inline constexpr sql_type sql_type_for<uint32_t>             = make_sql_type_for<uint32_t>(              "bigint"                    );
-template<> inline constexpr sql_type sql_type_for<uint64_t>             = make_sql_type_for<uint64_t>(              "decimal"                   );
-template<> inline constexpr sql_type sql_type_for<uint128>              = make_sql_type_for<uint128>(               "decimal"                   );
-template<> inline constexpr sql_type sql_type_for<int8_t>               = make_sql_type_for<int8_t>(                "smallint"                  );
-template<> inline constexpr sql_type sql_type_for<int16_t>              = make_sql_type_for<int16_t>(               "smallint"                  );
-template<> inline constexpr sql_type sql_type_for<int32_t>              = make_sql_type_for<int32_t>(               "integer"                   );
-template<> inline constexpr sql_type sql_type_for<int64_t>              = make_sql_type_for<int64_t>(               "bigint"                    );
-template<> inline constexpr sql_type sql_type_for<int128>               = make_sql_type_for<int128>(                "decimal"                   );
-template<> inline constexpr sql_type sql_type_for<double>               = make_sql_type_for<double>(                "float8"                    );
-template<> inline constexpr sql_type sql_type_for<float128>             = make_sql_type_for<float128>(              "bytea"                     );
-template<> inline constexpr sql_type sql_type_for<name>                 = make_sql_type_for<name>(                  "varchar(13)"               );
-template<> inline constexpr sql_type sql_type_for<string>               = make_sql_type_for<string>(                "varchar"                   );
-template<> inline constexpr sql_type sql_type_for<time_point>           = make_sql_type_for<time_point>(            "timestamp"                 );
-template<> inline constexpr sql_type sql_type_for<time_point_sec>       = make_sql_type_for<time_point_sec>(        "timestamp"                 );
-template<> inline constexpr sql_type sql_type_for<block_timestamp>      = make_sql_type_for<block_timestamp>(       "timestamp"                 );
-template<> inline constexpr sql_type sql_type_for<checksum256>          = make_sql_type_for<checksum256>(           "varchar(64)"               );
-template<> inline constexpr sql_type sql_type_for<public_key>           = make_sql_type_for<public_key>(            "varchar"                   );
-template<> inline constexpr sql_type sql_type_for<bytes>                = make_sql_type_for<bytes>(                 "bytea"                     );
-template<> inline constexpr sql_type sql_type_for<input_buffer>         = make_sql_type_for<input_buffer>(          "bytea"                     );
-template<> inline constexpr sql_type sql_type_for<transaction_status>   = make_sql_type_for<transaction_status>(    "transaction_status_type"   );
-
-template <typename T>
-inline constexpr sql_type sql_type_for<std::optional<T>> = make_sql_type_for<std::optional<T>>(sql_type_for<T>.type);
-
-const map<string, sql_type> abi_type_to_sql_type = {
-    {"bool",                    sql_type_for<bool>},
-    {"varuint",                 sql_type_for<varuint32>},
-    {"varint",                  sql_type_for<varint32>},
-    {"uint8",                   sql_type_for<uint8_t>},
-    {"uint16",                  sql_type_for<uint16_t>},
-    {"uint32",                  sql_type_for<uint32_t>},
-    {"uint64",                  sql_type_for<uint64_t>},
-    {"uint128",                 sql_type_for<uint128>},
-    {"int8",                    sql_type_for<int8_t>},
-    {"int16",                   sql_type_for<int16_t>},
-    {"int32",                   sql_type_for<int32_t>},
-    {"int64",                   sql_type_for<int64_t>},
-    {"int128",                  sql_type_for<int128>},
-    {"float64",                 sql_type_for<double>},
-    {"float128",                sql_type_for<float128>},
-    {"name",                    sql_type_for<name>},
-    {"string",                  sql_type_for<string>},
-    {"time_point",              sql_type_for<time_point>},
-    {"time_point_sec",          sql_type_for<time_point_sec>},
-    {"block_timestamp_type",    sql_type_for<block_timestamp>},
-    {"checksum256",             sql_type_for<checksum256>},
-    {"public_key",              sql_type_for<public_key>},
-    {"bytes",                   sql_type_for<bytes>},
-    {"transaction_status",      sql_type_for<transaction_status>},
-};
-// clang-format on
-
-struct variant_header_zero {};
-
-bool bin_to_native(variant_header_zero&, bin_to_native_state& state, bool) {
-    if (read_varuint32(state.bin))
-        throw std::runtime_error("unexpected variant value");
-    return true;
-}
-
-bool json_to_native(variant_header_zero&, json_to_native_state&, event_type, bool) { return true; }
-
-struct block_position {
-    uint32_t    block_num = 0;
-    checksum256 block_id  = {};
-};
-
-template <typename F>
-constexpr void for_each_field(block_position*, F f) {
-    f("block_num", member_ptr<&block_position::block_num>{});
-    f("block_id", member_ptr<&block_position::block_id>{});
-}
-
-struct get_blocks_result_v0 {
-    block_position           head;
-    block_position           last_irreversible;
-    optional<block_position> this_block;
-    optional<block_position> prev_block;
-    optional<input_buffer>   block;
-    optional<input_buffer>   traces;
-    optional<input_buffer>   deltas;
-};
-
-template <typename F>
-constexpr void for_each_field(get_blocks_result_v0*, F f) {
-    f("head", member_ptr<&get_blocks_result_v0::head>{});
-    f("last_irreversible", member_ptr<&get_blocks_result_v0::last_irreversible>{});
-    f("this_block", member_ptr<&get_blocks_result_v0::this_block>{});
-    f("prev_block", member_ptr<&get_blocks_result_v0::prev_block>{});
-    f("block", member_ptr<&get_blocks_result_v0::block>{});
-    f("traces", member_ptr<&get_blocks_result_v0::traces>{});
-    f("deltas", member_ptr<&get_blocks_result_v0::deltas>{});
-}
-
-struct row {
-    bool         present;
-    input_buffer data;
-};
-
-template <typename F>
-constexpr void for_each_field(row*, F f) {
-    f("present", member_ptr<&row::present>{});
-    f("data", member_ptr<&row::data>{});
-}
-
-struct table_delta_v0 {
-    string      name;
-    vector<row> rows;
-};
-
-template <typename F>
-constexpr void for_each_field(table_delta_v0*, F f) {
-    f("name", member_ptr<&table_delta_v0::name>{});
-    f("rows", member_ptr<&table_delta_v0::rows>{});
-}
-
-struct action_trace_authorization {
-    name actor;
-    name permission;
-};
-
-template <typename F>
-constexpr void for_each_field(action_trace_authorization*, F f) {
-    f("actor", member_ptr<&action_trace_authorization::actor>{});
-    f("permission", member_ptr<&action_trace_authorization::permission>{});
-}
-
-struct action_trace_auth_sequence {
-    name     account;
-    uint64_t sequence;
-};
-
-template <typename F>
-constexpr void for_each_field(action_trace_auth_sequence*, F f) {
-    f("account", member_ptr<&action_trace_auth_sequence::account>{});
-    f("sequence", member_ptr<&action_trace_auth_sequence::sequence>{});
-}
-
-struct action_trace_ram_delta {
-    name    account;
-    int64_t delta;
-};
-
-template <typename F>
-constexpr void for_each_field(action_trace_ram_delta*, F f) {
-    f("account", member_ptr<&action_trace_ram_delta::account>{});
-    f("delta", member_ptr<&action_trace_ram_delta::delta>{});
-}
-
-struct recurse_action_trace;
-
-struct action_trace {
-    variant_header_zero                dummy;
-    variant_header_zero                receipt_dummy;
-    abieos::name                       receipt_receiver;
-    checksum256                        receipt_act_digest;
-    uint64_t                           receipt_global_sequence;
-    uint64_t                           receipt_recv_sequence;
-    vector<action_trace_auth_sequence> receipt_auth_sequence;
-    varuint32                          receipt_code_sequence;
-    varuint32                          receipt_abi_sequence;
-    abieos::name                       account;
-    abieos::name                       name;
-    vector<action_trace_authorization> authorization;
-    input_buffer                       data;
-    bool                               context_free;
-    int64_t                            elapsed;
-    string                             console;
-    vector<action_trace_ram_delta>     account_ram_deltas;
-    optional<string>                   except;
-    vector<recurse_action_trace>       inline_traces;
-};
-
-template <typename F>
-constexpr void for_each_field(action_trace*, F f) {
-    f("dummy", member_ptr<&action_trace::dummy>{});
-    f("receipt_dummy", member_ptr<&action_trace::receipt_dummy>{});
-    f("receipt_receiver", member_ptr<&action_trace::receipt_receiver>{});
-    f("receipt_act_digest", member_ptr<&action_trace::receipt_act_digest>{});
-    f("receipt_global_sequence", member_ptr<&action_trace::receipt_global_sequence>{});
-    f("receipt_recv_sequence", member_ptr<&action_trace::receipt_recv_sequence>{});
-    f("receipt_auth_sequence", member_ptr<&action_trace::receipt_auth_sequence>{});
-    f("receipt_code_sequence", member_ptr<&action_trace::receipt_code_sequence>{});
-    f("receipt_abi_sequence", member_ptr<&action_trace::receipt_abi_sequence>{});
-    f("account", member_ptr<&action_trace::account>{});
-    f("name", member_ptr<&action_trace::name>{});
-    f("authorization", member_ptr<&action_trace::authorization>{});
-    f("data", member_ptr<&action_trace::data>{});
-    f("context_free", member_ptr<&action_trace::context_free>{});
-    f("elapsed", member_ptr<&action_trace::elapsed>{});
-    f("console", member_ptr<&action_trace::console>{});
-    f("account_ram_deltas", member_ptr<&action_trace::account_ram_deltas>{});
-    f("except", member_ptr<&action_trace::except>{});
-    f("inline_traces", member_ptr<&action_trace::inline_traces>{});
-}
-
-struct recurse_action_trace : action_trace {};
-
-bool bin_to_native(recurse_action_trace& obj, bin_to_native_state& state, bool start) {
-    action_trace& o = obj;
-    return bin_to_native(o, state, start);
-}
-
-bool json_to_native(recurse_action_trace& obj, json_to_native_state& state, event_type event, bool start) {
-    action_trace& o = obj;
-    return json_to_native(o, state, event, start);
-}
-
-struct recurse_transaction_trace;
-
-struct transaction_trace {
-    variant_header_zero               dummy;
-    checksum256                       id;
-    transaction_status                status;
-    uint32_t                          cpu_usage_us;
-    varuint32                         net_usage_words;
-    int64_t                           elapsed;
-    uint64_t                          net_usage;
-    bool                              scheduled;
-    vector<action_trace>              action_traces;
-    optional<string>                  except;
-    vector<recurse_transaction_trace> failed_dtrx_trace;
-};
-
-template <typename F>
-constexpr void for_each_field(transaction_trace*, F f) {
-    f("dummy", member_ptr<&transaction_trace::dummy>{});
-    f("transaction_id", member_ptr<&transaction_trace::id>{});
-    f("status", member_ptr<&transaction_trace::status>{});
-    f("cpu_usage_us", member_ptr<&transaction_trace::cpu_usage_us>{});
-    f("net_usage_words", member_ptr<&transaction_trace::net_usage_words>{});
-    f("elapsed", member_ptr<&transaction_trace::elapsed>{});
-    f("net_usage", member_ptr<&transaction_trace::net_usage>{});
-    f("scheduled", member_ptr<&transaction_trace::scheduled>{});
-    f("action_traces", member_ptr<&transaction_trace::action_traces>{});
-    f("except", member_ptr<&transaction_trace::except>{});
-    f("failed_dtrx_trace", member_ptr<&transaction_trace::failed_dtrx_trace>{});
-}
-
-struct recurse_transaction_trace : transaction_trace {};
-
-bool bin_to_native(recurse_transaction_trace& obj, bin_to_native_state& state, bool start) {
-    transaction_trace& o = obj;
-    return bin_to_native(o, state, start);
-}
-
-bool json_to_native(recurse_transaction_trace& obj, json_to_native_state& state, event_type event, bool start) {
-    transaction_trace& o = obj;
-    return json_to_native(o, state, event, start);
-}
-
-struct producer_key {
-    name       producer_name;
-    public_key block_signing_key;
-};
-
-template <typename F>
-constexpr void for_each_field(producer_key*, F f) {
-    f("producer_name", member_ptr<&producer_key::producer_name>{});
-    f("block_signing_key", member_ptr<&producer_key::block_signing_key>{});
-}
-
-struct extension {
-    uint16_t type;
-    bytes    data;
-};
-
-template <typename F>
-constexpr void for_each_field(extension*, F f) {
-    f("type", member_ptr<&extension::type>{});
-    f("data", member_ptr<&extension::data>{});
-}
-
-struct producer_schedule {
-    uint32_t             version;
-    vector<producer_key> producers;
-};
-
-template <typename F>
-constexpr void for_each_field(producer_schedule*, F f) {
-    f("version", member_ptr<&producer_schedule::version>{});
-    f("producers", member_ptr<&producer_schedule::producers>{});
-}
-
-struct transaction_receipt_header {
-    uint8_t   status;
-    uint32_t  cpu_usage_us;
-    varuint32 net_usage_words;
-};
-
-template <typename F>
-constexpr void for_each_field(transaction_receipt_header*, F f) {
-    f("status", member_ptr<&transaction_receipt_header::status>{});
-    f("cpu_usage_us", member_ptr<&transaction_receipt_header::cpu_usage_us>{});
-    f("net_usage_words", member_ptr<&transaction_receipt_header::net_usage_words>{});
-}
-
-struct packed_transaction {
-    vector<signature> signatures;
-    uint8_t           compression;
-    bytes             packed_context_free_data;
-    bytes             packed_trx;
-};
-
-template <typename F>
-constexpr void for_each_field(packed_transaction*, F f) {
-    f("signatures", member_ptr<&packed_transaction::signatures>{});
-    f("compression", member_ptr<&packed_transaction::compression>{});
-    f("packed_context_free_data", member_ptr<&packed_transaction::packed_context_free_data>{});
-    f("packed_trx", member_ptr<&packed_transaction::packed_trx>{});
-}
-
-using transaction_variant = variant<checksum256, packed_transaction>;
-
-struct transaction_receipt : transaction_receipt_header {
-    transaction_variant trx;
-};
-
-template <typename F>
-constexpr void for_each_field(transaction_receipt*, F f) {
-    for_each_field((transaction_receipt_header*)nullptr, f);
-    f("trx", member_ptr<&transaction_receipt::trx>{});
-}
-
-struct block_header {
-    block_timestamp             timestamp;
-    name                        producer;
-    uint16_t                    confirmed;
-    checksum256                 previous;
-    checksum256                 transaction_mroot;
-    checksum256                 action_mroot;
-    uint32_t                    schedule_version;
-    optional<producer_schedule> new_producers;
-    vector<extension>           header_extensions;
-};
-
-template <typename F>
-constexpr void for_each_field(block_header*, F f) {
-    f("timestamp", member_ptr<&block_header::timestamp>{});
-    f("producer", member_ptr<&block_header::producer>{});
-    f("confirmed", member_ptr<&block_header::confirmed>{});
-    f("previous", member_ptr<&block_header::previous>{});
-    f("transaction_mroot", member_ptr<&block_header::transaction_mroot>{});
-    f("action_mroot", member_ptr<&block_header::action_mroot>{});
-    f("schedule_version", member_ptr<&block_header::schedule_version>{});
-    f("new_producers", member_ptr<&block_header::new_producers>{});
-    f("header_extensions", member_ptr<&block_header::header_extensions>{});
-}
-
-struct signed_block_header : block_header {
-    signature producer_signature;
-};
-
-template <typename F>
-constexpr void for_each_field(signed_block_header*, F f) {
-    for_each_field((block_header*)nullptr, f);
-    f("producer_signature", member_ptr<&signed_block_header::producer_signature>{});
-}
-
-struct signed_block : signed_block_header {
-    vector<transaction_receipt> transactions;
-    vector<extension>           block_extensions;
-};
-
-template <typename F>
-constexpr void for_each_field(signed_block*, F f) {
-    for_each_field((signed_block_header*)nullptr, f);
-    f("transactions", member_ptr<&signed_block::transactions>{});
-    f("block_extensions", member_ptr<&signed_block::block_extensions>{});
-}
-
-std::vector<char> zlib_decompress(input_buffer data) {
-    std::vector<char>      out;
-    bio::filtering_ostream decomp;
-    decomp.push(bio::zlib_decompressor());
-    decomp.push(bio::back_inserter(out));
-    bio::write(decomp, data.pos, data.end - data.pos);
-    bio::close(decomp);
-    return out;
-}
-
 struct table_stream {
     pqxx::connection  c;
     pqxx::work        t;
     pqxx::tablewriter writer;
 
-    table_stream(const string& name)
+    table_stream(const std::string& name)
         : t(c)
         , writer(t, name) {}
 };
@@ -706,40 +42,40 @@ struct table_stream {
 struct fpg_session;
 
 struct fill_postgresql_config {
-    string   host;
-    string   port;
-    string   schema;
-    uint32_t skip_to       = 0;
-    uint32_t stop_before   = 0;
-    bool     drop_schema   = false;
-    bool     create_schema = false;
-    bool     enable_trim   = false;
+    std::string host;
+    std::string port;
+    std::string schema;
+    uint32_t    skip_to       = 0;
+    uint32_t    stop_before   = 0;
+    bool        drop_schema   = false;
+    bool        create_schema = false;
+    bool        enable_trim   = false;
 };
 
 struct fill_postgresql_plugin_impl : std::enable_shared_from_this<fill_postgresql_plugin_impl> {
-    shared_ptr<fill_postgresql_config> config = make_shared<fill_postgresql_config>();
-    shared_ptr<fpg_session>            session;
+    std::shared_ptr<fill_postgresql_config> config = std::make_shared<fill_postgresql_config>();
+    std::shared_ptr<fpg_session>            session;
 
     ~fill_postgresql_plugin_impl();
 };
 
-struct fpg_session : enable_shared_from_this<fpg_session> {
-    fill_postgresql_plugin_impl*          my = nullptr;
-    shared_ptr<fill_postgresql_config>    config;
-    std::optional<pqxx::connection>       sql_connection;
-    tcp::resolver                         resolver;
-    websocket::stream<tcp::socket>        stream;
-    bool                                  received_abi    = false;
-    bool                                  created_trim    = false;
-    uint32_t                              head            = 0;
-    string                                head_id         = "";
-    uint32_t                              irreversible    = 0;
-    string                                irreversible_id = "";
-    uint32_t                              first           = 0;
-    uint32_t                              first_bulk      = 0;
-    abi_def                               abi{};
-    map<string, abi_type>                 abi_types;
-    map<string, unique_ptr<table_stream>> table_streams;
+struct fpg_session : std::enable_shared_from_this<fpg_session> {
+    fill_postgresql_plugin_impl*                         my = nullptr;
+    std::shared_ptr<fill_postgresql_config>              config;
+    std::optional<pqxx::connection>                      sql_connection;
+    tcp::resolver                                        resolver;
+    websocket::stream<tcp::socket>                       stream;
+    bool                                                 received_abi    = false;
+    bool                                                 created_trim    = false;
+    uint32_t                                             head            = 0;
+    std::string                                          head_id         = "";
+    uint32_t                                             irreversible    = 0;
+    std::string                                          irreversible_id = "";
+    uint32_t                                             first           = 0;
+    uint32_t                                             first_bulk      = 0;
+    abi_def                                              abi{};
+    std::map<std::string, abi_type>                      abi_types;
+    std::map<std::string, std::unique_ptr<table_stream>> table_streams;
 
     fpg_session(fill_postgresql_plugin_impl* my, asio::io_context& ioc)
         : my(my)
@@ -780,7 +116,7 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
     }
 
     void start_read() {
-        auto in_buffer = make_shared<flat_buffer>();
+        auto in_buffer = std::make_shared<flat_buffer>();
         stream.async_read(*in_buffer, [self = shared_from_this(), this, in_buffer](error_code ec, size_t) {
             callback(ec, "async_read", [&] {
                 if (!received_abi)
@@ -796,9 +132,9 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
         });
     }
 
-    void receive_abi(const shared_ptr<flat_buffer>& p) {
+    void receive_abi(const std::shared_ptr<flat_buffer>& p) {
         auto data = p->data();
-        json_to_native(abi, string_view{(const char*)data.data(), data.size()});
+        json_to_native(abi, std::string_view{(const char*)data.data(), data.size()});
         check_abi_version(abi.version);
         abi_types    = create_contract(abi).abi_types;
         received_abi = true;
@@ -818,24 +154,24 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
     }
 
     template <typename T>
-    void create_table(pqxx::work& t, const std::string& name, const std::string& pk, string fields) {
+    void create_table(pqxx::work& t, const std::string& name, const std::string& pk, std::string fields) {
         for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
             using type              = typename decltype(member_ptr)::member_type;
             constexpr auto sql_type = sql_type_for<type>;
             if constexpr (is_known_type(sql_type)) {
-                string type = sql_type.type;
+                std::string type = sql_type.type;
                 if (type == "transaction_status_type")
                     type = t.quote_name(config->schema) + "." + type;
                 fields += ", "s + t.quote_name(field_name) + " " + type;
             }
         });
 
-        string query =
+        std::string query =
             "create table " + t.quote_name(config->schema) + "." + t.quote_name(name) + "(" + fields + ", primary key (" + pk + "))";
         t.exec(query);
     }
 
-    void fill_field(pqxx::work& t, const string& base_name, string& fields, abi_field& field) {
+    void fill_field(pqxx::work& t, const std::string& base_name, std::string& fields, abi_field& field) {
         if (field.type->filled_struct) {
             for (auto& f : field.type->fields)
                 fill_field(t, base_name + field.name + "_", fields, f);
@@ -843,11 +179,11 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
             for (auto& f : field.type->fields[0].type->fields)
                 fill_field(t, base_name + field.name + "_", fields, f);
         } else if (field.type->array_of && field.type->array_of->filled_struct) {
-            string sub_fields;
+            std::string sub_fields;
             for (auto& f : field.type->array_of->fields)
                 fill_field(t, "", sub_fields, f);
-            string query = "create type " + t.quote_name(config->schema) + "." + t.quote_name(field.type->array_of->name) + " as (" +
-                           sub_fields.substr(2) + ")";
+            std::string query = "create type " + t.quote_name(config->schema) + "." + t.quote_name(field.type->array_of->name) + " as (" +
+                                sub_fields.substr(2) + ")";
             t.exec(query);
             fields += ", " + t.quote_name(base_name + field.name) + " " + t.quote_name(config->schema) + "." +
                       t.quote_name(field.type->array_of->name) + "[]";
@@ -858,7 +194,7 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
             auto it = abi_type_to_sql_type.find(abi_type);
             if (it == abi_type_to_sql_type.end())
                 throw std::runtime_error("don't know sql type for abi type: " + abi_type);
-            string type = it->second.type;
+            std::string type = it->second.type;
             if (type == "transaction_status_type")
                 type = t.quote_name(config->schema) + "." + type;
             fields += ", " + t.quote_name(base_name + field.name) + " " + it->second.type;
@@ -894,14 +230,14 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
             auto& variant_type = get_type(table.type);
             if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
                 throw std::runtime_error("don't know how to proccess " + variant_type.name);
-            auto&  type   = *variant_type.fields[0].type;
-            string fields = "block_index bigint, present bool";
+            auto&       type   = *variant_type.fields[0].type;
+            std::string fields = "block_index bigint, present bool";
             for (auto& field : type.fields)
                 fill_field(t, "", fields, field);
-            string keys = "block_index, present";
+            std::string keys = "block_index, present";
             for (auto& key : table.key_names)
                 keys += ", " + t.quote_name(key);
-            string query =
+            std::string query =
                 "create table " + t.quote_name(config->schema) + "." + table.type + "(" + fields + ", primary key(" + keys + "))";
             t.exec(query);
         }
@@ -934,7 +270,7 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
         for (auto& table : abi.tables) {
             if (table.key_names.empty())
                 continue;
-            string query = "create index if not exists " + table.type;
+            std::string query = "create index if not exists " + table.type;
             for (auto& k : table.key_names)
                 query += "_" + k;
             query += "_block_present_idx on " + t.quote_name(config->schema) + "." + t.quote_name(table.type) + "(\n";
@@ -945,7 +281,7 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
             t.exec(query);
         }
 
-        string query = R"(
+        std::string query = R"(
             drop function if exists chain.trim_history;
         )";
         // std::cout << query << "\n";
@@ -1002,7 +338,7 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
                     end loop;
                     )";
             } else {
-                string keys, search_keys;
+                std::string keys, search_keys;
                 for (auto& k : table.key_names) {
                     if (&k != &table.key_names.front()) {
                         keys += ", ";
@@ -1051,9 +387,9 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
         auto r =
             t.exec("select head, head_id, irreversible, irreversible_id, first from " + t.quote_name(config->schema) + ".fill_status")[0];
         head            = r[0].as<uint32_t>();
-        head_id         = r[1].as<string>();
+        head_id         = r[1].as<std::string>();
         irreversible    = r[2].as<uint32_t>();
-        irreversible_id = r[3].as<string>();
+        irreversible_id = r[3].as<std::string>();
         first           = r[4].as<uint32_t>();
     }
 
@@ -1061,31 +397,32 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
         jarray result;
         auto   rows = t.exec(
             "select block_index, block_id from " + t.quote_name(config->schema) + ".received_block where block_index >= " +
-            to_string(irreversible) + " and block_index <= " + to_string(head) + " order by block_index");
+            std::to_string(irreversible) + " and block_index <= " + std::to_string(head) + " order by block_index");
         for (auto row : rows) {
             result.push_back(jvalue{jobject{
-                {{"block_num"s}, {row[0].as<string>()}},
-                {{"block_id"s}, {row[1].as<string>()}},
+                {{"block_num"s}, {row[0].as<std::string>()}},
+                {{"block_id"s}, {row[1].as<std::string>()}},
             }});
         }
         return result;
     }
 
     void write_fill_status(pqxx::work& t, pqxx::pipeline& pipeline) {
-        string query =
-            "update " + t.quote_name(config->schema) + ".fill_status set head=" + to_string(head) + ", head_id=" + quote(head_id) + ", ";
+        std::string query = "update " + t.quote_name(config->schema) + ".fill_status set head=" + std::to_string(head) +
+                            ", head_id=" + quote(head_id) + ", ";
         if (irreversible < head)
-            query += "irreversible=" + to_string(irreversible) + ", irreversible_id=" + quote(irreversible_id);
+            query += "irreversible=" + std::to_string(irreversible) + ", irreversible_id=" + quote(irreversible_id);
         else
-            query += "irreversible=" + to_string(head) + ", irreversible_id=" + quote(head_id);
-        query += ", first=" + to_string(first);
+            query += "irreversible=" + std::to_string(head) + ", irreversible_id=" + quote(head_id);
+        query += ", first=" + std::to_string(first);
         pipeline.insert(query);
     }
 
     void truncate(pqxx::work& t, pqxx::pipeline& pipeline, uint32_t block) {
         auto trunc = [&](const std::string& name) {
             pipeline.insert(
-                "delete from " + t.quote_name(config->schema) + "." + t.quote_name(name) + " where block_index >= " + to_string(block));
+                "delete from " + t.quote_name(config->schema) + "." + t.quote_name(name) +
+                " where block_index >= " + std::to_string(block));
         };
         trunc("received_block");
         trunc("action_trace_authorization");
@@ -1098,18 +435,18 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
             trunc(table.type);
 
         auto result = pipeline.retrieve(pipeline.insert(
-            "select block_id from " + t.quote_name(config->schema) + ".received_block where block_index=" + to_string(block - 1)));
+            "select block_id from " + t.quote_name(config->schema) + ".received_block where block_index=" + std::to_string(block - 1)));
         if (result.empty()) {
             head    = 0;
             head_id = "";
         } else {
             head    = block - 1;
-            head_id = result.front()[0].as<string>();
+            head_id = result.front()[0].as<std::string>();
         }
         first = std::min(first, head);
     } // truncate
 
-    bool receive_result(const shared_ptr<flat_buffer>& p) {
+    bool receive_result(const std::shared_ptr<flat_buffer>& p) {
         auto         data = p->data();
         input_buffer bin{(const char*)data.data(), (const char*)data.data() + data.size()};
         check_variant(bin, get_type("result"), "get_blocks_result_v0");
@@ -1151,8 +488,8 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
         pqxx::pipeline pipeline(t);
         if (result.this_block->block_num <= head)
             truncate(t, pipeline, result.this_block->block_num);
-        if (!head_id.empty() && (!result.prev_block || (string)result.prev_block->block_id != head_id))
-            throw runtime_error("prev_block does not match");
+        if (!head_id.empty() && (!result.prev_block || (std::string)result.prev_block->block_id != head_id))
+            throw std::runtime_error("prev_block does not match");
         if (result.block)
             receive_block(result.this_block->block_num, result.this_block->block_id, *result.block, bulk, t, pipeline);
         if (result.deltas)
@@ -1161,16 +498,16 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
             receive_traces(result.this_block->block_num, *result.traces, bulk, t, pipeline);
 
         head            = result.this_block->block_num;
-        head_id         = (string)result.this_block->block_id;
+        head_id         = (std::string)result.this_block->block_id;
         irreversible    = result.last_irreversible.block_num;
-        irreversible_id = (string)result.last_irreversible.block_id;
+        irreversible_id = (std::string)result.last_irreversible.block_id;
         if (!first)
             first = head;
         if (!bulk)
             write_fill_status(t, pipeline);
         pipeline.insert(
             "insert into " + t.quote_name(config->schema) + ".received_block (block_index, block_id) values (" +
-            to_string(result.this_block->block_num) + ", " + quote(string(result.this_block->block_id)) + ")");
+            std::to_string(result.this_block->block_num) + ", " + quote(std::string(result.this_block->block_id)) + ")");
 
         pipeline.complete();
         t.commit();
@@ -1184,7 +521,7 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
             first_bulk = block_num;
         auto& ts = table_streams[name];
         if (!ts)
-            ts = make_unique<table_stream>(t.quote_name(config->schema) + "." + t.quote_name(name));
+            ts = std::make_unique<table_stream>(t.quote_name(config->schema) + "." + t.quote_name(name));
         ts->writer.write_raw_line(values);
     }
 
@@ -1209,8 +546,8 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
     }
 
     void fill_value(
-        bool bulk, bool nested_bulk, pqxx::work& t, const string& base_name, string& fields, string& values, input_buffer& bin,
-        abi_field& field) {
+        bool bulk, bool nested_bulk, pqxx::work& t, const std::string& base_name, std::string& fields, std::string& values,
+        input_buffer& bin, abi_field& field) {
         if (field.type->filled_struct) {
             for (auto& f : field.type->fields)
                 fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
@@ -1228,8 +565,8 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
                 if (i)
                     values += ",";
                 values += begin_object_in_array(bulk);
-                string struct_fields;
-                string struct_values;
+                std::string struct_fields;
+                std::string struct_values;
                 for (auto& f : field.type->array_of->fields)
                     fill_value(bulk, true, t, "", struct_fields, struct_values, bin, f);
                 if (bulk)
@@ -1276,25 +613,25 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
         signed_block block;
         bin_to_native(block, bin);
 
-        string fields = "block_index, block_id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, "
-                        "schedule_version, new_producers_version, new_producers";
-        string values = sql_str(bulk, block_index) + sep(bulk) +                               //
-                        sql_str(bulk, block_id) + sep(bulk) +                                  //
-                        sql_str(bulk, block.timestamp) + sep(bulk) +                           //
-                        sql_str(bulk, block.producer) + sep(bulk) +                            //
-                        sql_str(bulk, block.confirmed) + sep(bulk) +                           //
-                        sql_str(bulk, block.previous) + sep(bulk) +                            //
-                        sql_str(bulk, block.transaction_mroot) + sep(bulk) +                   //
-                        sql_str(bulk, block.action_mroot) + sep(bulk) +                        //
-                        sql_str(bulk, block.schedule_version) + sep(bulk) +                    //
-                        sql_str(bulk, block.new_producers ? block.new_producers->version : 0); //
+        std::string fields = "block_index, block_id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, "
+                             "schedule_version, new_producers_version, new_producers";
+        std::string values = sql_str(bulk, block_index) + sep(bulk) +                               //
+                             sql_str(bulk, block_id) + sep(bulk) +                                  //
+                             sql_str(bulk, block.timestamp) + sep(bulk) +                           //
+                             sql_str(bulk, block.producer) + sep(bulk) +                            //
+                             sql_str(bulk, block.confirmed) + sep(bulk) +                           //
+                             sql_str(bulk, block.previous) + sep(bulk) +                            //
+                             sql_str(bulk, block.transaction_mroot) + sep(bulk) +                   //
+                             sql_str(bulk, block.action_mroot) + sep(bulk) +                        //
+                             sql_str(bulk, block.schedule_version) + sep(bulk) +                    //
+                             sql_str(bulk, block.new_producers ? block.new_producers->version : 0); //
 
         if (block.new_producers) {
             values += sep(bulk) + begin_array(bulk);
             for (auto& x : block.new_producers->producers) {
                 if (&x != &block.new_producers->producers[0])
                     values += ",";
-                values += begin_object_in_array(bulk) + quote(bulk, (string)x.producer_name) + "," +
+                values += begin_object_in_array(bulk) + quote(bulk, (std::string)x.producer_name) + "," +
                           quote(bulk, public_key_to_string(x.block_signing_key)) + end_object_in_array(bulk);
             }
             values += end_array(bulk, t, config->schema, "producer_key");
@@ -1328,8 +665,8 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
                         "block ${b} ${t} ${n} of ${r} bulk=${bulk}",
                         ("b", block_num)("t", table_delta.name)("n", num_processed)("r", table_delta.rows.size())("bulk", bulk));
                 check_variant(row.data, variant_type, 0u);
-                string fields = "block_index, present";
-                string values = to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);
+                std::string fields = "block_index, present";
+                std::string values = std::to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);
                 for (auto& field : type.fields)
                     fill_value(bulk, false, t, "", fields, values, row.data, field);
                 write(block_num, t, pipeline, bulk, table_delta.name, fields, values);
@@ -1351,9 +688,9 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
     }
 
     void write_transaction_trace(uint32_t block_num, transaction_trace& ttrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
-        string id     = ttrace.failed_dtrx_trace.empty() ? "" : string(ttrace.failed_dtrx_trace[0].id);
-        string fields = "block_index, failed_dtrx_trace";
-        string values = to_string(block_num) + sep(bulk) + quote(bulk, id);
+        std::string id     = ttrace.failed_dtrx_trace.empty() ? "" : std::string(ttrace.failed_dtrx_trace[0].id);
+        std::string fields = "block_index, failed_dtrx_trace";
+        std::string values = std::to_string(block_num) + sep(bulk) + quote(bulk, id);
         write("transaction_trace", block_num, ttrace, fields, values, bulk, t, pipeline);
 
         int32_t num_actions = 0;
@@ -1371,9 +708,10 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
 
         const auto action_index = ++num_actions;
 
-        string fields = "block_index, transaction_id, action_index, parent_action_index, transaction_status";
-        string values = to_string(block_num) + sep(bulk) + quote(bulk, (string)ttrace.id) + sep(bulk) + to_string(action_index) +
-                        sep(bulk) + to_string(parent_action_index) + sep(bulk) + quote(bulk, to_string(ttrace.status));
+        std::string fields = "block_index, transaction_id, action_index, parent_action_index, transaction_status";
+        std::string values = std::to_string(block_num) + sep(bulk) + quote(bulk, (std::string)ttrace.id) + sep(bulk) +
+                             std::to_string(action_index) + sep(bulk) + std::to_string(parent_action_index) + sep(bulk) +
+                             quote(bulk, to_string(ttrace.status));
 
         write("action_trace", block_num, atrace, fields, values, bulk, t, pipeline);
         for (auto& child : atrace.inline_traces)
@@ -1401,9 +739,10 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
         const std::string& name, uint32_t block_num, transaction_trace& ttrace, int32_t action_index, int32_t& num, T& obj, bool bulk,
         pqxx::work& t, pqxx::pipeline& pipeline) {
         ++num;
-        string fields = "block_index, transaction_id, action_index, index, transaction_status";
-        string values = to_string(block_num) + sep(bulk) + quote(bulk, (string)ttrace.id) + sep(bulk) + to_string(action_index) +
-                        sep(bulk) + to_string(num) + sep(bulk) + quote(bulk, to_string(ttrace.status));
+        std::string fields = "block_index, transaction_id, action_index, index, transaction_status";
+        std::string values = std::to_string(block_num) + sep(bulk) + quote(bulk, (std::string)ttrace.id) + sep(bulk) +
+                             std::to_string(action_index) + sep(bulk) + std::to_string(num) + sep(bulk) +
+                             quote(bulk, to_string(ttrace.status));
 
         write(name, block_num, obj, fields, values, bulk, t, pipeline);
     }
@@ -1414,7 +753,7 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
         if (bulk) {
             write_stream(block_num, t, name, values);
         } else {
-            string query =
+            std::string query =
                 "insert into " + t.quote_name(config->schema) + "." + t.quote_name(name) + "(" + fields + ") values (" + values + ")";
             pipeline.insert(query);
         }
@@ -1439,13 +778,13 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
     void trim() {
         if (!config->enable_trim)
             return;
-        auto end_trim = min(head, irreversible);
+        auto end_trim = std::min(head, irreversible);
         if (first >= end_trim)
             return;
         create_trim();
         pqxx::work t(*sql_connection);
         ilog("trim  ${b} - ${e}", ("b", first)("e", end_trim));
-        t.exec("select * from chain.trim_history(" + to_string(first) + ", " + to_string(end_trim) + ")");
+        t.exec("select * from chain.trim_history(" + std::to_string(first) + ", " + std::to_string(end_trim) + ")");
         t.commit();
         ilog("      done");
         first = end_trim;
@@ -1454,7 +793,7 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
     void send_request(const jarray& positions) {
         send(jvalue{jarray{{"get_blocks_request_v0"s},
                            {jobject{
-                               {{"start_block_num"s}, {to_string(max(config->skip_to, head + 1))}},
+                               {{"start_block_num"s}, {std::to_string(std::max(config->skip_to, head + 1))}},
                                {{"end_block_num"s}, {"4294967295"s}},
                                {{"max_messages_in_flight"s}, {"4294967295"s}},
                                {{"have_positions"s}, {positions}},
@@ -1465,15 +804,15 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
                            }}}});
     }
 
-    const abi_type& get_type(const string& name) {
+    const abi_type& get_type(const std::string& name) {
         auto it = abi_types.find(name);
         if (it == abi_types.end())
-            throw runtime_error("unknown type "s + name);
+            throw std::runtime_error("unknown type "s + name);
         return it->second;
     }
 
     void send(const jvalue& value) {
-        auto bin = make_shared<vector<char>>();
+        auto bin = std::make_shared<std::vector<char>>();
         json_to_bin(*bin, &get_type("request"), value);
         stream.async_write(
             asio::buffer(*bin), [self = shared_from_this(), bin, this](error_code ec, size_t) { callback(ec, "async_write", [&] {}); });
@@ -1482,28 +821,28 @@ struct fpg_session : enable_shared_from_this<fpg_session> {
     void check_variant(input_buffer& bin, const abi_type& type, uint32_t expected) {
         auto index = read_varuint32(bin);
         if (!type.filled_variant)
-            throw runtime_error(type.name + " is not a variant"s);
+            throw std::runtime_error(type.name + " is not a variant"s);
         if (index >= type.fields.size())
-            throw runtime_error("expected "s + type.fields[expected].name + " got " + to_string(index));
+            throw std::runtime_error("expected "s + type.fields[expected].name + " got " + std::to_string(index));
         if (index != expected)
-            throw runtime_error("expected "s + type.fields[expected].name + " got " + type.fields[index].name);
+            throw std::runtime_error("expected "s + type.fields[expected].name + " got " + type.fields[index].name);
     }
 
     void check_variant(input_buffer& bin, const abi_type& type, const char* expected) {
         auto index = read_varuint32(bin);
         if (!type.filled_variant)
-            throw runtime_error(type.name + " is not a variant"s);
+            throw std::runtime_error(type.name + " is not a variant"s);
         if (index >= type.fields.size())
-            throw runtime_error("expected "s + expected + " got " + to_string(index));
+            throw std::runtime_error("expected "s + expected + " got " + std::to_string(index));
         if (type.fields[index].name != expected)
-            throw runtime_error("expected "s + expected + " got " + type.fields[index].name);
+            throw std::runtime_error("expected "s + expected + " got " + type.fields[index].name);
     }
 
     template <typename F>
     void catch_and_close(F f) {
         try {
             f();
-        } catch (const exception& e) {
+        } catch (const std::exception& e) {
             elog("${e}", ("e", e.what()));
             close();
         } catch (...) {
@@ -1545,15 +884,15 @@ fill_postgresql_plugin_impl::~fill_postgresql_plugin_impl() {
 }
 
 fill_postgresql_plugin::fill_postgresql_plugin()
-    : my(make_shared<fill_postgresql_plugin_impl>()) {}
+    : my(std::make_shared<fill_postgresql_plugin_impl>()) {}
 
 fill_postgresql_plugin::~fill_postgresql_plugin() {}
 
 void fill_postgresql_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op   = cfg.add_options();
     auto clop = cli.add_options();
-    op("fpg-endpoint", bpo::value<string>()->default_value("localhost:8080"), "State-history endpoint to connect to (nodeos)");
-    op("fpg-schema", bpo::value<string>()->default_value("chain"), "Database schema");
+    op("fpg-endpoint", bpo::value<std::string>()->default_value("localhost:8080"), "State-history endpoint to connect to (nodeos)");
+    op("fpg-schema", bpo::value<std::string>()->default_value("chain"), "Database schema");
     op("fpg-trim", "Trim history before irreversible");
     clop("fpg-skip-to", bpo::value<uint32_t>(), "Skip blocks before [arg]");
     clop("fpg-stop", bpo::value<uint32_t>(), "Stop before block [arg]");
@@ -1563,12 +902,12 @@ void fill_postgresql_plugin::set_program_options(options_description& cli, optio
 
 void fill_postgresql_plugin::plugin_initialize(const variables_map& options) {
     try {
-        auto endpoint             = options.at("fpg-endpoint").as<string>();
+        auto endpoint             = options.at("fpg-endpoint").as<std::string>();
         auto port                 = endpoint.substr(endpoint.find(':') + 1, endpoint.size());
         auto host                 = endpoint.substr(0, endpoint.find(':'));
         my->config->host          = host;
         my->config->port          = port;
-        my->config->schema        = options["fpg-schema"].as<string>();
+        my->config->schema        = options["fpg-schema"].as<std::string>();
         my->config->skip_to       = options.count("fpg-skip-to") ? options["fpg-skip-to"].as<uint32_t>() : 0;
         my->config->stop_before   = options.count("fpg-stop") ? options["fpg-stop"].as<uint32_t>() : 0;
         my->config->drop_schema   = options.count("fpg-drop");
@@ -1579,7 +918,7 @@ void fill_postgresql_plugin::plugin_initialize(const variables_map& options) {
 }
 
 void fill_postgresql_plugin::plugin_startup() {
-    my->session = make_shared<fpg_session>(my.get(), app().get_io_service());
+    my->session = std::make_shared<fpg_session>(my.get(), app().get_io_service());
     my->session->start();
 }
 

@@ -127,14 +127,14 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         std::string query_str = "select * from \"" + state.schema + "\"." + query.function + "(";
         bool        need_sep  = false;
         if (query.limit_block_index) {
-            query_str += state_history::sql::sql_str(max_block_index);
+            query_str += state_history::sql::sql_str(false, max_block_index);
             need_sep = true;
         }
         auto add_args = [&](auto& args) {
             for (auto& arg : args) {
                 if (need_sep)
-                    query_str += sql::sep;
-                query_str += arg.bin_to_sql(args_buf);
+                    query_str += sql::sep(false);
+                query_str += arg.bin_to_sql(state.sql_connection, false, args_buf);
                 need_sep = true;
             }
         };
@@ -142,7 +142,7 @@ bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         add_args(query.range_types);
         add_args(query.range_types);
         auto max_results = abieos::read_raw<uint32_t>(args_buf);
-        query_str += sql::sep + state_history::sql::sql_str(std::min(max_results, query.max_results));
+        query_str += sql::sep(false) + state_history::sql::sql_str(false, std::min(max_results, query.max_results));
         query_str += ")";
         // std::cerr << query_str << "\n";
 
@@ -215,7 +215,7 @@ void fill_context_data(::state& state) {
 // todo: detect state.first changing (history trim)
 bool did_fork(::state& state) {
     pqxx::work t(state.sql_connection);
-    auto       result = t.exec("select block_id from \"" + state.schema + "\".block_info where block_index=" + sql::sql_str(state.head));
+    auto result = t.exec("select block_id from \"" + state.schema + "\".block_info where block_index=" + sql::sql_str(false, state.head));
     if (result.empty()) {
         ilog("fork detected (prev head not found)");
         return true;
@@ -430,27 +430,27 @@ wasm_ql_plugin::~wasm_ql_plugin() { ilog("wasm_ql stopped"); }
 
 void wasm_ql_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op = cfg.add_options();
-    op("schema,s", bpo::value<std::string>()->default_value("chain"), "Database schema");
-    op("query-config,q", bpo::value<std::string>()->default_value("../src/query-config.json"), "Query configuration");
-    op("endpoint,e", bpo::value<std::string>()->default_value("localhost:8880"), "Endpoint to listen on");
-    op("console,C", "Show console output");
+    op("wql-schema", bpo::value<std::string>()->default_value("chain"), "Database schema");
+    op("wql-query-config", bpo::value<std::string>()->default_value("../src/query-config.json"), "Query configuration");
+    op("wql-endpoint", bpo::value<std::string>()->default_value("localhost:8880"), "Endpoint to listen on");
+    op("wql-console", "Show console output");
 }
 
 void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
     try {
         JS_Init();
-        auto ip_port         = options.at("endpoint").as<std::string>();
+        auto ip_port         = options.at("wql-endpoint").as<std::string>();
         my->state            = std::make_unique<::state>();
-        my->state->console   = options.count("console");
-        my->state->schema    = options["schema"].as<std::string>();
+        my->state->console   = options.count("wql-console");
+        my->state->schema    = options["wql-schema"].as<std::string>();
         my->endpoint_port    = ip_port.substr(ip_port.find(':') + 1, ip_port.size());
         my->endpoint_address = ip_port.substr(0, ip_port.find(':'));
 
-        auto x = read_string(options["query-config"].as<std::string>().c_str());
+        auto x = read_string(options["wql-query-config"].as<std::string>().c_str());
         try {
             json_to_native(my->state->config, x);
         } catch (const std::exception& e) {
-            throw std::runtime_error("error processing " + options["query-config"].as<std::string>() + ": " + e.what());
+            throw std::runtime_error("error processing " + options["wql-query-config"].as<std::string>() + ": " + e.what());
         }
         my->state->config.prepare(state_history::sql::abi_type_to_sql_type);
 

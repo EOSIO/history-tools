@@ -566,11 +566,11 @@ void fill_lmdb_plugin::plugin_initialize(const variables_map& options) {
         my->config->stop_before = options.count("flm-stop") ? options["flm-stop"].as<uint32_t>() : 0;
         my->config->enable_trim = options.count("flm-trim");
 
-        auto x = read_string(options["query-config"].as<std::string>().c_str());
+        auto x = read_string(options["flm-query-config"].as<std::string>().c_str());
         try {
             json_to_native(my->config->query_config, x);
         } catch (const std::exception& e) {
-            throw std::runtime_error("error processing " + options["query-config"].as<std::string>() + ": " + e.what());
+            throw std::runtime_error("error processing " + options["flm-query-config"].as<std::string>() + ": " + e.what());
         }
         my->config->query_config.prepare(abi_type_to_lmdb_type);
     }

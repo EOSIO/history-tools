@@ -31,6 +31,93 @@ inline const std::map<std::string, abieos::name> table_names = {
 };
 // clang-format on
 
+template <typename F>
+void reverse_bin(std::vector<char>& bin, F f) {
+    auto s = bin.size();
+    f();
+    std::reverse(bin.begin() + s, bin.end());
+}
+
+// Modify serialization of types so lexigraphical sort matches data sort
+template <typename T, typename F>
+void fixup_key(std::vector<char>& bin, F f) {
+    if constexpr (
+        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128>)
+        reverse_bin(bin, f);
+    else
+        throw std::runtime_error("unsupported key type");
+}
+
+template <typename T>
+void native_to_bin_key(std::vector<char>& bin, const T& obj) {
+    fixup_key<T>(bin, [&] { abieos::native_to_bin(bin, obj); });
+}
+
+struct lmdb_type {
+    void (*bin_to_bin)(std::vector<char>&, abieos::input_buffer&)     = nullptr;
+    void (*bin_to_bin_key)(std::vector<char>&, abieos::input_buffer&) = nullptr;
+};
+
+template <typename T>
+void bin_to_bin(std::vector<char>& dest, abieos::input_buffer& bin) {
+    abieos::native_to_bin(dest, abieos::bin_to_native<T>(bin));
+}
+
+template <>
+void bin_to_bin<abieos::uint128>(std::vector<char>& dest, abieos::input_buffer& bin) {
+    bin_to_bin<uint64_t>(dest, bin);
+    bin_to_bin<uint64_t>(dest, bin);
+}
+
+template <>
+void bin_to_bin<abieos::int128>(std::vector<char>& dest, abieos::input_buffer& bin) {
+    bin_to_bin<uint64_t>(dest, bin);
+    bin_to_bin<uint64_t>(dest, bin);
+}
+
+template <>
+void bin_to_bin<state_history::transaction_status>(std::vector<char>& dest, abieos::input_buffer& bin) {
+    return bin_to_bin<std::underlying_type_t<state_history::transaction_status>>(dest, bin);
+}
+
+template <typename T>
+void bin_to_bin_key(std::vector<char>& dest, abieos::input_buffer& bin) {
+    fixup_key<T>(dest, [&] { bin_to_bin<T>(dest, bin); });
+}
+
+template <typename T>
+constexpr lmdb_type make_lmdb_type_for() {
+    return lmdb_type{bin_to_bin<T>, bin_to_bin_key<T>};
+}
+
+// clang-format off
+const std::map<std::string, lmdb_type> abi_type_to_lmdb_type = {
+    {"bool",                    make_lmdb_type_for<bool>()},
+    {"varuint32",               make_lmdb_type_for<abieos::varuint32>()},
+    {"uint8",                   make_lmdb_type_for<uint8_t>()},
+    {"uint16",                  make_lmdb_type_for<uint16_t>()},
+    {"uint32",                  make_lmdb_type_for<uint32_t>()},
+    {"uint64",                  make_lmdb_type_for<uint64_t>()},
+    {"uint128",                 make_lmdb_type_for<abieos::uint128>()},
+    {"int8",                    make_lmdb_type_for<int8_t>()},
+    {"int16",                   make_lmdb_type_for<int16_t>()},
+    {"int32",                   make_lmdb_type_for<int32_t>()},
+    {"int64",                   make_lmdb_type_for<int64_t>()},
+    {"int128",                  make_lmdb_type_for<abieos::int128>()},
+    {"float64",                 make_lmdb_type_for<double>()},
+    {"float128",                make_lmdb_type_for<abieos::float128>()},
+    {"name",                    make_lmdb_type_for<abieos::name>()},
+    {"string",                  make_lmdb_type_for<std::string>()},
+    {"time_point",              make_lmdb_type_for<abieos::time_point>()},
+    {"time_point_sec",          make_lmdb_type_for<abieos::time_point_sec>()},
+    {"block_timestamp_type",    make_lmdb_type_for<abieos::block_timestamp>()},
+    {"checksum256",             make_lmdb_type_for<abieos::checksum256>()},
+    {"public_key",              make_lmdb_type_for<abieos::public_key>()},
+    {"bytes",                   make_lmdb_type_for<abieos::bytes>()},
+    {"transaction_status",      make_lmdb_type_for<state_history::transaction_status>()},
+};
+// clang-format on
+
 template <typename T>
 inline T* addr(T&& x) {
     return &x;
@@ -40,7 +127,7 @@ inline void check(int stat, const char* prefix) {
     if (!stat)
         return;
     if (stat == MDB_MAP_FULL)
-        throw std::runtime_error(std::string(prefix) + "MDB_MAP_FULL: database hit size limit. Use --set-db-size-mb to increase.");
+        throw std::runtime_error(std::string(prefix) + "MDB_MAP_FULL: database hit size limit. Use --flm-set-db-size-mb to increase.");
     else
         throw std::runtime_error(std::string(prefix) + mdb_strerror(stat));
 }
@@ -175,28 +262,6 @@ enum class key_tag : uint8_t {
     delta,
     table_index,
 };
-
-template <typename F>
-void reverse_bin(std::vector<char>& bin, F f) {
-    auto s = bin.size();
-    f();
-    std::reverse(bin.begin() + s, bin.end());
-}
-
-// Modify serialization of types so lexigraphical sort matches data sort
-template <typename T, typename F>
-void fixup_key(std::vector<char>& bin, F f) {
-    if constexpr (
-        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128>)
-        reverse_bin(bin, f);
-    else
-        throw std::runtime_error("unsupported key type");
-}
-
-template <typename T>
-void native_to_bin_key(std::vector<char>& bin, const T& obj) {
-    fixup_key<T>(bin, [&] { abieos::native_to_bin(bin, obj); });
-}
 
 inline std::vector<char> make_block_key() {
     std::vector<char> result;

@@ -14,120 +14,38 @@
 using namespace abieos;
 using namespace appbase;
 using namespace std::literals;
-namespace lmdb = state_history::lmdb;
-
-using std::enable_shared_from_this;
-using std::exception;
-using std::make_shared;
-using std::make_unique;
-using std::map;
-using std::max;
-using std::min;
-using std::optional;
-using std::runtime_error;
-using std::shared_ptr;
-using std::string;
-using std::string_view;
-using std::to_string;
-using std::unique_ptr;
-using std::variant;
-using std::vector;
 
 namespace asio      = boost::asio;
 namespace bpo       = boost::program_options;
+namespace lmdb      = state_history::lmdb;
 namespace websocket = boost::beast::websocket;
 
 using asio::ip::tcp;
 using boost::beast::flat_buffer;
 using boost::system::error_code;
 
-struct lmdb_type {
-    void (*bin_to_bin)(std::vector<char>&, input_buffer&)     = nullptr;
-    void (*bin_to_bin_key)(std::vector<char>&, input_buffer&) = nullptr;
-};
-
-template <typename T>
-void bin_to_bin(std::vector<char>& dest, input_buffer& bin) {
-    abieos::native_to_bin(dest, abieos::bin_to_native<T>(bin));
-}
-
-template <>
-void bin_to_bin<abieos::uint128>(std::vector<char>& dest, input_buffer& bin) {
-    bin_to_bin<uint64_t>(dest, bin);
-    bin_to_bin<uint64_t>(dest, bin);
-}
-
-template <>
-void bin_to_bin<abieos::int128>(std::vector<char>& dest, input_buffer& bin) {
-    bin_to_bin<uint64_t>(dest, bin);
-    bin_to_bin<uint64_t>(dest, bin);
-}
-
-template <>
-void bin_to_bin<state_history::transaction_status>(std::vector<char>& dest, input_buffer& bin) {
-    return bin_to_bin<std::underlying_type_t<state_history::transaction_status>>(dest, bin);
-}
-
-template <typename T>
-void bin_to_bin_key(std::vector<char>& dest, input_buffer& bin) {
-    lmdb::fixup_key<T>(dest, [&] { bin_to_bin<T>(dest, bin); });
-}
-
-template <typename T>
-constexpr lmdb_type make_lmdb_type_for() {
-    return lmdb_type{bin_to_bin<T>, bin_to_bin_key<T>};
-}
-
-// clang-format off
-const map<string, lmdb_type> abi_type_to_lmdb_type = {
-    {"bool",                    make_lmdb_type_for<bool>()},
-    {"varuint32",               make_lmdb_type_for<varuint32>()},
-    {"uint8",                   make_lmdb_type_for<uint8_t>()},
-    {"uint16",                  make_lmdb_type_for<uint16_t>()},
-    {"uint32",                  make_lmdb_type_for<uint32_t>()},
-    {"uint64",                  make_lmdb_type_for<uint64_t>()},
-    {"uint128",                 make_lmdb_type_for<abieos::uint128>()},
-    {"int8",                    make_lmdb_type_for<int8_t>()},
-    {"int16",                   make_lmdb_type_for<int16_t>()},
-    {"int32",                   make_lmdb_type_for<int32_t>()},
-    {"int64",                   make_lmdb_type_for<int64_t>()},
-    {"int128",                  make_lmdb_type_for<abieos::int128>()},
-    {"float64",                 make_lmdb_type_for<double>()},
-    {"float128",                make_lmdb_type_for<float128>()},
-    {"name",                    make_lmdb_type_for<name>()},
-    {"string",                  make_lmdb_type_for<string>()},
-    {"time_point",              make_lmdb_type_for<time_point>()},
-    {"time_point_sec",          make_lmdb_type_for<time_point_sec>()},
-    {"block_timestamp_type",    make_lmdb_type_for<block_timestamp>()},
-    {"checksum256",             make_lmdb_type_for<checksum256>()},
-    {"public_key",              make_lmdb_type_for<public_key>()},
-    {"bytes",                   make_lmdb_type_for<bytes>()},
-    {"transaction_status",      make_lmdb_type_for<state_history::transaction_status>()},
-};
-// clang-format on
-
 struct flm_session;
 
 struct fill_lmdb_config {
-    string                            host;
-    string                            port;
-    uint32_t                          db_size_mb   = 0;
-    uint32_t                          skip_to      = 0;
-    uint32_t                          stop_before  = 0;
-    bool                              enable_trim  = false;
-    ::query_config::config<lmdb_type> query_config = {};
+    std::string                             host;
+    std::string                             port;
+    uint32_t                                db_size_mb   = 0;
+    uint32_t                                skip_to      = 0;
+    uint32_t                                stop_before  = 0;
+    bool                                    enable_trim  = false;
+    ::query_config::config<lmdb::lmdb_type> query_config = {};
 };
 
 struct fill_lmdb_plugin_impl : std::enable_shared_from_this<fill_lmdb_plugin_impl> {
-    shared_ptr<fill_lmdb_config> config = make_shared<fill_lmdb_config>();
-    shared_ptr<::flm_session>    session;
+    std::shared_ptr<fill_lmdb_config> config = std::make_shared<fill_lmdb_config>();
+    std::shared_ptr<::flm_session>    session;
 
     ~fill_lmdb_plugin_impl();
 };
 
-struct flm_session : enable_shared_from_this<flm_session> {
+struct flm_session : std::enable_shared_from_this<flm_session> {
     fill_lmdb_plugin_impl*                          my = nullptr;
-    shared_ptr<fill_lmdb_config>                    config;
+    std::shared_ptr<fill_lmdb_config>               config;
     lmdb::env                                       lmdb_env;
     lmdb::database                                  db{lmdb_env};
     tcp::resolver                                   resolver;
@@ -142,7 +60,7 @@ struct flm_session : enable_shared_from_this<flm_session> {
     uint32_t                                        first           = 0;
     uint32_t                                        first_bulk      = 0;
     abi_def                                         abi             = {};
-    map<string, abi_type>                           abi_types       = {};
+    std::map<std::string, abi_type>                 abi_types       = {};
 
     flm_session(fill_lmdb_plugin_impl* my, asio::io_context& ioc)
         : my(my)
@@ -176,7 +94,7 @@ struct flm_session : enable_shared_from_this<flm_session> {
     }
 
     void start_read() {
-        auto in_buffer = make_shared<flat_buffer>();
+        auto in_buffer = std::make_shared<flat_buffer>();
         stream.async_read(*in_buffer, [self = shared_from_this(), this, in_buffer](error_code ec, size_t) {
             callback(ec, "async_read", [&] {
                 if (!received_abi)
@@ -192,16 +110,16 @@ struct flm_session : enable_shared_from_this<flm_session> {
         });
     }
 
-    void receive_abi(const shared_ptr<flat_buffer>& p) {
+    void receive_abi(const std::shared_ptr<flat_buffer>& p) {
         auto data = p->data();
-        json_to_native(abi, string_view{(const char*)data.data(), data.size()});
+        json_to_native(abi, std::string_view{(const char*)data.data(), data.size()});
         check_abi_version(abi.version);
         abi_types    = create_contract(abi).abi_types;
         received_abi = true;
 
         std::string error;
         jvalue      j;
-        if (!json_to_jvalue(j, error, string_view{(const char*)data.data(), data.size()}))
+        if (!json_to_jvalue(j, error, std::string_view{(const char*)data.data(), data.size()}))
             throw std::runtime_error(error);
         for (auto& t : std::get<jarray>(std::get<jobject>(j.value)["tables"].value)) {
             auto& o          = std::get<jobject>(t.value);
@@ -236,7 +154,7 @@ struct flm_session : enable_shared_from_this<flm_session> {
                 auto rb = lmdb::get<lmdb::received_block>(t, db, lmdb::make_received_block_key(i));
                 result.push_back(jvalue{jobject{
                     {{"block_num"s}, jvalue{std::to_string(rb.block_index)}},
-                    {{"block_id"s}, jvalue{(string)rb.block_id}},
+                    {{"block_id"s}, jvalue{(std::string)rb.block_id}},
                 }});
             }
         }
@@ -271,7 +189,7 @@ struct flm_session : enable_shared_from_this<flm_session> {
         first = std::min(first, head);
     }
 
-    bool receive_result(const shared_ptr<flat_buffer>& p) {
+    bool receive_result(const std::shared_ptr<flat_buffer>& p) {
         auto         data = p->data();
         input_buffer bin{(const char*)data.data(), (const char*)data.data() + data.size()};
         check_variant(bin, get_type("result"), "get_blocks_result_v0");
@@ -297,7 +215,7 @@ struct flm_session : enable_shared_from_this<flm_session> {
         if (result.this_block->block_num <= head)
             truncate(t, result.this_block->block_num);
         if (head_id != abieos::checksum256{} && (!result.prev_block || result.prev_block->block_id != head_id))
-            throw runtime_error("prev_block does not match");
+            throw std::runtime_error("prev_block does not match");
         if (result.block)
             receive_block(result.this_block->block_num, result.this_block->block_id, *result.block, t);
         if (result.deltas)
@@ -346,8 +264,8 @@ struct flm_session : enable_shared_from_this<flm_session> {
                 is_optional = true;
                 abi_type.resize(abi_type.size() - 1);
             }
-            auto it = abi_type_to_lmdb_type.find(abi_type);
-            if (it == abi_type_to_lmdb_type.end())
+            auto it = lmdb::abi_type_to_lmdb_type.find(abi_type);
+            if (it == lmdb::abi_type_to_lmdb_type.end())
                 throw std::runtime_error("don't know lmdb type for abi type: " + abi_type);
             if (!it->second.bin_to_bin)
                 throw std::runtime_error("don't know how to process " + field.type->name);
@@ -435,7 +353,7 @@ struct flm_session : enable_shared_from_this<flm_session> {
     void trim() {
         if (!config->enable_trim)
             return;
-        auto end_trim = min(head, irreversible);
+        auto end_trim = std::min(head, irreversible);
         if (first >= end_trim)
             return;
         ilog("trim  ${b} - ${e}", ("b", first)("e", end_trim));
@@ -447,7 +365,7 @@ struct flm_session : enable_shared_from_this<flm_session> {
     void send_request(const jarray& positions) {
         send(jvalue{jarray{{"get_blocks_request_v0"s},
                            {jobject{
-                               {{"start_block_num"s}, {to_string(max(config->skip_to, head + 1))}},
+                               {{"start_block_num"s}, {std::to_string(std::max(config->skip_to, head + 1))}},
                                {{"end_block_num"s}, {"4294967295"s}},
                                {{"max_messages_in_flight"s}, {"4294967295"s}},
                                {{"have_positions"s}, {positions}},
@@ -458,15 +376,15 @@ struct flm_session : enable_shared_from_this<flm_session> {
                            }}}});
     }
 
-    const abi_type& get_type(const string& name) {
+    const abi_type& get_type(const std::string& name) {
         auto it = abi_types.find(name);
         if (it == abi_types.end())
-            throw runtime_error("unknown type "s + name);
+            throw std::runtime_error("unknown type "s + name);
         return it->second;
     }
 
     void send(const jvalue& value) {
-        auto bin = make_shared<vector<char>>();
+        auto bin = std::make_shared<std::vector<char>>();
         json_to_bin(*bin, &get_type("request"), value);
         stream.async_write(
             asio::buffer(*bin), [self = shared_from_this(), bin, this](error_code ec, size_t) { callback(ec, "async_write", [&] {}); });
@@ -475,28 +393,28 @@ struct flm_session : enable_shared_from_this<flm_session> {
     void check_variant(input_buffer& bin, const abi_type& type, uint32_t expected) {
         auto index = read_varuint32(bin);
         if (!type.filled_variant)
-            throw runtime_error(type.name + " is not a variant"s);
+            throw std::runtime_error(type.name + " is not a variant"s);
         if (index >= type.fields.size())
-            throw runtime_error("expected "s + type.fields[expected].name + " got " + to_string(index));
+            throw std::runtime_error("expected "s + type.fields[expected].name + " got " + std::to_string(index));
         if (index != expected)
-            throw runtime_error("expected "s + type.fields[expected].name + " got " + type.fields[index].name);
+            throw std::runtime_error("expected "s + type.fields[expected].name + " got " + type.fields[index].name);
     }
 
     void check_variant(input_buffer& bin, const abi_type& type, const char* expected) {
         auto index = read_varuint32(bin);
         if (!type.filled_variant)
-            throw runtime_error(type.name + " is not a variant"s);
+            throw std::runtime_error(type.name + " is not a variant"s);
         if (index >= type.fields.size())
-            throw runtime_error("expected "s + expected + " got " + to_string(index));
+            throw std::runtime_error("expected "s + expected + " got " + std::to_string(index));
         if (type.fields[index].name != expected)
-            throw runtime_error("expected "s + expected + " got " + type.fields[index].name);
+            throw std::runtime_error("expected "s + expected + " got " + type.fields[index].name);
     }
 
     template <typename F>
     void catch_and_close(F f) {
         try {
             f();
-        } catch (const exception& e) {
+        } catch (const std::exception& e) {
             elog("${e}", ("e", e.what()));
             close();
         } catch (...) {
@@ -538,14 +456,14 @@ fill_lmdb_plugin_impl::~fill_lmdb_plugin_impl() {
 }
 
 fill_lmdb_plugin::fill_lmdb_plugin()
-    : my(make_shared<fill_lmdb_plugin_impl>()) {}
+    : my(std::make_shared<fill_lmdb_plugin_impl>()) {}
 
 fill_lmdb_plugin::~fill_lmdb_plugin() {}
 
 void fill_lmdb_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op   = cfg.add_options();
     auto clop = cli.add_options();
-    op("flm-endpoint,e", bpo::value<string>()->default_value("localhost:8080"), "State-history endpoint to connect to (nodeos)");
+    op("flm-endpoint,e", bpo::value<std::string>()->default_value("localhost:8080"), "State-history endpoint to connect to (nodeos)");
     op("flm-query-config,q", bpo::value<std::string>()->default_value("../src/query-config.json"), "Query configuration");
     op("flm-trim,t", "Trim history before irreversible");
     op("flm-set-db-size-mb", bpo::value<uint32_t>(),
@@ -556,7 +474,7 @@ void fill_lmdb_plugin::set_program_options(options_description& cli, options_des
 
 void fill_lmdb_plugin::plugin_initialize(const variables_map& options) {
     try {
-        auto endpoint           = options.at("flm-endpoint").as<string>();
+        auto endpoint           = options.at("flm-endpoint").as<std::string>();
         auto port               = endpoint.substr(endpoint.find(':') + 1, endpoint.size());
         auto host               = endpoint.substr(0, endpoint.find(':'));
         my->config->host        = host;
@@ -572,13 +490,13 @@ void fill_lmdb_plugin::plugin_initialize(const variables_map& options) {
         } catch (const std::exception& e) {
             throw std::runtime_error("error processing " + options["flm-query-config"].as<std::string>() + ": " + e.what());
         }
-        my->config->query_config.prepare(abi_type_to_lmdb_type);
+        my->config->query_config.prepare(lmdb::abi_type_to_lmdb_type);
     }
     FC_LOG_AND_RETHROW()
 }
 
 void fill_lmdb_plugin::plugin_startup() {
-    my->session = make_shared<flm_session>(my.get(), app().get_io_service());
+    my->session = std::make_shared<flm_session>(my.get(), app().get_io_service());
     my->session->start();
 }
 

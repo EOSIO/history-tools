@@ -1,7 +1,7 @@
 // copyright defined in LICENSE.txt
 
 #include "fill_lmdb_plugin.hpp"
-#include "queries.hpp"
+#include "query_config.hpp"
 #include "state_history_lmdb.hpp"
 #include "util.hpp"
 
@@ -26,6 +26,30 @@ using boost::system::error_code;
 
 struct flm_session;
 
+struct lmdb_table;
+
+struct lmdb_field {
+    std::string                 name      = {};
+    const abieos::abi_field*    abi_field = {};
+    const lmdb::lmdb_type*      lmdb_type = {};
+    std::unique_ptr<lmdb_table> array_of  = {};
+    abieos::input_buffer        pos       = {}; // temporary filled by fill()
+};
+
+struct lmdb_index {
+    abieos::name             name   = {};
+    std::vector<lmdb_field*> fields = {};
+};
+
+struct lmdb_table {
+    std::string                              name          = {};
+    abieos::name                             short_name    = {};
+    const abieos::abi_type*                  abi_type      = {};
+    std::vector<std::unique_ptr<lmdb_field>> fields        = {};
+    std::map<std::string, lmdb_field*>       field_map     = {};
+    std::unique_ptr<lmdb_index>              primary_index = {};
+};
+
 struct fill_lmdb_config {
     std::string                             host;
     std::string                             port;
@@ -44,23 +68,23 @@ struct fill_lmdb_plugin_impl : std::enable_shared_from_this<fill_lmdb_plugin_imp
 };
 
 struct flm_session : std::enable_shared_from_this<flm_session> {
-    fill_lmdb_plugin_impl*                          my = nullptr;
-    std::shared_ptr<fill_lmdb_config>               config;
-    lmdb::env                                       lmdb_env;
-    lmdb::database                                  db{lmdb_env};
-    tcp::resolver                                   resolver;
-    websocket::stream<tcp::socket>                  stream;
-    bool                                            received_abi    = false;
-    std::map<std::string, std::vector<std::string>> table_keys      = {};
-    bool                                            created_trim    = false;
-    uint32_t                                        head            = 0;
-    abieos::checksum256                             head_id         = {};
-    uint32_t                                        irreversible    = 0;
-    abieos::checksum256                             irreversible_id = {};
-    uint32_t                                        first           = 0;
-    uint32_t                                        first_bulk      = 0;
-    abi_def                                         abi             = {};
-    std::map<std::string, abi_type>                 abi_types       = {};
+    fill_lmdb_plugin_impl*            my = nullptr;
+    std::shared_ptr<fill_lmdb_config> config;
+    lmdb::env                         lmdb_env;
+    lmdb::database                    db{lmdb_env};
+    tcp::resolver                     resolver;
+    websocket::stream<tcp::socket>    stream;
+    bool                              received_abi    = false;
+    std::map<std::string, lmdb_table> tables          = {};
+    bool                              created_trim    = false;
+    uint32_t                          head            = 0;
+    abieos::checksum256               head_id         = {};
+    uint32_t                          irreversible    = 0;
+    abieos::checksum256               irreversible_id = {};
+    uint32_t                          first           = 0;
+    uint32_t                          first_bulk      = 0;
+    abi_def                           abi             = {};
+    std::map<std::string, abi_type>   abi_types       = {};
 
     flm_session(fill_lmdb_plugin_impl* my, asio::io_context& ioc)
         : my(my)
@@ -110,6 +134,43 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         });
     }
 
+    void fill_fields(lmdb_table& table, const std::string& base_name, const abieos::abi_field& abi_field) {
+        if (abi_field.type->filled_struct) {
+            for (auto& f : abi_field.type->fields)
+                fill_fields(table, base_name + abi_field.name + "_", f);
+        } else if (abi_field.type->filled_variant && abi_field.type->fields.size() == 1 && abi_field.type->fields[0].type->filled_struct) {
+            for (auto& f : abi_field.type->fields[0].type->fields)
+                fill_fields(table, base_name + abi_field.name + "_", f);
+        } else {
+            bool array_of_struct = abi_field.type->array_of && abi_field.type->array_of->filled_struct;
+            auto field_name      = base_name + abi_field.name;
+            if (table.field_map.find(field_name) != table.field_map.end())
+                throw std::runtime_error("duplicate field " + field_name + " in table " + table.name);
+
+            auto* raw_type = abi_field.type;
+            if (raw_type->optional_of)
+                raw_type = raw_type->optional_of;
+            if (raw_type->array_of)
+                raw_type = raw_type->array_of;
+            auto type_it = lmdb::abi_type_to_lmdb_type.find(raw_type->name);
+            if (type_it == lmdb::abi_type_to_lmdb_type.end() && !array_of_struct)
+                throw std::runtime_error("don't know lmdb type for abi type: " + raw_type->name);
+
+            table.fields.push_back(std::make_unique<lmdb_field>());
+            auto* f                     = table.fields.back().get();
+            table.field_map[field_name] = f;
+            f->name                     = field_name;
+            f->abi_field                = &abi_field;
+            f->lmdb_type                = array_of_struct ? nullptr : &type_it->second;
+
+            if (array_of_struct) {
+                f->array_of = std::make_unique<lmdb_table>(lmdb_table{.name = field_name, .abi_type = abi_field.type->array_of});
+                for (auto& g : abi_field.type->array_of->fields)
+                    fill_fields(*f->array_of, base_name, g);
+            }
+        }
+    }
+
     void receive_abi(const std::shared_ptr<flat_buffer>& p) {
         auto data = p->data();
         json_to_native(abi, std::string_view{(const char*)data.data(), data.size()});
@@ -122,11 +183,33 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         if (!json_to_jvalue(j, error, std::string_view{(const char*)data.data(), data.size()}))
             throw std::runtime_error(error);
         for (auto& t : std::get<jarray>(std::get<jobject>(j.value)["tables"].value)) {
-            auto& o          = std::get<jobject>(t.value);
-            auto& table_name = std::get<std::string>(o["name"].value);
-            auto& keys       = table_keys[table_name];
-            for (auto& key : std::get<jarray>(o["key_names"].value))
-                keys.push_back(std::get<std::string>(key.value));
+            auto& o             = std::get<jobject>(t.value);
+            auto& table_name    = std::get<std::string>(o["name"].value);
+            auto& table_type    = std::get<std::string>(o["type"].value);
+            auto  table_name_it = lmdb::table_names.find(table_name);
+            if (table_name_it == lmdb::table_names.end())
+                throw std::runtime_error("unknown table \"" + table_name + "\"");
+            if (tables.find(table_name) != tables.end())
+                throw std::runtime_error("duplicate table \"" + table_name + "\"");
+            auto& table      = tables[table_name];
+            table.name       = table_name;
+            table.short_name = table_name_it->second;
+            table.abi_type   = &get_type(table_type);
+
+            if (!table.abi_type->filled_variant || table.abi_type->fields.size() != 1 || !table.abi_type->fields[0].type->filled_struct)
+                throw std::runtime_error("don't know how to process " + table.abi_type->name);
+
+            for (auto& f : table.abi_type->fields[0].type->fields)
+                fill_fields(table, "", f);
+
+            table.primary_index = std::make_unique<lmdb_index>();
+            for (auto& key : std::get<jarray>(o["key_names"].value)) {
+                auto& field_name = std::get<std::string>(key.value);
+                auto  it         = table.field_map.find(field_name);
+                if (it == table.field_map.end())
+                    throw std::runtime_error("table \"" + table_name + "\" key \"" + field_name + "\" not found");
+                table.primary_index->fields.push_back(it->second);
+            }
         }
 
         lmdb::transaction t{lmdb_env, true};
@@ -238,52 +321,40 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         return true;
     } // receive_result()
 
-    void fill(
-        std::vector<char>& key, std::vector<char>& data, const std::vector<std::string>* keys, size_t& next_key, input_buffer& bin,
-        abi_field& field) {
-        if (field.type->filled_struct) {
-            for (auto& f : field.type->fields)
-                fill(key, data, keys, next_key, bin, f);
-        } else if (field.type->filled_variant && field.type->fields.size() == 1 && field.type->fields[0].type->filled_struct) {
-            auto v = read_varuint32(bin);
+    void fill(std::vector<char>& dest, input_buffer& src, lmdb_field& field) {
+        field.pos = src;
+        if (field.abi_field->type->filled_variant && field.abi_field->type->fields.size() == 1 &&
+            field.abi_field->type->fields[0].type->filled_struct) {
+            auto v = read_varuint32(src);
             if (v)
-                throw std::runtime_error("invalid variant in " + field.type->name);
-            abieos::push_varuint32(data, v);
-            for (auto& f : field.type->fields[0].type->fields)
-                fill(key, data, keys, next_key, bin, f);
-        } else if (field.type->array_of && field.type->array_of->filled_struct) {
-            uint32_t n = read_varuint32(bin);
-            abieos::push_varuint32(data, n);
-            for (uint32_t i = 0; i < n; ++i)
-                for (auto& f : field.type->array_of->fields)
-                    fill(key, data, keys, next_key, bin, f);
+                throw std::runtime_error("invalid variant in " + field.abi_field->type->name);
+            abieos::push_varuint32(dest, v);
+        } else if (field.array_of) {
+            uint32_t n = read_varuint32(src);
+            abieos::push_varuint32(dest, n);
+            for (uint32_t i = 0; i < n; ++i) {
+                for (auto& f : field.array_of->fields)
+                    fill(dest, src, *f);
+            }
         } else {
-            auto abi_type    = field.type->name;
-            bool is_optional = false;
-            if (abi_type.size() >= 1 && abi_type.back() == '?') {
-                is_optional = true;
-                abi_type.resize(abi_type.size() - 1);
+            if (!field.lmdb_type->bin_to_bin)
+                throw std::runtime_error("don't know how to process " + field.abi_field->type->name);
+            if (field.abi_field->type->optional_of) {
+                bool exists = read_raw<bool>(src);
+                abieos::push_raw<bool>(dest, exists);
+                if (!exists)
+                    return;
             }
-            auto it = lmdb::abi_type_to_lmdb_type.find(abi_type);
-            if (it == lmdb::abi_type_to_lmdb_type.end())
-                throw std::runtime_error("don't know lmdb type for abi type: " + abi_type);
-            if (!it->second.bin_to_bin)
-                throw std::runtime_error("don't know how to process " + field.type->name);
-            if (is_optional) {
-                bool exists = read_raw<bool>(bin);
-                abieos::push_raw<bool>(data, exists);
-                if (exists)
-                    it->second.bin_to_bin(data, bin);
-            } else {
-                if (keys && next_key < keys->size() && (*keys)[next_key] == field.name) {
-                    auto key_bin = bin;
-                    it->second.bin_to_bin_key(key, key_bin);
-                    ++next_key;
-                }
-                it->second.bin_to_bin(data, bin);
-            }
+            field.lmdb_type->bin_to_bin(dest, src);
         }
     } // fill
+
+    void fill_key(std::vector<char>& dest, lmdb_index& index) {
+        for (auto& field : index.fields) {
+            auto pos = field->pos;
+            field->lmdb_type->bin_to_bin_key(dest, pos);
+        }
+    }
 
     void receive_block(uint32_t block_index, const checksum256& block_id, input_buffer bin, lmdb::transaction& t) {
         state_history::signed_block block;
@@ -306,24 +377,18 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     void receive_deltas(lmdb::transaction& t, uint32_t block_num, input_buffer buf) {
         auto         data = zlib_decompress(buf);
         input_buffer bin{data.data(), data.data() + data.size()};
+        auto&        table_delta_type = get_type("table_delta");
 
-        auto     num     = read_varuint32(bin);
-        unsigned numRows = 0;
+        auto num = read_varuint32(bin);
         for (uint32_t i = 0; i < num; ++i) {
-            check_variant(bin, get_type("table_delta"), "table_delta_v0");
+            check_variant(bin, table_delta_type, "table_delta_v0");
             state_history::table_delta_v0 table_delta;
             bin_to_native(table_delta, bin);
 
-            auto table_name_it = lmdb::table_names.find(table_delta.name);
-            if (table_name_it == lmdb::table_names.end())
+            auto table_it = tables.find(table_delta.name);
+            if (table_it == tables.end())
                 throw std::runtime_error("unknown table \"" + table_delta.name + "\"");
-            auto table_name = table_name_it->second;
-
-            auto& variant_type = get_type(table_delta.name);
-            if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
-                throw std::runtime_error("don't know how to proccess " + variant_type.name);
-            auto&       type = *variant_type.fields[0].type;
-            const auto& keys = table_keys[table_delta.name];
+            auto& table = table_it->second;
 
             size_t num_processed = 0;
             for (auto& row : table_delta.rows) {
@@ -331,18 +396,15 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                     ilog(
                         "block ${b} ${t} ${n} of ${r}",
                         ("b", block_num)("t", table_delta.name)("n", num_processed)("r", table_delta.rows.size()));
-                check_variant(row.data, variant_type, 0u);
-                auto              key = lmdb::make_delta_key(block_num, row.present, table_name);
+                check_variant(row.data, *table.abi_type, 0u);
+                auto              primary_key = lmdb::make_delta_key(block_num, row.present, table.short_name);
                 std::vector<char> data;
-                size_t            next_key = 0;
-                for (auto& field : type.fields)
-                    fill(key, data, &keys, next_key, row.data, field);
-                if (next_key < keys.size())
-                    throw std::runtime_error("missing table \"" + table_delta.name + "\" key \"" + keys[next_key] + "\"");
-                lmdb::put(t, db, key, data);
+                for (auto& field : table.fields)
+                    fill(data, row.data, *field);
+                fill_key(primary_key, *table.primary_index);
+                lmdb::put(t, db, primary_key, data);
                 ++num_processed;
             }
-            numRows += table_delta.rows.size();
         }
     } // receive_deltas
 

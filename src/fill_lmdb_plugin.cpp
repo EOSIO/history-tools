@@ -48,6 +48,7 @@ struct lmdb_table {
     std::vector<std::unique_ptr<lmdb_field>> fields        = {};
     std::map<std::string, lmdb_field*>       field_map     = {};
     std::unique_ptr<lmdb_index>              primary_index = {};
+    std::map<abieos::name, lmdb_index>       indexes       = {};
 };
 
 struct fill_lmdb_config {
@@ -171,16 +172,10 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         }
     }
 
-    void receive_abi(const std::shared_ptr<flat_buffer>& p) {
-        auto data = p->data();
-        json_to_native(abi, std::string_view{(const char*)data.data(), data.size()});
-        check_abi_version(abi.version);
-        abi_types    = create_contract(abi).abi_types;
-        received_abi = true;
-
+    void init_tables(std::string_view abi_json) {
         std::string error;
         jvalue      j;
-        if (!json_to_jvalue(j, error, std::string_view{(const char*)data.data(), data.size()}))
+        if (!json_to_jvalue(j, error, abi_json))
             throw std::runtime_error(error);
         for (auto& t : std::get<jarray>(std::get<jobject>(j.value)["tables"].value)) {
             auto& o             = std::get<jobject>(t.value);
@@ -211,6 +206,42 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                 table.primary_index->fields.push_back(it->second);
             }
         }
+    } // init_tables
+
+    void init_indexes() {
+        auto& c = config->query_config;
+        for (auto& [query_name, query] : c.query_map) {
+            if (query->index.empty())
+                continue;
+            auto table_it = tables.find(query->_table);
+            if (table_it == tables.end())
+                continue; // todo: traces. todo: throw std::runtime_error("can't find table " + query->_table);
+            auto& table = table_it->second;
+
+            auto index_it = table.indexes.find(query_name);
+            if (index_it != table.indexes.end())
+                throw std::runtime_error("duplicate index " + query->_table + "." + (std::string)query_name);
+            auto& index = table.indexes[query_name];
+            index.name  = query_name;
+
+            for (auto& key : query->sort_keys) {
+                auto field_it = table.field_map.find(key.name);
+                if (field_it == table.field_map.end())
+                    throw std::runtime_error("can't find " + query->_table + "." + key.name);
+                index.fields.push_back(field_it->second);
+            }
+        }
+    }
+
+    void receive_abi(const std::shared_ptr<flat_buffer>& p) {
+        auto data = p->data();
+        json_to_native(abi, std::string_view{(const char*)data.data(), data.size()});
+        check_abi_version(abi.version);
+        abi_types    = create_contract(abi).abi_types;
+        received_abi = true;
+
+        init_tables(std::string_view{(const char*)data.data(), data.size()});
+        init_indexes();
 
         lmdb::transaction t{lmdb_env, true};
         load_fill_status(t);
@@ -403,6 +434,13 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                     fill(data, row.data, *field);
                 fill_key(primary_key, *table.primary_index);
                 lmdb::put(t, db, primary_key, data);
+
+                for (auto& [_, index] : table.indexes) {
+                    auto secondary_key = lmdb::make_table_index_key_prefix(table.short_name, index.name);
+                    fill_key(secondary_key, index);
+                    lmdb::append_table_index_key_suffix(secondary_key, block_num, row.present);
+                    lmdb::put(t, db, secondary_key, primary_key);
+                }
                 ++num_processed;
             }
         }

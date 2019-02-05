@@ -290,23 +290,6 @@ inline std::vector<char> make_block_key(uint32_t block) {
     return result;
 }
 
-struct fill_status {
-    uint32_t            head            = {};
-    abieos::checksum256 head_id         = {};
-    uint32_t            irreversible    = {};
-    abieos::checksum256 irreversible_id = {};
-    uint32_t            first           = {};
-};
-
-template <typename F>
-constexpr void for_each_field(fill_status*, F f) {
-    f("head", abieos::member_ptr<&fill_status::head>{});
-    f("head_id", abieos::member_ptr<&fill_status::head_id>{});
-    f("irreversible", abieos::member_ptr<&fill_status::irreversible>{});
-    f("irreversible_id", abieos::member_ptr<&fill_status::irreversible_id>{});
-    f("first", abieos::member_ptr<&fill_status::first>{});
-}
-
 inline std::vector<char> make_fill_status_key() {
     std::vector<char> result;
     native_to_bin_key(result, (uint8_t)key_tag::fill_status);

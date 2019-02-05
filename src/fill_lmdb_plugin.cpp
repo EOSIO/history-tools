@@ -253,7 +253,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     }
 
     void load_fill_status(lmdb::transaction& t) {
-        auto r          = lmdb::get<lmdb::fill_status>(t, db, lmdb::make_fill_status_key(), false);
+        auto r          = lmdb::get<state_history::fill_status>(t, db, lmdb::make_fill_status_key(), false);
         head            = r.head;
         head_id         = r.head_id;
         irreversible    = r.irreversible;
@@ -278,12 +278,13 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     void write_fill_status(lmdb::transaction& t) {
         if (irreversible < head)
             put(t, db, lmdb::make_fill_status_key(),
-                lmdb::fill_status{
+                state_history::fill_status{
                     .head = head, .head_id = head_id, .irreversible = irreversible, .irreversible_id = irreversible_id, .first = first},
                 true);
         else
             put(t, db, lmdb::make_fill_status_key(),
-                lmdb::fill_status{.head = head, .head_id = head_id, .irreversible = head, .irreversible_id = head_id, .first = first},
+                state_history::fill_status{
+                    .head = head, .head_id = head_id, .irreversible = head, .irreversible_id = head_id, .first = first},
                 true);
     }
 

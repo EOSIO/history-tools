@@ -42,13 +42,13 @@ struct lmdb_index {
 };
 
 struct lmdb_table {
-    std::string                              name          = {};
-    abieos::name                             short_name    = {};
-    const abieos::abi_type*                  abi_type      = {};
-    std::vector<std::unique_ptr<lmdb_field>> fields        = {};
-    std::map<std::string, lmdb_field*>       field_map     = {};
-    std::unique_ptr<lmdb_index>              primary_index = {};
-    std::map<abieos::name, lmdb_index>       indexes       = {};
+    std::string                              name        = {};
+    abieos::name                             short_name  = {};
+    const abieos::abi_type*                  abi_type    = {};
+    std::vector<std::unique_ptr<lmdb_field>> fields      = {};
+    std::map<std::string, lmdb_field*>       field_map   = {};
+    std::unique_ptr<lmdb_index>              delta_index = {};
+    std::map<abieos::name, lmdb_index>       indexes     = {};
 };
 
 struct fill_lmdb_config {
@@ -197,13 +197,13 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             for (auto& f : table.abi_type->fields[0].type->fields)
                 fill_fields(table, "", f);
 
-            table.primary_index = std::make_unique<lmdb_index>();
+            table.delta_index = std::make_unique<lmdb_index>();
             for (auto& key : std::get<jarray>(o["key_names"].value)) {
                 auto& field_name = std::get<std::string>(key.value);
                 auto  it         = table.field_map.find(field_name);
                 if (it == table.field_map.end())
                     throw std::runtime_error("table \"" + table_name + "\" key \"" + field_name + "\" not found");
-                table.primary_index->fields.push_back(it->second);
+                table.delta_index->fields.push_back(it->second);
             }
         }
     } // init_tables
@@ -289,7 +289,12 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
 
     void truncate(lmdb::transaction& t, uint32_t block) {
         for_each(t, db, lmdb::make_block_key(block), lmdb::make_block_key(), [&](auto k, auto v) {
-            lmdb::check(mdb_del(t.tx, db.db, lmdb::addr(lmdb::to_const_val(k)), lmdb::addr(lmdb::to_const_val(v))), "truncate: ");
+            lmdb::check(mdb_del(t.tx, db.db, lmdb::addr(lmdb::to_const_val(k)), nullptr), "truncate (1): ");
+        });
+        for_each(t, db, lmdb::make_table_index_ref_key(block), lmdb::make_table_index_ref_key(), [&](auto k, auto v) {
+            std::vector<char> k2{k.pos, k.end};
+            lmdb::check(mdb_del(t.tx, db.db, lmdb::addr(lmdb::to_const_val(v)), nullptr), "truncate (2): ");
+            lmdb::check(mdb_del(t.tx, db.db, lmdb::addr(lmdb::to_const_val(k2)), nullptr), "truncate (3): ");
         });
 
         auto rb = lmdb::get<lmdb::received_block>(t, db, lmdb::make_received_block_key(block - 1), false);
@@ -428,18 +433,19 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                         "block ${b} ${t} ${n} of ${r}",
                         ("b", block_num)("t", table_delta.name)("n", num_processed)("r", table_delta.rows.size()));
                 check_variant(row.data, *table.abi_type, 0u);
-                auto              primary_key = lmdb::make_delta_key(block_num, row.present, table.short_name);
+                auto              delta_key = lmdb::make_delta_key(block_num, row.present, table.short_name);
                 std::vector<char> data;
                 for (auto& field : table.fields)
                     fill(data, row.data, *field);
-                fill_key(primary_key, *table.primary_index);
-                lmdb::put(t, db, primary_key, data);
+                fill_key(delta_key, *table.delta_index);
+                lmdb::put(t, db, delta_key, data);
 
                 for (auto& [_, index] : table.indexes) {
-                    auto secondary_key = lmdb::make_table_index_key_prefix(table.short_name, index.name);
-                    fill_key(secondary_key, index);
-                    lmdb::append_table_index_key_suffix(secondary_key, block_num, row.present);
-                    lmdb::put(t, db, secondary_key, primary_key);
+                    auto index_key = lmdb::make_table_index_key(table.short_name, index.name);
+                    fill_key(index_key, index);
+                    lmdb::append_table_index_key_suffix(index_key, block_num, row.present);
+                    lmdb::put(t, db, index_key, delta_key);
+                    lmdb::put(t, db, lmdb::make_table_index_ref_key(block_num, index_key), index_key);
                 }
                 ++num_processed;
             }

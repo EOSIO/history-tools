@@ -254,13 +254,27 @@ void for_each(transaction& t, database& d, const std::vector<char>& lower, const
         check(stat, "for_each: ");
 }
 
+// Description              Notes   Data format         Key format
+// =======================================================================================================
+// fill_status                      fill_status         key_tag::fill_status
+// received_block           1       received_block      key_tag::block,             block_index,    key_tag::received_block
+// block_info               1       block_info          key_tag::block,             block_index,    key_tag::block_info
+// table delta              1       row content         key_tag::block,             block_index,    key_tag::table_delta,       table_name,         present,        primary key fields
+// table index                      table delta's key   key_tag::table_index,       table_name,     index_name,                 index fields,       ~block_index,   !present
+// table index reference    2       table index's key   key_tag::table_index_ref,   block_index,    table index's key
+//
+// Notes
+//  1: Erase range lower_bound(make_block_key(n)) to upper_bound(make_block_key()) to erase blocks >= n
+//  2: Aids removing index entries when switching forks
+
 enum class key_tag : uint8_t {
     fill_status,
     block,
     received_block,
     block_info,
-    delta,
+    table_delta,
     table_index,
+    table_index_ref,
 };
 
 inline std::vector<char> make_block_key() {
@@ -355,14 +369,15 @@ inline std::vector<char> make_block_info_key(uint32_t block_index) {
 
 inline std::vector<char> make_delta_key(uint32_t block, bool present, abieos::name table) {
     std::vector<char> result;
-    native_to_bin_key(result, (uint8_t)key_tag::delta);
-    native_to_bin_key(result, table);
+    native_to_bin_key(result, (uint8_t)key_tag::block);
     native_to_bin_key(result, block);
+    native_to_bin_key(result, (uint8_t)key_tag::table_delta);
+    native_to_bin_key(result, table);
     native_to_bin_key(result, present);
     return result;
 }
 
-inline std::vector<char> make_table_index_key_prefix(abieos::name table, abieos::name index) {
+inline std::vector<char> make_table_index_key(abieos::name table, abieos::name index) {
     std::vector<char> result;
     native_to_bin_key(result, (uint8_t)key_tag::table_index);
     native_to_bin_key(result, table);
@@ -373,6 +388,27 @@ inline std::vector<char> make_table_index_key_prefix(abieos::name table, abieos:
 inline void append_table_index_key_suffix(std::vector<char>& dest, uint32_t block, bool present) {
     native_to_bin_key(dest, ~block);
     native_to_bin_key(dest, !present);
+}
+
+inline std::vector<char> make_table_index_ref_key() {
+    std::vector<char> result;
+    native_to_bin_key(result, (uint8_t)key_tag::table_index_ref);
+    return result;
+}
+
+inline std::vector<char> make_table_index_ref_key(uint32_t block) {
+    std::vector<char> result;
+    native_to_bin_key(result, (uint8_t)key_tag::table_index_ref);
+    native_to_bin_key(result, block);
+    return result;
+}
+
+inline std::vector<char> make_table_index_ref_key(uint32_t block, const std::vector<char>& table_index_key) {
+    std::vector<char> result;
+    native_to_bin_key(result, (uint8_t)key_tag::table_index_ref);
+    native_to_bin_key(result, block);
+    result.insert(result.end(), table_index_key.begin(), table_index_key.end());
+    return result;
 }
 
 } // namespace lmdb

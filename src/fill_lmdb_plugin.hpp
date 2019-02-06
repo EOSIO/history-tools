@@ -1,11 +1,11 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include <appbase/application.hpp>
+#include "lmdb_plugin.hpp"
 
 class fill_lmdb_plugin : public appbase::plugin<fill_lmdb_plugin> {
   public:
-    APPBASE_PLUGIN_REQUIRES()
+    APPBASE_PLUGIN_REQUIRES((lmdb_plugin))
 
     fill_lmdb_plugin();
     virtual ~fill_lmdb_plugin();

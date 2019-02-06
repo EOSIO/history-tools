@@ -1,5 +1,7 @@
 // copyright defined in LICENSE.txt
 
+#pragma once
+
 #include "abieos_exception.hpp"
 
 namespace query_config {

@@ -1,7 +1,6 @@
 // copyright defined in LICENSE.txt
 
 #include "fill_lmdb_plugin.hpp"
-#include "query_config.hpp"
 #include "state_history_lmdb.hpp"
 #include "util.hpp"
 
@@ -52,13 +51,11 @@ struct lmdb_table {
 };
 
 struct fill_lmdb_config {
-    std::string                             host;
-    std::string                             port;
-    uint32_t                                db_size_mb   = 0;
-    uint32_t                                skip_to      = 0;
-    uint32_t                                stop_before  = 0;
-    bool                                    enable_trim  = false;
-    ::query_config::config<lmdb::lmdb_type> query_config = {};
+    std::string host;
+    std::string port;
+    uint32_t    skip_to     = 0;
+    uint32_t    stop_before = 0;
+    bool        enable_trim = false;
 };
 
 struct fill_lmdb_plugin_impl : std::enable_shared_from_this<fill_lmdb_plugin_impl> {
@@ -71,8 +68,7 @@ struct fill_lmdb_plugin_impl : std::enable_shared_from_this<fill_lmdb_plugin_imp
 struct flm_session : std::enable_shared_from_this<flm_session> {
     fill_lmdb_plugin_impl*            my = nullptr;
     std::shared_ptr<fill_lmdb_config> config;
-    lmdb::env                         lmdb_env;
-    lmdb::database                    db{lmdb_env};
+    std::shared_ptr<lmdb_inst>        db = app().find_plugin<lmdb_plugin>()->get_db();
     tcp::resolver                     resolver;
     websocket::stream<tcp::socket>    stream;
     bool                              received_abi    = false;
@@ -90,7 +86,6 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     flm_session(fill_lmdb_plugin_impl* my, asio::io_context& ioc)
         : my(my)
         , config(my->config)
-        , lmdb_env(config->db_size_mb)
         , resolver(ioc)
         , stream(ioc) {
 
@@ -209,7 +204,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     } // init_tables
 
     void init_indexes() {
-        auto& c = config->query_config;
+        auto& c = db->query_config;
         for (auto& [query_name, query] : c.query_map) {
             if (query->index.empty())
                 continue;
@@ -243,7 +238,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         init_tables(std::string_view{(const char*)data.data(), data.size()});
         init_indexes();
 
-        lmdb::transaction t{lmdb_env, true};
+        lmdb::transaction t{db->lmdb_env, true};
         load_fill_status(t);
         auto positions = get_positions(t);
         truncate(t, head + 1);
@@ -253,7 +248,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     }
 
     void load_fill_status(lmdb::transaction& t) {
-        auto r          = lmdb::get<state_history::fill_status>(t, db, lmdb::make_fill_status_key(), false);
+        auto r          = lmdb::get<state_history::fill_status>(t, db->db, lmdb::make_fill_status_key(), false);
         head            = r.head;
         head_id         = r.head_id;
         irreversible    = r.irreversible;
@@ -265,7 +260,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         jarray result;
         if (head) {
             for (uint32_t i = irreversible; i <= head; ++i) {
-                auto rb = lmdb::get<lmdb::received_block>(t, db, lmdb::make_received_block_key(i));
+                auto rb = lmdb::get<lmdb::received_block>(t, db->db, lmdb::make_received_block_key(i));
                 result.push_back(jvalue{jobject{
                     {{"block_num"s}, jvalue{std::to_string(rb.block_index)}},
                     {{"block_id"s}, jvalue{(std::string)rb.block_id}},
@@ -277,28 +272,28 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
 
     void write_fill_status(lmdb::transaction& t) {
         if (irreversible < head)
-            put(t, db, lmdb::make_fill_status_key(),
+            put(t, db->db, lmdb::make_fill_status_key(),
                 state_history::fill_status{
                     .head = head, .head_id = head_id, .irreversible = irreversible, .irreversible_id = irreversible_id, .first = first},
                 true);
         else
-            put(t, db, lmdb::make_fill_status_key(),
+            put(t, db->db, lmdb::make_fill_status_key(),
                 state_history::fill_status{
                     .head = head, .head_id = head_id, .irreversible = head, .irreversible_id = head_id, .first = first},
                 true);
     }
 
     void truncate(lmdb::transaction& t, uint32_t block) {
-        for_each(t, db, lmdb::make_block_key(block), lmdb::make_block_key(), [&](auto k, auto v) {
-            lmdb::check(mdb_del(t.tx, db.db, lmdb::addr(lmdb::to_const_val(k)), nullptr), "truncate (1): ");
+        for_each(t, db->db, lmdb::make_block_key(block), lmdb::make_block_key(), [&](auto k, auto v) {
+            lmdb::check(mdb_del(t.tx, db->db.db, lmdb::addr(lmdb::to_const_val(k)), nullptr), "truncate (1): ");
         });
-        for_each(t, db, lmdb::make_table_index_ref_key(block), lmdb::make_table_index_ref_key(), [&](auto k, auto v) {
+        for_each(t, db->db, lmdb::make_table_index_ref_key(block), lmdb::make_table_index_ref_key(), [&](auto k, auto v) {
             std::vector<char> k2{k.pos, k.end};
-            lmdb::check(mdb_del(t.tx, db.db, lmdb::addr(lmdb::to_const_val(v)), nullptr), "truncate (2): ");
-            lmdb::check(mdb_del(t.tx, db.db, lmdb::addr(lmdb::to_const_val(k2)), nullptr), "truncate (3): ");
+            lmdb::check(mdb_del(t.tx, db->db.db, lmdb::addr(lmdb::to_const_val(v)), nullptr), "truncate (2): ");
+            lmdb::check(mdb_del(t.tx, db->db.db, lmdb::addr(lmdb::to_const_val(k2)), nullptr), "truncate (3): ");
         });
 
-        auto rb = lmdb::get<lmdb::received_block>(t, db, lmdb::make_received_block_key(block - 1), false);
+        auto rb = lmdb::get<lmdb::received_block>(t, db->db, lmdb::make_received_block_key(block - 1), false);
         if (!rb.block_index) {
             head    = 0;
             head_id = {};
@@ -331,7 +326,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         trim();
         ilog("block ${b}", ("b", result.this_block->block_num));
 
-        lmdb::transaction t{lmdb_env, true};
+        lmdb::transaction t{db->lmdb_env, true};
         if (result.this_block->block_num <= head)
             truncate(t, result.this_block->block_num);
         if (head_id != abieos::checksum256{} && (!result.prev_block || result.prev_block->block_id != head_id))
@@ -351,7 +346,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             first = head;
         write_fill_status(t);
 
-        put(t, db, lmdb::make_received_block_key(result.this_block->block_num),
+        put(t, db->db, lmdb::make_received_block_key(result.this_block->block_num),
             lmdb::received_block{result.this_block->block_num, result.this_block->block_id});
 
         t.commit();
@@ -408,7 +403,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             .schedule_version  = block.schedule_version,
             .new_producers     = block.new_producers ? *block.new_producers : state_history::producer_schedule{},
         };
-        put(t, db, lmdb::make_block_info_key(block_index), info);
+        put(t, db->db, lmdb::make_block_info_key(block_index), info);
     } // receive_block
 
     void receive_deltas(lmdb::transaction& t, uint32_t block_num, input_buffer buf) {
@@ -439,14 +434,14 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                 for (auto& field : table.fields)
                     fill(data, row.data, *field);
                 fill_key(delta_key, *table.delta_index);
-                lmdb::put(t, db, delta_key, data);
+                lmdb::put(t, db->db, delta_key, data);
 
                 for (auto& [_, index] : table.indexes) {
                     auto index_key = lmdb::make_table_index_key(table.short_name, index.name);
                     fill_key(index_key, index);
                     lmdb::append_table_index_key_suffix(index_key, block_num, row.present);
-                    lmdb::put(t, db, index_key, delta_key);
-                    lmdb::put(t, db, lmdb::make_table_index_ref_key(block_num, index_key), index_key);
+                    lmdb::put(t, db->db, index_key, delta_key);
+                    lmdb::put(t, db->db, lmdb::make_table_index_ref_key(block_num, index_key), index_key);
                 }
                 ++num_processed;
             }
@@ -571,10 +566,7 @@ void fill_lmdb_plugin::set_program_options(options_description& cli, options_des
     auto op   = cfg.add_options();
     auto clop = cli.add_options();
     op("flm-endpoint,e", bpo::value<std::string>()->default_value("localhost:8080"), "State-history endpoint to connect to (nodeos)");
-    op("flm-query-config,q", bpo::value<std::string>()->default_value("../src/query-config.json"), "Query configuration");
-    op("flm-trim,t", "Trim history before irreversible");
-    op("flm-set-db-size-mb", bpo::value<uint32_t>(),
-       "Increase database size to [arg]. This option will grow the database size limit, but not shrink it");
+    // op("flm-trim,t", "Trim history before irreversible");
     clop("flm-skip-to,k", bpo::value<uint32_t>(), "Skip blocks before [arg]");
     clop("flm-stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
 }
@@ -586,18 +578,9 @@ void fill_lmdb_plugin::plugin_initialize(const variables_map& options) {
         auto host               = endpoint.substr(0, endpoint.find(':'));
         my->config->host        = host;
         my->config->port        = port;
-        my->config->db_size_mb  = options.count("flm-set-db-size-mb") ? options["flm-set-db-size-mb"].as<uint32_t>() : 0;
         my->config->skip_to     = options.count("flm-skip-to") ? options["flm-skip-to"].as<uint32_t>() : 0;
         my->config->stop_before = options.count("flm-stop") ? options["flm-stop"].as<uint32_t>() : 0;
-        my->config->enable_trim = options.count("flm-trim");
-
-        auto x = read_string(options["flm-query-config"].as<std::string>().c_str());
-        try {
-            json_to_native(my->config->query_config, x);
-        } catch (const std::exception& e) {
-            throw std::runtime_error("error processing " + options["flm-query-config"].as<std::string>() + ": " + e.what());
-        }
-        my->config->query_config.prepare(lmdb::abi_type_to_lmdb_type);
+        // my->config->enable_trim = options.count("flm-trim");
     }
     FC_LOG_AND_RETHROW()
 }

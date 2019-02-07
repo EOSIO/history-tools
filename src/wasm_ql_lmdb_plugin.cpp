@@ -76,19 +76,20 @@ struct lmdb_query_session : query_session {
         add_fields(first, query.range_types);
         add_fields(last, query.range_types);
 
-        // todo: enforce
         auto max_results = std::min(abieos::read_raw<uint32_t>(query_bin), query.max_results);
 
         std::vector<std::vector<char>> rows;
+        uint32_t                       num_results = 0;
         for_each_subkey(tx, db_iface->lmdb_inst->db, first, last, [&](const auto& index_key, auto) {
             std::vector index_key_limit_block = index_key;
             lmdb::append_table_index_key_suffix(index_key_limit_block, max_block_index);
+            // todo: unify lmdb's and pg's handling of negative result because of max_block_index
             for_each(tx, db_iface->lmdb_inst->db, index_key_limit_block, index_key, [&](auto zzz, auto delta_key) {
                 auto delta_value = get_raw(tx, db_iface->lmdb_inst->db, delta_key);
                 rows.emplace_back(delta_value.pos, delta_value.end);
                 return false;
             });
-            return true;
+            return ++num_results < max_results;
         });
 
         auto result = abieos::native_to_bin(rows);

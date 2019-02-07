@@ -442,21 +442,23 @@ inline std::vector<char> make_block_info_key(uint32_t block_index) {
     return result;
 }
 
-inline std::vector<char> make_delta_key(uint32_t block, bool present, abieos::name table) {
-    std::vector<char> result;
-    native_to_bin_key(result, (uint8_t)key_tag::block);
-    native_to_bin_key(result, block);
-    native_to_bin_key(result, (uint8_t)key_tag::table_delta);
-    native_to_bin_key(result, table);
-    native_to_bin_key(result, present);
-    return result;
+inline void append_delta_key(std::vector<char>& dest, uint32_t block, bool present, abieos::name table) {
+    native_to_bin_key(dest, (uint8_t)key_tag::block);
+    native_to_bin_key(dest, block);
+    native_to_bin_key(dest, (uint8_t)key_tag::table_delta);
+    native_to_bin_key(dest, table);
+    native_to_bin_key(dest, present);
+}
+
+inline void append_table_index_key(std::vector<char>& dest, abieos::name table, abieos::name index) {
+    native_to_bin_key(dest, (uint8_t)key_tag::table_index);
+    native_to_bin_key(dest, table);
+    native_to_bin_key(dest, index);
 }
 
 inline std::vector<char> make_table_index_key(abieos::name table, abieos::name index) {
     std::vector<char> result;
-    native_to_bin_key(result, (uint8_t)key_tag::table_index);
-    native_to_bin_key(result, table);
-    native_to_bin_key(result, index);
+    append_table_index_key(result, table, index);
     return result;
 }
 

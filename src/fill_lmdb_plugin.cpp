@@ -204,6 +204,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     } // init_tables
 
     void init_indexes() {
+        // todo: verify index set in config matches index set in db
         auto& c = lmdb_inst->query_config;
         for (auto& [query_name, query] : c.query_map) {
             if (query->index.empty())
@@ -411,9 +412,12 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     } // receive_block
 
     void receive_deltas(lmdb::transaction& t, uint32_t block_num, input_buffer buf) {
-        auto         data = zlib_decompress(buf);
-        input_buffer bin{data.data(), data.data() + data.size()};
-        auto&        table_delta_type = get_type("table_delta");
+        auto              data = zlib_decompress(buf);
+        input_buffer      bin{data.data(), data.data() + data.size()};
+        auto&             table_delta_type = get_type("table_delta");
+        std::vector<char> delta_key;
+        std::vector<char> value;
+        std::vector<char> index_key;
 
         auto num = read_varuint32(bin);
         for (uint32_t i = 0; i < num; ++i) {
@@ -433,17 +437,19 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                         "block ${b} ${t} ${n} of ${r}",
                         ("b", block_num)("t", table_delta.name)("n", num_processed)("r", table_delta.rows.size()));
                 check_variant(row.data, *table.abi_type, 0u);
-                auto              delta_key = lmdb::make_delta_key(block_num, row.present, table.short_name);
-                std::vector<char> data;
-                abieos::native_to_bin(data, block_num);
-                abieos::native_to_bin(data, row.present);
+                delta_key.clear();
+                lmdb::append_delta_key(delta_key, block_num, row.present, table.short_name);
+                value.clear();
+                abieos::native_to_bin(value, block_num);
+                abieos::native_to_bin(value, row.present);
                 for (auto& field : table.fields)
-                    fill(data, row.data, *field);
+                    fill(value, row.data, *field);
                 fill_key(delta_key, *table.delta_index);
-                lmdb::put(t, lmdb_inst->db, delta_key, data);
+                lmdb::put(t, lmdb_inst->db, delta_key, value);
 
                 for (auto& [_, index] : table.indexes) {
-                    auto index_key = lmdb::make_table_index_key(table.short_name, index.name);
+                    index_key.clear();
+                    lmdb::append_table_index_key(index_key, table.short_name, index.name);
                     fill_key(index_key, index);
                     lmdb::append_table_index_key_suffix(index_key, block_num, row.present);
                     lmdb::put(t, lmdb_inst->db, index_key, delta_key);

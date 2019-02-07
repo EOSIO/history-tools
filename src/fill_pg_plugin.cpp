@@ -4,9 +4,9 @@
 // todo: trim: n behind head
 // todo: trim: remove last !present
 
-#include "state_history_sql.hpp"
+#include "state_history_pg.hpp"
 
-#include "fill_postgresql_plugin.hpp"
+#include "fill_pg_plugin.hpp"
 #include "util.hpp"
 
 #include <boost/asio/connect.hpp>
@@ -18,7 +18,7 @@
 using namespace abieos;
 using namespace appbase;
 using namespace state_history;
-using namespace state_history::sql;
+using namespace state_history::pg;
 using namespace std::literals;
 
 namespace asio      = boost::asio;
@@ -876,19 +876,19 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     ~fpg_session() { ilog("fill-postgresql stopped"); }
 }; // fpg_session
 
-static abstract_plugin& _fill_postgresql_plugin = app().register_plugin<fill_postgresql_plugin>();
+static abstract_plugin& _fill_postgresql_plugin = app().register_plugin<fill_pg_plugin>();
 
 fill_postgresql_plugin_impl::~fill_postgresql_plugin_impl() {
     if (session)
         session->my = nullptr;
 }
 
-fill_postgresql_plugin::fill_postgresql_plugin()
+fill_pg_plugin::fill_pg_plugin()
     : my(std::make_shared<fill_postgresql_plugin_impl>()) {}
 
-fill_postgresql_plugin::~fill_postgresql_plugin() {}
+fill_pg_plugin::~fill_pg_plugin() {}
 
-void fill_postgresql_plugin::set_program_options(options_description& cli, options_description& cfg) {
+void fill_pg_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op   = cfg.add_options();
     auto clop = cli.add_options();
     op("fpg-endpoint", bpo::value<std::string>()->default_value("localhost:8080"), "State-history endpoint to connect to (nodeos)");
@@ -900,7 +900,7 @@ void fill_postgresql_plugin::set_program_options(options_description& cli, optio
     clop("fpg-create", "Create schema and tables");
 }
 
-void fill_postgresql_plugin::plugin_initialize(const variables_map& options) {
+void fill_pg_plugin::plugin_initialize(const variables_map& options) {
     try {
         auto endpoint             = options.at("fpg-endpoint").as<std::string>();
         auto port                 = endpoint.substr(endpoint.find(':') + 1, endpoint.size());
@@ -917,12 +917,12 @@ void fill_postgresql_plugin::plugin_initialize(const variables_map& options) {
     FC_LOG_AND_RETHROW()
 }
 
-void fill_postgresql_plugin::plugin_startup() {
+void fill_pg_plugin::plugin_startup() {
     my->session = std::make_shared<fpg_session>(my.get(), app().get_io_service());
     my->session->start();
 }
 
-void fill_postgresql_plugin::plugin_shutdown() {
+void fill_pg_plugin::plugin_shutdown() {
     if (my->session)
         my->session->close();
 }

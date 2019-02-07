@@ -3,12 +3,12 @@
 #pragma once
 #include <appbase/application.hpp>
 
-class fill_postgresql_plugin : public appbase::plugin<fill_postgresql_plugin> {
+class fill_pg_plugin : public appbase::plugin<fill_pg_plugin> {
   public:
     APPBASE_PLUGIN_REQUIRES()
 
-    fill_postgresql_plugin();
-    virtual ~fill_postgresql_plugin();
+    fill_pg_plugin();
+    virtual ~fill_pg_plugin();
 
     virtual void set_program_options(appbase::options_description& cli, appbase::options_description& cfg) override;
     void         plugin_initialize(const appbase::variables_map& options);

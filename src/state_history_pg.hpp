@@ -6,7 +6,7 @@
 #include <pqxx/pqxx>
 
 namespace state_history {
-namespace sql {
+namespace pg {
 
 inline std::string null_value(bool bulk) {
     if (bulk)
@@ -376,5 +376,5 @@ inline const std::map<std::string_view, sql_type> abi_type_to_sql_type = {
 
 // clang-format on
 
-} // namespace sql
+} // namespace pg
 } // namespace state_history

@@ -1,7 +1,7 @@
 // copyright defined in LICENSE.txt
 
 #include "wasm_ql_lmdb_plugin.hpp"
-#include "state_history_sql.hpp"
+#include "state_history_pg.hpp"
 #include "util.hpp"
 
 #include <fc/exception/exception.hpp>

@@ -49,9 +49,9 @@ include(VersionMacros)
 add_subdirectory(external/appbase)
 add_subdirectory(external/fc)
 
-add_executable(wasm-ql
+add_executable(history-tools
     src/fill_lmdb_plugin.cpp
-    src/fill_postgresql_plugin.cpp
+    src/fill_pg_plugin.cpp
     src/lmdb_plugin.cpp
     src/main.cpp
     src/wasm_interface.cpp
@@ -60,7 +60,7 @@ add_executable(wasm-ql
     src/wasm_ql_plugin.cpp
 )
 
-target_include_directories(wasm-ql
+target_include_directories(history-tools
     PRIVATE
         external/abieos/src
         external/abieos/external/date/include
@@ -70,14 +70,14 @@ target_include_directories(wasm-ql
         ${Boost_INCLUDE_DIR}
         ${JS_INCLUDE_DIRS}
 )
-target_link_libraries(wasm-ql appbase fc Boost::date_time Boost::filesystem Boost::system Boost::iostreams Boost::program_options pqxx pq ${JS_LIBRARIES} lmdb -lpthread)
-target_compile_options(wasm-ql PUBLIC ${JS_CFLAGS_OTHER})
+target_link_libraries(history-tools appbase fc Boost::date_time Boost::filesystem Boost::system Boost::iostreams Boost::program_options pqxx pq ${JS_LIBRARIES} lmdb -lpthread)
+target_compile_options(history-tools PUBLIC ${JS_CFLAGS_OTHER})
 
 string(TOLOWER ${CMAKE_BUILD_TYPE} LOWERCASE_CMAKE_BUILD_TYPE)
 if (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
-    target_compile_options(wasm-ql PRIVATE -D DEBUG)
+    target_compile_options(history-tools PRIVATE -D DEBUG)
 endif (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(wasm-ql PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics)
+    target_compile_options(history-tools PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics)
 endif()

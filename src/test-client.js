@@ -303,9 +303,9 @@ async function dump_transfers(clientWasm) {
         const chainWasm = new ClientWasm('./chain-client.wasm');
         const tokenWasm = new ClientWasm('./token-client.wasm');
 
-        await dump_block_info(chainWasm, ["irreversible", 0], ["irreversible", 1]);
+        // await dump_block_info(chainWasm, ["irreversible", 0], ["irreversible", 1]);
         console.log();
-        await dump_tapos(chainWasm, ["head", -3], 0);
+        // await dump_tapos(chainWasm, ["head", -3], 0);
         console.log();
         await dump_accounts(chainWasm, 'eosio', 'eosio.bpay')
         console.log();
@@ -315,7 +315,7 @@ async function dump_transfers(clientWasm) {
         console.log();
         await dump_tokens(tokenWasm, 'b1', ["irreversible", 0], { sym: '', code: '' }, { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' });
         console.log();
-        await dump_transfers(tokenWasm);
+        // await dump_transfers(tokenWasm);
     } catch (e) {
         console.error(e);
     }

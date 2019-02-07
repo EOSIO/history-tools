@@ -32,7 +32,7 @@ class wasm_ql_plugin : public appbase::plugin<wasm_ql_plugin> {
     void         plugin_startup();
     void         plugin_shutdown();
 
-    void set_database(std::shared_ptr<database_interface> db);
+    void set_database(std::shared_ptr<database_interface> db_iface);
 
   private:
     std::shared_ptr<struct wasm_ql_plugin_impl> my;

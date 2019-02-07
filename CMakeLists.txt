@@ -55,6 +55,7 @@ add_executable(wasm-ql
     src/lmdb_plugin.cpp
     src/main.cpp
     src/wasm_interface.cpp
+    src/wasm_ql_lmdb_plugin.cpp
     src/wasm_ql_pg_plugin.cpp
     src/wasm_ql_plugin.cpp
 )

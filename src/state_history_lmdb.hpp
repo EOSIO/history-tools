@@ -31,6 +31,12 @@ inline const std::map<std::string, abieos::name> table_names = {
 };
 // clang-format on
 
+inline void inc_key(std::vector<char>& key) {
+    for (auto it = key.rbegin(); it != key.rend(); ++it)
+        if (++*it)
+            return;
+}
+
 template <typename F>
 void reverse_bin(std::vector<char>& bin, F f) {
     auto s = bin.size();
@@ -51,6 +57,22 @@ void fixup_key(std::vector<char>& bin, F f) {
 template <typename T>
 void native_to_bin_key(std::vector<char>& bin, const T& obj) {
     fixup_key<T>(bin, [&] { abieos::native_to_bin(bin, obj); });
+}
+
+template <typename T>
+T bin_to_native_key(abieos::input_buffer& b) {
+    if constexpr (
+        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128>) {
+        if (b.pos + sizeof(T) > b.end)
+            throw std::runtime_error("key deserialization error");
+        std::vector<char> v(b.pos, b.pos + sizeof(T));
+        b.pos += sizeof(T);
+        std::reverse(v.begin(), v.end());
+        auto br = abieos::input_buffer{v.data(), v.data() + v.size()};
+        return abieos::bin_to_native<T>(br);
+    } else {
+        throw std::runtime_error("unsupported key type");
+    }
 }
 
 struct lmdb_type {
@@ -213,13 +235,21 @@ inline MDB_val to_const_val(abieos::input_buffer v) { return {size_t(v.end - v.p
 
 inline abieos::input_buffer to_input_buffer(MDB_val v) { return {(char*)v.mv_data, (char*)v.mv_data + v.mv_size}; }
 
-inline abieos::input_buffer get_raw(transaction& t, database& d, const std::vector<char>& key, bool required = true) {
+inline abieos::input_buffer get_raw(transaction& t, database& d, MDB_val key, bool required = true) {
     MDB_val v;
-    auto    stat = mdb_get(t.tx, d.db, addr(to_const_val(key)), &v);
+    auto    stat = mdb_get(t.tx, d.db, &key, &v);
     if (stat == MDB_NOTFOUND && !required)
         return {};
     check(stat, "mdb_get: ");
     return to_input_buffer(v);
+}
+
+inline abieos::input_buffer get_raw(transaction& t, database& d, const std::vector<char>& key, bool required = true) {
+    return get_raw(t, d, to_const_val(key), required);
+}
+
+inline abieos::input_buffer get_raw(transaction& t, database& d, abieos::input_buffer key, bool required = true) {
+    return get_raw(t, d, to_const_val(key), required);
 }
 
 inline void put(transaction& t, database& d, const std::vector<char>& key, const std::vector<char>& value, bool overwrite = false) {
@@ -233,7 +263,7 @@ void put(transaction& t, database& d, const std::vector<char>& key, const T& val
 }
 
 template <typename T>
-T get(transaction& t, database& d, const std::vector<char>& key, bool required = true) {
+std::optional<T> get(transaction& t, database& d, const std::vector<char>& key, bool required = true) {
     auto bin = get_raw(t, d, key, required);
     if (!bin.pos)
         return {};
@@ -241,17 +271,41 @@ T get(transaction& t, database& d, const std::vector<char>& key, bool required =
 }
 
 template <typename F>
-void for_each(transaction& t, database& d, const std::vector<char>& lower, const std::vector<char>& upper, F f) {
+void for_each(transaction& t, database& d, const std::vector<char>& lower_bound, const std::vector<char>& upper_bound, F f) {
     cursor  c{t, d};
-    auto    k = to_const_val(lower);
+    auto    k = to_const_val(lower_bound);
     MDB_val v;
     auto    stat = mdb_cursor_get(c.c, &k, &v, MDB_SET_RANGE);
-    while (!stat && memcmp(k.mv_data, upper.data(), std::min(k.mv_size, upper.size())) <= 0) {
-        f(to_input_buffer(k), to_input_buffer(v));
+    while (!stat && memcmp(k.mv_data, upper_bound.data(), std::min(k.mv_size, upper_bound.size())) <= 0) {
+        if (!f(to_input_buffer(k), to_input_buffer(v)))
+            return;
         stat = mdb_cursor_get(c.c, &k, &v, MDB_NEXT_NODUP);
     }
     if (stat != MDB_NOTFOUND)
         check(stat, "for_each: ");
+}
+
+template <typename F>
+void for_each_subkey(transaction& t, database& d, const std::vector<char>& lower_bound, const std::vector<char>& upper_bound, F f) {
+    if (lower_bound.size() != upper_bound.size())
+        throw std::runtime_error("for_each_subkey: key sizes don't match");
+    auto    key = lower_bound;
+    cursor  c{t, d};
+    auto    k = to_const_val(key);
+    MDB_val v;
+    auto    stat = mdb_cursor_get(c.c, &k, &v, MDB_SET_RANGE);
+    while (!stat && memcmp(k.mv_data, upper_bound.data(), std::min(k.mv_size, upper_bound.size())) <= 0) {
+        if (k.mv_size < key.size())
+            throw std::runtime_error("for_each_subkey: key shrunk");
+        memmove(key.data(), k.mv_data, key.size());
+        if (!f(key, to_input_buffer(v)))
+            return;
+        inc_key(key);
+        k    = to_const_val(key);
+        stat = mdb_cursor_get(c.c, &k, &v, MDB_SET_RANGE);
+    }
+    if (stat != MDB_NOTFOUND)
+        check(stat, "for_each_subkey: ");
 }
 
 // Description              Notes   Data format         Key format
@@ -264,18 +318,56 @@ void for_each(transaction& t, database& d, const std::vector<char>& lower, const
 // table index reference    2       table index's key   key_tag::table_index_ref,   block_index,    table index's key
 //
 // Notes
+//  *: Keys are serialized in lexigraphical sort order. See native_to_bin_key() and bin_to_native_key().
 //  1: Erase range lower_bound(make_block_key(n)) to upper_bound(make_block_key()) to erase blocks >= n
 //  2: Aids removing index entries when switching forks
 
 enum class key_tag : uint8_t {
-    fill_status,
-    block,
-    received_block,
-    block_info,
-    table_delta,
-    table_index,
-    table_index_ref,
+    fill_status     = 0x10,
+    block           = 0x20,
+    received_block  = 0x30,
+    block_info      = 0x40,
+    table_delta     = 0x50,
+    table_index     = 0x60,
+    table_index_ref = 0x70,
 };
+
+inline key_tag bin_to_key_tag(abieos::input_buffer& b) { return (key_tag)abieos::bin_to_native<uint8_t>(b); }
+
+inline const char* to_string(key_tag t) {
+    switch (t) {
+    case key_tag::fill_status: return "fill_status";
+    case key_tag::block: return "block";
+    case key_tag::received_block: return "received_block";
+    case key_tag::block_info: return "block_info";
+    case key_tag::table_delta: return "table_delta";
+    case key_tag::table_index: return "table_index";
+    case key_tag::table_index_ref: return "table_index_ref";
+    default: return "?";
+    }
+}
+
+inline std::string key_to_string(abieos::input_buffer b) {
+    using std::to_string;
+    std::string result;
+    auto        t0 = bin_to_key_tag(b);
+    result += to_string(t0);
+    if (t0 == key_tag::block) {
+        result += " " + to_string(bin_to_native_key<uint32_t>(b));
+        auto t1 = bin_to_key_tag(b);
+        result += " " + std::string{to_string(t1)};
+        if (t1 == key_tag::table_delta) {
+            auto table_name = bin_to_native_key<abieos::name>(b);
+            result += " '" + (std::string)table_name + "' present: " + (bin_to_native_key<bool>(b) ? "true" : "false") + " ";
+            abieos::hex(b.pos, b.end, std::back_inserter(result));
+        } else {
+            result += " ...";
+        }
+    } else {
+        result += " ...";
+    }
+    return result;
+} // namespace lmdb
 
 inline std::vector<char> make_block_key() {
     std::vector<char> result;
@@ -367,6 +459,8 @@ inline std::vector<char> make_table_index_key(abieos::name table, abieos::name i
     native_to_bin_key(result, index);
     return result;
 }
+
+inline void append_table_index_key_suffix(std::vector<char>& dest, uint32_t block) { native_to_bin_key(dest, ~block); }
 
 inline void append_table_index_key_suffix(std::vector<char>& dest, uint32_t block, bool present) {
     native_to_bin_key(dest, ~block);

@@ -29,6 +29,7 @@
 #include <boost/signals2/connection.hpp>
 #include <fc/exception/exception.hpp>
 #include <fc/io/datastream.hpp>
+#include <fc/scoped_exit.hpp>
 #include <fstream>
 
 using namespace abieos;
@@ -42,7 +43,7 @@ namespace ws    = boost::beast::websocket;
 using tcp       = asio::ip::tcp;
 
 struct state : wasm_state {
-    std::shared_ptr<database_interface> db            = {};
+    std::shared_ptr<database_interface> db_iface      = {};
     std::unique_ptr<::query_session>    query_session = {};
     state_history::fill_status          fill_status   = {};
 
@@ -159,7 +160,8 @@ template <typename F>
 static void retry_loop(::state& state, F f) {
     int num_tries = 0;
     while (true) {
-        state.query_session = state.db->create_query_session();
+        auto exit           = fc::make_scoped_exit([&] { state.query_session.reset(); });
+        state.query_session = state.db_iface->create_query_session();
         try {
             state.fill_status = state.query_session->get_fill_status();
             fill_context_data(state);
@@ -167,9 +169,7 @@ static void retry_loop(::state& state, F f) {
                 return;
             if (++num_tries >= 4)
                 throw std::runtime_error("too many fork events during request");
-            state.query_session.reset();
         } catch (...) {
-            state.query_session.reset();
             throw;
         }
         ilog("retry request");
@@ -382,10 +382,10 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
 }
 
 void wasm_ql_plugin::plugin_startup() {
-    if (!my->state->db)
+    if (!my->state->db_iface)
         throw std::runtime_error("wasm_ql_plugin needs either wasm_ql_pg_plugin or wasm_ql_lmdb_plugin");
     my->listen();
 }
 void wasm_ql_plugin::plugin_shutdown() { my->stopping = true; }
 
-void wasm_ql_plugin::set_database(std::shared_ptr<database_interface> db) { my->state->db = std::move(db); }
+void wasm_ql_plugin::set_database(std::shared_ptr<database_interface> db_iface) { my->state->db_iface = std::move(db_iface); }

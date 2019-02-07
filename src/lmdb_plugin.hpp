@@ -29,7 +29,7 @@ class lmdb_plugin : public appbase::plugin<lmdb_plugin> {
     void         plugin_startup();
     void         plugin_shutdown();
 
-    std::shared_ptr<lmdb_inst> get_db();
+    std::shared_ptr<lmdb_inst> get_lmdb_inst();
 
   private:
     std::shared_ptr<struct lmdb_plugin_impl> my;

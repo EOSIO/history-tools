@@ -24,11 +24,11 @@ struct pg_database_interface : database_interface, std::enable_shared_from_this<
 struct pg_query_session : query_session {
     virtual ~pg_query_session() {}
 
-    std::shared_ptr<pg_database_interface> db;
+    std::shared_ptr<pg_database_interface> db_iface;
 
     virtual state_history::fill_status get_fill_status() override {
-        pqxx::work t(db->sql_connection);
-        auto       row = t.exec("select head, head_id, irreversible, irreversible_id, first from \"" + db->schema + "\".fill_status")[0];
+        pqxx::work t(db_iface->sql_connection);
+        auto row = t.exec("select head, head_id, irreversible, irreversible_id, first from \"" + db_iface->schema + "\".fill_status")[0];
 
         state_history::fill_status result;
         result.head            = row[0].as<uint32_t>();
@@ -40,9 +40,9 @@ struct pg_query_session : query_session {
     }
 
     virtual std::optional<abieos::checksum256> get_block_id(uint32_t block_index) override {
-        pqxx::work t(db->sql_connection);
+        pqxx::work t(db_iface->sql_connection);
         auto       result =
-            t.exec("select block_id from \"" + db->schema + "\".block_info where block_index=" + sql::sql_str(false, block_index));
+            t.exec("select block_id from \"" + db_iface->schema + "\".block_info where block_index=" + sql::sql_str(false, block_index));
         if (result.empty())
             return {};
         return sql::sql_to_checksum256(result[0][0].c_str());
@@ -52,15 +52,15 @@ struct pg_query_session : query_session {
         abieos::name query_name;
         abieos::bin_to_native(query_name, query_bin);
 
-        auto it = db->config.query_map.find(query_name);
-        if (it == db->config.query_map.end())
+        auto it = db_iface->config.query_map.find(query_name);
+        if (it == db_iface->config.query_map.end())
             throw std::runtime_error("exec_query: unknown query: " + (std::string)query_name);
         query_config::query<sql::sql_type>& query = *it->second;
 
         uint32_t max_block_index = 0;
         if (query.limit_block_index)
             max_block_index = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
-        std::string query_str = "select * from \"" + db->schema + "\"." + query.function + "(";
+        std::string query_str = "select * from \"" + db_iface->schema + "\"." + query.function + "(";
         bool        need_sep  = false;
         if (query.limit_block_index) {
             query_str += sql::sql_str(false, max_block_index);
@@ -70,7 +70,7 @@ struct pg_query_session : query_session {
             for (auto& arg : args) {
                 if (need_sep)
                     query_str += sql::sep(false);
-                query_str += arg.bin_to_sql(db->sql_connection, false, query_bin);
+                query_str += arg.bin_to_sql(db_iface->sql_connection, false, query_bin);
                 need_sep = true;
             }
         };
@@ -81,7 +81,7 @@ struct pg_query_session : query_session {
         query_str += sql::sep(false) + sql::sql_str(false, std::min(max_results, query.max_results));
         query_str += ")";
 
-        pqxx::work        t(db->sql_connection);
+        pqxx::work        t(db_iface->sql_connection);
         auto              exec_result = t.exec(query_str);
         std::vector<char> result;
         std::vector<char> row_bin;
@@ -104,8 +104,8 @@ struct pg_query_session : query_session {
 }; // pg_query_session
 
 std::unique_ptr<query_session> pg_database_interface::create_query_session() {
-    auto session = std::make_unique<pg_query_session>();
-    session->db  = shared_from_this();
+    auto session      = std::make_unique<pg_query_session>();
+    session->db_iface = shared_from_this();
     return session;
 }
 

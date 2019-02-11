@@ -360,7 +360,7 @@ struct wasm_ql_plugin_impl : std::enable_shared_from_this<wasm_ql_plugin_impl> {
 wasm_ql_plugin::wasm_ql_plugin()
     : my(std::make_shared<wasm_ql_plugin_impl>()) {}
 
-wasm_ql_plugin::~wasm_ql_plugin() { ilog("wasm_ql stopped"); }
+wasm_ql_plugin::~wasm_ql_plugin() { ilog("wasm_ql_plugin stopped"); }
 
 void wasm_ql_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op = cfg.add_options();

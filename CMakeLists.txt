@@ -7,7 +7,7 @@ project(wasm-ql VERSION 0.1 LANGUAGES CXX)
 
 set(default_build_type "Release")
 
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
   set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
       STRING "Choose the type of build." FORCE)
@@ -15,9 +15,25 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
-FIND_PACKAGE(Boost 1.58 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
+find_library(PQ_LIB NAMES pq)
+find_library(PQXX_LIB NAMES pqxx)
+find_library(LMDB_LIB NAMES lmdb)
+find_package(Boost 1.58 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(JS REQUIRED mozjs-64)
+pkg_check_modules(JS mozjs-64)
+
+if (PQ_LIB AND PQXX_LIB)
+    set(FOUND_PQ TRUE)
+else()
+    set(PQ_LIB "")
+    set(PQXX_LIB "")
+endif()
+
+if (LMDB_LIB)
+    set(FOUND_LMDB TRUE)
+else()
+    set(LMDB_LIB "")
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -49,16 +65,7 @@ include(VersionMacros)
 add_subdirectory(external/appbase)
 add_subdirectory(external/fc)
 
-add_executable(history-tools
-    src/fill_lmdb_plugin.cpp
-    src/fill_pg_plugin.cpp
-    src/lmdb_plugin.cpp
-    src/main.cpp
-    src/wasm_interface.cpp
-    src/wasm_ql_lmdb_plugin.cpp
-    src/wasm_ql_pg_plugin.cpp
-    src/wasm_ql_plugin.cpp
-)
+add_executable(history-tools src/main.cpp)
 
 target_include_directories(history-tools
     PRIVATE
@@ -70,7 +77,7 @@ target_include_directories(history-tools
         ${Boost_INCLUDE_DIR}
         ${JS_INCLUDE_DIRS}
 )
-target_link_libraries(history-tools appbase fc Boost::date_time Boost::filesystem Boost::system Boost::iostreams Boost::program_options pqxx pq ${JS_LIBRARIES} lmdb -lpthread)
+target_link_libraries(history-tools appbase fc Boost::date_time Boost::filesystem Boost::system Boost::iostreams Boost::program_options ${PQXX_LIB} ${PQ_LIB} ${JS_LIBRARIES} ${LMDB_LIB} -lpthread)
 target_compile_options(history-tools PUBLIC ${JS_CFLAGS_OTHER})
 
 string(TOLOWER ${CMAKE_BUILD_TYPE} LOWERCASE_CMAKE_BUILD_TYPE)
@@ -80,4 +87,50 @@ endif (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(history-tools PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics)
+endif()
+
+message(STATUS "----------------------------------------------------")
+message(STATUS "Checked libraries:")
+
+function(show_found desc found missing_msg)
+    if (found)
+        message(STATUS ${desc} " found")
+    else()
+        message(STATUS ${desc} " ${missing_msg}")
+    endif()
+endfunction(show_found)
+
+show_found("    pq and pqxx:" "${FOUND_PQ}" "not found; will not build pg plugins")
+show_found("    lmdb:       " "${FOUND_LMDB}" "not found; will not build lmdb plugins")
+show_found("    mozjs:      " "${JS_FOUND}" "not found; will not build wasm plugins")
+
+message(STATUS "Enabling plugins:")
+
+if (FOUND_PQ)
+    message(STATUS "    fill_pg_plugin")
+    target_sources(history-tools PRIVATE src/fill_pg_plugin.cpp)
+    if (JS_FOUND)
+        message(STATUS "    wasm_ql_pg_plugin")
+        target_sources(history-tools PRIVATE src/wasm_ql_pg_plugin.cpp)
+    endif ()
+endif ()
+
+if (FOUND_LMDB)
+    message(STATUS "    fill_lmdb_plugin")
+    target_sources(history-tools PRIVATE src/lmdb_plugin.cpp src/fill_lmdb_plugin.cpp)
+    if (JS_FOUND)
+        message(STATUS "    wasm_ql_lmdb_plugin")
+        target_sources(history-tools PRIVATE src/wasm_ql_lmdb_plugin.cpp)
+    endif()
+endif()
+
+if (JS_FOUND)
+    message(STATUS "    wasm_ql_plugin")
+    target_sources(history-tools PRIVATE src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
+endif()
+
+message(STATUS "----------------------------------------------------")
+
+if (NOT FOUND_PQ AND NOT FOUND_LMDB)
+    message(FATAL_ERROR "No database libraries found")
 endif()

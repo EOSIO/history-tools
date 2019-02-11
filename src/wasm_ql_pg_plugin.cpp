@@ -116,7 +116,7 @@ struct wasm_ql_pg_plugin_impl {
 wasm_ql_pg_plugin::wasm_ql_pg_plugin()
     : my(std::make_shared<wasm_ql_pg_plugin_impl>()) {}
 
-wasm_ql_pg_plugin::~wasm_ql_pg_plugin() { ilog("wasm_ql stopped"); }
+wasm_ql_pg_plugin::~wasm_ql_pg_plugin() { ilog("wasm_ql_pg_plugin stopped"); }
 
 void wasm_ql_pg_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op = cfg.add_options();

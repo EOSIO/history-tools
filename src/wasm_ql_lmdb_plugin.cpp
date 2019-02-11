@@ -112,7 +112,7 @@ struct wasm_ql_lmdb_plugin_impl {
 wasm_ql_lmdb_plugin::wasm_ql_lmdb_plugin()
     : my(std::make_shared<wasm_ql_lmdb_plugin_impl>()) {}
 
-wasm_ql_lmdb_plugin::~wasm_ql_lmdb_plugin() { ilog("wasm_ql stopped"); }
+wasm_ql_lmdb_plugin::~wasm_ql_lmdb_plugin() { ilog("wasm_ql_lmdb_plugin stopped"); }
 
 void wasm_ql_lmdb_plugin::set_program_options(options_description& cli, options_description& cfg) {}
 

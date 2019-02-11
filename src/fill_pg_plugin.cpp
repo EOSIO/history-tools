@@ -873,7 +873,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             my->session.reset();
     }
 
-    ~fpg_session() { ilog("fill-postgresql stopped"); }
+    ~fpg_session() { ilog("fill_pg_plugin stopped"); }
 }; // fpg_session
 
 static abstract_plugin& _fill_postgresql_plugin = app().register_plugin<fill_pg_plugin>();

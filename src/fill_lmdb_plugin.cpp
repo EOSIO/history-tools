@@ -349,15 +349,16 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             return false;
         }
 
-        if (result.this_block->block_num <= head)
-            ilog("switch forks at block ${b}", ("b", result.this_block->block_num));
-
         trim();
-        ilog("block ${b}", ("b", result.this_block->block_num));
 
         lmdb::transaction t{lmdb_inst->lmdb_env, true};
-        if (result.this_block->block_num <= head)
+        if (result.this_block->block_num <= head) {
+            ilog("switch forks at block ${b}", ("b", result.this_block->block_num));
             truncate(t, result.this_block->block_num);
+        }
+
+        ilog("block ${b}", ("b", result.this_block->block_num));
+
         if (head_id != abieos::checksum256{} && (!result.prev_block || result.prev_block->block_id != head_id))
             throw std::runtime_error("prev_block does not match");
         if (result.block)
@@ -592,7 +593,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     void send_request(const jarray& positions) {
         send(jvalue{jarray{{"get_blocks_request_v0"s},
                            {jobject{
-                               {{"start_block_num"s}, {std::to_string(std::max(config->skip_to, head + 1))}},
+                               {{"start_block_num"s}, {std::to_string(std::min(config->skip_to, head + 1))}},
                                {{"end_block_num"s}, {"4294967295"s}},
                                {{"max_messages_in_flight"s}, {"4294967295"s}},
                                {{"have_positions"s}, {positions}},
@@ -672,7 +673,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             my->session.reset();
     }
 
-    ~flm_session() { ilog("fill-lmdb stopped"); }
+    ~flm_session() { ilog("fill_lmdb_plugin stopped"); }
 }; // flm_session
 
 static abstract_plugin& _fill_lmdb_plugin = app().register_plugin<fill_lmdb_plugin>();

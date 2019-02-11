@@ -154,7 +154,7 @@ inline void check(int stat, const char* prefix) {
     if (!stat)
         return;
     if (stat == MDB_MAP_FULL)
-        throw std::runtime_error(std::string(prefix) + "MDB_MAP_FULL: database hit size limit. Use --flm-set-db-size-gb to increase.");
+        throw std::runtime_error(std::string(prefix) + "MDB_MAP_FULL: database hit size limit. Use --lmdb-set-db-size-gb to increase.");
     else
         throw std::runtime_error(std::string(prefix) + mdb_strerror(stat));
 }

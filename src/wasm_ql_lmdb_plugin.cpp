@@ -82,7 +82,8 @@ struct lmdb_query_session : query_session {
         uint32_t                       num_results = 0;
         for_each_subkey(tx, db_iface->lmdb_inst->db, first, last, [&](const auto& index_key, auto) {
             std::vector index_key_limit_block = index_key;
-            lmdb::append_table_index_key_suffix(index_key_limit_block, max_block_index);
+            if (query.is_state)
+                lmdb::append_table_index_state_suffix(index_key_limit_block, max_block_index);
             // todo: unify lmdb's and pg's handling of negative result because of max_block_index
             for_each(tx, db_iface->lmdb_inst->db, index_key_limit_block, index_key, [&](auto zzz, auto delta_key) {
                 auto delta_value = get_raw(tx, db_iface->lmdb_inst->db, delta_key);

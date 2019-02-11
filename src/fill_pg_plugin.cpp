@@ -171,7 +171,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         t.exec(query);
     }
 
-    void fill_field(pqxx::work& t, const std::string& base_name, std::string& fields, abi_field& field) {
+    void fill_field(pqxx::work& t, const std::string& base_name, std::string& fields, const abi_field& field) {
         if (field.type->filled_struct) {
             for (auto& f : field.type->fields)
                 fill_field(t, base_name + field.name + "_", fields, f);
@@ -547,7 +547,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
 
     void fill_value(
         bool bulk, bool nested_bulk, pqxx::work& t, const std::string& base_name, std::string& fields, std::string& values,
-        input_buffer& bin, abi_field& field) {
+        input_buffer& bin, const abi_field& field) {
         if (field.type->filled_struct) {
             for (auto& f : field.type->fields)
                 fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);

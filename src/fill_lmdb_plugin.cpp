@@ -71,17 +71,18 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     std::shared_ptr<::lmdb_inst>      lmdb_inst = app().find_plugin<lmdb_plugin>()->get_lmdb_inst();
     tcp::resolver                     resolver;
     websocket::stream<tcp::socket>    stream;
-    bool                              received_abi    = false;
-    std::map<std::string, lmdb_table> tables          = {};
-    bool                              created_trim    = false;
-    uint32_t                          head            = 0;
-    abieos::checksum256               head_id         = {};
-    uint32_t                          irreversible    = 0;
-    abieos::checksum256               irreversible_id = {};
-    uint32_t                          first           = 0;
-    uint32_t                          first_bulk      = 0;
-    abi_def                           abi             = {};
-    std::map<std::string, abi_type>   abi_types       = {};
+    bool                              received_abi       = false;
+    std::map<std::string, lmdb_table> tables             = {};
+    lmdb_table*                       action_trace_table = {};
+    bool                              created_trim       = false;
+    uint32_t                          head               = 0;
+    abieos::checksum256               head_id            = {};
+    uint32_t                          irreversible       = 0;
+    abieos::checksum256               irreversible_id    = {};
+    uint32_t                          first              = 0;
+    uint32_t                          first_bulk         = 0;
+    abi_def                           abi                = {};
+    std::map<std::string, abi_type>   abi_types          = {};
 
     flm_session(fill_lmdb_plugin_impl* my, asio::io_context& ioc)
         : my(my)
@@ -167,40 +168,63 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         }
     }
 
+    void add_table(const std::string& table_name, const std::string& table_type, const jarray& key_names) {
+        auto table_name_it = lmdb::table_names.find(table_name);
+        if (table_name_it == lmdb::table_names.end())
+            throw std::runtime_error("unknown table \"" + table_name + "\"");
+        if (tables.find(table_name) != tables.end())
+            throw std::runtime_error("duplicate table \"" + table_name + "\"");
+        auto& table      = tables[table_name];
+        table.name       = table_name;
+        table.short_name = table_name_it->second;
+        table.abi_type   = &get_type(table_type);
+
+        if (!table.abi_type->filled_variant || table.abi_type->fields.size() != 1 || !table.abi_type->fields[0].type->filled_struct)
+            throw std::runtime_error("don't know how to process " + table.abi_type->name);
+
+        for (auto& f : table.abi_type->fields[0].type->fields)
+            fill_fields(table, "", f);
+
+        table.delta_index = std::make_unique<lmdb_index>();
+        for (auto& key : key_names) {
+            auto& field_name = std::get<std::string>(key.value);
+            auto  it         = table.field_map.find(field_name);
+            if (it == table.field_map.end())
+                throw std::runtime_error("table \"" + table_name + "\" key \"" + field_name + "\" not found");
+            table.delta_index->fields.push_back(it->second);
+        }
+    }
+
     void init_tables(std::string_view abi_json) {
         std::string error;
         jvalue      j;
         if (!json_to_jvalue(j, error, abi_json))
             throw std::runtime_error(error);
         for (auto& t : std::get<jarray>(std::get<jobject>(j.value)["tables"].value)) {
-            auto& o             = std::get<jobject>(t.value);
-            auto& table_name    = std::get<std::string>(o["name"].value);
-            auto& table_type    = std::get<std::string>(o["type"].value);
-            auto  table_name_it = lmdb::table_names.find(table_name);
-            if (table_name_it == lmdb::table_names.end())
-                throw std::runtime_error("unknown table \"" + table_name + "\"");
-            if (tables.find(table_name) != tables.end())
-                throw std::runtime_error("duplicate table \"" + table_name + "\"");
-            auto& table      = tables[table_name];
-            table.name       = table_name;
-            table.short_name = table_name_it->second;
-            table.abi_type   = &get_type(table_type);
-
-            if (!table.abi_type->filled_variant || table.abi_type->fields.size() != 1 || !table.abi_type->fields[0].type->filled_struct)
-                throw std::runtime_error("don't know how to process " + table.abi_type->name);
-
-            for (auto& f : table.abi_type->fields[0].type->fields)
-                fill_fields(table, "", f);
-
-            table.delta_index = std::make_unique<lmdb_index>();
-            for (auto& key : std::get<jarray>(o["key_names"].value)) {
-                auto& field_name = std::get<std::string>(key.value);
-                auto  it         = table.field_map.find(field_name);
-                if (it == table.field_map.end())
-                    throw std::runtime_error("table \"" + table_name + "\" key \"" + field_name + "\" not found");
-                table.delta_index->fields.push_back(it->second);
-            }
+            auto& o = std::get<jobject>(t.value);
+            add_table(
+                std::get<std::string>(o["name"].value), std::get<std::string>(o["type"].value), std::get<jarray>(o["key_names"].value));
         }
+
+        action_trace_table             = &tables["action_trace"];
+        action_trace_table->name       = "action_trace";
+        action_trace_table->short_name = "atrace"_n;
+        fill_fields(*action_trace_table, "", abieos::abi_field{"block_index", &get_type("uint32")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"transaction_id", &get_type("checksum256")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"action_index", &get_type("uint32")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"parent_action_index", &get_type("uint32")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"transaction_status", &get_type("uint8")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_receiver", &get_type("name")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_act_digest", &get_type("checksum256")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_global_sequence", &get_type("uint64")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_recv_sequence", &get_type("uint64")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_code_sequence", &get_type("varuint32")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_abi_sequence", &get_type("varuint32")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"account", &get_type("name")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"name", &get_type("name")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"data", &get_type("bytes")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"context_free", &get_type("bool")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"elapsed", &get_type("int64")});
     } // init_tables
 
     void init_indexes() {
@@ -211,7 +235,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                 continue;
             auto table_it = tables.find(query->_table);
             if (table_it == tables.end())
-                continue; // todo: traces. todo: throw std::runtime_error("can't find table " + query->_table);
+                throw std::runtime_error("can't find table " + query->_table);
             auto& table = table_it->second;
 
             auto index_it = table.indexes.find(query_name);
@@ -341,7 +365,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         if (result.deltas)
             receive_deltas(t, result.this_block->block_num, *result.deltas);
         if (result.traces)
-            receive_traces(result.this_block->block_num, *result.traces);
+            receive_traces(t, result.this_block->block_num, *result.traces);
 
         head            = result.this_block->block_num;
         head_id         = result.this_block->block_id;
@@ -451,7 +475,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                     index_key.clear();
                     lmdb::append_table_index_key(index_key, table.short_name, index.name);
                     fill_key(index_key, index);
-                    lmdb::append_table_index_key_suffix(index_key, block_num, row.present);
+                    lmdb::append_table_index_state_suffix(index_key, block_num, row.present);
                     lmdb::put(t, lmdb_inst->db, index_key, delta_key);
                     lmdb::put(t, lmdb_inst->db, lmdb::make_table_index_ref_key(block_num, index_key), index_key);
                 }
@@ -460,8 +484,97 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         }
     } // receive_deltas
 
-    void receive_traces(uint32_t block_num, input_buffer buf) {
-        // todo
+    void receive_traces(lmdb::transaction& t, uint32_t block_num, input_buffer buf) {
+        auto         data = zlib_decompress(buf);
+        input_buffer bin{data.data(), data.data() + data.size()};
+        auto         num = read_varuint32(bin);
+        for (uint32_t i = 0; i < num; ++i) {
+            state_history::transaction_trace trace;
+            bin_to_native(trace, bin);
+            write_transaction_trace(t, block_num, trace);
+        }
+    }
+
+    void write_transaction_trace(lmdb::transaction& t, uint32_t block_num, const state_history::transaction_trace& ttrace) {
+        std::vector<char> key;
+        lmdb::append_transaction_trace_key(key, block_num, ttrace.id);
+
+        std::vector<char> value;
+        abieos::native_to_bin(value, block_num);
+        abieos::native_to_bin(value, ttrace.failed_dtrx_trace.empty() ? abieos::checksum256{} : ttrace.failed_dtrx_trace[0].id);
+        abieos::native_to_bin(value, ttrace.id);
+        abieos::native_to_bin(value, (uint8_t)ttrace.status);
+        abieos::native_to_bin(value, ttrace.cpu_usage_us);
+        abieos::native_to_bin(value, ttrace.net_usage_words);
+        abieos::native_to_bin(value, ttrace.elapsed);
+        abieos::native_to_bin(value, ttrace.net_usage);
+        abieos::native_to_bin(value, ttrace.scheduled);
+        abieos::native_to_bin(value, ttrace.except ? *ttrace.except : "");
+
+        lmdb::put(t, lmdb_inst->db, key, value);
+
+        uint32_t          prev_action_index = 0;
+        std::vector<char> index_key;
+        for (auto& atrace : ttrace.action_traces)
+            write_action_trace(t, block_num, ttrace, atrace, 0, prev_action_index, key, value, index_key);
+    }
+
+    void write_action_trace(
+        lmdb::transaction& t, uint32_t block_num, const state_history::transaction_trace& ttrace, const state_history::action_trace& atrace,
+        uint32_t parent_action_index, uint32_t& prev_action_index, std::vector<char>& key, std::vector<char>& value,
+        std::vector<char>& index_key) {
+
+        auto action_index = ++prev_action_index;
+
+        key.clear();
+        lmdb::append_action_trace_key(key, block_num, ttrace.id, action_index);
+
+        value.clear();
+
+        std::vector<uint32_t> positions;
+        auto                  f = [&](const auto& x) {
+            positions.push_back(value.size());
+            abieos::native_to_bin(value, x);
+        };
+
+        f(block_num);
+        f(ttrace.id);
+        f(action_index);
+        f(parent_action_index);
+        f((uint8_t)ttrace.status);
+        f(atrace.receipt_receiver);
+        f(atrace.receipt_act_digest);
+        f(atrace.receipt_global_sequence);
+        f(atrace.receipt_recv_sequence);
+        f(atrace.receipt_code_sequence);
+        f(atrace.receipt_abi_sequence);
+        f(atrace.account);
+        f(atrace.name);
+        f(atrace.data);
+        f(atrace.context_free);
+        f(atrace.elapsed);
+
+        abieos::native_to_bin(value, atrace.console);
+        abieos::native_to_bin(value, atrace.except ? *atrace.except : std::string());
+        lmdb::put(t, lmdb_inst->db, key, value);
+
+        for (size_t i = 0; i < positions.size(); ++i)
+            action_trace_table->fields[i]->pos = {value.data() + positions[i], value.data() + value.size()};
+
+        for (auto& [_, index] : action_trace_table->indexes) {
+            index_key.clear();
+            lmdb::append_table_index_key(index_key, action_trace_table->short_name, index.name);
+            fill_key(index_key, index);
+            lmdb::put(t, lmdb_inst->db, index_key, key);
+            lmdb::put(t, lmdb_inst->db, lmdb::make_table_index_ref_key(block_num, index_key), index_key);
+        }
+
+        // todo: receipt_auth_sequence
+        // todo: authorization
+        // todo: account_ram_deltas
+
+        for (auto& child : atrace.inline_traces)
+            write_action_trace(t, block_num, ttrace, child, action_index, prev_action_index, key, value, index_key);
     }
 
     void trim() {

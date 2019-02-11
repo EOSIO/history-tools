@@ -12,6 +12,9 @@ using namespace abieos::literals;
 
 // clang-format off
 inline const std::map<std::string, abieos::name> table_names = {
+    {"transaction_trace",           "ttrace"_n},
+    {"action_trace",                "atrace"_n},
+
     {"account",                     "account"_n},
     {"contract_table",              "c.table"_n},
     {"contract_row",                "c.row"_n},
@@ -48,7 +51,8 @@ void reverse_bin(std::vector<char>& bin, F f) {
 template <typename T, typename F>
 void fixup_key(std::vector<char>& bin, F f) {
     if constexpr (
-        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128>)
+        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
+        std::is_same_v<std::decay_t<T>, abieos::checksum256>)
         reverse_bin(bin, f);
     else
         throw std::runtime_error("unsupported key type");
@@ -62,7 +66,8 @@ void native_to_bin_key(std::vector<char>& bin, const T& obj) {
 template <typename T>
 T bin_to_native_key(abieos::input_buffer& b) {
     if constexpr (
-        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128>) {
+        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
+        std::is_same_v<std::decay_t<T>, abieos::checksum256>) {
         if (b.pos + sizeof(T) > b.end)
             throw std::runtime_error("key deserialization error");
         std::vector<char> v(b.pos, b.pos + sizeof(T));
@@ -149,7 +154,7 @@ inline void check(int stat, const char* prefix) {
     if (!stat)
         return;
     if (stat == MDB_MAP_FULL)
-        throw std::runtime_error(std::string(prefix) + "MDB_MAP_FULL: database hit size limit. Use --flm-set-db-size-mb to increase.");
+        throw std::runtime_error(std::string(prefix) + "MDB_MAP_FULL: database hit size limit. Use --flm-set-db-size-gb to increase.");
     else
         throw std::runtime_error(std::string(prefix) + mdb_strerror(stat));
 }
@@ -157,10 +162,11 @@ inline void check(int stat, const char* prefix) {
 struct env {
     MDB_env* e = nullptr;
 
-    env(uint32_t db_size_mb = 0) {
+    env(uint32_t db_size_gb = 0) {
         check(mdb_env_create(&e), "mdb_env_create: ");
-        if (db_size_mb)
-            check(mdb_env_set_mapsize(e, size_t(db_size_mb) * 1024 * 1024), "mdb_env_set_mapsize");
+        if (!db_size_gb)
+            db_size_gb = 1;
+        check(mdb_env_set_mapsize(e, size_t(db_size_gb) * 1024 * 1024 * 1024), "mdb_env_set_mapsize");
         auto stat = mdb_env_open(e, "foo", 0, 0600);
         if (stat) {
             mdb_env_close(e);
@@ -308,14 +314,16 @@ void for_each_subkey(transaction& t, database& d, const std::vector<char>& lower
         check(stat, "for_each_subkey: ");
 }
 
-// Description              Notes   Data format         Key format
+// Description                      Notes   Data format         Key format
 // =======================================================================================================
-// fill_status                      fill_status         key_tag::fill_status
-// received_block           1       received_block      key_tag::block,             block_index,    key_tag::received_block
-// block_info               1       block_info          key_tag::block,             block_index,    key_tag::block_info
-// table delta              1       row content         key_tag::block,             block_index,    key_tag::table_delta,       table_name,         present,        primary key fields
-// table index                      table delta's key   key_tag::table_index,       table_name,     index_name,                 index fields,       ~block_index,   !present
-// table index reference    2       table index's key   key_tag::table_index_ref,   block_index,    table index's key
+// fill_status                              fill_status         key_tag::fill_status
+// received_block                   1       received_block      key_tag::block,             block_index,    key_tag::received_block
+// block_info                       1       block_info          key_tag::block,             block_index,    key_tag::block_info
+// table row (non-state tables)     1       row content         key_tag::block,             block_index,    key_tag::table_row,         table_name,         primary key fields
+// table delta (state tables)       1       row content         key_tag::block,             block_index,    key_tag::table_delta,       table_name,         present,        primary key fields
+// table index (non-state tables)           table delta's key   key_tag::table_index,       table_name,     index_name,                 index fields
+// table index (state tables)               table delta's key   key_tag::table_index,       table_name,     index_name,                 index fields,       ~block_index,   !present
+// table index reference            2       table index's key   key_tag::table_index_ref,   block_index,    table index's key
 //
 // Notes
 //  *: Keys are serialized in lexigraphical sort order. See native_to_bin_key() and bin_to_native_key().
@@ -327,9 +335,10 @@ enum class key_tag : uint8_t {
     block           = 0x20,
     received_block  = 0x30,
     block_info      = 0x40,
-    table_delta     = 0x50,
-    table_index     = 0x60,
-    table_index_ref = 0x70,
+    table_row       = 0x50,
+    table_delta     = 0x60,
+    table_index     = 0x70,
+    table_index_ref = 0x80,
 };
 
 inline key_tag bin_to_key_tag(abieos::input_buffer& b) { return (key_tag)abieos::bin_to_native<uint8_t>(b); }
@@ -340,6 +349,7 @@ inline const char* to_string(key_tag t) {
     case key_tag::block: return "block";
     case key_tag::received_block: return "received_block";
     case key_tag::block_info: return "block_info";
+    case key_tag::table_row: return "table_row";
     case key_tag::table_delta: return "table_delta";
     case key_tag::table_index: return "table_index";
     case key_tag::table_index_ref: return "table_index_ref";
@@ -442,6 +452,24 @@ inline std::vector<char> make_block_info_key(uint32_t block_index) {
     return result;
 }
 
+inline void append_transaction_trace_key(std::vector<char>& dest, uint32_t block, const abieos::checksum256 transaction_id) {
+    native_to_bin_key(dest, (uint8_t)key_tag::block);
+    native_to_bin_key(dest, block);
+    native_to_bin_key(dest, (uint8_t)key_tag::table_row);
+    native_to_bin_key(dest, "ttrace"_n);
+    native_to_bin_key(dest, transaction_id);
+}
+
+inline void
+append_action_trace_key(std::vector<char>& dest, uint32_t block, const abieos::checksum256 transaction_id, uint32_t action_index) {
+    native_to_bin_key(dest, (uint8_t)key_tag::block);
+    native_to_bin_key(dest, block);
+    native_to_bin_key(dest, (uint8_t)key_tag::table_row);
+    native_to_bin_key(dest, "atrace"_n);
+    native_to_bin_key(dest, transaction_id);
+    native_to_bin_key(dest, action_index);
+}
+
 inline void append_delta_key(std::vector<char>& dest, uint32_t block, bool present, abieos::name table) {
     native_to_bin_key(dest, (uint8_t)key_tag::block);
     native_to_bin_key(dest, block);
@@ -462,9 +490,9 @@ inline std::vector<char> make_table_index_key(abieos::name table, abieos::name i
     return result;
 }
 
-inline void append_table_index_key_suffix(std::vector<char>& dest, uint32_t block) { native_to_bin_key(dest, ~block); }
+inline void append_table_index_state_suffix(std::vector<char>& dest, uint32_t block) { native_to_bin_key(dest, ~block); }
 
-inline void append_table_index_key_suffix(std::vector<char>& dest, uint32_t block, bool present) {
+inline void append_table_index_state_suffix(std::vector<char>& dest, uint32_t block, bool present) {
     native_to_bin_key(dest, ~block);
     native_to_bin_key(dest, !present);
 }

@@ -7,13 +7,13 @@
 #include "state_history_lmdb.hpp"
 
 struct lmdb_inst {
-    uint32_t                                               db_size_mb;
+    uint32_t                                               db_size_gb;
     state_history::lmdb::env                               lmdb_env;
     state_history::lmdb::database                          db;
     ::query_config::config<state_history::lmdb::lmdb_type> query_config{};
 
-    lmdb_inst(uint32_t db_size_mb)
-        : lmdb_env{db_size_mb}
+    lmdb_inst(uint32_t db_size_gb)
+        : lmdb_env{db_size_gb}
         , db{lmdb_env} {}
 };
 

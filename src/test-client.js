@@ -315,7 +315,7 @@ async function dump_transfers(clientWasm) {
         console.log();
         await dump_tokens(tokenWasm, 'b1', ["irreversible", 0], { sym: '', code: '' }, { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' });
         console.log();
-        // await dump_transfers(tokenWasm);
+        await dump_transfers(tokenWasm);
     } catch (e) {
         console.error(e);
     }

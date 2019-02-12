@@ -1,3 +1,16 @@
+# History Tools
+
+| App             | Fills LMDB | Reads LMDB | Fills Postgresql | Reads Postgresql |
+| --------------- | ---------- | ---------- | ---------------- | ---------------- |
+| `fill-lmdb`     | Yes        |            |                  |                  |        
+| `wasm-ql-lmdb`  |            | Yes        |                  |                  |            
+| `combo-lmdb`    | Yes        | Yes        |                  |                  |            
+| `fill-pg`       |            |            | Yes              |                  |        
+| `wasm-ql-pg`    |            |            |                  | Yes              |            
+| `history-tools` | Yes*       | Yes*       | Yes*             | Yes*             |            
+
+Note: by default, `history-tools` does nothing; use the `--plugin` option to select plugins.
+
 # Install SpiderMonkey 64.0 (Ubuntu 18.10)
 
 ```

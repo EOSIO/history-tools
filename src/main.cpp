@@ -10,6 +10,22 @@
 #include <boost/dll/runtime_symbol_info.hpp>
 #include <boost/exception/diagnostic_information.hpp>
 
+#ifdef INCLUDE_FILL_PG_PLUGIN
+#include "fill_pg_plugin.hpp"
+#endif
+
+#ifdef INCLUDE_WASM_QL_PG_PLUGIN
+#include "wasm_ql_pg_plugin.hpp"
+#endif
+
+#ifdef INCLUDE_FILL_LMDB_PLUGIN
+#include "fill_lmdb_plugin.hpp"
+#endif
+
+#ifdef INCLUDE_WASM_QL_LMDB_PLUGIN
+#include "wasm_ql_lmdb_plugin.hpp"
+#endif
+
 using namespace appbase;
 
 namespace fc {
@@ -74,14 +90,14 @@ enum return_codes {
 int main(int argc, char** argv) {
     try {
         auto root = fc::app_path();
-        app().set_default_data_dir(root / "eosio/wasm-ql/data");
-        app().set_default_config_dir(root / "eosio/wasm-ql/config");
-        if (!app().initialize<>(argc, argv))
+        app().set_default_data_dir(root / "eosio/" APP_NAME "/data");
+        app().set_default_config_dir(root / "eosio/" APP_NAME "/config");
+        if (!app().initialize<DEFAULT_PLUGINS>(argc, argv))
             return initialize_fail;
         initialize_logging();
-        ilog("wasm-ql version ${ver}", ("ver", app().version_string()));
-        ilog("wasm-ql using configuration file ${c}", ("c", app().full_config_file_path().string()));
-        ilog("wasm-ql data directory is ${d}", ("d", app().data_dir().string()));
+        ilog(APP_NAME " version ${ver}", ("ver", app().version_string()));
+        ilog(APP_NAME " using configuration file ${c}", ("c", app().full_config_file_path().string()));
+        ilog(APP_NAME " data directory is ${d}", ("d", app().data_dir().string()));
         app().startup();
         app().exec();
     } catch (const fc::exception& e) {

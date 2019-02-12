@@ -162,16 +162,14 @@ static void retry_loop(::state& state, F f) {
     while (true) {
         auto exit           = fc::make_scoped_exit([&] { state.query_session.reset(); });
         state.query_session = state.db_iface->create_query_session();
-        try {
-            state.fill_status = state.query_session->get_fill_status();
-            fill_context_data(state);
-            if (f())
-                return;
-            if (++num_tries >= 4)
-                throw std::runtime_error("too many fork events during request");
-        } catch (...) {
-            throw;
-        }
+        state.fill_status   = state.query_session->get_fill_status();
+        if (!state.fill_status.head)
+            throw std::runtime_error("database is empty");
+        fill_context_data(state);
+        if (f())
+            return;
+        if (++num_tries >= 4)
+            throw std::runtime_error("too many fork events during request");
         ilog("retry request");
     }
 }

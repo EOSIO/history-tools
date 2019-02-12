@@ -65,29 +65,35 @@ include(VersionMacros)
 add_subdirectory(external/appbase)
 add_subdirectory(external/fc)
 
-add_executable(history-tools src/main.cpp)
+set(APPS "")
+function(add_app APP FLAGS LIBS)
+    set(APPS ${APPS} ${APP} PARENT_SCOPE)
+    add_executable(${APP} src/main.cpp)
 
-target_include_directories(history-tools
-    PRIVATE
-        external/abieos/src
-        external/abieos/external/date/include
-        external/abieos/external/rapidjson/include
-        external/appbase/include
-        external/fc/include
-        ${Boost_INCLUDE_DIR}
-        ${JS_INCLUDE_DIRS}
-)
-target_link_libraries(history-tools appbase fc Boost::date_time Boost::filesystem Boost::system Boost::iostreams Boost::program_options ${PQXX_LIB} ${PQ_LIB} ${JS_LIBRARIES} ${LMDB_LIB} -lpthread)
-target_compile_options(history-tools PUBLIC ${JS_CFLAGS_OTHER})
+    target_include_directories(${APP}
+        PRIVATE
+            external/abieos/src
+            external/abieos/external/date/include
+            external/abieos/external/rapidjson/include
+            external/appbase/include
+            external/fc/include
+            ${Boost_INCLUDE_DIR}
+            ${JS_INCLUDE_DIRS}
+    )
+    target_link_libraries(${APP} appbase fc Boost::date_time Boost::filesystem Boost::system Boost::iostreams Boost::program_options ${LIBS} -lpthread)
+    target_compile_options(${APP} PUBLIC -DAPP_NAME="${APP}" ${JS_CFLAGS_OTHER} ${FLAGS})
 
-string(TOLOWER ${CMAKE_BUILD_TYPE} LOWERCASE_CMAKE_BUILD_TYPE)
-if (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
-    target_compile_options(history-tools PRIVATE -D DEBUG)
-endif (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
+    string(TOLOWER ${CMAKE_BUILD_TYPE} LOWERCASE_CMAKE_BUILD_TYPE)
+    if (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
+        target_compile_options(${APP} PRIVATE -D DEBUG)
+    endif (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
 
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(history-tools PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics)
-endif()
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(${APP} PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics)
+    endif()
+endfunction(add_app)
+
+add_app(history-tools "-DDEFAULT_PLUGINS=" "${PQXX_LIB};${PQ_LIB};${JS_LIBRARIES};${LMDB_LIB}")
 
 message(STATUS "----------------------------------------------------")
 message(STATUS "Checked libraries:")
@@ -104,30 +110,45 @@ show_found("    pq and pqxx:" "${FOUND_PQ}" "not found; will not build pg plugin
 show_found("    lmdb:       " "${FOUND_LMDB}" "not found; will not build lmdb plugins")
 show_found("    mozjs:      " "${JS_FOUND}" "not found; will not build wasm plugins")
 
-message(STATUS "Enabling plugins:")
+message(STATUS "Enabled plugins:")
 
 if (FOUND_PQ)
     message(STATUS "    fill_pg_plugin")
+    add_app(fill-pg "-DDEFAULT_PLUGINS=fill_pg_plugin;-DINCLUDE_FILL_PG_PLUGIN" "${PQXX_LIB};${PQ_LIB}")
     target_sources(history-tools PRIVATE src/fill_pg_plugin.cpp)
+    target_sources(fill-pg PRIVATE src/fill_pg_plugin.cpp)
     if (JS_FOUND)
         message(STATUS "    wasm_ql_pg_plugin")
+        add_app(wasm-ql-pg "-DDEFAULT_PLUGINS=wasm_ql_pg_plugin;-DINCLUDE_WASM_QL_PG_PLUGIN" "${PQXX_LIB};${PQ_LIB};${JS_LIBRARIES}")
         target_sources(history-tools PRIVATE src/wasm_ql_pg_plugin.cpp)
+        target_sources(wasm-ql-pg PRIVATE src/wasm_ql_pg_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
     endif ()
 endif ()
 
 if (FOUND_LMDB)
     message(STATUS "    fill_lmdb_plugin")
+    add_app(fill-lmdb "-DDEFAULT_PLUGINS=fill_lmdb_plugin;-DINCLUDE_FILL_LMDB_PLUGIN" "${LMDB_LIB}")
     target_sources(history-tools PRIVATE src/lmdb_plugin.cpp src/fill_lmdb_plugin.cpp)
+    target_sources(fill-lmdb PRIVATE src/lmdb_plugin.cpp src/fill_lmdb_plugin.cpp)
     if (JS_FOUND)
         message(STATUS "    wasm_ql_lmdb_plugin")
-        target_sources(history-tools PRIVATE src/wasm_ql_lmdb_plugin.cpp)
-    endif()
+        add_app(wasm-ql-lmdb "-DDEFAULT_PLUGINS=wasm_ql_lmdb_plugin;-DINCLUDE_WASM_QL_LMDB_PLUGIN" "${LMDB_LIB};${JS_LIBRARIES}")
+        add_app(combo-lmdb "-DDEFAULT_PLUGINS=fill_lmdb_plugin,wasm_ql_lmdb_plugin;-DINCLUDE_FILL_LMDB_PLUGIN;-DINCLUDE_WASM_QL_LMDB_PLUGIN" "${LMDB_LIB};${JS_LIBRARIES}")
+        target_sources(history-tools PRIVATE src/lmdb_plugin.cpp src/wasm_ql_lmdb_plugin.cpp)
+        target_sources(wasm-ql-lmdb PRIVATE src/lmdb_plugin.cpp src/wasm_ql_lmdb_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
+        target_sources(combo-lmdb PRIVATE src/lmdb_plugin.cpp src/wasm_ql_lmdb_plugin.cpp src/fill_lmdb_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
+    endif ()
 endif()
 
 if (JS_FOUND)
     message(STATUS "    wasm_ql_plugin")
     target_sources(history-tools PRIVATE src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
 endif()
+
+message(STATUS "Enabled apps:")
+foreach(APP ${APPS})
+    message(STATUS "    ${APP}")
+endforeach()
 
 message(STATUS "----------------------------------------------------")
 

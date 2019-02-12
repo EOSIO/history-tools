@@ -12,6 +12,7 @@ using namespace abieos::literals;
 
 // clang-format off
 inline const std::map<std::string, abieos::name> table_names = {
+    {"block_info",                  "block.info"_n},
     {"transaction_trace",           "ttrace"_n},
     {"action_trace",                "atrace"_n},
 
@@ -318,7 +319,6 @@ void for_each_subkey(transaction& t, database& d, const std::vector<char>& lower
 // =======================================================================================================
 // fill_status                              fill_status         key_tag::fill_status
 // received_block                   1       received_block      key_tag::block,             block_index,    key_tag::received_block
-// block_info                       1       block_info          key_tag::block,             block_index,    key_tag::block_info
 // table row (non-state tables)     1       row content         key_tag::block,             block_index,    key_tag::table_row,         table_name,         primary key fields
 // table delta (state tables)       1       row content         key_tag::block,             block_index,    key_tag::table_delta,       table_name,         present,        primary key fields
 // table index (non-state tables)           table delta's key   key_tag::table_index,       table_name,     index_name,                 index fields
@@ -334,7 +334,6 @@ enum class key_tag : uint8_t {
     fill_status     = 0x10,
     block           = 0x20,
     received_block  = 0x30,
-    block_info      = 0x40,
     table_row       = 0x50,
     table_delta     = 0x60,
     table_index     = 0x70,
@@ -348,7 +347,6 @@ inline const char* to_string(key_tag t) {
     case key_tag::fill_status: return "fill_status";
     case key_tag::block: return "block";
     case key_tag::received_block: return "received_block";
-    case key_tag::block_info: return "block_info";
     case key_tag::table_row: return "table_row";
     case key_tag::table_delta: return "table_delta";
     case key_tag::table_index: return "table_index";
@@ -417,38 +415,12 @@ inline std::vector<char> make_received_block_key(uint32_t block) {
     return result;
 }
 
-struct block_info {
-    uint32_t                         block_index       = {};
-    abieos::checksum256              block_id          = {};
-    abieos::block_timestamp          timestamp         = {};
-    abieos::name                     producer          = {};
-    uint16_t                         confirmed         = {};
-    abieos::checksum256              previous          = {};
-    abieos::checksum256              transaction_mroot = {};
-    abieos::checksum256              action_mroot      = {};
-    uint32_t                         schedule_version  = {};
-    state_history::producer_schedule new_producers     = {};
-};
-
-template <typename F>
-constexpr void for_each_field(block_info*, F f) {
-    f("block_index", abieos::member_ptr<&block_info::block_index>{});
-    f("block_id", abieos::member_ptr<&block_info::block_id>{});
-    f("timestamp", abieos::member_ptr<&block_info::timestamp>{});
-    f("producer", abieos::member_ptr<&block_info::producer>{});
-    f("confirmed", abieos::member_ptr<&block_info::confirmed>{});
-    f("previous", abieos::member_ptr<&block_info::previous>{});
-    f("transaction_mroot", abieos::member_ptr<&block_info::transaction_mroot>{});
-    f("action_mroot", abieos::member_ptr<&block_info::action_mroot>{});
-    f("schedule_version", abieos::member_ptr<&block_info::schedule_version>{});
-    f("new_producers", abieos::member_ptr<&block_info::new_producers>{});
-}
-
-inline std::vector<char> make_block_info_key(uint32_t block_index) {
+inline std::vector<char> make_block_info_key(uint32_t block) {
     std::vector<char> result;
     native_to_bin_key(result, (uint8_t)key_tag::block);
-    native_to_bin_key(result, block_index);
-    native_to_bin_key(result, (uint8_t)key_tag::block_info);
+    native_to_bin_key(result, block);
+    native_to_bin_key(result, (uint8_t)key_tag::table_row);
+    native_to_bin_key(result, "block.info"_n);
     return result;
 }
 

@@ -73,6 +73,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     websocket::stream<tcp::socket>    stream;
     bool                              received_abi       = false;
     std::map<std::string, lmdb_table> tables             = {};
+    lmdb_table*                       block_info_table   = {};
     lmdb_table*                       action_trace_table = {};
     bool                              created_trim       = false;
     uint32_t                          head               = 0;
@@ -206,6 +207,19 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                 std::get<std::string>(o["name"].value), std::get<std::string>(o["type"].value), std::get<jarray>(o["key_names"].value));
         }
 
+        block_info_table             = &tables["block_info"];
+        block_info_table->name       = "block_info";
+        block_info_table->short_name = "block.info"_n;
+        fill_fields(*block_info_table, "", abieos::abi_field{"block_index", &get_type("uint32")});
+        fill_fields(*block_info_table, "", abieos::abi_field{"block_id", &get_type("checksum256")});
+        fill_fields(*block_info_table, "", abieos::abi_field{"timestamp", &get_type("block_timestamp_type")});
+        fill_fields(*block_info_table, "", abieos::abi_field{"producer", &get_type("name")});
+        fill_fields(*block_info_table, "", abieos::abi_field{"confirmed", &get_type("uint16")});
+        fill_fields(*block_info_table, "", abieos::abi_field{"previous", &get_type("checksum256")});
+        fill_fields(*block_info_table, "", abieos::abi_field{"transaction_mroot", &get_type("checksum256")});
+        fill_fields(*block_info_table, "", abieos::abi_field{"action_mroot", &get_type("checksum256")});
+        fill_fields(*block_info_table, "", abieos::abi_field{"schedule_version", &get_type("uint32")});
+
         action_trace_table             = &tables["action_trace"];
         action_trace_table->name       = "action_trace";
         action_trace_table->short_name = "atrace"_n;
@@ -231,8 +245,6 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         // todo: verify index set in config matches index set in db
         auto& c = lmdb_inst->query_config;
         for (auto& [query_name, query] : c.query_map) {
-            if (query->index.empty())
-                continue;
             auto table_it = tables.find(query->_table);
             if (table_it == tables.end())
                 throw std::runtime_error("can't find table " + query->_table);
@@ -421,19 +433,38 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     void receive_block(uint32_t block_index, const checksum256& block_id, input_buffer bin, lmdb::transaction& t) {
         state_history::signed_block block;
         bin_to_native(block, bin);
-        lmdb::block_info info{
-            .block_index       = block_index,
-            .block_id          = block_id,
-            .timestamp         = block.timestamp,
-            .producer          = block.producer,
-            .confirmed         = block.confirmed,
-            .previous          = block.previous,
-            .transaction_mroot = block.transaction_mroot,
-            .action_mroot      = block.action_mroot,
-            .schedule_version  = block.schedule_version,
-            .new_producers     = block.new_producers ? *block.new_producers : state_history::producer_schedule{},
+        auto              key = lmdb::make_block_info_key(block_index);
+        std::vector<char> value;
+
+        std::vector<uint32_t> positions;
+        auto                  f = [&](const auto& x) {
+            positions.push_back(value.size());
+            abieos::native_to_bin(value, x);
         };
-        put(t, lmdb_inst->db, lmdb::make_block_info_key(block_index), info);
+
+        f(block_index);
+        f(block_id);
+        f(block.timestamp);
+        f(block.producer);
+        f(block.confirmed);
+        f(block.previous);
+        f(block.transaction_mroot);
+        f(block.action_mroot);
+        f(block.schedule_version);
+        abieos::native_to_bin(value, block.new_producers ? *block.new_producers : state_history::producer_schedule{});
+
+        lmdb::put(t, lmdb_inst->db, key, value);
+        for (size_t i = 0; i < positions.size(); ++i)
+            block_info_table->fields[i]->pos = {value.data() + positions[i], value.data() + value.size()};
+
+        std::vector<char> index_key;
+        for (auto& [_, index] : block_info_table->indexes) {
+            index_key.clear();
+            lmdb::append_table_index_key(index_key, block_info_table->short_name, index.name);
+            fill_key(index_key, index);
+            lmdb::put(t, lmdb_inst->db, index_key, key);
+            lmdb::put(t, lmdb_inst->db, lmdb::make_table_index_ref_key(block_index, index_key), index_key);
+        }
     } // receive_block
 
     void receive_deltas(lmdb::transaction& t, uint32_t block_num, input_buffer buf) {
@@ -593,7 +624,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     void send_request(const jarray& positions) {
         send(jvalue{jarray{{"get_blocks_request_v0"s},
                            {jobject{
-                               {{"start_block_num"s}, {std::to_string(std::min(config->skip_to, head + 1))}},
+                               {{"start_block_num"s}, {std::to_string(std::max(config->skip_to, head + 1))}},
                                {{"end_block_num"s}, {"4294967295"s}},
                                {{"max_messages_in_flight"s}, {"4294967295"s}},
                                {{"have_positions"s}, {positions}},

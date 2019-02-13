@@ -3,6 +3,7 @@
 #pragma once
 #include "state_history.hpp"
 
+#include <boost/filesystem.hpp>
 #include <lmdb.h>
 
 namespace state_history {
@@ -163,11 +164,12 @@ inline void check(int stat, const char* prefix) {
 struct env {
     MDB_env* e = nullptr;
 
-    env(uint32_t db_size_gb = 0) {
+    env(const boost::filesystem::path& db_path, uint32_t db_size_gb = 0) {
         check(mdb_env_create(&e), "mdb_env_create: ");
         if (db_size_gb)
             check(mdb_env_set_mapsize(e, size_t(db_size_gb) * 1024 * 1024 * 1024), "mdb_env_set_mapsize");
-        auto stat = mdb_env_open(e, "foo", 0, 0600);
+        boost::filesystem::create_directories(db_path);
+        auto stat = mdb_env_open(e, db_path.c_str(), 0, 0600);
         if (stat) {
             mdb_env_close(e);
             check(stat, "mdb_env_open: ");

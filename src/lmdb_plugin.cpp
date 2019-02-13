@@ -20,15 +20,15 @@ lmdb_plugin::~lmdb_plugin() {}
 
 void lmdb_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op = cfg.add_options();
-    op("lmdb-query-config,q", bpo::value<std::string>()->default_value("../src/query-config.json"), "Query configuration");
-    op("lmdb-set-db-size-gb", bpo::value<uint32_t>(),
-       "Increase database size to [arg]. This option will grow the database size limit, but not shrink it");
+    op("lmdb-query-config", bpo::value<std::string>()->default_value("../src/query-config.json"), "Query configuration");
+    op("lmdb-database", bpo::value<std::string>()->default_value("./chain.lmdb"), "Database path");
+    op("lmdb-set-db-size-gb", bpo::value<uint32_t>(), "Increase database maximum size to [arg]. This value is written into the database.");
 }
 
 void lmdb_plugin::plugin_initialize(const variables_map& options) {
     try {
         auto size     = options.count("lmdb-set-db-size-gb") ? options["lmdb-set-db-size-gb"].as<uint32_t>() : 0;
-        my->lmdb_inst = std::make_shared<lmdb_inst>(size);
+        my->lmdb_inst = std::make_shared<lmdb_inst>(options["lmdb-database"].as<std::string>(), size);
         auto x        = read_string(options["lmdb-query-config"].as<std::string>().c_str());
         try {
             abieos::json_to_native(my->lmdb_inst->query_config, x);

@@ -12,8 +12,8 @@ struct lmdb_inst {
     state_history::lmdb::database                          db;
     ::query_config::config<state_history::lmdb::lmdb_type> query_config{};
 
-    lmdb_inst(uint32_t db_size_gb)
-        : lmdb_env{db_size_gb}
+    lmdb_inst(const boost::filesystem::path& db_path, uint32_t db_size_gb)
+        : lmdb_env{db_path, db_size_gb}
         , db{lmdb_env} {}
 };
 

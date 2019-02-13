@@ -49,12 +49,12 @@ struct context_data {
 };
 
 template <typename F>
-void for_each_member(context_data& obj, F f) {
-    f("head", obj.head);
-    f("head_id", obj.head_id);
-    f("irreversible", obj.irreversible);
-    f("irreversible_id", obj.irreversible_id);
-    f("first", obj.first);
+void for_each_member(context_data*, F f) {
+    f("head", member_ptr<&context_data::head>{});
+    f("head_id", member_ptr<&context_data::head_id>{});
+    f("irreversible", member_ptr<&context_data::irreversible>{});
+    f("irreversible_id", member_ptr<&context_data::irreversible_id>{});
+    f("first", member_ptr<&context_data::first>{});
 }
 
 // todo: version number argument
@@ -124,17 +124,17 @@ struct block_info {
 };
 
 template <typename F>
-void for_each_member(block_info& obj, F f) {
-    f("block_num", obj.block_num);
-    f("block_id", obj.block_id);
-    f("timestamp", obj.timestamp);
-    f("producer", obj.producer);
-    f("confirmed", obj.confirmed);
-    f("previous", obj.previous);
-    f("transaction_mroot", obj.transaction_mroot);
-    f("action_mroot", obj.action_mroot);
-    f("schedule_version", obj.schedule_version);
-    f("new_producers_version", obj.new_producers_version);
+void for_each_member(block_info*, F f) {
+    f("block_num", member_ptr<&block_info::block_num>{});
+    f("block_id", member_ptr<&block_info::block_id>{});
+    f("timestamp", member_ptr<&block_info::timestamp>{});
+    f("producer", member_ptr<&block_info::producer>{});
+    f("confirmed", member_ptr<&block_info::confirmed>{});
+    f("previous", member_ptr<&block_info::previous>{});
+    f("transaction_mroot", member_ptr<&block_info::transaction_mroot>{});
+    f("action_mroot", member_ptr<&block_info::action_mroot>{});
+    f("schedule_version", member_ptr<&block_info::schedule_version>{});
+    f("new_producers_version", member_ptr<&block_info::new_producers_version>{});
 }
 
 struct query_block_info_range_index {
@@ -211,18 +211,18 @@ struct account {
 };
 
 template <typename F>
-void for_each_member(account& obj, F f) {
-    f("block_index", obj.block_index);
-    f("present", obj.present);
-    f("name", obj.name);
-    f("vm_type", obj.vm_type);
-    f("vm_version", obj.vm_version);
-    f("privileged", obj.privileged);
-    f("last_code_update", obj.last_code_update);
-    f("code_version", obj.code_version);
-    f("creation_date", obj.creation_date);
-    f("code", obj.code);
-    f("abi", obj.abi);
+void for_each_member(account*, F f) {
+    f("block_index", member_ptr<&account::block_index>{});
+    f("present", member_ptr<&account::present>{});
+    f("name", member_ptr<&account::name>{});
+    f("vm_type", member_ptr<&account::vm_type>{});
+    f("vm_version", member_ptr<&account::vm_version>{});
+    f("privileged", member_ptr<&account::privileged>{});
+    f("last_code_update", member_ptr<&account::last_code_update>{});
+    f("code_version", member_ptr<&account::code_version>{});
+    f("creation_date", member_ptr<&account::creation_date>{});
+    f("code", member_ptr<&account::code>{});
+    f("abi", member_ptr<&account::abi>{});
 }
 
 struct query_account_range_name {

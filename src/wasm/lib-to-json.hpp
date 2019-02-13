@@ -213,13 +213,13 @@ template <typename T>
 __attribute__((noinline)) inline void to_json(T& obj, std::vector<char>& dest) {
     dest.push_back('{');
     bool first = true;
-    for_each_member(obj, [&](std::string_view member_name, auto& member) {
+    for_each_member((T*)nullptr, [&](std::string_view member_name, auto member) {
         if (!first)
             dest.push_back(',');
         first = false;
         to_json(member_name, dest);
         dest.push_back(':');
-        to_json(member, dest);
+        to_json(member_from_void(member, &obj), dest);
     });
     dest.push_back('}');
 }

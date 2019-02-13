@@ -70,36 +70,36 @@ abieos::abi_type* get_table_type(::abi* abi, abieos::name table) {
 }
 
 struct get_table_rows_params {
-    bool             json  = false;
-    name             code  = {};
-    std::string_view scope = {};
-    name             table = {};
-    // std::string_view table_key      = {};
+    bool             json           = false;
+    name             code           = {};
+    std::string_view scope          = {};
+    name             table          = {};
+    std::string_view table_key      = {}; // todo
     std::string_view lower_bound    = {};
     std::string_view upper_bound    = {};
     uint32_t         limit          = 10;
     std::string_view key_type       = {};
     std::string_view index_position = {};
-    // std::string_view encode_type    = "dec";
-    // bool             reverse        = false;
-    bool show_payer = false;
+    std::string_view encode_type    = "dec"; // todo
+    bool             reverse        = false; // todo
+    bool             show_payer     = false;
 };
 
 template <typename F>
-void for_each_member(get_table_rows_params& obj, F f) {
-    f("json", obj.json);
-    f("code", obj.code);
-    f("scope", obj.scope);
-    f("table", obj.table);
-    // f("table_key", obj.table_key);
-    f("lower_bound", obj.lower_bound);
-    f("upper_bound", obj.upper_bound);
-    f("limit", obj.limit);
-    f("key_type", obj.key_type);
-    f("index_position", obj.index_position);
-    // f("encode_type", obj.encode_type);
-    // f("reverse", obj.reverse);
-    f("show_payer", obj.show_payer);
+void for_each_member(get_table_rows_params*, F f) {
+    f("json", member_ptr<&get_table_rows_params::json>{});
+    f("code", member_ptr<&get_table_rows_params::code>{});
+    f("scope", member_ptr<&get_table_rows_params::scope>{});
+    f("table", member_ptr<&get_table_rows_params::table>{});
+    f("table_key", member_ptr<&get_table_rows_params::table_key>{});
+    f("lower_bound", member_ptr<&get_table_rows_params::lower_bound>{});
+    f("upper_bound", member_ptr<&get_table_rows_params::upper_bound>{});
+    f("limit", member_ptr<&get_table_rows_params::limit>{});
+    f("key_type", member_ptr<&get_table_rows_params::key_type>{});
+    f("index_position", member_ptr<&get_table_rows_params::index_position>{});
+    f("encode_type", member_ptr<&get_table_rows_params::encode_type>{});
+    f("reverse", member_ptr<&get_table_rows_params::reverse>{});
+    f("show_payer", member_ptr<&get_table_rows_params::show_payer>{});
 }
 
 template <int size>

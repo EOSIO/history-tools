@@ -175,9 +175,9 @@ template <typename T>
 __attribute__((noinline)) inline void parse_json(T& obj, char*& pos, char* end) {
     parse_object(pos, end, [&](std::string_view key) {
         bool found = false;
-        for_each_member(obj, [&](std::string_view member_name, auto& member) {
+        for_each_member((T*)nullptr, [&](std::string_view member_name, auto member) {
             if (key == member_name) {
-                parse_json(member, pos, end);
+                parse_json(member_from_void(member, &obj), pos, end);
                 found = true;
             }
         });

@@ -15,10 +15,10 @@ struct block_info_request {
 };
 
 template <typename F>
-void for_each_member(block_info_request& obj, F f) {
-    f("first", obj.first);
-    f("last", obj.last);
-    f("max_results", obj.max_results);
+void for_each_member(block_info_request*, F f) {
+    f("first", member_ptr<&block_info_request::first>{});
+    f("last", member_ptr<&block_info_request::last>{});
+    f("max_results", member_ptr<&block_info_request::max_results>{});
 }
 
 // todo: versioning issues
@@ -31,9 +31,9 @@ struct block_info_response {
 };
 
 template <typename F>
-void for_each_member(block_info_response& obj, F f) {
-    f("blocks", obj.blocks);
-    f("more", obj.more);
+void for_each_member(block_info_response*, F f) {
+    f("blocks", member_ptr<&block_info_response::blocks>{});
+    f("more", member_ptr<&block_info_response::more>{});
 }
 
 struct tapos_request {
@@ -42,9 +42,9 @@ struct tapos_request {
 };
 
 template <typename F>
-void for_each_member(tapos_request& obj, F f) {
-    f("ref_block", obj.ref_block);
-    f("expire_seconds", obj.expire_seconds);
+void for_each_member(tapos_request*, F f) {
+    f("ref_block", member_ptr<&tapos_request::ref_block>{});
+    f("expire_seconds", member_ptr<&tapos_request::expire_seconds>{});
 }
 
 // todo: test pushing a transaction with this result
@@ -55,10 +55,10 @@ struct tapos_response {
 };
 
 template <typename F>
-void for_each_member(tapos_response& obj, F f) {
-    f("ref_block_num", obj.ref_block_num);
-    f("ref_block_prefix", obj.ref_block_prefix);
-    f("expiration", obj.expiration);
+void for_each_member(tapos_response*, F f) {
+    f("ref_block_num", member_ptr<&tapos_response::ref_block_num>{});
+    f("ref_block_prefix", member_ptr<&tapos_response::ref_block_prefix>{});
+    f("expiration", member_ptr<&tapos_response::expiration>{});
 }
 
 struct account_request {
@@ -73,13 +73,13 @@ struct account_request {
 };
 
 template <typename F>
-void for_each_member(account_request& obj, F f) {
-    f("max_block", obj.max_block);
-    f("first", obj.first);
-    f("last", obj.last);
-    f("max_results", obj.max_results);
-    f("include_abi", obj.include_abi);
-    f("include_code", obj.include_code);
+void for_each_member(account_request*, F f) {
+    f("max_block", member_ptr<&account_request::max_block>{});
+    f("first", member_ptr<&account_request::first>{});
+    f("last", member_ptr<&account_request::last>{});
+    f("max_results", member_ptr<&account_request::max_results>{});
+    f("include_abi", member_ptr<&account_request::include_abi>{});
+    f("include_code", member_ptr<&account_request::include_code>{});
 }
 
 // todo: versioning issues
@@ -92,9 +92,9 @@ struct account_response {
 };
 
 template <typename F>
-void for_each_member(account_response& obj, F f) {
-    f("accounts", obj.accounts);
-    f("more", obj.more);
+void for_each_member(account_response*, F f) {
+    f("accounts", member_ptr<&account_response::accounts>{});
+    f("more", member_ptr<&account_response::more>{});
 }
 
 struct abis_request {
@@ -105,9 +105,9 @@ struct abis_request {
 };
 
 template <typename F>
-void for_each_member(abis_request& obj, F f) {
-    f("max_block", obj.max_block);
-    f("names", obj.names);
+void for_each_member(abis_request*, F f) {
+    f("max_block", member_ptr<&abis_request::max_block>{});
+    f("names", member_ptr<&abis_request::names>{});
 }
 
 struct name_abi {
@@ -119,10 +119,10 @@ struct name_abi {
 };
 
 template <typename F>
-void for_each_member(name_abi& obj, F f) {
-    f("name", obj.name);
-    f("account_exists", obj.account_exists);
-    f("abi", obj.abi);
+void for_each_member(name_abi*, F f) {
+    f("name", member_ptr<&name_abi::name>{});
+    f("account_exists", member_ptr<&name_abi::account_exists>{});
+    f("abi", member_ptr<&name_abi::abi>{});
 }
 
 struct abis_response {
@@ -132,6 +132,6 @@ struct abis_response {
 };
 
 template <typename F>
-void for_each_member(abis_response& obj, F f) {
-    f("abis", obj.abis);
+void for_each_member(abis_response*, F f) {
+    f("abis", member_ptr<&abis_response::abis>{});
 }

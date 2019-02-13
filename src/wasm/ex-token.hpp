@@ -29,12 +29,12 @@ struct token_transfer_key {
 };
 
 template <typename F>
-void for_each_member(token_transfer_key& obj, F f) {
-    f("receipt_receiver", obj.receipt_receiver);
-    f("account", obj.account);
-    f("block", obj.block);
-    f("transaction_id", obj.transaction_id);
-    f("action_index", obj.action_index);
+void for_each_member(token_transfer_key*, F f) {
+    f("receipt_receiver", member_ptr<&token_transfer_key::receipt_receiver>{});
+    f("account", member_ptr<&token_transfer_key::account>{});
+    f("block", member_ptr<&token_transfer_key::block>{});
+    f("transaction_id", member_ptr<&token_transfer_key::transaction_id>{});
+    f("action_index", member_ptr<&token_transfer_key::action_index>{});
 }
 
 struct token_transfer {
@@ -48,12 +48,12 @@ struct token_transfer {
 };
 
 template <typename F>
-void for_each_member(token_transfer& obj, F f) {
-    f("key", obj.key);
-    f("from", obj.from);
-    f("to", obj.to);
-    f("quantity", obj.quantity);
-    f("memo", obj.memo);
+void for_each_member(token_transfer*, F f) {
+    f("key", member_ptr<&token_transfer::key>{});
+    f("from", member_ptr<&token_transfer::from>{});
+    f("to", member_ptr<&token_transfer::to>{});
+    f("quantity", member_ptr<&token_transfer::quantity>{});
+    f("memo", member_ptr<&token_transfer::memo>{});
 }
 
 // todo: version
@@ -68,14 +68,14 @@ struct token_transfer_request {
 };
 
 template <typename F>
-void for_each_member(token_transfer_request& obj, F f) {
-    f("max_block", obj.max_block);
-    f("first_key", obj.first_key);
-    f("last_key", obj.last_key);
-    f("include_notify_incoming", obj.include_notify_incoming);
-    f("include_notify_outgoing", obj.include_notify_outgoing);
-    f("include_nonnotify", obj.include_nonnotify);
-    f("max_results", obj.max_results);
+void for_each_member(token_transfer_request*, F f) {
+    f("max_block", member_ptr<&token_transfer_request::max_block>{});
+    f("first_key", member_ptr<&token_transfer_request::first_key>{});
+    f("last_key", member_ptr<&token_transfer_request::last_key>{});
+    f("include_notify_incoming", member_ptr<&token_transfer_request::include_notify_incoming>{});
+    f("include_notify_outgoing", member_ptr<&token_transfer_request::include_notify_outgoing>{});
+    f("include_nonnotify", member_ptr<&token_transfer_request::include_nonnotify>{});
+    f("max_results", member_ptr<&token_transfer_request::max_results>{});
 }
 
 // todo: version
@@ -87,9 +87,9 @@ struct token_transfer_response {
 };
 
 template <typename F>
-void for_each_member(token_transfer_response& obj, F f) {
-    f("transfers", obj.transfers);
-    f("more", obj.more);
+void for_each_member(token_transfer_response*, F f) {
+    f("transfers", member_ptr<&token_transfer_response::transfers>{});
+    f("more", member_ptr<&token_transfer_response::more>{});
 }
 
 // todo: version
@@ -103,13 +103,13 @@ struct balances_for_multiple_accounts_request {
 };
 
 template <typename F>
-void for_each_member(balances_for_multiple_accounts_request& obj, F f) {
-    f("max_block", obj.max_block);
-    f("code", obj.code);
-    f("sym", obj.sym);
-    f("first_account", obj.first_account);
-    f("last_account", obj.last_account);
-    f("max_results", obj.max_results);
+void for_each_member(balances_for_multiple_accounts_request*, F f) {
+    f("max_block", member_ptr<&balances_for_multiple_accounts_request::max_block>{});
+    f("code", member_ptr<&balances_for_multiple_accounts_request::code>{});
+    f("sym", member_ptr<&balances_for_multiple_accounts_request::sym>{});
+    f("first_account", member_ptr<&balances_for_multiple_accounts_request::first_account>{});
+    f("last_account", member_ptr<&balances_for_multiple_accounts_request::last_account>{});
+    f("max_results", member_ptr<&balances_for_multiple_accounts_request::max_results>{});
 }
 
 struct bfmt_key {
@@ -125,9 +125,9 @@ struct bfmt_key {
 };
 
 template <typename F>
-void for_each_member(bfmt_key& obj, F f) {
-    f("sym", obj.sym);
-    f("code", obj.code);
+void for_each_member(bfmt_key*, F f) {
+    f("sym", member_ptr<&bfmt_key::sym>{});
+    f("code", member_ptr<&bfmt_key::code>{});
 }
 
 // todo: version
@@ -140,12 +140,12 @@ struct balances_for_multiple_tokens_request {
 };
 
 template <typename F>
-void for_each_member(balances_for_multiple_tokens_request& obj, F f) {
-    f("max_block", obj.max_block);
-    f("account", obj.account);
-    f("first_key", obj.first_key);
-    f("last_key", obj.last_key);
-    f("max_results", obj.max_results);
+void for_each_member(balances_for_multiple_tokens_request*, F f) {
+    f("max_block", member_ptr<&balances_for_multiple_tokens_request::max_block>{});
+    f("account", member_ptr<&balances_for_multiple_tokens_request::account>{});
+    f("first_key", member_ptr<&balances_for_multiple_tokens_request::first_key>{});
+    f("last_key", member_ptr<&balances_for_multiple_tokens_request::last_key>{});
+    f("max_results", member_ptr<&balances_for_multiple_tokens_request::max_results>{});
 }
 
 struct token_balance {
@@ -154,9 +154,9 @@ struct token_balance {
 };
 
 template <typename F>
-void for_each_member(token_balance& obj, F f) {
-    f("account", obj.account);
-    f("amount", obj.amount);
+void for_each_member(token_balance*, F f) {
+    f("account", member_ptr<&token_balance::account>{});
+    f("amount", member_ptr<&token_balance::amount>{});
 }
 
 // todo: version
@@ -168,9 +168,9 @@ struct balances_for_multiple_accounts_response {
 };
 
 template <typename F>
-void for_each_member(balances_for_multiple_accounts_response& obj, F f) {
-    f("balances", obj.balances);
-    f("more", obj.more);
+void for_each_member(balances_for_multiple_accounts_response*, F f) {
+    f("balances", member_ptr<&balances_for_multiple_accounts_response::balances>{});
+    f("more", member_ptr<&balances_for_multiple_accounts_response::more>{});
 }
 
 // todo: version
@@ -182,7 +182,7 @@ struct balances_for_multiple_tokens_response {
 };
 
 template <typename F>
-void for_each_member(balances_for_multiple_tokens_response& obj, F f) {
-    f("balances", obj.balances);
-    f("more", obj.more);
+void for_each_member(balances_for_multiple_tokens_response*, F f) {
+    f("balances", member_ptr<&balances_for_multiple_tokens_response::balances>{});
+    f("more", member_ptr<&balances_for_multiple_tokens_response::more>{});
 }

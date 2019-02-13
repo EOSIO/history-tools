@@ -66,24 +66,25 @@ struct fill_lmdb_plugin_impl : std::enable_shared_from_this<fill_lmdb_plugin_imp
 };
 
 struct flm_session : std::enable_shared_from_this<flm_session> {
-    fill_lmdb_plugin_impl*            my = nullptr;
-    std::shared_ptr<fill_lmdb_config> config;
-    std::shared_ptr<::lmdb_inst>      lmdb_inst = app().find_plugin<lmdb_plugin>()->get_lmdb_inst();
-    tcp::resolver                     resolver;
-    websocket::stream<tcp::socket>    stream;
-    bool                              received_abi       = false;
-    std::map<std::string, lmdb_table> tables             = {};
-    lmdb_table*                       block_info_table   = {};
-    lmdb_table*                       action_trace_table = {};
-    bool                              created_trim       = false;
-    uint32_t                          head               = 0;
-    abieos::checksum256               head_id            = {};
-    uint32_t                          irreversible       = 0;
-    abieos::checksum256               irreversible_id    = {};
-    uint32_t                          first              = 0;
-    uint32_t                          first_bulk         = 0;
-    abi_def                           abi                = {};
-    std::map<std::string, abi_type>   abi_types          = {};
+    fill_lmdb_plugin_impl*                    my = nullptr;
+    std::shared_ptr<fill_lmdb_config>         config;
+    std::shared_ptr<::lmdb_inst>              lmdb_inst = app().find_plugin<lmdb_plugin>()->get_lmdb_inst();
+    tcp::resolver                             resolver;
+    websocket::stream<tcp::socket>            stream;
+    bool                                      received_abi       = false;
+    std::map<std::string, lmdb_table>         tables             = {};
+    lmdb_table*                               block_info_table   = {};
+    lmdb_table*                               action_trace_table = {};
+    bool                                      created_trim       = false;
+    std::optional<state_history::fill_status> current_db_status  = {};
+    uint32_t                                  head               = 0;
+    abieos::checksum256                       head_id            = {};
+    uint32_t                                  irreversible       = 0;
+    abieos::checksum256                       irreversible_id    = {};
+    uint32_t                                  first              = 0;
+    uint32_t                                  first_bulk         = 0;
+    abi_def                                   abi                = {};
+    std::map<std::string, abi_type>           abi_types          = {};
 
     flm_session(fill_lmdb_plugin_impl* my, asio::io_context& ioc)
         : my(my)
@@ -285,14 +286,20 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     }
 
     void load_fill_status(lmdb::transaction& t) {
-        auto r = lmdb::get<state_history::fill_status>(t, lmdb_inst->db, lmdb::make_fill_status_key(), false);
-        if (!r)
+        current_db_status = lmdb::get<state_history::fill_status>(t, lmdb_inst->db, lmdb::make_fill_status_key(), false);
+        if (!current_db_status)
             return;
-        head            = r->head;
-        head_id         = r->head_id;
-        irreversible    = r->irreversible;
-        irreversible_id = r->irreversible_id;
-        first           = r->first;
+        head            = current_db_status->head;
+        head_id         = current_db_status->head_id;
+        irreversible    = current_db_status->irreversible;
+        irreversible_id = current_db_status->irreversible_id;
+        first           = current_db_status->first;
+    }
+
+    void check_conflicts(lmdb::transaction& t) {
+        auto r = lmdb::get<state_history::fill_status>(t, lmdb_inst->db, lmdb::make_fill_status_key(), false);
+        if ((bool)r != (bool)current_db_status || (r && *r != *current_db_status))
+            throw std::runtime_error("Another process is filling this database");
     }
 
     jarray get_positions(lmdb::transaction& t) {
@@ -311,15 +318,12 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
 
     void write_fill_status(lmdb::transaction& t) {
         if (irreversible < head)
-            put(t, lmdb_inst->db, lmdb::make_fill_status_key(),
-                state_history::fill_status{
-                    .head = head, .head_id = head_id, .irreversible = irreversible, .irreversible_id = irreversible_id, .first = first},
-                true);
+            current_db_status = state_history::fill_status{
+                .head = head, .head_id = head_id, .irreversible = irreversible, .irreversible_id = irreversible_id, .first = first};
         else
-            put(t, lmdb_inst->db, lmdb::make_fill_status_key(),
-                state_history::fill_status{
-                    .head = head, .head_id = head_id, .irreversible = head, .irreversible_id = head_id, .first = first},
-                true);
+            current_db_status = state_history::fill_status{
+                .head = head, .head_id = head_id, .irreversible = head, .irreversible_id = head_id, .first = first};
+        put(t, lmdb_inst->db, lmdb::make_fill_status_key(), *current_db_status, true);
     }
 
     void truncate(lmdb::transaction& t, uint32_t block) {
@@ -364,6 +368,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         trim();
 
         lmdb::transaction t{lmdb_inst->lmdb_env, true};
+        check_conflicts(t);
         if (result.this_block->block_num <= head) {
             ilog("switch forks at block ${b}", ("b", result.this_block->block_num));
             truncate(t, result.this_block->block_num);

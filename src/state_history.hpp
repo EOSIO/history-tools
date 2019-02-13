@@ -22,6 +22,13 @@ constexpr void for_each_field(fill_status*, F f) {
     f("first", abieos::member_ptr<&fill_status::first>{});
 }
 
+inline bool operator==(const fill_status& a, fill_status& b) {
+    return std::tie(a.head, a.head_id, a.irreversible, a.irreversible_id, a.first) ==
+           std::tie(b.head, b.head_id, b.irreversible, b.irreversible_id, b.first);
+}
+
+inline bool operator!=(const fill_status& a, fill_status& b) { return !(a == b); }
+
 enum class transaction_status : uint8_t {
     executed  = 0, // succeed, no error handler executed
     soft_fail = 1, // objectively failed (not executed), error handler executed

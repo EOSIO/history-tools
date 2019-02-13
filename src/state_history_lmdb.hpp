@@ -165,9 +165,8 @@ struct env {
 
     env(uint32_t db_size_gb = 0) {
         check(mdb_env_create(&e), "mdb_env_create: ");
-        if (!db_size_gb)
-            db_size_gb = 1;
-        check(mdb_env_set_mapsize(e, size_t(db_size_gb) * 1024 * 1024 * 1024), "mdb_env_set_mapsize");
+        if (db_size_gb)
+            check(mdb_env_set_mapsize(e, size_t(db_size_gb) * 1024 * 1024 * 1024), "mdb_env_set_mapsize");
         auto stat = mdb_env_open(e, "foo", 0, 0600);
         if (stat) {
             mdb_env_close(e);

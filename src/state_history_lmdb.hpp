@@ -169,7 +169,7 @@ struct env {
         if (db_size_gb)
             check(mdb_env_set_mapsize(e, size_t(db_size_gb) * 1024 * 1024 * 1024), "mdb_env_set_mapsize");
         boost::filesystem::create_directories(db_path);
-        auto stat = mdb_env_open(e, db_path.c_str(), 0, 0600);
+        auto stat = mdb_env_open(e, db_path.c_str(), MDB_NOTLS, 0600);
         if (stat) {
             mdb_env_close(e);
             check(stat, "mdb_env_open: ");

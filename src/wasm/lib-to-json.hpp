@@ -3,7 +3,9 @@
 #pragma once
 #include "lib-placeholders.hpp"
 #include "lib-tagged-variant.hpp"
+
 #include <date/date.h>
+#include <eosiolib/time.hpp>
 #include <vector>
 
 // todo: replace
@@ -245,4 +247,11 @@ __attribute__((noinline)) inline void to_json(tagged_variant<Options, NamedTypes
         },
         v.value);
     dest.push_back(']');
+}
+
+template <typename T>
+__attribute__((noinline)) void kv_to_json(std::string_view key, const T& value, std::vector<char>& dest) {
+    to_json(key, dest);
+    dest.push_back(':');
+    to_json(value, dest);
 }

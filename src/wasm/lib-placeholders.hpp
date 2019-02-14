@@ -166,5 +166,6 @@ auto& member_from_void(const member_ptr<P>&, void* p) {
 
 template <auto P>
 struct member_ptr {
-    using member_type = std::decay_t<decltype(member_from_void(std::declval<member_ptr<P>>(), std::declval<void*>()))>;
+    using member_type                  = std::decay_t<decltype(member_from_void(std::declval<member_ptr<P>>(), std::declval<void*>()))>;
+    static constexpr member_type* null = nullptr;
 };

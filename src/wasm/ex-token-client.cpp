@@ -2,6 +2,7 @@
 
 #include "lib-database.hpp"
 #include "lib-parse-json.hpp"
+#include "lib-schema.hpp"
 #include "lib-to-json.hpp"
 #include "test-common.hpp"
 
@@ -11,7 +12,8 @@ extern "C" void eosio_assert(uint32_t test, const char* msg) {
         eosio_assert_message(test, msg, strlen(msg));
 }
 
-static constexpr bool show_request = false;
+extern "C" void describe_request() { set_output_data(make_json_schema<token_request>()); }
+extern "C" void describe_response() { set_output_data(make_json_schema<token_response>()); }
 
 extern "C" void create_request() {
     set_output_data(pack(std::make_tuple("local"_n, "token"_n, parse_json<token_request>(get_input_data()))));

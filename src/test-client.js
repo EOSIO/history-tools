@@ -139,6 +139,16 @@ class ClientWasm {
         this.inst = new WebAssembly.Instance(this.mod, { env: this.env });
     }
 
+    describe_request() {
+        this.inst.exports.describe_request();
+        return JSON.parse(decoder.decode(this.output_data));
+    }
+
+    describe_response() {
+        this.inst.exports.describe_response();
+        return JSON.parse(decoder.decode(this.output_data));
+    }
+
     create_request(request) {
         this.input_data = encoder.encode(JSON.stringify(request));
         this.output_data = new Uint8Array(0);
@@ -302,6 +312,11 @@ async function dump_transfers(clientWasm) {
     try {
         const chainWasm = new ClientWasm('./chain-client.wasm');
         const tokenWasm = new ClientWasm('./token-client.wasm');
+
+        fs.writeFileSync('chain_request_schema.json', JSON.stringify(chainWasm.describe_request(), null, 4));
+        fs.writeFileSync('chain_response_schema.json', JSON.stringify(chainWasm.describe_response(), null, 4));
+        fs.writeFileSync('token_request_schema.json', JSON.stringify(tokenWasm.describe_request(), null, 4));
+        fs.writeFileSync('token_response_schema.json', JSON.stringify(tokenWasm.describe_response(), null, 4));
 
         await dump_block_info(chainWasm, ["irreversible", 0], ["irreversible", 1]);
         console.log();

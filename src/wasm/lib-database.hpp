@@ -126,6 +126,8 @@ struct block_info {
     // std::vector<producer_key>       new_producers         = {}; // todo
 };
 
+inline std::string_view schema_type_name(block_info*) { return "block_info"; }
+
 template <typename F>
 void for_each_member(block_info*, F f) {
     f("block_num", member_ptr<&block_info::block_num>{});
@@ -179,6 +181,8 @@ struct action_trace {
                           account)(name)(data)(context_free)(elapsed))
 };
 
+inline std::string_view schema_type_name(action_trace*) { return "action_trace"; }
+
 struct query_action_trace_executed_range_name_receiver_account_block_trans_action {
     struct key {
         eosio::name                        name             = {};
@@ -213,6 +217,8 @@ struct account {
         account, (block_index)(present)(name)(vm_type)(vm_version)(privileged)(last_code_update)(code_version)(creation_date)(code)(abi))
 };
 
+inline std::string_view schema_type_name(account*) { return "account"; }
+
 template <typename F>
 void for_each_member(account*, F f) {
     f("block_index", member_ptr<&account::block_index>{});
@@ -246,6 +252,8 @@ struct contract_row {
     eosio::name                    payer       = {};
     eosio::datastream<const char*> value       = {nullptr, 0};
 };
+
+inline std::string_view schema_type_name(contract_row*) { return "contract_row"; }
 
 template <typename payload, typename F>
 bool for_each_contract_row(const std::vector<char>& bytes, F f) {

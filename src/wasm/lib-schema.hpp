@@ -44,14 +44,7 @@ __attribute__((noinline)) inline void make_json_schema(std::string_view*, std::v
     kv_to_json("type"sv, "string"sv, dest);
 }
 
-// todo: remove these
-__attribute__((noinline)) inline void
-make_json_schema_definitions_recurse(std::string_view*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
-
 inline std::string_view schema_type_name(eosio::name*) { return "eosio::name"; }
-
-__attribute__((noinline)) inline void
-make_json_schema_definitions_recurse(eosio::name*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
 
 __attribute__((noinline)) inline void make_json_schema(eosio::name*, std::vector<char>& dest) {
     make_json_schema_string_pattern("... todo: name pattern ...", dest);
@@ -59,17 +52,11 @@ __attribute__((noinline)) inline void make_json_schema(eosio::name*, std::vector
 
 inline std::string_view schema_type_name(eosio::symbol_code*) { return "eosio::symbol_code"; }
 
-__attribute__((noinline)) inline void
-make_json_schema_definitions_recurse(eosio::symbol_code*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
-
 __attribute__((noinline)) inline void make_json_schema(eosio::symbol_code*, std::vector<char>& dest) {
     make_json_schema_string_pattern("... todo: symbol_code pattern ...", dest);
 }
 
 inline std::string_view schema_type_name(eosio::time_point*) { return "eosio::time_point"; }
-
-__attribute__((noinline)) inline void
-make_json_schema_definitions_recurse(eosio::time_point*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
 
 __attribute__((noinline)) inline void make_json_schema(eosio::time_point*, std::vector<char>& dest) {
     make_json_schema_string_pattern("... todo: time_point pattern ...", dest);
@@ -77,17 +64,11 @@ __attribute__((noinline)) inline void make_json_schema(eosio::time_point*, std::
 
 inline std::string_view schema_type_name(eosio::block_timestamp*) { return "eosio::block_timestamp"; }
 
-__attribute__((noinline)) inline void
-make_json_schema_definitions_recurse(eosio::block_timestamp*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
-
 __attribute__((noinline)) inline void make_json_schema(eosio::block_timestamp*, std::vector<char>& dest) {
     make_json_schema_string_pattern("... todo: block_timestamp pattern ...", dest);
 }
 
 inline std::string_view schema_type_name(eosio::extended_asset*) { return "eosio::extended_asset"; }
-
-__attribute__((noinline)) inline void
-make_json_schema_definitions_recurse(eosio::extended_asset*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
 
 __attribute__((noinline)) inline void make_json_schema(eosio::extended_asset*, std::vector<char>& dest) {
     make_json_schema_string_pattern("... todo: extended_asset pattern ...", dest);
@@ -95,17 +76,11 @@ __attribute__((noinline)) inline void make_json_schema(eosio::extended_asset*, s
 
 inline std::string_view schema_type_name(serial_wrapper<eosio::checksum256>*) { return "eosio::checksum256"; }
 
-__attribute__((noinline)) inline void make_json_schema_definitions_recurse(
-    serial_wrapper<eosio::checksum256>*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
-
 __attribute__((noinline)) inline void make_json_schema(serial_wrapper<eosio::checksum256>*, std::vector<char>& dest) {
     make_json_schema_string_pattern("... todo: checksum256 pattern ...", dest);
 }
 
 inline std::string_view schema_type_name(eosio::datastream<const char*>*) { return "eosio::bytes"; }
-
-__attribute__((noinline)) inline void
-make_json_schema_definitions_recurse(eosio::datastream<const char*>*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
 
 __attribute__((noinline)) inline void make_json_schema(eosio::datastream<const char*>*, std::vector<char>& dest) {
     make_json_schema_string_pattern("... todo: datastream pattern ...", dest);
@@ -185,9 +160,27 @@ __attribute__((noinline)) inline void make_json_schema(T*, std::vector<char>& de
 }
 
 template <typename T>
+struct has_for_each_member {
+  private:
+    struct F {
+        template <typename A, typename B>
+        void operator()(const A&, const B&);
+    };
+
+    template <typename C>
+    static char test(decltype(for_each_member((C*)nullptr, F{}))*);
+
+    template <typename C>
+    static long test(...);
+
+  public:
+    static constexpr bool value = sizeof(test<T>((void*)nullptr)) == sizeof(char);
+};
+
+template <typename T>
 __attribute__((noinline)) inline void
 make_json_schema_definitions_recurse(T*, std::vector<std::string_view>& existing, std::vector<char>& dest) {
-    if constexpr (!std::is_integral_v<T>)
+    if constexpr (has_for_each_member<T>::value)
         for_each_member((T*)nullptr, [&](std::string_view member_name, auto member) { //
             make_json_schema_definitions(member.null, existing, dest);
         });

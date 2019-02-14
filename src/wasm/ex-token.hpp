@@ -153,7 +153,6 @@ struct balances_for_multiple_tokens_request {
 
 inline std::string_view schema_type_name(balances_for_multiple_tokens_request*) { return "balances_for_multiple_tokens_request"; }
 
-
 template <typename F>
 void for_each_member(balances_for_multiple_tokens_request*, F f) {
     f("max_block", member_ptr<&balances_for_multiple_tokens_request::max_block>{});
@@ -169,7 +168,6 @@ struct token_balance {
 };
 
 inline std::string_view schema_type_name(token_balance*) { return "token_balance"; }
-
 
 template <typename F>
 void for_each_member(token_balance*, F f) {

@@ -14,14 +14,14 @@ std::string_view schema_type_name(T*) {
     return {};
 }
 
-inline std::string_view schema_type_name(uint8_t*) { return "eosio.uint8_t"; }
-inline std::string_view schema_type_name(int8_t*) { return "eosio.int8_t"; }
-inline std::string_view schema_type_name(uint16_t*) { return "eosio.uint16_t"; }
-inline std::string_view schema_type_name(int16_t*) { return "eosio.int16_t"; }
-inline std::string_view schema_type_name(uint32_t*) { return "eosio.uint32_t"; }
-inline std::string_view schema_type_name(int32_t*) { return "eosio.int32_t"; }
-inline std::string_view schema_type_name(uint64_t*) { return "eosio.uint64_t"; }
-inline std::string_view schema_type_name(int64_t*) { return "eosio.int64_t"; }
+inline std::string_view schema_type_name(uint8_t*) { return "eosio::uint8_t"; }
+inline std::string_view schema_type_name(int8_t*) { return "eosio::int8_t"; }
+inline std::string_view schema_type_name(uint16_t*) { return "eosio::uint16_t"; }
+inline std::string_view schema_type_name(int16_t*) { return "eosio::int16_t"; }
+inline std::string_view schema_type_name(uint32_t*) { return "eosio::uint32_t"; }
+inline std::string_view schema_type_name(int32_t*) { return "eosio::int32_t"; }
+inline std::string_view schema_type_name(uint64_t*) { return "eosio::uint64_t"; }
+inline std::string_view schema_type_name(int64_t*) { return "eosio::int64_t"; }
 
 template <typename T>
 __attribute__((noinline)) void make_json_schema_recurse(T*, std::vector<char>& dest);
@@ -48,7 +48,7 @@ __attribute__((noinline)) inline void make_json_schema(std::string_view*, std::v
 __attribute__((noinline)) inline void
 make_json_schema_definitions_recurse(std::string_view*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
 
-inline std::string_view schema_type_name(eosio::name*) { return "eosio.name"; }
+inline std::string_view schema_type_name(eosio::name*) { return "eosio::name"; }
 
 __attribute__((noinline)) inline void
 make_json_schema_definitions_recurse(eosio::name*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
@@ -57,7 +57,7 @@ __attribute__((noinline)) inline void make_json_schema(eosio::name*, std::vector
     make_json_schema_string_pattern("... todo: name pattern ...", dest);
 }
 
-inline std::string_view schema_type_name(eosio::symbol_code*) { return "eosio.symbol_code"; }
+inline std::string_view schema_type_name(eosio::symbol_code*) { return "eosio::symbol_code"; }
 
 __attribute__((noinline)) inline void
 make_json_schema_definitions_recurse(eosio::symbol_code*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
@@ -66,7 +66,7 @@ __attribute__((noinline)) inline void make_json_schema(eosio::symbol_code*, std:
     make_json_schema_string_pattern("... todo: symbol_code pattern ...", dest);
 }
 
-inline std::string_view schema_type_name(eosio::time_point*) { return "eosio.time_point"; }
+inline std::string_view schema_type_name(eosio::time_point*) { return "eosio::time_point"; }
 
 __attribute__((noinline)) inline void
 make_json_schema_definitions_recurse(eosio::time_point*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
@@ -75,7 +75,7 @@ __attribute__((noinline)) inline void make_json_schema(eosio::time_point*, std::
     make_json_schema_string_pattern("... todo: time_point pattern ...", dest);
 }
 
-inline std::string_view schema_type_name(eosio::block_timestamp*) { return "eosio.block_timestamp"; }
+inline std::string_view schema_type_name(eosio::block_timestamp*) { return "eosio::block_timestamp"; }
 
 __attribute__((noinline)) inline void
 make_json_schema_definitions_recurse(eosio::block_timestamp*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
@@ -84,7 +84,7 @@ __attribute__((noinline)) inline void make_json_schema(eosio::block_timestamp*, 
     make_json_schema_string_pattern("... todo: block_timestamp pattern ...", dest);
 }
 
-inline std::string_view schema_type_name(eosio::extended_asset*) { return "eosio.extended_asset"; }
+inline std::string_view schema_type_name(eosio::extended_asset*) { return "eosio::extended_asset"; }
 
 __attribute__((noinline)) inline void
 make_json_schema_definitions_recurse(eosio::extended_asset*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
@@ -93,7 +93,7 @@ __attribute__((noinline)) inline void make_json_schema(eosio::extended_asset*, s
     make_json_schema_string_pattern("... todo: extended_asset pattern ...", dest);
 }
 
-inline std::string_view schema_type_name(serial_wrapper<eosio::checksum256>*) { return "eosio.checksum256"; }
+inline std::string_view schema_type_name(serial_wrapper<eosio::checksum256>*) { return "eosio::checksum256"; }
 
 __attribute__((noinline)) inline void make_json_schema_definitions_recurse(
     serial_wrapper<eosio::checksum256>*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}
@@ -102,7 +102,7 @@ __attribute__((noinline)) inline void make_json_schema(serial_wrapper<eosio::che
     make_json_schema_string_pattern("... todo: checksum256 pattern ...", dest);
 }
 
-inline std::string_view schema_type_name(eosio::datastream<const char*>*) { return "eosio.bytes"; }
+inline std::string_view schema_type_name(eosio::datastream<const char*>*) { return "eosio::bytes"; }
 
 __attribute__((noinline)) inline void
 make_json_schema_definitions_recurse(eosio::datastream<const char*>*, std::vector<std::string_view>& existing, std::vector<char>& dest) {}

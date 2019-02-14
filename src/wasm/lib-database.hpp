@@ -86,7 +86,7 @@ using irreversible_block = tagged_type<"irreversible"_n, int32_t>;
 using block_select       = tagged_variant<serialize_tag_as_index, absolute_block, head_block, irreversible_block>;
 
 // todo: which namespace?
-inline std::string_view schema_type_name(block_select*) { return "eosio.block_select"; }
+inline std::string_view schema_type_name(block_select*) { return "eosio::block_select"; }
 
 inline block_select make_absolute_block(int32_t i) {
     block_select result;

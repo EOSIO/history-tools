@@ -14,6 +14,8 @@ struct block_info_request {
     EOSLIB_SERIALIZE(block_info_request, (first)(last)(max_results))
 };
 
+inline std::string_view schema_type_name(block_info_request*) { return "block_info_request"; }
+
 template <typename F>
 void for_each_member(block_info_request*, F f) {
     f("first", member_ptr<&block_info_request::first>{});
@@ -30,6 +32,8 @@ struct block_info_response {
     EOSLIB_SERIALIZE(block_info_response, (blocks)(more))
 };
 
+inline std::string_view schema_type_name(block_info_response*) { return "block_info_response"; }
+
 template <typename F>
 void for_each_member(block_info_response*, F f) {
     f("blocks", member_ptr<&block_info_response::blocks>{});
@@ -40,6 +44,8 @@ struct tapos_request {
     block_select ref_block      = {};
     uint32_t     expire_seconds = {};
 };
+
+inline std::string_view schema_type_name(tapos_request*) { return "tapos_request"; }
 
 template <typename F>
 void for_each_member(tapos_request*, F f) {
@@ -53,6 +59,8 @@ struct tapos_response {
     uint32_t               ref_block_prefix = {};
     eosio::block_timestamp expiration       = eosio::block_timestamp{};
 };
+
+inline std::string_view schema_type_name(tapos_response*) { return "tapos_response"; }
 
 template <typename F>
 void for_each_member(tapos_response*, F f) {
@@ -71,6 +79,8 @@ struct account_request {
 
     EOSLIB_SERIALIZE(account_request, (max_block)(first)(last)(max_results)(include_abi)(include_code))
 };
+
+inline std::string_view schema_type_name(account_request*) { return "account_request"; }
 
 template <typename F>
 void for_each_member(account_request*, F f) {
@@ -91,6 +101,8 @@ struct account_response {
     EOSLIB_SERIALIZE(account_response, (accounts)(more))
 };
 
+inline std::string_view schema_type_name(account_response*) { return "account_response"; }
+
 template <typename F>
 void for_each_member(account_response*, F f) {
     f("accounts", member_ptr<&account_response::accounts>{});
@@ -103,6 +115,8 @@ struct abis_request {
 
     EOSLIB_SERIALIZE(abis_request, (max_block)(names))
 };
+
+inline std::string_view schema_type_name(abis_request*) { return "abis_request"; }
 
 template <typename F>
 void for_each_member(abis_request*, F f) {
@@ -118,6 +132,8 @@ struct name_abi {
     EOSLIB_SERIALIZE(name_abi, (name)(account_exists)(abi))
 };
 
+inline std::string_view schema_type_name(name_abi*) { return "name_abi"; }
+
 template <typename F>
 void for_each_member(name_abi*, F f) {
     f("name", member_ptr<&name_abi::name>{});
@@ -130,6 +146,8 @@ struct abis_response {
 
     EOSLIB_SERIALIZE(abis_response, (abis))
 };
+
+inline std::string_view schema_type_name(abis_response*) { return "abis_response"; }
 
 template <typename F>
 void for_each_member(abis_response*, F f) {

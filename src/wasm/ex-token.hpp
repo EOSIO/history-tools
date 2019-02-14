@@ -28,6 +28,8 @@ struct token_transfer_key {
     EOSLIB_SERIALIZE(token_transfer_key, (receipt_receiver)(account)(block)(transaction_id)(action_index))
 };
 
+inline std::string_view schema_type_name(token_transfer_key*) { return "token_transfer_key"; }
+
 template <typename F>
 void for_each_member(token_transfer_key*, F f) {
     f("receipt_receiver", member_ptr<&token_transfer_key::receipt_receiver>{});
@@ -46,6 +48,8 @@ struct token_transfer {
 
     EOSLIB_SERIALIZE(token_transfer, (key)(from)(to)(quantity)(memo))
 };
+
+inline std::string_view schema_type_name(token_transfer*) { return "token_transfer"; }
 
 template <typename F>
 void for_each_member(token_transfer*, F f) {
@@ -67,6 +71,8 @@ struct token_transfer_request {
     uint32_t           max_results             = {};
 };
 
+inline std::string_view schema_type_name(token_transfer_request*) { return "token_transfer_request"; }
+
 template <typename F>
 void for_each_member(token_transfer_request*, F f) {
     f("max_block", member_ptr<&token_transfer_request::max_block>{});
@@ -86,6 +92,8 @@ struct token_transfer_response {
     EOSLIB_SERIALIZE(token_transfer_response, (transfers)(more))
 };
 
+inline std::string_view schema_type_name(token_transfer_response*) { return "token_transfer_response"; }
+
 template <typename F>
 void for_each_member(token_transfer_response*, F f) {
     f("transfers", member_ptr<&token_transfer_response::transfers>{});
@@ -101,6 +109,8 @@ struct balances_for_multiple_accounts_request {
     eosio::name        last_account  = {};
     uint32_t           max_results   = {};
 };
+
+inline std::string_view schema_type_name(balances_for_multiple_accounts_request*) { return "balances_for_multiple_accounts_request"; }
 
 template <typename F>
 void for_each_member(balances_for_multiple_accounts_request*, F f) {
@@ -124,6 +134,8 @@ struct bfmt_key {
     }
 };
 
+inline std::string_view schema_type_name(bfmt_key*) { return "bfmt_key"; }
+
 template <typename F>
 void for_each_member(bfmt_key*, F f) {
     f("sym", member_ptr<&bfmt_key::sym>{});
@@ -139,6 +151,9 @@ struct balances_for_multiple_tokens_request {
     uint32_t     max_results = {};
 };
 
+inline std::string_view schema_type_name(balances_for_multiple_tokens_request*) { return "balances_for_multiple_tokens_request"; }
+
+
 template <typename F>
 void for_each_member(balances_for_multiple_tokens_request*, F f) {
     f("max_block", member_ptr<&balances_for_multiple_tokens_request::max_block>{});
@@ -152,6 +167,9 @@ struct token_balance {
     eosio::name           account = {};
     eosio::extended_asset amount  = {};
 };
+
+inline std::string_view schema_type_name(token_balance*) { return "token_balance"; }
+
 
 template <typename F>
 void for_each_member(token_balance*, F f) {
@@ -167,6 +185,8 @@ struct balances_for_multiple_accounts_response {
     EOSLIB_SERIALIZE(balances_for_multiple_accounts_response, (balances)(more))
 };
 
+inline std::string_view schema_type_name(balances_for_multiple_accounts_response*) { return "balances_for_multiple_accounts_response"; }
+
 template <typename F>
 void for_each_member(balances_for_multiple_accounts_response*, F f) {
     f("balances", member_ptr<&balances_for_multiple_accounts_response::balances>{});
@@ -180,6 +200,8 @@ struct balances_for_multiple_tokens_response {
 
     EOSLIB_SERIALIZE(balances_for_multiple_tokens_response, (balances)(more))
 };
+
+inline std::string_view schema_type_name(balances_for_multiple_tokens_response*) { return "balances_for_multiple_tokens_response"; }
 
 template <typename F>
 void for_each_member(balances_for_multiple_tokens_response*, F f) {

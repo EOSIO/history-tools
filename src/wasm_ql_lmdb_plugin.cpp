@@ -11,7 +11,7 @@ namespace lmdb = state_history::lmdb;
 static abstract_plugin& _wasm_ql_lmdb_plugin = app().register_plugin<wasm_ql_lmdb_plugin>();
 
 struct lmdb_database_interface : database_interface, std::enable_shared_from_this<lmdb_database_interface> {
-    std::shared_ptr<::lmdb_inst> lmdb_inst = app().find_plugin<lmdb_plugin>()->get_lmdb_inst();
+    std::shared_ptr<::lmdb_inst> lmdb_inst;
 
     virtual ~lmdb_database_interface() {}
 
@@ -100,6 +100,8 @@ struct lmdb_query_session : query_session {
 }; // lmdb_query_session
 
 std::unique_ptr<query_session> lmdb_database_interface::create_query_session() {
+    if (!lmdb_inst)
+        lmdb_inst = app().find_plugin<lmdb_plugin>()->get_lmdb_inst();
     auto session = std::make_unique<lmdb_query_session>(shared_from_this());
     return session;
 }

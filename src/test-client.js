@@ -107,12 +107,6 @@ class ClientWasm {
                     throw e;
                 }
             },
-            get_blockchain_parameters_packed() {
-                throw new Error('called get_blockchain_parameters_packed');
-            },
-            set_blockchain_parameters_packed() {
-                throw new Error('called set_blockchain_parameters_packed');
-            },
             print_range(begin, end) {
                 if (begin !== end)
                     process.stdout.write(decoder.decode(new Uint8Array(self.inst.exports.memory.buffer, begin, end - begin)));

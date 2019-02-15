@@ -15,12 +15,6 @@ const env = {
         if (!test)
             throw new Error('assert failed');
     },
-    get_blockchain_parameters_packed() {
-        throw new Error('called get_blockchain_parameters_packed'); // todo: remove
-    },
-    set_blockchain_parameters_packed() {
-        throw new Error('called set_blockchain_parameters_packed'); // todo: remove
-    },
     get_context_data(cb_alloc_data, cb_alloc) {
         get_context_data(size => {
             // cb_alloc may resize memory, causing inst.exports.memory.buffer to change

@@ -53,9 +53,10 @@ struct lmdb_table {
 struct fill_lmdb_config {
     std::string host;
     std::string port;
-    uint32_t    skip_to     = 0;
-    uint32_t    stop_before = 0;
-    bool        enable_trim = false;
+    uint32_t    skip_to      = 0;
+    uint32_t    stop_before  = 0;
+    bool        enable_trim  = false;
+    bool        enable_check = false;
 };
 
 struct fill_lmdb_plugin_impl : std::enable_shared_from_this<fill_lmdb_plugin_impl> {
@@ -96,6 +97,62 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         ilog("connect to lmdb");
         stream.binary(true);
         stream.read_message_max(1024 * 1024 * 1024);
+    }
+
+    void check() {
+        ilog("checking database");
+        lmdb::transaction t{lmdb_inst->lmdb_env, false};
+        load_fill_status(t);
+        if (!current_db_status) {
+            ilog("database is empty");
+            return;
+        }
+        ilog("first: ${first}, irreversible: ${irreversible}, head: ${head}", ("first", first)("irreversible", irreversible)("head", head));
+
+        std::vector<char> bin;
+        uint32_t          expected = first;
+        for_each_subkey(t, lmdb_inst->db, lmdb::make_block_key(0), lmdb::make_block_key(0xffff'ffff), [&](auto& k, auto v) {
+            bin.clear();
+            abieos::input_buffer ib1{k.data(), k.data() + k.size()};
+            lmdb::bin_to_bin_key<uint8_t>(bin, ib1);
+            lmdb::bin_to_bin_key<uint32_t>(bin, ib1);
+            abieos::input_buffer ib2{bin.data(), bin.data() + bin.size()};
+            if (lmdb::bin_to_key_tag(ib2) != lmdb::key_tag::block)
+                throw std::runtime_error("This shouldn't happen (1)");
+            auto block_index = abieos::bin_to_native<uint32_t>(ib2);
+            if (block_index == first || block_index == head || !(block_index % 10'000))
+                ilog("Found records for block ${b}", ("b", block_index));
+            if (block_index != expected)
+                throw std::runtime_error("Saw block_index " + std::to_string(block_index) + " but expected " + std::to_string(expected));
+            ++expected;
+            return true;
+        });
+        if (expected - 1 != head)
+            throw std::runtime_error("Found head " + std::to_string(expected - 1) + " but fill_status.head = " + std::to_string(head));
+
+        ilog("verifying table_index keys reference existing records");
+        uint32_t num_ti_keys = 0;
+        for_each(t, lmdb_inst->db, lmdb::make_table_index_key(), lmdb::make_table_index_key(), [&](auto k, auto v) {
+            bin.clear();
+            if (!((++num_ti_keys) % 1'000'000))
+                ilog("Found ${n} table_index keys", ("n", num_ti_keys));
+            if (!lmdb::exists(t, lmdb_inst->db, lmdb::to_const_val(v)))
+                throw std::runtime_error("A table_index key references a missing record");
+            return true;
+        });
+        ilog("Found ${n} table_index keys", ("n", num_ti_keys));
+
+        ilog("verifying table_index_ref keys reference existing table_index records");
+        uint32_t num_ti_ref_keys = 0;
+        for_each(t, lmdb_inst->db, lmdb::make_table_index_ref_key(), lmdb::make_table_index_ref_key(), [&](auto k, auto v) {
+            bin.clear();
+            if (!((++num_ti_ref_keys) % 1'000'000))
+                ilog("Found ${n} table_index_ref keys", ("n", num_ti_ref_keys));
+            if (!lmdb::exists(t, lmdb_inst->db, lmdb::to_const_val(v)))
+                throw std::runtime_error("A table_index_ref key references a missing table_index record");
+            return true;
+        });
+        ilog("Found ${n} table_index_ref keys", ("n", num_ti_ref_keys));
     }
 
     void start() {
@@ -741,6 +798,7 @@ void fill_lmdb_plugin::set_program_options(options_description& cli, options_des
     // op("flm-trim,t", "Trim history before irreversible");
     clop("flm-skip-to,k", bpo::value<uint32_t>(), "Skip blocks before [arg]");
     clop("flm-stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
+    clop("flm-check", "Check database");
 }
 
 void fill_lmdb_plugin::plugin_initialize(const variables_map& options) {
@@ -753,12 +811,15 @@ void fill_lmdb_plugin::plugin_initialize(const variables_map& options) {
         my->config->skip_to     = options.count("flm-skip-to") ? options["flm-skip-to"].as<uint32_t>() : 0;
         my->config->stop_before = options.count("flm-stop") ? options["flm-stop"].as<uint32_t>() : 0;
         // my->config->enable_trim = options.count("flm-trim");
+        my->config->enable_check = options.count("flm-check");
     }
     FC_LOG_AND_RETHROW()
 }
 
 void fill_lmdb_plugin::plugin_startup() {
     my->session = std::make_shared<flm_session>(my.get(), app().get_io_service());
+    if (my->config->enable_check)
+        my->session->check();
     my->session->start();
 }
 

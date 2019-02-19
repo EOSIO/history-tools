@@ -243,6 +243,15 @@ inline MDB_val to_const_val(abieos::input_buffer v) { return {size_t(v.end - v.p
 
 inline abieos::input_buffer to_input_buffer(MDB_val v) { return {(char*)v.mv_data, (char*)v.mv_data + v.mv_size}; }
 
+inline bool exists(transaction& t, database& d, MDB_val key) {
+    MDB_val v;
+    auto    stat = mdb_get(t.tx, d.db, &key, &v);
+    if (stat == MDB_NOTFOUND)
+        return false;
+    check(stat, "mdb_get: ");
+    return true;
+}
+
 inline abieos::input_buffer get_raw(transaction& t, database& d, MDB_val key, bool required = true) {
     MDB_val v;
     auto    stat = mdb_get(t.tx, d.db, &key, &v);
@@ -451,10 +460,18 @@ inline void append_delta_key(std::vector<char>& dest, uint32_t block, bool prese
     native_to_bin_key(dest, present);
 }
 
+inline void append_table_index_key(std::vector<char>& dest) { native_to_bin_key(dest, (uint8_t)key_tag::table_index); }
+
 inline void append_table_index_key(std::vector<char>& dest, abieos::name table, abieos::name index) {
     native_to_bin_key(dest, (uint8_t)key_tag::table_index);
     native_to_bin_key(dest, table);
     native_to_bin_key(dest, index);
+}
+
+inline std::vector<char> make_table_index_key() {
+    std::vector<char> result;
+    append_table_index_key(result);
+    return result;
 }
 
 inline std::vector<char> make_table_index_key(abieos::name table, abieos::name index) {

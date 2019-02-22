@@ -79,7 +79,7 @@ struct lmdb_query_session : query_session {
 
         std::vector<std::vector<char>> rows;
         uint32_t                       num_results = 0;
-        for_each_subkey(tx, db_iface->lmdb_inst->db, first, last, [&](const auto& index_key, auto) {
+        for_each_subkey(tx, db_iface->lmdb_inst->db, first, last, [&](const auto& index_key, auto, auto) {
             std::vector index_key_limit_block = index_key;
             if (query.is_state)
                 lmdb::append_table_index_state_suffix(index_key_limit_block, max_block_index);

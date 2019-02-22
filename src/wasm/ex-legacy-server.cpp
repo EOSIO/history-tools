@@ -331,28 +331,31 @@ struct request_data {
     std::string_view request = {nullptr, 0};
 };
 
-extern "C" void startup() {
-    auto request = unpack<request_data>(get_input_data());
-    auto context = get_context_data();
-    print_range(request.target.begin(), request.target.end());
-    print("\n");
+extern "C" {
+   __attribute__((eosio_wasm_entry))
+   void initialize() {
+       auto request = unpack<request_data>(get_input_data());
+       auto context = get_context_data();
+       print_range(request.target.begin(), request.target.end());
+       print("\n");
 
-    {
-        auto        b = context.head_id.extract_as_byte_array();
-        std::string s;
-        abieos::hex(b.begin(), b.end(), std::back_inserter(s));
-        print("head ", context.head, " ", s, "\n");
-    }
-    {
-        auto        b = context.irreversible_id.extract_as_byte_array();
-        std::string s;
-        abieos::hex(b.begin(), b.end(), std::back_inserter(s));
-        print("irreversible ", context.irreversible, " ", s, "\n");
-    }
-    print("first ", context.first, "\n");
+       {
+           auto        b = context.head_id.extract_as_byte_array();
+           std::string s;
+           abieos::hex(b.begin(), b.end(), std::back_inserter(s));
+           print("head ", context.head, " ", s, "\n");
+       }
+       {
+           auto        b = context.irreversible_id.extract_as_byte_array();
+           std::string s;
+           abieos::hex(b.begin(), b.end(), std::back_inserter(s));
+           print("irreversible ", context.irreversible, " ", s, "\n");
+       }
+       print("first ", context.first, "\n");
 
-    if (request.target == "/v1/chain/get_table_rows")
-        get_table_rows(request.request, context);
-    else
-        eosio_assert(false, "not found");
+       if (request.target == "/v1/chain/get_table_rows")
+           get_table_rows(request.request, context);
+       else
+           eosio_assert(false, "not found");
+   }
 }

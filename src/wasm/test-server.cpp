@@ -209,8 +209,11 @@ void process(token_transfer_request& req);
 void process(balances_for_multiple_accounts_request& req);
 void process(balances_for_multiple_tokens_request& req);
 
-extern "C" void startup() {
-    auto request = unpack<example_request>(get_input_data());
-    print("request: ", example_request::keys[request.value.index()], "\n");
-    std::visit([](auto& x) { process(x); }, request.value);
+extern "C" {
+   __attribute__((eosio_wasm_entry))
+   void initialize() {
+       auto request = unpack<example_request>(get_input_data());
+       print("request: ", example_request::keys[request.value.index()], "\n");
+       std::visit([](auto& x) { process(x); }, request.value);
+   }
 }

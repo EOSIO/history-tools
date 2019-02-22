@@ -175,7 +175,10 @@ inline html to_html(const public_key& key) {
 
 } // namespace eosio
 
-extern "C" void get_input_data(void* cb_alloc_data, cb_alloc_fn* cb_alloc);
+extern "C" {
+   __attribute__((eosio_wasm_import))
+   void get_input_data(void* cb_alloc_data, cb_alloc_fn* cb_alloc);
+}
 
 template <typename Alloc_fn>
 inline void get_input_data(Alloc_fn alloc_fn) {
@@ -193,7 +196,10 @@ inline std::vector<char> get_input_data() {
     return result;
 }
 
-extern "C" void set_output_data(const char* begin, const char* end);
+extern "C" {
+   __attribute__((eosio_wasm_import))
+   void set_output_data(const char* begin, const char* end);
+}
 inline void     set_output_data(const std::vector<char>& v) { set_output_data(v.data(), v.data() + v.size()); }
 inline void     set_output_data(const std::string_view& v) { set_output_data(v.data(), v.data() + v.size()); }
 

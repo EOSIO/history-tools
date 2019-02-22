@@ -100,8 +100,11 @@ void process(abis_request& req, const context_data& context) {
     print("\n");
 }
 
-extern "C" void startup() {
-    auto request = unpack<chain_request>(get_input_data());
-    print("request: ", chain_request::keys[request.value.index()], "\n");
-    std::visit([](auto& x) { process(x, get_context_data()); }, request.value);
+extern "C" {
+   __attribute__((eosio_wasm_entry))
+   void initialize() {
+      auto request = unpack<chain_request>(get_input_data());
+      print("request: ", chain_request::keys[request.value.index()], "\n");
+      std::visit([](auto& x) { process(x, get_context_data()); }, request.value);
+   }
 }

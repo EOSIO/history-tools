@@ -4,7 +4,10 @@
 #include "lib-placeholders.hpp"
 #include <eosiolib/time.hpp>
 
-extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
+extern "C" {
+   __attribute__((eosio_wasm_import))
+   void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
+}
 
 template <typename T, typename Alloc_fn>
 inline void exec_query(const T& req, Alloc_fn alloc_fn) {
@@ -58,7 +61,10 @@ void for_each_member(context_data*, F f) {
 }
 
 // todo: version number argument
-extern "C" void get_context_data(void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
+extern "C" {
+   __attribute__((eosio_wasm_import))
+   void get_context_data(void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
+}
 
 template <typename Alloc_fn>
 inline void get_context_data(Alloc_fn alloc_fn) {

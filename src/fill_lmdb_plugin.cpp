@@ -447,7 +447,9 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                 truncate(*active_tx, result.this_block->block_num);
             }
 
-            if (!(result.this_block->block_num % 200) || result.this_block->block_num + 4 >= result.last_irreversible.block_num)
+            bool commit_now =
+                !(result.this_block->block_num % 200) || result.this_block->block_num + 4 >= result.last_irreversible.block_num;
+            if (commit_now)
                 ilog("block ${b}", ("b", result.this_block->block_num));
 
             if (head_id != abieos::checksum256{} && (!result.prev_block || result.prev_block->block_id != head_id))
@@ -470,7 +472,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             put(*active_tx, lmdb_inst->db, lmdb::make_received_block_key(result.this_block->block_num),
                 lmdb::received_block{result.this_block->block_num, result.this_block->block_id});
 
-            if (!(result.this_block->block_num % 200) || result.this_block->block_num + 4 >= result.last_irreversible.block_num) {
+            if (commit_now) {
                 if (config->enable_trim) {
                     trim(*active_tx);
                     write_fill_status(*active_tx);

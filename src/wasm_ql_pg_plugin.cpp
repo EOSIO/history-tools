@@ -120,14 +120,13 @@ wasm_ql_pg_plugin::~wasm_ql_pg_plugin() { ilog("wasm_ql_pg_plugin stopped"); }
 
 void wasm_ql_pg_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op = cfg.add_options();
-    op("wql-schema", bpo::value<std::string>()->default_value("chain"), "Database schema");
     op("wql-query-config", bpo::value<std::string>()->default_value("../src/query-config.json"), "Query configuration");
 }
 
 void wasm_ql_pg_plugin::plugin_initialize(const variables_map& options) {
     try {
         my->interface         = std::make_shared<pg_database_interface>();
-        my->interface->schema = options["wql-schema"].as<std::string>();
+        my->interface->schema = options["pg-schema"].as<std::string>();
         auto x                = read_string(options["wql-query-config"].as<std::string>().c_str());
         try {
             abieos::json_to_native(my->interface->config, x);

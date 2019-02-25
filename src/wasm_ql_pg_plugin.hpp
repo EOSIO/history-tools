@@ -2,11 +2,12 @@
 
 #pragma once
 
+#include "pg_plugin.hpp"
 #include "wasm_ql_plugin.hpp"
 
 class wasm_ql_pg_plugin : public appbase::plugin<wasm_ql_pg_plugin> {
   public:
-    APPBASE_PLUGIN_REQUIRES((wasm_ql_plugin))
+    APPBASE_PLUGIN_REQUIRES((pg_plugin)(wasm_ql_plugin))
 
     wasm_ql_pg_plugin();
     virtual ~wasm_ql_pg_plugin();

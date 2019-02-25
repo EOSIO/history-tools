@@ -59,7 +59,7 @@ Options:
 |---------------------  |-------------------------- |---------------------  |-------------------------- |--------------------   |-------------|
 | --fill-connect-to     | --fill-connect-to         |                       |                           | localhost:8080        | state-history-plugin endpoint to connect to |
 |                       |                           | --wql-listen          | --wql-listen              | localhost:8880        | endpoint to listen for incoming queries |
-|                       | --fpg-schema              |                       | --wql-schema              | chain                 | schema to use |
+|                       | --pg-schema               |                       | --pg-schema               | chain                 | schema to use |
 | --lmdb-database       |                           | --lmdb-database       |                           |                       | database path |
 | --lmdb-set-db-size-gb |                           |                       |                           |                       | set maximum database size |
 | --lmdb-query-config   |                           | --wql-query-config    | --wql-query-config        |                       | query configuration file |

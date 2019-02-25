@@ -891,7 +891,6 @@ fill_pg_plugin::~fill_pg_plugin() {}
 void fill_pg_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op   = cfg.add_options();
     auto clop = cli.add_options();
-    op("fpg-schema", bpo::value<std::string>()->default_value("chain"), "Database schema");
     clop("fpg-drop", "Drop (delete) schema and tables");
     clop("fpg-create", "Create schema and tables");
 }
@@ -903,7 +902,7 @@ void fill_pg_plugin::plugin_initialize(const variables_map& options) {
         auto host                 = endpoint.substr(0, endpoint.find(':'));
         my->config->host          = host;
         my->config->port          = port;
-        my->config->schema        = options["fpg-schema"].as<std::string>();
+        my->config->schema        = options["pg-schema"].as<std::string>();
         my->config->skip_to       = options.count("fill-skip-to") ? options["fill-skip-to"].as<uint32_t>() : 0;
         my->config->stop_before   = options.count("fill-stop") ? options["fill-stop"].as<uint32_t>() : 0;
         my->config->drop_schema   = options.count("fpg-drop");

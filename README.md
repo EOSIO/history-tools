@@ -62,7 +62,7 @@ Options:
 |                       | --pg-schema               |                       | --pg-schema               | chain                 | schema to use |
 | --lmdb-database       |                           | --lmdb-database       |                           |                       | database path |
 | --lmdb-set-db-size-gb |                           |                       |                           |                       | set maximum database size |
-| --lmdb-query-config   |                           | --wql-query-config    | --wql-query-config        |                       | query configuration file |
+| --query-config        |                           | --query-config        | --query-config            |                       | query configuration file |
 |                       | --fpg-drop                |                       |                           |                       | drop (delete) schema and tables |
 |                       | --fpg-create              |                       |                           |                       | create schema and tables |
 | --fill-trim           | --fill-trim               |                       |                           |                       | trim history before irreversible |

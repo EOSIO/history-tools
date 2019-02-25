@@ -8,7 +8,7 @@
 using namespace appbase;
 using namespace std::literals;
 
-static abstract_plugin& _lmdb_plugin = app().register_plugin<fill_plugin>();
+static abstract_plugin& _fill_plugin = app().register_plugin<fill_plugin>();
 
 fill_plugin::fill_plugin() {}
 fill_plugin::~fill_plugin() {}

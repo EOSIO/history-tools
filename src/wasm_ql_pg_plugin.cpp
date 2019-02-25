@@ -118,20 +118,17 @@ wasm_ql_pg_plugin::wasm_ql_pg_plugin()
 
 wasm_ql_pg_plugin::~wasm_ql_pg_plugin() { ilog("wasm_ql_pg_plugin stopped"); }
 
-void wasm_ql_pg_plugin::set_program_options(options_description& cli, options_description& cfg) {
-    auto op = cfg.add_options();
-    op("wql-query-config", bpo::value<std::string>()->default_value("../src/query-config.json"), "Query configuration");
-}
+void wasm_ql_pg_plugin::set_program_options(options_description& cli, options_description& cfg) {}
 
 void wasm_ql_pg_plugin::plugin_initialize(const variables_map& options) {
     try {
         my->interface         = std::make_shared<pg_database_interface>();
         my->interface->schema = options["pg-schema"].as<std::string>();
-        auto x                = read_string(options["wql-query-config"].as<std::string>().c_str());
+        auto x                = read_string(options["query-config"].as<std::string>().c_str());
         try {
             abieos::json_to_native(my->interface->config, x);
         } catch (const std::exception& e) {
-            throw std::runtime_error("error processing " + options["wql-query-config"].as<std::string>() + ": " + e.what());
+            throw std::runtime_error("error processing " + options["query-config"].as<std::string>() + ": " + e.what());
         }
         my->interface->config.prepare(state_history::pg::abi_type_to_sql_type);
         app().find_plugin<wasm_ql_plugin>()->set_database(my->interface);

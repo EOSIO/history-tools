@@ -4,6 +4,7 @@
 #include <appbase/application.hpp>
 
 #include "query_config.hpp"
+#include "query_config_plugin.hpp"
 #include "state_history_lmdb.hpp"
 
 struct lmdb_inst {
@@ -19,7 +20,7 @@ struct lmdb_inst {
 
 class lmdb_plugin : public appbase::plugin<lmdb_plugin> {
   public:
-    APPBASE_PLUGIN_REQUIRES()
+    APPBASE_PLUGIN_REQUIRES((query_config_plugin))
 
     lmdb_plugin();
     virtual ~lmdb_plugin();

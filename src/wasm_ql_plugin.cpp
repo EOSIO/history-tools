@@ -362,14 +362,14 @@ wasm_ql_plugin::~wasm_ql_plugin() { ilog("wasm_ql_plugin stopped"); }
 
 void wasm_ql_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op = cfg.add_options();
-    op("wql-endpoint", bpo::value<std::string>()->default_value("localhost:8880"), "Endpoint to listen on");
+    op("wql-listen", bpo::value<std::string>()->default_value("localhost:8880"), "Endpoint to listen on");
     op("wql-console", "Show console output");
 }
 
 void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
     try {
         JS_Init();
-        auto ip_port         = options.at("wql-endpoint").as<std::string>();
+        auto ip_port         = options.at("wql-listen").as<std::string>();
         my->state            = std::make_unique<::state>();
         my->state->console   = options.count("wql-console");
         my->endpoint_port    = ip_port.substr(ip_port.find(':') + 1, ip_port.size());

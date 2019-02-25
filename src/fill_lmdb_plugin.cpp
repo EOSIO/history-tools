@@ -912,23 +912,19 @@ fill_lmdb_plugin::~fill_lmdb_plugin() {}
 void fill_lmdb_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op   = cfg.add_options();
     auto clop = cli.add_options();
-    op("flm-endpoint,e", bpo::value<std::string>()->default_value("localhost:8080"), "State-history endpoint to connect to (nodeos)");
-    op("flm-trim,t", "Trim history before irreversible");
-    clop("flm-skip-to,k", bpo::value<uint32_t>(), "Skip blocks before [arg]");
-    clop("flm-stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
     clop("flm-check", "Check database");
 }
 
 void fill_lmdb_plugin::plugin_initialize(const variables_map& options) {
     try {
-        auto endpoint            = options.at("flm-endpoint").as<std::string>();
+        auto endpoint            = options.at("fill-connect-to").as<std::string>();
         auto port                = endpoint.substr(endpoint.find(':') + 1, endpoint.size());
         auto host                = endpoint.substr(0, endpoint.find(':'));
         my->config->host         = host;
         my->config->port         = port;
-        my->config->skip_to      = options.count("flm-skip-to") ? options["flm-skip-to"].as<uint32_t>() : 0;
-        my->config->stop_before  = options.count("flm-stop") ? options["flm-stop"].as<uint32_t>() : 0;
-        my->config->enable_trim  = options.count("flm-trim");
+        my->config->skip_to      = options.count("fill-skip-to") ? options["fill-skip-to"].as<uint32_t>() : 0;
+        my->config->stop_before  = options.count("fill-stop") ? options["fill-stop"].as<uint32_t>() : 0;
+        my->config->enable_trim  = options.count("fill-trim");
         my->config->enable_check = options.count("flm-check");
     }
     FC_LOG_AND_RETHROW()

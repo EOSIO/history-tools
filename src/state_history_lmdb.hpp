@@ -207,8 +207,8 @@ struct env {
 };
 
 struct transaction {
-    env*     env = nullptr;
-    MDB_txn* tx  = nullptr;
+    struct env* env = nullptr;
+    MDB_txn*    tx  = nullptr;
 
     transaction(struct env& env, bool enable_write) {
         check(mdb_txn_begin(env.e, nullptr, enable_write ? 0 : MDB_RDONLY, &tx), "mdb_txn_begin: ");

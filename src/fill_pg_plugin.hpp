@@ -1,11 +1,12 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
+#include "fill_plugin.hpp"
 #include <appbase/application.hpp>
 
 class fill_pg_plugin : public appbase::plugin<fill_pg_plugin> {
   public:
-    APPBASE_PLUGIN_REQUIRES()
+    APPBASE_PLUGIN_REQUIRES((fill_plugin))
 
     fill_pg_plugin();
     virtual ~fill_pg_plugin();

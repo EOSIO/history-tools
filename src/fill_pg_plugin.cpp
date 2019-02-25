@@ -891,28 +891,24 @@ fill_pg_plugin::~fill_pg_plugin() {}
 void fill_pg_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op   = cfg.add_options();
     auto clop = cli.add_options();
-    op("fpg-endpoint", bpo::value<std::string>()->default_value("localhost:8080"), "State-history endpoint to connect to (nodeos)");
     op("fpg-schema", bpo::value<std::string>()->default_value("chain"), "Database schema");
-    op("fpg-trim", "Trim history before irreversible");
-    clop("fpg-skip-to", bpo::value<uint32_t>(), "Skip blocks before [arg]");
-    clop("fpg-stop", bpo::value<uint32_t>(), "Stop before block [arg]");
     clop("fpg-drop", "Drop (delete) schema and tables");
     clop("fpg-create", "Create schema and tables");
 }
 
 void fill_pg_plugin::plugin_initialize(const variables_map& options) {
     try {
-        auto endpoint             = options.at("fpg-endpoint").as<std::string>();
+        auto endpoint             = options.at("fill-connect-to").as<std::string>();
         auto port                 = endpoint.substr(endpoint.find(':') + 1, endpoint.size());
         auto host                 = endpoint.substr(0, endpoint.find(':'));
         my->config->host          = host;
         my->config->port          = port;
         my->config->schema        = options["fpg-schema"].as<std::string>();
-        my->config->skip_to       = options.count("fpg-skip-to") ? options["fpg-skip-to"].as<uint32_t>() : 0;
-        my->config->stop_before   = options.count("fpg-stop") ? options["fpg-stop"].as<uint32_t>() : 0;
+        my->config->skip_to       = options.count("fill-skip-to") ? options["fill-skip-to"].as<uint32_t>() : 0;
+        my->config->stop_before   = options.count("fill-stop") ? options["fill-stop"].as<uint32_t>() : 0;
         my->config->drop_schema   = options.count("fpg-drop");
         my->config->create_schema = options.count("fpg-create");
-        my->config->enable_trim   = options.count("fpg-trim");
+        my->config->enable_trim   = options.count("fill-trim");
     }
     FC_LOG_AND_RETHROW()
 }

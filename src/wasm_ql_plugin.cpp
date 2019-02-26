@@ -331,10 +331,15 @@ struct wasm_ql_plugin_impl : std::enable_shared_from_this<wasm_ql_plugin_impl> {
             FC_ASSERT(false, "unable to open listen socket");
         };
 
+        ilog("listen on ${a}:${p}", ("a", endpoint_address)("p", endpoint_port));
         tcp::resolver resolver(app().get_io_service());
         auto          addr = resolver.resolve(tcp::resolver::query(tcp::v4(), endpoint_address, endpoint_port));
-        acceptor           = std::make_unique<tcp::acceptor>(app().get_io_service(), *addr.begin(), true);
-        acceptor->listen(boost::asio::socket_base::max_listen_connections, ec);
+        acceptor           = std::make_unique<tcp::acceptor>(app().get_io_service());
+        acceptor->open(addr->endpoint().protocol());
+        int x = 1;
+        setsockopt(acceptor->native_handle(), SOL_SOCKET, SO_REUSEPORT, &x, sizeof(x));
+        acceptor->bind(addr->endpoint());
+        acceptor->listen(1, ec);
         check_ec("listen");
         do_accept();
     }

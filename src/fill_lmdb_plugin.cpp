@@ -30,7 +30,7 @@ struct lmdb_table;
 struct lmdb_field {
     std::string                 name      = {};
     const abieos::abi_field*    abi_field = {};
-    const lmdb::lmdb_type*      lmdb_type = {};
+    const lmdb::type*           type      = {};
     std::unique_ptr<lmdb_table> array_of  = {};
     abieos::input_buffer        pos       = {}; // temporary filled by fill()
 };
@@ -220,7 +220,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             table.field_map[field_name] = f;
             f->name                     = field_name;
             f->abi_field                = &abi_field;
-            f->lmdb_type                = array_of_struct ? nullptr : &type_it->second;
+            f->type                     = array_of_struct ? nullptr : &type_it->second;
 
             if (array_of_struct) {
                 f->array_of = std::make_unique<lmdb_table>(lmdb_table{.name = field_name, .abi_type = abi_field.type->array_of});
@@ -504,7 +504,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                     fill(dest, src, *f);
             }
         } else {
-            if (!field.lmdb_type->bin_to_bin)
+            if (!field.type->bin_to_bin)
                 throw std::runtime_error("don't know how to process " + field.abi_field->type->name);
             if (field.abi_field->type->optional_of) {
                 bool exists = read_raw<bool>(src);
@@ -512,14 +512,14 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                 if (!exists)
                     return;
             }
-            field.lmdb_type->bin_to_bin(dest, src);
+            field.type->bin_to_bin(dest, src);
         }
     } // fill
 
     void fill_key(std::vector<char>& dest, lmdb_index& index) {
         for (auto& field : index.fields) {
             auto pos = field->pos;
-            field->lmdb_type->bin_to_bin_key(dest, pos);
+            field->type->bin_to_bin_key(dest, pos);
         }
     }
 

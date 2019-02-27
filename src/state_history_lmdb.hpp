@@ -83,7 +83,7 @@ T bin_to_native_key(abieos::input_buffer& b) {
     }
 }
 
-struct lmdb_type {
+struct type {
     void (*bin_to_bin)(std::vector<char>&, abieos::input_buffer&)     = nullptr;
     void (*bin_to_bin_key)(std::vector<char>&, abieos::input_buffer&) = nullptr;
     void (*lower_bound_key)(std::vector<char>&)                       = nullptr;
@@ -149,35 +149,35 @@ uint32_t get_fixed_size() {
 }
 
 template <typename T>
-constexpr lmdb_type make_lmdb_type_for() {
-    return lmdb_type{bin_to_bin<T>, bin_to_bin_key<T>, lower_bound_key<T>, upper_bound_key<T>, get_fixed_size<T>};
+constexpr type make_type_for() {
+    return type{bin_to_bin<T>, bin_to_bin_key<T>, lower_bound_key<T>, upper_bound_key<T>, get_fixed_size<T>};
 }
 
 // clang-format off
-const inline std::map<std::string, lmdb_type> abi_type_to_lmdb_type = {
-    {"bool",                    make_lmdb_type_for<bool>()},
-    {"varuint32",               make_lmdb_type_for<abieos::varuint32>()},
-    {"uint8",                   make_lmdb_type_for<uint8_t>()},
-    {"uint16",                  make_lmdb_type_for<uint16_t>()},
-    {"uint32",                  make_lmdb_type_for<uint32_t>()},
-    {"uint64",                  make_lmdb_type_for<uint64_t>()},
-    {"uint128",                 make_lmdb_type_for<abieos::uint128>()},
-    {"int8",                    make_lmdb_type_for<int8_t>()},
-    {"int16",                   make_lmdb_type_for<int16_t>()},
-    {"int32",                   make_lmdb_type_for<int32_t>()},
-    {"int64",                   make_lmdb_type_for<int64_t>()},
-    {"int128",                  make_lmdb_type_for<abieos::int128>()},
-    {"float64",                 make_lmdb_type_for<double>()},
-    {"float128",                make_lmdb_type_for<abieos::float128>()},
-    {"name",                    make_lmdb_type_for<abieos::name>()},
-    {"string",                  make_lmdb_type_for<std::string>()},
-    {"time_point",              make_lmdb_type_for<abieos::time_point>()},
-    {"time_point_sec",          make_lmdb_type_for<abieos::time_point_sec>()},
-    {"block_timestamp_type",    make_lmdb_type_for<abieos::block_timestamp>()},
-    {"checksum256",             make_lmdb_type_for<abieos::checksum256>()},
-    {"public_key",              make_lmdb_type_for<abieos::public_key>()},
-    {"bytes",                   make_lmdb_type_for<abieos::bytes>()},
-    {"transaction_status",      make_lmdb_type_for<state_history::transaction_status>()},
+const inline std::map<std::string, type> abi_type_to_lmdb_type = {
+    {"bool",                    make_type_for<bool>()},
+    {"varuint32",               make_type_for<abieos::varuint32>()},
+    {"uint8",                   make_type_for<uint8_t>()},
+    {"uint16",                  make_type_for<uint16_t>()},
+    {"uint32",                  make_type_for<uint32_t>()},
+    {"uint64",                  make_type_for<uint64_t>()},
+    {"uint128",                 make_type_for<abieos::uint128>()},
+    {"int8",                    make_type_for<int8_t>()},
+    {"int16",                   make_type_for<int16_t>()},
+    {"int32",                   make_type_for<int32_t>()},
+    {"int64",                   make_type_for<int64_t>()},
+    {"int128",                  make_type_for<abieos::int128>()},
+    {"float64",                 make_type_for<double>()},
+    {"float128",                make_type_for<abieos::float128>()},
+    {"name",                    make_type_for<abieos::name>()},
+    {"string",                  make_type_for<std::string>()},
+    {"time_point",              make_type_for<abieos::time_point>()},
+    {"time_point_sec",          make_type_for<abieos::time_point_sec>()},
+    {"block_timestamp_type",    make_type_for<abieos::block_timestamp>()},
+    {"checksum256",             make_type_for<abieos::checksum256>()},
+    {"public_key",              make_type_for<abieos::public_key>()},
+    {"bytes",                   make_type_for<abieos::bytes>()},
+    {"transaction_status",      make_type_for<state_history::transaction_status>()},
 };
 // clang-format on
 
@@ -583,7 +583,7 @@ make_table_index_ref_key(uint32_t block, const std::vector<char>& table_key, con
 }
 
 struct defs {
-    using type = lmdb_type;
+    using type = lmdb::type;
 
     struct field : query_config::field<defs> {
         std::optional<uint32_t> byte_position = {};

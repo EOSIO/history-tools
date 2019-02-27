@@ -157,9 +157,9 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     void create_table(pqxx::work& t, const std::string& name, const std::string& pk, std::string fields) {
         for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
             using type              = typename decltype(member_ptr)::member_type;
-            constexpr auto sql_type = sql_type_for<type>;
+            constexpr auto sql_type = type_for<type>;
             if constexpr (is_known_type(sql_type)) {
-                std::string type = sql_type.type;
+                std::string type = sql_type.name;
                 if (type == "transaction_status_type")
                     type = t.quote_name(config->schema) + "." + type;
                 fields += ", "s + t.quote_name(field_name) + " " + type;
@@ -194,10 +194,10 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             auto it = abi_type_to_sql_type.find(abi_type);
             if (it == abi_type_to_sql_type.end())
                 throw std::runtime_error("don't know sql type for abi type: " + abi_type);
-            std::string type = it->second.type;
+            std::string type = it->second.name;
             if (type == "transaction_status_type")
                 type = t.quote_name(config->schema) + "." + type;
-            fields += ", " + t.quote_name(base_name + field.name) + " " + it->second.type;
+            fields += ", " + t.quote_name(base_name + field.name) + " " + it->second.name;
         }
     }; // fill_field
 
@@ -766,7 +766,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
 
         for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
             using type              = typename decltype(member_ptr)::member_type;
-            constexpr auto sql_type = sql_type_for<type>;
+            constexpr auto sql_type = type_for<type>;
             if constexpr (is_known_type(sql_type)) {
                 fields += ", " + t.quote_name(field_name);
                 values += sep(bulk) + sql_type.native_to_sql(*sql_connection, bulk, &member_from_void(member_ptr, &obj));

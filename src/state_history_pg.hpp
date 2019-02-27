@@ -293,8 +293,8 @@ template <> inline void sql_to_bin<std::string>                (std::vector<char
 template <> inline void sql_to_bin<abieos::input_buffer>       (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<input_buffer> not implemented"); }
 // clang-format on
 
-struct sql_type {
-    const char* type                                                          = "";
+struct type {
+    const char* name                                                          = "";
     std::string (*bin_to_sql)(pqxx::connection&, bool, abieos::input_buffer&) = nullptr;
     std::string (*native_to_sql)(pqxx::connection&, bool, const void*)        = nullptr;
     void (*sql_to_bin)(std::vector<char>& bin, const pqxx::field&)            = nullptr;
@@ -303,7 +303,7 @@ struct sql_type {
 template <typename T>
 struct unknown_type {};
 
-inline constexpr bool is_known_type(sql_type) { return true; }
+inline constexpr bool is_known_type(type) { return true; }
 
 template <typename T>
 inline constexpr bool is_known_type(unknown_type<T>) {
@@ -311,74 +311,74 @@ inline constexpr bool is_known_type(unknown_type<T>) {
 }
 
 template <typename T>
-inline constexpr unknown_type<T> sql_type_for;
+inline constexpr unknown_type<T> type_for;
 
 template <typename T>
-constexpr sql_type make_sql_type_for(const char* name) {
-    return sql_type{name, bin_to_sql<T>, native_to_sql<T>, sql_to_bin<T>};
+constexpr type make_type_for(const char* name) {
+    return type{name, bin_to_sql<T>, native_to_sql<T>, sql_to_bin<T>};
 }
 
 // clang-format off
-template<> inline constexpr sql_type sql_type_for<bool>                     = make_sql_type_for<bool>(                      "bool"                      );
-template<> inline constexpr sql_type sql_type_for<uint8_t>                  = make_sql_type_for<uint8_t>(                   "smallint"                  );
-template<> inline constexpr sql_type sql_type_for<int8_t>                   = make_sql_type_for<int8_t>(                    "smallint"                  );
-template<> inline constexpr sql_type sql_type_for<uint16_t>                 = make_sql_type_for<uint16_t>(                  "integer"                   );
-template<> inline constexpr sql_type sql_type_for<int16_t>                  = make_sql_type_for<int16_t>(                   "smallint"                  );
-template<> inline constexpr sql_type sql_type_for<uint32_t>                 = make_sql_type_for<uint32_t>(                  "bigint"                    );
-template<> inline constexpr sql_type sql_type_for<int32_t>                  = make_sql_type_for<int32_t>(                   "integer"                   );
-template<> inline constexpr sql_type sql_type_for<uint64_t>                 = make_sql_type_for<uint64_t>(                  "decimal"                   );
-template<> inline constexpr sql_type sql_type_for<int64_t>                  = make_sql_type_for<int64_t>(                   "bigint"                    );
-template<> inline constexpr sql_type sql_type_for<abieos::uint128>          = make_sql_type_for<abieos::uint128>(           "decimal"                   );
-template<> inline constexpr sql_type sql_type_for<abieos::int128>           = make_sql_type_for<abieos::int128>(            "decimal"                   );
-template<> inline constexpr sql_type sql_type_for<double>                   = make_sql_type_for<double>(                    "float8"                    );
-template<> inline constexpr sql_type sql_type_for<abieos::float128>         = make_sql_type_for<abieos::float128>(          "bytea"                     );
-template<> inline constexpr sql_type sql_type_for<abieos::varuint32>        = make_sql_type_for<abieos::varuint32>(         "bigint"                    );
-template<> inline constexpr sql_type sql_type_for<abieos::varint32>         = make_sql_type_for<abieos::varint32>(          "integer"                   );
-template<> inline constexpr sql_type sql_type_for<abieos::name>             = make_sql_type_for<abieos::name>(              "varchar(13)"               );
-template<> inline constexpr sql_type sql_type_for<abieos::checksum256>      = make_sql_type_for<abieos::checksum256>(       "varchar(64)"               );
-template<> inline constexpr sql_type sql_type_for<std::string>              = make_sql_type_for<std::string>(               "varchar"                   );
-template<> inline constexpr sql_type sql_type_for<abieos::time_point>       = make_sql_type_for<abieos::time_point>(        "timestamp"                 );
-template<> inline constexpr sql_type sql_type_for<abieos::time_point_sec>   = make_sql_type_for<abieos::time_point_sec>(    "timestamp"                 );
-template<> inline constexpr sql_type sql_type_for<abieos::block_timestamp>  = make_sql_type_for<abieos::block_timestamp>(   "timestamp"                 );
-template<> inline constexpr sql_type sql_type_for<abieos::public_key>       = make_sql_type_for<abieos::public_key>(        "varchar"                   );
-template<> inline constexpr sql_type sql_type_for<abieos::bytes>            = make_sql_type_for<abieos::bytes>(             "bytea"                     );
-template<> inline constexpr sql_type sql_type_for<abieos::input_buffer>     = make_sql_type_for<abieos::input_buffer>(      "bytea"                     );
-template<> inline constexpr sql_type sql_type_for<transaction_status>       = make_sql_type_for<transaction_status>(        "transaction_status_type"   );
+template<> inline constexpr type type_for<bool>                     = make_type_for<bool>(                      "bool"                      );
+template<> inline constexpr type type_for<uint8_t>                  = make_type_for<uint8_t>(                   "smallint"                  );
+template<> inline constexpr type type_for<int8_t>                   = make_type_for<int8_t>(                    "smallint"                  );
+template<> inline constexpr type type_for<uint16_t>                 = make_type_for<uint16_t>(                  "integer"                   );
+template<> inline constexpr type type_for<int16_t>                  = make_type_for<int16_t>(                   "smallint"                  );
+template<> inline constexpr type type_for<uint32_t>                 = make_type_for<uint32_t>(                  "bigint"                    );
+template<> inline constexpr type type_for<int32_t>                  = make_type_for<int32_t>(                   "integer"                   );
+template<> inline constexpr type type_for<uint64_t>                 = make_type_for<uint64_t>(                  "decimal"                   );
+template<> inline constexpr type type_for<int64_t>                  = make_type_for<int64_t>(                   "bigint"                    );
+template<> inline constexpr type type_for<abieos::uint128>          = make_type_for<abieos::uint128>(           "decimal"                   );
+template<> inline constexpr type type_for<abieos::int128>           = make_type_for<abieos::int128>(            "decimal"                   );
+template<> inline constexpr type type_for<double>                   = make_type_for<double>(                    "float8"                    );
+template<> inline constexpr type type_for<abieos::float128>         = make_type_for<abieos::float128>(          "bytea"                     );
+template<> inline constexpr type type_for<abieos::varuint32>        = make_type_for<abieos::varuint32>(         "bigint"                    );
+template<> inline constexpr type type_for<abieos::varint32>         = make_type_for<abieos::varint32>(          "integer"                   );
+template<> inline constexpr type type_for<abieos::name>             = make_type_for<abieos::name>(              "varchar(13)"               );
+template<> inline constexpr type type_for<abieos::checksum256>      = make_type_for<abieos::checksum256>(       "varchar(64)"               );
+template<> inline constexpr type type_for<std::string>              = make_type_for<std::string>(               "varchar"                   );
+template<> inline constexpr type type_for<abieos::time_point>       = make_type_for<abieos::time_point>(        "timestamp"                 );
+template<> inline constexpr type type_for<abieos::time_point_sec>   = make_type_for<abieos::time_point_sec>(    "timestamp"                 );
+template<> inline constexpr type type_for<abieos::block_timestamp>  = make_type_for<abieos::block_timestamp>(   "timestamp"                 );
+template<> inline constexpr type type_for<abieos::public_key>       = make_type_for<abieos::public_key>(        "varchar"                   );
+template<> inline constexpr type type_for<abieos::bytes>            = make_type_for<abieos::bytes>(             "bytea"                     );
+template<> inline constexpr type type_for<abieos::input_buffer>     = make_type_for<abieos::input_buffer>(      "bytea"                     );
+template<> inline constexpr type type_for<transaction_status>       = make_type_for<transaction_status>(        "transaction_status_type"   );
 
 template <typename T>
-inline constexpr sql_type sql_type_for<std::optional<T>> = make_sql_type_for<std::optional<T>>(sql_type_for<T>.type);
+inline constexpr type type_for<std::optional<T>> = make_type_for<std::optional<T>>(type_for<T>.name);
 
-inline const std::map<std::string_view, sql_type> abi_type_to_sql_type = {
-    {"bool",                    sql_type_for<bool>},
-    {"uint8",                   sql_type_for<uint8_t>},
-    {"int8",                    sql_type_for<int8_t>},
-    {"uint16",                  sql_type_for<uint16_t>},
-    {"int16",                   sql_type_for<int16_t>},
-    {"uint32",                  sql_type_for<uint32_t>},
-    {"int32",                   sql_type_for<int32_t>},
-    {"uint64",                  sql_type_for<uint64_t>},
-    {"int64",                   sql_type_for<int64_t>},
-    {"uint128",                 sql_type_for<abieos::uint128>},
-    {"int128",                  sql_type_for<abieos::int128>},
-    {"float64",                 sql_type_for<double>},
-    {"float128",                sql_type_for<abieos::float128>},
-    {"varuint32",               sql_type_for<abieos::varuint32>},
-    {"varint32",                sql_type_for<abieos::varint32>},
-    {"name",                    sql_type_for<abieos::name>},
-    {"checksum256",             sql_type_for<abieos::checksum256>},
-    {"string",                  sql_type_for<std::string>},
-    {"time_point",              sql_type_for<abieos::time_point>},
-    {"time_point_sec",          sql_type_for<abieos::time_point_sec>},
-    {"block_timestamp_type",    sql_type_for<abieos::block_timestamp>},
-    {"public_key",              sql_type_for<abieos::public_key>},
-    {"bytes",                   sql_type_for<abieos::bytes>},
-    {"transaction_status",      sql_type_for<transaction_status>},
+inline const std::map<std::string_view, type> abi_type_to_sql_type = {
+    {"bool",                    type_for<bool>},
+    {"uint8",                   type_for<uint8_t>},
+    {"int8",                    type_for<int8_t>},
+    {"uint16",                  type_for<uint16_t>},
+    {"int16",                   type_for<int16_t>},
+    {"uint32",                  type_for<uint32_t>},
+    {"int32",                   type_for<int32_t>},
+    {"uint64",                  type_for<uint64_t>},
+    {"int64",                   type_for<int64_t>},
+    {"uint128",                 type_for<abieos::uint128>},
+    {"int128",                  type_for<abieos::int128>},
+    {"float64",                 type_for<double>},
+    {"float128",                type_for<abieos::float128>},
+    {"varuint32",               type_for<abieos::varuint32>},
+    {"varint32",                type_for<abieos::varint32>},
+    {"name",                    type_for<abieos::name>},
+    {"checksum256",             type_for<abieos::checksum256>},
+    {"string",                  type_for<std::string>},
+    {"time_point",              type_for<abieos::time_point>},
+    {"time_point_sec",          type_for<abieos::time_point_sec>},
+    {"block_timestamp_type",    type_for<abieos::block_timestamp>},
+    {"public_key",              type_for<abieos::public_key>},
+    {"bytes",                   type_for<abieos::bytes>},
+    {"transaction_status",      type_for<transaction_status>},
 };
 
 // clang-format on
 
 struct defs {
-    using type   = sql_type;
+    using type   = pg::type;
     using field  = query_config::field<defs>;
     using key    = query_config::key<defs>;
     using table  = query_config::table<defs>;

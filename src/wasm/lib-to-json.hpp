@@ -135,9 +135,8 @@ __attribute__((noinline)) inline void to_json(eosio::extended_asset value, std::
     append(dest, "}");
 }
 
-// todo: fix const
 // todo: move hex conversion to checksum256
-__attribute__((noinline)) inline void to_json(serial_wrapper<eosio::checksum256>& value, std::vector<char>& dest) {
+__attribute__((noinline)) inline void to_json(const serial_wrapper<eosio::checksum256>& value, std::vector<char>& dest) {
     static const char hex_digits[] = "0123456789ABCDEF";
     auto              bytes        = value.value.extract_as_byte_array();
     dest.push_back('"');
@@ -183,7 +182,7 @@ __attribute__((noinline)) inline void to_json(eosio::block_timestamp value, std:
 }
 
 // todo
-__attribute__((noinline)) inline void to_json(eosio::datastream<const char*>& value, std::vector<char>& dest) {
+__attribute__((noinline)) inline void to_json(const eosio::datastream<const char*>& value, std::vector<char>& dest) {
     if (value.remaining())
         append(dest, "\"<<<datastream>>>\"");
     else
@@ -191,7 +190,7 @@ __attribute__((noinline)) inline void to_json(eosio::datastream<const char*>& va
 }
 
 template <typename T>
-__attribute__((noinline)) inline void to_json(std::optional<T>& obj, std::vector<char>& dest) {
+__attribute__((noinline)) inline void to_json(const std::optional<T>& obj, std::vector<char>& dest) {
     if (obj)
         to_json(*obj, dest);
     else
@@ -199,7 +198,7 @@ __attribute__((noinline)) inline void to_json(std::optional<T>& obj, std::vector
 }
 
 template <typename T>
-__attribute__((noinline)) inline void to_json(std::vector<T>& obj, std::vector<char>& dest) {
+__attribute__((noinline)) inline void to_json(const std::vector<T>& obj, std::vector<char>& dest) {
     dest.push_back('[');
     bool first = true;
     for (auto& v : obj) {
@@ -212,7 +211,7 @@ __attribute__((noinline)) inline void to_json(std::vector<T>& obj, std::vector<c
 }
 
 template <typename T>
-__attribute__((noinline)) inline void to_json(T& obj, std::vector<char>& dest) {
+__attribute__((noinline)) inline void to_json(const T& obj, std::vector<char>& dest) {
     dest.push_back('{');
     bool first = true;
     for_each_member((T*)nullptr, [&](std::string_view member_name, auto member) {
@@ -227,15 +226,14 @@ __attribute__((noinline)) inline void to_json(T& obj, std::vector<char>& dest) {
 }
 
 template <typename T>
-__attribute__((noinline)) inline std::vector<char> to_json(T& obj) {
+__attribute__((noinline)) inline std::vector<char> to_json(const T& obj) {
     std::vector<char> result;
     to_json(obj, result);
     return result;
 }
 
-// todo: const v
 template <tagged_variant_options Options, typename... NamedTypes>
-__attribute__((noinline)) inline void to_json(tagged_variant<Options, NamedTypes...>& v, std::vector<char>& dest) {
+__attribute__((noinline)) inline void to_json(const tagged_variant<Options, NamedTypes...>& v, std::vector<char>& dest) {
     dest.push_back('[');
     to_json(tagged_variant<Options, NamedTypes...>::keys[v.value.index()], dest);
     std::visit(

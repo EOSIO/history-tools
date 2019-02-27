@@ -317,21 +317,21 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         // todo: verify index set in config matches index set in db
         auto& c = lmdb_inst->query_config;
         for (auto& [query_name, query] : c.query_map) {
-            auto table_it = tables.find(query->_table);
+            auto table_it = tables.find(query->table);
             if (table_it == tables.end())
-                throw std::runtime_error("can't find table " + query->_table);
+                throw std::runtime_error("can't find table " + query->table);
             auto& table = table_it->second;
 
             auto index_it = table.indexes.find(query_name);
             if (index_it != table.indexes.end())
-                throw std::runtime_error("duplicate index " + query->_table + "." + (std::string)query_name);
+                throw std::runtime_error("duplicate index " + query->table + "." + (std::string)query_name);
             auto& index = table.indexes[query_name];
             index.name  = query_name;
 
             for (auto& key : query->sort_keys) {
                 auto field_it = table.field_map.find(key.name);
                 if (field_it == table.field_map.end())
-                    throw std::runtime_error("can't find " + query->_table + "." + key.name);
+                    throw std::runtime_error("can't find " + query->table + "." + key.name);
                 index.fields.push_back(field_it->second);
             }
         }
@@ -910,7 +910,6 @@ fill_lmdb_plugin::fill_lmdb_plugin()
 fill_lmdb_plugin::~fill_lmdb_plugin() {}
 
 void fill_lmdb_plugin::set_program_options(options_description& cli, options_description& cfg) {
-    auto op   = cfg.add_options();
     auto clop = cli.add_options();
     clop("flm-check", "Check database");
 }

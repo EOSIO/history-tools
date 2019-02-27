@@ -12,9 +12,9 @@ namespace pg = state_history::pg;
 static abstract_plugin& _wasm_ql_pg_plugin = app().register_plugin<wasm_ql_pg_plugin>();
 
 struct pg_database_interface : database_interface, std::enable_shared_from_this<pg_database_interface> {
-    std::string                        schema         = {};
-    pqxx::connection                   sql_connection = {};
-    query_config::config<pg::sql_type> config         = {};
+    std::string      schema         = {};
+    pqxx::connection sql_connection = {};
+    pg::config       config         = {};
 
     virtual ~pg_database_interface() {}
 
@@ -55,7 +55,7 @@ struct pg_query_session : query_session {
         auto it = db_iface->config.query_map.find(query_name);
         if (it == db_iface->config.query_map.end())
             throw std::runtime_error("exec_query: unknown query: " + (std::string)query_name);
-        query_config::query<pg::sql_type>& query = *it->second;
+        pg::query& query = *it->second;
 
         uint32_t max_block_index = 0;
         if (query.limit_block_index)

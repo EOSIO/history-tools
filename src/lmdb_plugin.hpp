@@ -3,15 +3,14 @@
 #pragma once
 #include <appbase/application.hpp>
 
-#include "query_config.hpp"
 #include "query_config_plugin.hpp"
 #include "state_history_lmdb.hpp"
 
 struct lmdb_inst {
-    uint32_t                                               db_size_gb;
-    state_history::lmdb::env                               lmdb_env;
-    state_history::lmdb::database                          db;
-    ::query_config::config<state_history::lmdb::lmdb_type> query_config{};
+    uint32_t                      db_size_gb;
+    state_history::lmdb::env      lmdb_env;
+    state_history::lmdb::database db;
+    state_history::lmdb::config   query_config{};
 
     lmdb_inst(const boost::filesystem::path& db_path, uint32_t db_size_gb)
         : lmdb_env{db_path, db_size_gb}

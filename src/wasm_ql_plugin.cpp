@@ -8,7 +8,6 @@
 // todo: make sure spidermonkey limits stack size
 // todo: global constructors in wasm
 // todo: reformulate get_input_data and set_output_data for reentrancy
-// todo: notify wasms of truncated or missing history
 // todo: wasms get whether a query is present
 // todo: indexes on authorized, ram usage, notify
 // todo: namespaces for queries

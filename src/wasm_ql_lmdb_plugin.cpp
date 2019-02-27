@@ -52,21 +52,15 @@ struct lmdb_query_session : query_session {
         if (it == db_iface->lmdb_inst->query_config.query_map.end())
             throw std::runtime_error("exec_query: unknown query: " + (std::string)query_name);
         auto& query = *it->second;
+        if (!query.arg_types.empty())
+            throw std::runtime_error("exec_query: query: " + (std::string)query_name + " not implemented");
 
         uint32_t max_block_index = 0;
         if (query.limit_block_index)
             max_block_index = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
 
-        auto table_name_it = lmdb::table_names.find(query._table);
-        if (table_name_it == lmdb::table_names.end())
-            throw std::runtime_error("exec_query: unknown table: " + query._table);
-
-        auto first = lmdb::make_table_index_key(table_name_it->second, query_name);
+        auto first = lmdb::make_table_index_key(query.table_obj->short_name, query_name);
         auto last  = first;
-
-        // todo
-        if (!query.arg_types.empty())
-            throw std::runtime_error("exec_query: query: " + (std::string)query_name + " not yet implemented");
 
         auto add_fields = [&](auto& dest, auto& types) {
             for (auto& type : types)
@@ -85,7 +79,7 @@ struct lmdb_query_session : query_session {
                 lmdb::append_table_index_state_suffix(index_key_limit_block, max_block_index);
             // todo: unify lmdb's and pg's handling of negative result because of max_block_index
             for_each(tx, db_iface->lmdb_inst->db, index_key_limit_block, index_key, [&](auto zzz, auto delta_key) {
-                auto delta_value = get_raw(tx, db_iface->lmdb_inst->db, delta_key);
+                auto delta_value = lmdb::get_raw(tx, db_iface->lmdb_inst->db, delta_key);
                 rows.emplace_back(delta_value.pos, delta_value.end);
                 return false;
             });

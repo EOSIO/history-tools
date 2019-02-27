@@ -889,7 +889,6 @@ fill_pg_plugin::fill_pg_plugin()
 fill_pg_plugin::~fill_pg_plugin() {}
 
 void fill_pg_plugin::set_program_options(options_description& cli, options_description& cfg) {
-    auto op   = cfg.add_options();
     auto clop = cli.add_options();
     clop("fpg-drop", "Drop (delete) schema and tables");
     clop("fpg-create", "Create schema and tables");

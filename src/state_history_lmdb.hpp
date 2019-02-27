@@ -1,6 +1,7 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
+#include "query_config.hpp"
 #include "state_history.hpp"
 
 #include <boost/filesystem.hpp>
@@ -53,7 +54,7 @@ void reverse_bin(std::vector<char>& bin, F f) {
 template <typename T, typename F>
 void fixup_key(std::vector<char>& bin, F f) {
     if constexpr (
-        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
+        std::is_unsigned_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
         std::is_same_v<std::decay_t<T>, abieos::checksum256>)
         reverse_bin(bin, f);
     else
@@ -68,7 +69,7 @@ void native_to_bin_key(std::vector<char>& bin, const T& obj) {
 template <typename T>
 T bin_to_native_key(abieos::input_buffer& b) {
     if constexpr (
-        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
+        std::is_unsigned_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
         std::is_same_v<std::decay_t<T>, abieos::checksum256>) {
         if (b.pos + sizeof(T) > b.end)
             throw std::runtime_error("key deserialization error");
@@ -119,7 +120,7 @@ void bin_to_bin_key(std::vector<char>& dest, abieos::input_buffer& bin) {
 template <typename T>
 void lower_bound_key(std::vector<char>& dest) {
     if constexpr (
-        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
+        std::is_unsigned_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
         std::is_same_v<std::decay_t<T>, abieos::checksum256>)
         dest.resize(dest.size() + sizeof(T));
     else
@@ -129,7 +130,7 @@ void lower_bound_key(std::vector<char>& dest) {
 template <typename T>
 void upper_bound_key(std::vector<char>& dest) {
     if constexpr (
-        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
+        std::is_unsigned_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
         std::is_same_v<std::decay_t<T>, abieos::checksum256>)
         dest.resize(dest.size() + sizeof(T), 0xff);
     else
@@ -569,6 +570,37 @@ make_table_index_ref_key(uint32_t block, const std::vector<char>& table_key, con
     result.insert(result.end(), table_index_key.begin(), table_index_key.end());
     return result;
 }
+
+struct defs {
+    using type  = lmdb_type;
+    using field = query_config::field<defs>;
+    using key   = query_config::key<defs>;
+
+    struct table : query_config::table<defs> {
+        abieos::name short_name = {};
+    };
+
+    using query = query_config::query<defs>;
+
+    struct config : query_config::config<defs> {
+        template <typename M>
+        void prepare(const M& type_map) {
+            query_config::config<defs>::prepare(type_map);
+            for (auto& tab : tables) {
+                auto it = table_names.find(tab.name);
+                if (it == table_names.end())
+                    throw std::runtime_error("exec_query: unknown table: " + tab.name);
+                tab.short_name = it->second;
+            }
+        }
+    };
+}; // defs
+
+using field  = defs::field;
+using key    = defs::key;
+using table  = defs::table;
+using query  = defs::query;
+using config = defs::config;
 
 } // namespace lmdb
 } // namespace state_history

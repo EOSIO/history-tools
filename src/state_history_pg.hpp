@@ -1,6 +1,7 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
+#include "query_config.hpp"
 #include "state_history.hpp"
 
 #include <pqxx/pqxx>
@@ -375,6 +376,21 @@ inline const std::map<std::string_view, sql_type> abi_type_to_sql_type = {
 };
 
 // clang-format on
+
+struct defs {
+    using type   = sql_type;
+    using field  = query_config::field<defs>;
+    using key    = query_config::key<defs>;
+    using table  = query_config::table<defs>;
+    using query  = query_config::query<defs>;
+    using config = query_config::config<defs>;
+}; // defs
+
+using field  = defs::field;
+using key    = defs::key;
+using table  = defs::table;
+using query  = defs::query;
+using config = defs::config;
 
 } // namespace pg
 } // namespace state_history

@@ -88,6 +88,7 @@ struct lmdb_type {
     void (*bin_to_bin_key)(std::vector<char>&, abieos::input_buffer&) = nullptr;
     void (*lower_bound_key)(std::vector<char>&)                       = nullptr;
     void (*upper_bound_key)(std::vector<char>&)                       = nullptr;
+    uint32_t (*get_fixed_size)()                                      = nullptr;
 };
 
 template <typename T>
@@ -138,8 +139,18 @@ void upper_bound_key(std::vector<char>& dest) {
 }
 
 template <typename T>
+uint32_t get_fixed_size() {
+    if constexpr (
+        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
+        std::is_same_v<std::decay_t<T>, abieos::checksum256>)
+        return sizeof(T);
+    else
+        return 0;
+}
+
+template <typename T>
 constexpr lmdb_type make_lmdb_type_for() {
-    return lmdb_type{bin_to_bin<T>, bin_to_bin_key<T>, lower_bound_key<T>, upper_bound_key<T>};
+    return lmdb_type{bin_to_bin<T>, bin_to_bin_key<T>, lower_bound_key<T>, upper_bound_key<T>, get_fixed_size<T>};
 }
 
 // clang-format off
@@ -572,9 +583,13 @@ make_table_index_ref_key(uint32_t block, const std::vector<char>& table_key, con
 }
 
 struct defs {
-    using type  = lmdb_type;
-    using field = query_config::field<defs>;
-    using key   = query_config::key<defs>;
+    using type = lmdb_type;
+
+    struct field : query_config::field<defs> {
+        std::optional<uint32_t> byte_position = {};
+    };
+
+    using key = query_config::key<defs>;
 
     struct table : query_config::table<defs> {
         abieos::name short_name = {};
@@ -591,6 +606,15 @@ struct defs {
                 if (it == table_names.end())
                     throw std::runtime_error("exec_query: unknown table: " + tab.name);
                 tab.short_name = it->second;
+
+                uint32_t pos = 0;
+                for (auto& field : tab.fields) {
+                    field.byte_position = pos;
+                    auto size           = field.type_obj->get_fixed_size();
+                    if (!size)
+                        break;
+                    pos += size;
+                }
             }
         }
     };

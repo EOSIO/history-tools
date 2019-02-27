@@ -43,6 +43,20 @@ struct lmdb_query_session : query_session {
         return {};
     }
 
+    void append_fields(std::vector<char>& dest, abieos::input_buffer src, const std::vector<lmdb::key>& keys, bool xform_key) {
+        for (auto& key : keys) {
+            if (!key.field->byte_position)
+                throw std::runtime_error("key has unknown position");
+            if (*key.field->byte_position > src.end - src.pos)
+                throw std::runtime_error("key position is out of range");
+            abieos::input_buffer key_pos{src.pos + *key.field->byte_position, src.end};
+            if (xform_key)
+                key.field->type_obj->bin_to_bin_key(dest, key_pos);
+            else
+                key.field->type_obj->bin_to_bin(dest, key_pos);
+        }
+    }
+
     virtual std::vector<char> exec_query(abieos::input_buffer query_bin, uint32_t head) override {
         abieos::name query_name;
         abieos::bin_to_native(query_name, query_bin);
@@ -78,9 +92,27 @@ struct lmdb_query_session : query_session {
             if (query.is_state)
                 lmdb::append_table_index_state_suffix(index_key_limit_block, max_block_index);
             // todo: unify lmdb's and pg's handling of negative result because of max_block_index
-            for_each(tx, db_iface->lmdb_inst->db, index_key_limit_block, index_key, [&](auto zzz, auto delta_key) {
+            for_each(tx, db_iface->lmdb_inst->db, index_key_limit_block, index_key, [&](auto, auto delta_key) {
                 auto delta_value = lmdb::get_raw(tx, db_iface->lmdb_inst->db, delta_key);
                 rows.emplace_back(delta_value.pos, delta_value.end);
+                if (query.join_table) {
+                    auto join_key = lmdb::make_table_index_key(query.join_table->short_name, query.join_query_wasm_name);
+                    append_fields(join_key, delta_value, query.join_key_values, true);
+                    auto join_key_limit_block = join_key;
+                    if (query.join_query->is_state)
+                        lmdb::append_table_index_state_suffix(join_key_limit_block, max_block_index);
+
+                    auto& row        = rows.back();
+                    bool  found_join = false;
+                    for_each(tx, db_iface->lmdb_inst->db, join_key_limit_block, join_key, [&](auto, auto join_delta_key) {
+                        found_join            = true;
+                        auto join_delta_value = lmdb::get_raw(tx, db_iface->lmdb_inst->db, join_delta_key);
+                        append_fields(row, join_delta_value, query.fields_from_join, false);
+                        return false;
+                    });
+
+                    // todo: !found_join
+                }
                 return false;
             });
             return ++num_results < max_results;

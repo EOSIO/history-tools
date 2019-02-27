@@ -456,6 +456,7 @@
                 }
             ],
             "join": "contract_row",
+            "join_query_wasm_name": "cr.ctsp",
             "join_key_values": [
                 {
                     "name": "code",

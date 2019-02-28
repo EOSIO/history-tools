@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <string_view>
 #include <type_traits>
 
 namespace eosio {
@@ -36,6 +37,7 @@ struct member_ptr {
 };
 
 #define STRUCT_REFLECT(STRUCT)                                                                                                             \
+    inline std::string_view schema_type_name(STRUCT*) { return #STRUCT; }                                                                  \
     template <typename F>                                                                                                                  \
     void for_each_member(STRUCT*, F f)
 

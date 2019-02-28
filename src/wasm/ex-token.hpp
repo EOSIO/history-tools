@@ -6,7 +6,7 @@
 struct token_transfer_key {
     eosio::name                        receipt_receiver = {};
     eosio::name                        account          = {};
-    block_select                       block            = {};
+    eosio::block_select                block            = {};
     serial_wrapper<eosio::checksum256> transaction_id   = {};
     uint32_t                           action_index     = {};
 
@@ -28,8 +28,6 @@ struct token_transfer_key {
     EOSLIB_SERIALIZE(token_transfer_key, (receipt_receiver)(account)(block)(transaction_id)(action_index))
 };
 
-inline std::string_view schema_type_name(token_transfer_key*) { return "token_transfer_key"; }
-
 STRUCT_REFLECT(token_transfer_key) {
     STRUCT_MEMBER(token_transfer_key, receipt_receiver)
     STRUCT_MEMBER(token_transfer_key, account)
@@ -48,8 +46,6 @@ struct token_transfer {
     EOSLIB_SERIALIZE(token_transfer, (key)(from)(to)(quantity)(memo))
 };
 
-inline std::string_view schema_type_name(token_transfer*) { return "token_transfer"; }
-
 STRUCT_REFLECT(token_transfer) {
     STRUCT_MEMBER(token_transfer, key)
     STRUCT_MEMBER(token_transfer, from)
@@ -60,16 +56,14 @@ STRUCT_REFLECT(token_transfer) {
 
 // todo: version
 struct token_transfer_request {
-    block_select       max_block               = {};
-    token_transfer_key first_key               = {};
-    token_transfer_key last_key                = {};
-    bool               include_notify_incoming = false;
-    bool               include_notify_outgoing = false;
-    bool               include_nonnotify       = false;
-    uint32_t           max_results             = {};
+    eosio::block_select max_block               = {};
+    token_transfer_key  first_key               = {};
+    token_transfer_key  last_key                = {};
+    bool                include_notify_incoming = false;
+    bool                include_notify_outgoing = false;
+    bool                include_nonnotify       = false;
+    uint32_t            max_results             = {};
 };
-
-inline std::string_view schema_type_name(token_transfer_request*) { return "token_transfer_request"; }
 
 STRUCT_REFLECT(token_transfer_request) {
     STRUCT_MEMBER(token_transfer_request, max_block)
@@ -89,8 +83,6 @@ struct token_transfer_response {
     EOSLIB_SERIALIZE(token_transfer_response, (transfers)(more))
 };
 
-inline std::string_view schema_type_name(token_transfer_response*) { return "token_transfer_response"; }
-
 STRUCT_REFLECT(token_transfer_response) {
     STRUCT_MEMBER(token_transfer_response, transfers)
     STRUCT_MEMBER(token_transfer_response, more)
@@ -98,15 +90,13 @@ STRUCT_REFLECT(token_transfer_response) {
 
 // todo: version
 struct balances_for_multiple_accounts_request {
-    block_select       max_block     = {};
-    eosio::name        code          = {};
-    eosio::symbol_code sym           = {};
-    eosio::name        first_account = {};
-    eosio::name        last_account  = {};
-    uint32_t           max_results   = {};
+    eosio::block_select max_block     = {};
+    eosio::name         code          = {};
+    eosio::symbol_code  sym           = {};
+    eosio::name         first_account = {};
+    eosio::name         last_account  = {};
+    uint32_t            max_results   = {};
 };
-
-inline std::string_view schema_type_name(balances_for_multiple_accounts_request*) { return "balances_for_multiple_accounts_request"; }
 
 STRUCT_REFLECT(balances_for_multiple_accounts_request) {
     STRUCT_MEMBER(balances_for_multiple_accounts_request, max_block)
@@ -129,8 +119,6 @@ struct bfmt_key {
     }
 };
 
-inline std::string_view schema_type_name(bfmt_key*) { return "bfmt_key"; }
-
 STRUCT_REFLECT(bfmt_key) {
     STRUCT_MEMBER(bfmt_key, sym)
     STRUCT_MEMBER(bfmt_key, code)
@@ -138,14 +126,12 @@ STRUCT_REFLECT(bfmt_key) {
 
 // todo: version
 struct balances_for_multiple_tokens_request {
-    block_select max_block   = {};
-    eosio::name  account     = {};
-    bfmt_key     first_key   = {};
-    bfmt_key     last_key    = {};
-    uint32_t     max_results = {};
+    eosio::block_select max_block   = {};
+    eosio::name         account     = {};
+    bfmt_key            first_key   = {};
+    bfmt_key            last_key    = {};
+    uint32_t            max_results = {};
 };
-
-inline std::string_view schema_type_name(balances_for_multiple_tokens_request*) { return "balances_for_multiple_tokens_request"; }
 
 STRUCT_REFLECT(balances_for_multiple_tokens_request) {
     STRUCT_MEMBER(balances_for_multiple_tokens_request, max_block)
@@ -160,8 +146,6 @@ struct token_balance {
     eosio::extended_asset amount  = {};
 };
 
-inline std::string_view schema_type_name(token_balance*) { return "token_balance"; }
-
 STRUCT_REFLECT(token_balance) {
     STRUCT_MEMBER(token_balance, account)
     STRUCT_MEMBER(token_balance, amount)
@@ -175,8 +159,6 @@ struct balances_for_multiple_accounts_response {
     EOSLIB_SERIALIZE(balances_for_multiple_accounts_response, (balances)(more))
 };
 
-inline std::string_view schema_type_name(balances_for_multiple_accounts_response*) { return "balances_for_multiple_accounts_response"; }
-
 STRUCT_REFLECT(balances_for_multiple_accounts_response) {
     STRUCT_MEMBER(balances_for_multiple_accounts_response, balances)
     STRUCT_MEMBER(balances_for_multiple_accounts_response, more)
@@ -189,8 +171,6 @@ struct balances_for_multiple_tokens_response {
 
     EOSLIB_SERIALIZE(balances_for_multiple_tokens_response, (balances)(more))
 };
-
-inline std::string_view schema_type_name(balances_for_multiple_tokens_response*) { return "balances_for_multiple_tokens_response"; }
 
 STRUCT_REFLECT(balances_for_multiple_tokens_response) {
     STRUCT_MEMBER(balances_for_multiple_tokens_response, balances)

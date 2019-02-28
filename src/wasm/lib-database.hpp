@@ -5,11 +5,13 @@
 #include "lib-struct-reflection.hpp"
 #include <eosiolib/time.hpp>
 
+namespace eosio {
+
 extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
 
 template <typename T, typename Alloc_fn>
 inline void exec_query(const T& req, Alloc_fn alloc_fn) {
-    auto req_data = eosio::pack(req);
+    auto req_data = pack(req);
     exec_query(req_data.data(), req_data.data() + req_data.size(), &alloc_fn, [](void* cb_alloc_data, size_t size) -> void* {
         return (*reinterpret_cast<Alloc_fn*>(cb_alloc_data))(size);
     });
@@ -27,11 +29,11 @@ inline std::vector<char> exec_query(const T& req) {
 
 template <typename result, typename F>
 bool for_each_query_result(const std::vector<char>& bytes, F f) {
-    eosio::datastream<const char*> ds(bytes.data(), bytes.size());
-    unsigned_int                   size;
+    datastream<const char*> ds(bytes.data(), bytes.size());
+    unsigned_int            size;
     ds >> size;
     for (uint32_t i = 0; i < size.value; ++i) {
-        eosio::datastream<const char*> row{nullptr, 0};
+        datastream<const char*> row{nullptr, 0};
         ds >> row;
         result r;
         row >> r;
@@ -42,11 +44,11 @@ bool for_each_query_result(const std::vector<char>& bytes, F f) {
 }
 
 struct context_data {
-    uint32_t           head            = {};
-    eosio::checksum256 head_id         = {};
-    uint32_t           irreversible    = {};
-    eosio::checksum256 irreversible_id = {};
-    uint32_t           first           = {};
+    uint32_t    head            = {};
+    checksum256 head_id         = {};
+    uint32_t    irreversible    = {};
+    checksum256 irreversible_id = {};
+    uint32_t    first           = {};
 };
 
 STRUCT_REFLECT(context_data) {
@@ -74,18 +76,17 @@ inline context_data get_context_data() {
         bin.resize(size);
         return bin.data();
     });
-    eosio::datastream<const char*> ds(bin.data(), bin.size());
+    datastream<const char*> ds(bin.data(), bin.size());
     ds >> result;
     return result;
 }
 
 // todo: split out definitions useful for client-side
-using absolute_block     = eosio::tagged_type<"absolute"_n, int32_t>;
-using head_block         = eosio::tagged_type<"head"_n, int32_t>;
-using irreversible_block = eosio::tagged_type<"irreversible"_n, int32_t>;
-using block_select       = eosio::tagged_variant<eosio::serialize_tag_as_index, absolute_block, head_block, irreversible_block>;
+using absolute_block     = tagged_type<"absolute"_n, int32_t>;
+using head_block         = tagged_type<"head"_n, int32_t>;
+using irreversible_block = tagged_type<"irreversible"_n, int32_t>;
+using block_select       = tagged_variant<serialize_tag_as_index, absolute_block, head_block, irreversible_block>;
 
-// todo: which namespace?
 inline std::string_view schema_type_name(block_select*) { return "eosio::block_select"; }
 
 inline block_select make_absolute_block(int32_t i) {
@@ -113,22 +114,20 @@ inline uint32_t increment(block_select& sel) {
 }
 
 struct block_info {
-    uint32_t                           block_num             = {};
-    serial_wrapper<eosio::checksum256> block_id              = {};
-    eosio::block_timestamp             timestamp             = eosio::block_timestamp{};
-    eosio::name                        producer              = {};
-    uint16_t                           confirmed             = {};
-    serial_wrapper<eosio::checksum256> previous              = {};
-    serial_wrapper<eosio::checksum256> transaction_mroot     = {};
-    serial_wrapper<eosio::checksum256> action_mroot          = {};
-    uint32_t                           schedule_version      = {};
-    uint32_t                           new_producers_version = {};
+    uint32_t                    block_num             = {};
+    serial_wrapper<checksum256> block_id              = {};
+    block_timestamp             timestamp             = block_timestamp{};
+    name                        producer              = {};
+    uint16_t                    confirmed             = {};
+    serial_wrapper<checksum256> previous              = {};
+    serial_wrapper<checksum256> transaction_mroot     = {};
+    serial_wrapper<checksum256> action_mroot          = {};
+    uint32_t                    schedule_version      = {};
+    uint32_t                    new_producers_version = {};
     // std::vector<producer_key>       new_producers         = {}; // todo
 };
 
-inline std::string_view schema_type_name(block_info*) { return "block_info"; }
-
-STRUCT_REFLECT(block_info) {
+STRUCT_REFLECT(eosio::block_info) {
     STRUCT_MEMBER(block_info, block_num)
     STRUCT_MEMBER(block_info, block_id)
     STRUCT_MEMBER(block_info, timestamp)
@@ -142,10 +141,10 @@ STRUCT_REFLECT(block_info) {
 }
 
 struct query_block_info_range_index {
-    eosio::name query_name  = "block.info"_n;
-    uint32_t    first       = {};
-    uint32_t    last        = {};
-    uint32_t    max_results = {};
+    name     query_name  = "block.info"_n;
+    uint32_t first       = {};
+    uint32_t last        = {};
+    uint32_t max_results = {};
 };
 
 enum class transaction_status : uint8_t {
@@ -157,22 +156,22 @@ enum class transaction_status : uint8_t {
 };
 
 struct action_trace {
-    uint32_t                           block_index             = {};
-    serial_wrapper<eosio::checksum256> transaction_id          = {};
-    uint32_t                           action_index            = {};
-    uint32_t                           parent_action_index     = {};
-    ::transaction_status               transaction_status      = {};
-    eosio::name                        receipt_receiver        = {};
-    serial_wrapper<eosio::checksum256> receipt_act_digest      = {};
-    uint64_t                           receipt_global_sequence = {};
-    uint64_t                           receipt_recv_sequence   = {};
-    unsigned_int                       receipt_code_sequence   = {};
-    unsigned_int                       receipt_abi_sequence    = {};
-    eosio::name                        account                 = {};
-    eosio::name                        name                    = {};
-    eosio::datastream<const char*>     data                    = {nullptr, 0};
-    bool                               context_free            = {};
-    int64_t                            elapsed                 = {};
+    uint32_t                    block_index             = {};
+    serial_wrapper<checksum256> transaction_id          = {};
+    uint32_t                    action_index            = {};
+    uint32_t                    parent_action_index     = {};
+    eosio::transaction_status   transaction_status      = {};
+    eosio::name                 receipt_receiver        = {};
+    serial_wrapper<checksum256> receipt_act_digest      = {};
+    uint64_t                    receipt_global_sequence = {};
+    uint64_t                    receipt_recv_sequence   = {};
+    unsigned_int                receipt_code_sequence   = {};
+    unsigned_int                receipt_abi_sequence    = {};
+    eosio::name                 account                 = {};
+    eosio::name                 name                    = {};
+    datastream<const char*>     data                    = {nullptr, 0};
+    bool                        context_free            = {};
+    int64_t                     elapsed                 = {};
 
     EOSLIB_SERIALIZE(
         action_trace, (block_index)(transaction_id)(action_index)(parent_action_index)(transaction_status)(receipt_receiver)(
@@ -180,45 +179,43 @@ struct action_trace {
                           account)(name)(data)(context_free)(elapsed))
 };
 
-inline std::string_view schema_type_name(action_trace*) { return "action_trace"; }
+inline std::string_view schema_type_name(action_trace*) { return "eosio::action_trace"; }
 
 struct query_action_trace_executed_range_name_receiver_account_block_trans_action {
     struct key {
-        eosio::name                        name             = {};
-        eosio::name                        receipt_receiver = {};
-        eosio::name                        account          = {};
-        uint32_t                           block_index      = {};
-        serial_wrapper<eosio::checksum256> transaction_id   = {};
-        uint32_t                           action_index     = {};
+        eosio::name                 name             = {};
+        eosio::name                 receipt_receiver = {};
+        eosio::name                 account          = {};
+        uint32_t                    block_index      = {};
+        serial_wrapper<checksum256> transaction_id   = {};
+        uint32_t                    action_index     = {};
     };
 
-    eosio::name query_name  = "at.e.nra"_n;
-    uint32_t    max_block   = {};
-    key         first       = {};
-    key         last        = {};
-    uint32_t    max_results = {};
+    name     query_name  = "at.e.nra"_n;
+    uint32_t max_block   = {};
+    key      first       = {};
+    key      last        = {};
+    uint32_t max_results = {};
 };
 
 struct account {
-    uint32_t                           block_index      = {};
-    bool                               present          = {};
-    eosio::name                        name             = {};
-    uint8_t                            vm_type          = {};
-    uint8_t                            vm_version       = {};
-    bool                               privileged       = {};
-    eosio::time_point                  last_code_update = eosio::time_point{};
-    serial_wrapper<eosio::checksum256> code_version     = {};
-    eosio::block_timestamp_type        creation_date    = eosio::block_timestamp_type{};
-    eosio::datastream<const char*>     code             = {nullptr, 0};
-    eosio::datastream<const char*>     abi              = {nullptr, 0};
+    uint32_t                    block_index      = {};
+    bool                        present          = {};
+    eosio::name                 name             = {};
+    uint8_t                     vm_type          = {};
+    uint8_t                     vm_version       = {};
+    bool                        privileged       = {};
+    time_point                  last_code_update = time_point{};
+    serial_wrapper<checksum256> code_version     = {};
+    block_timestamp_type        creation_date    = block_timestamp_type{};
+    datastream<const char*>     code             = {nullptr, 0};
+    datastream<const char*>     abi              = {nullptr, 0};
 
     EOSLIB_SERIALIZE(
         account, (block_index)(present)(name)(vm_type)(vm_version)(privileged)(last_code_update)(code_version)(creation_date)(code)(abi))
 };
 
-inline std::string_view schema_type_name(account*) { return "account"; }
-
-STRUCT_REFLECT(account) {
+STRUCT_REFLECT(eosio::account) {
     STRUCT_MEMBER(account, block_index)
     STRUCT_MEMBER(account, present)
     STRUCT_MEMBER(account, name)
@@ -233,25 +230,25 @@ STRUCT_REFLECT(account) {
 }
 
 struct query_account_range_name {
-    eosio::name query_name  = "account"_n;
-    uint32_t    max_block   = {};
-    eosio::name first       = {};
-    eosio::name last        = {};
-    uint32_t    max_results = {};
+    name     query_name  = "account"_n;
+    uint32_t max_block   = {};
+    name     first       = {};
+    name     last        = {};
+    uint32_t max_results = {};
 };
 
 struct contract_row {
-    uint32_t                       block_index = {};
-    bool                           present     = {};
-    eosio::name                    code        = {};
-    uint64_t                       scope       = {};
-    eosio::name                    table       = {};
-    uint64_t                       primary_key = {};
-    eosio::name                    payer       = {};
-    eosio::datastream<const char*> value       = {nullptr, 0};
+    uint32_t                block_index = {};
+    bool                    present     = {};
+    name                    code        = {};
+    uint64_t                scope       = {};
+    name                    table       = {};
+    uint64_t                primary_key = {};
+    name                    payer       = {};
+    datastream<const char*> value       = {nullptr, 0};
 };
 
-inline std::string_view schema_type_name(contract_row*) { return "contract_row"; }
+inline std::string_view schema_type_name(contract_row*) { return "eosio::contract_row"; }
 
 template <typename payload, typename F>
 bool for_each_contract_row(const std::vector<char>& bytes, F f) {
@@ -272,79 +269,81 @@ bool for_each_contract_row(const std::vector<char>& bytes, F f) {
 
 struct query_contract_row_range_code_table_pk_scope {
     struct key {
-        eosio::name code        = {};
-        eosio::name table       = {};
-        uint64_t    primary_key = {};
-        uint64_t    scope       = {};
+        name     code        = {};
+        name     table       = {};
+        uint64_t primary_key = {};
+        uint64_t scope       = {};
     };
 
-    eosio::name query_name  = "cr.ctps"_n;
-    uint32_t    max_block   = {};
-    key         first       = {};
-    key         last        = {};
-    uint32_t    max_results = {};
+    name     query_name  = "cr.ctps"_n;
+    uint32_t max_block   = {};
+    key      first       = {};
+    key      last        = {};
+    uint32_t max_results = {};
 };
 
 struct query_contract_row_range_code_table_scope_pk {
     struct key {
-        eosio::name code        = {};
-        eosio::name table       = {};
-        uint64_t    scope       = {};
-        uint64_t    primary_key = {};
+        name     code        = {};
+        name     table       = {};
+        uint64_t scope       = {};
+        uint64_t primary_key = {};
     };
 
-    eosio::name query_name  = "cr.ctsp"_n;
-    uint32_t    max_block   = {};
-    key         first       = {};
-    key         last        = {};
-    uint32_t    max_results = {};
+    name     query_name  = "cr.ctsp"_n;
+    uint32_t max_block   = {};
+    key      first       = {};
+    key      last        = {};
+    uint32_t max_results = {};
 };
 
 struct query_contract_row_range_scope_table_pk_code {
     struct key {
-        uint64_t    scope       = {};
-        eosio::name table       = {};
-        uint64_t    primary_key = {};
-        eosio::name code        = {};
+        uint64_t scope       = {};
+        name     table       = {};
+        uint64_t primary_key = {};
+        name     code        = {};
     };
 
-    eosio::name query_name  = "cr.stpc"_n;
-    uint32_t    max_block   = {};
-    key         first       = {};
-    key         last        = {};
-    uint32_t    max_results = {};
+    name     query_name  = "cr.stpc"_n;
+    uint32_t max_block   = {};
+    key      first       = {};
+    key      last        = {};
+    uint32_t max_results = {};
 };
 
 template <typename T>
 struct contract_secondary_index_with_row {
-    uint32_t                       block_index     = {};
-    bool                           present         = {};
-    eosio::name                    code            = {};
-    uint64_t                       scope           = {};
-    eosio::name                    table           = {};
-    uint64_t                       primary_key     = {};
-    eosio::name                    payer           = {};
-    T                              secondary_key   = {};
-    uint32_t                       row_block_index = {};
-    bool                           row_present     = {};
-    eosio::name                    row_payer       = {};
-    eosio::datastream<const char*> row_value       = {nullptr, 0};
+    uint32_t                block_index     = {};
+    bool                    present         = {};
+    name                    code            = {};
+    uint64_t                scope           = {};
+    name                    table           = {};
+    uint64_t                primary_key     = {};
+    name                    payer           = {};
+    T                       secondary_key   = {};
+    uint32_t                row_block_index = {};
+    bool                    row_present     = {};
+    name                    row_payer       = {};
+    datastream<const char*> row_value       = {nullptr, 0};
 };
 
 // todo: for_each_...
 
 struct query_contract_index64_range_code_table_scope_sk_pk {
     struct key {
-        eosio::name code          = {};
-        eosio::name table         = {};
-        uint64_t    scope         = {};
-        uint64_t    secondary_key = {};
-        uint64_t    primary_key   = {};
+        name     code          = {};
+        name     table         = {};
+        uint64_t scope         = {};
+        uint64_t secondary_key = {};
+        uint64_t primary_key   = {};
     };
 
-    eosio::name query_name  = "ci1.cts2p"_n;
-    uint32_t    max_block   = {};
-    key         first       = {};
-    key         last        = {};
-    uint32_t    max_results = {};
+    name     query_name  = "ci1.cts2p"_n;
+    uint32_t max_block   = {};
+    key      first       = {};
+    key      last        = {};
+    uint32_t max_results = {};
 };
+
+} // namespace eosio

@@ -8,9 +8,6 @@
 
 namespace eosio {
 
-// todo: remove
-using namespace std::literals;
-
 template <typename T>
 std::string_view schema_type_name(T*) {
     return {};
@@ -37,12 +34,14 @@ __attribute__((noinline)) inline void append_str(std::string_view sv, std::vecto
 }
 
 __attribute__((noinline)) inline void make_json_schema_string_pattern(std::string_view pattern, std::vector<char>& dest) {
+    using namespace std::literals;
     kv_to_json("type"sv, "string"sv, dest);
     dest.push_back(',');
     kv_to_json("pattern"sv, pattern, dest);
 }
 
 __attribute__((noinline)) inline void make_json_schema(std::string_view*, std::vector<char>& dest) {
+    using namespace std::literals;
     kv_to_json("type"sv, "string"sv, dest);
 }
 
@@ -96,16 +95,21 @@ __attribute__((noinline)) inline void make_json_schema_tagged_variant(bool need_
 
 template <tagged_variant_options Options, typename... NamedTypes>
 __attribute__((noinline)) inline void make_json_schema(tagged_variant<Options, NamedTypes...>*, std::vector<char>& dest) {
+    using namespace std::literals;
     to_json("oneOf"sv, dest);
     append_str(":[", dest);
     make_json_schema_tagged_variant<Options, NamedTypes...>(false, dest);
     append_str("]", dest);
 }
 
-__attribute__((noinline)) inline void make_json_schema(bool*, std::vector<char>& dest) { kv_to_json("type"sv, "boolean"sv, dest); }
+__attribute__((noinline)) inline void make_json_schema(bool*, std::vector<char>& dest) {
+    using namespace std::literals;
+    kv_to_json("type"sv, "boolean"sv, dest);
+}
 
 template <typename T>
 __attribute__((noinline)) inline void make_json_schema(std::vector<T>*, std::vector<char>& dest) {
+    using namespace std::literals;
     kv_to_json("type"sv, "array"sv, dest);
     dest.push_back(',');
     to_json("items"sv, dest);
@@ -121,6 +125,7 @@ make_json_schema_definitions_recurse(std::vector<T>*, std::vector<std::string_vi
 
 template <typename T>
 __attribute__((noinline)) inline void make_json_schema(std::optional<T>*, std::vector<char>& dest) {
+    using namespace std::literals;
     to_json("oneOf"sv, dest);
     append_str(R"(:[{"type":"null"},)", dest);
     make_json_schema_recurse((T*)nullptr, dest);
@@ -135,6 +140,7 @@ make_json_schema_definitions_recurse(std::optional<T>*, std::vector<std::string_
 
 template <typename T>
 __attribute__((noinline)) inline void make_json_schema(T*, std::vector<char>& dest) {
+    using namespace std::literals;
     if constexpr (std::is_integral_v<T>) {
         // todo: range, pattern for string, etc.
         to_json("type"sv, dest);
@@ -200,6 +206,7 @@ inline void append_escaped_name(name n, std::vector<char>& dest) {
 
 template <tagged_variant_options Options, typename NamedType, typename... NamedTypes>
 __attribute__((noinline)) inline void make_json_schema_tagged_variant(bool need_comma, std::vector<char>& dest) {
+    using namespace std::literals;
     if (need_comma)
         dest.push_back(',');
     dest.push_back('{');

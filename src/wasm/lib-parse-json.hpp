@@ -4,6 +4,8 @@
 #include "lib-placeholders.hpp"
 #include "lib-tagged-variant.hpp"
 
+namespace eosio {
+
 __attribute__((noinline)) inline void parse_json_skip_space(const char*& pos, const char* end) {
     while (pos != end && (*pos == 0x09 || *pos == 0x0a || *pos == 0x0d || *pos == 0x20))
         ++pos;
@@ -100,20 +102,20 @@ __attribute__((noinline)) inline void parse_json(bool& result, const char*& pos,
     eosio_assert(false, "expected boolean");
 }
 
-__attribute__((noinline)) inline void parse_json(eosio::name& result, const char*& pos, const char* end) {
+__attribute__((noinline)) inline void parse_json(name& result, const char*& pos, const char* end) {
     std::string_view sv;
     parse_json(sv, pos, end);
-    result = eosio::name{sv};
+    result = name{sv};
 }
 
-__attribute__((noinline)) inline void parse_json(eosio::symbol_code& result, const char*& pos, const char* end) {
+__attribute__((noinline)) inline void parse_json(symbol_code& result, const char*& pos, const char* end) {
     std::string_view sv;
     parse_json(sv, pos, end);
-    result = eosio::symbol_code{sv};
+    result = symbol_code{sv};
 }
 
 // todo: fix byte order
-__attribute__((noinline)) inline void parse_json(serial_wrapper<eosio::checksum256>& result, const char*& pos, const char* end) {
+__attribute__((noinline)) inline void parse_json(serial_wrapper<checksum256>& result, const char*& pos, const char* end) {
     auto             bytes = reinterpret_cast<char*>(result.value.data());
     std::string_view sv;
     parse_json(sv, pos, end);
@@ -246,3 +248,5 @@ __attribute__((noinline)) void parse_json(tagged_variant<Options, NamedTypes...>
     }
     eosio_assert(false, "invalid variant index name");
 }
+
+} // namespace eosio

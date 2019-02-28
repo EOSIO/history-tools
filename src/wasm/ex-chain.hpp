@@ -16,11 +16,10 @@ struct block_info_request {
 
 inline std::string_view schema_type_name(block_info_request*) { return "block_info_request"; }
 
-template <typename F>
-void for_each_member(block_info_request*, F f) {
-    f("first", member_ptr<&block_info_request::first>{});
-    f("last", member_ptr<&block_info_request::last>{});
-    f("max_results", member_ptr<&block_info_request::max_results>{});
+STRUCT_REFLECT(block_info_request) {
+    STRUCT_MEMBER(block_info_request, first)
+    STRUCT_MEMBER(block_info_request, last)
+    STRUCT_MEMBER(block_info_request, max_results)
 }
 
 // todo: versioning issues
@@ -34,10 +33,9 @@ struct block_info_response {
 
 inline std::string_view schema_type_name(block_info_response*) { return "block_info_response"; }
 
-template <typename F>
-void for_each_member(block_info_response*, F f) {
-    f("blocks", member_ptr<&block_info_response::blocks>{});
-    f("more", member_ptr<&block_info_response::more>{});
+STRUCT_REFLECT(block_info_response) {
+    STRUCT_MEMBER(block_info_response, blocks)
+    STRUCT_MEMBER(block_info_response, more)
 }
 
 struct tapos_request {
@@ -47,10 +45,9 @@ struct tapos_request {
 
 inline std::string_view schema_type_name(tapos_request*) { return "tapos_request"; }
 
-template <typename F>
-void for_each_member(tapos_request*, F f) {
-    f("ref_block", member_ptr<&tapos_request::ref_block>{});
-    f("expire_seconds", member_ptr<&tapos_request::expire_seconds>{});
+STRUCT_REFLECT(tapos_request) {
+    STRUCT_MEMBER(tapos_request, ref_block)
+    STRUCT_MEMBER(tapos_request, expire_seconds)
 }
 
 // todo: test pushing a transaction with this result
@@ -62,11 +59,10 @@ struct tapos_response {
 
 inline std::string_view schema_type_name(tapos_response*) { return "tapos_response"; }
 
-template <typename F>
-void for_each_member(tapos_response*, F f) {
-    f("ref_block_num", member_ptr<&tapos_response::ref_block_num>{});
-    f("ref_block_prefix", member_ptr<&tapos_response::ref_block_prefix>{});
-    f("expiration", member_ptr<&tapos_response::expiration>{});
+STRUCT_REFLECT(tapos_response) {
+    STRUCT_MEMBER(tapos_response, ref_block_num)
+    STRUCT_MEMBER(tapos_response, ref_block_prefix)
+    STRUCT_MEMBER(tapos_response, expiration)
 }
 
 struct account_request {
@@ -82,14 +78,13 @@ struct account_request {
 
 inline std::string_view schema_type_name(account_request*) { return "account_request"; }
 
-template <typename F>
-void for_each_member(account_request*, F f) {
-    f("max_block", member_ptr<&account_request::max_block>{});
-    f("first", member_ptr<&account_request::first>{});
-    f("last", member_ptr<&account_request::last>{});
-    f("max_results", member_ptr<&account_request::max_results>{});
-    f("include_abi", member_ptr<&account_request::include_abi>{});
-    f("include_code", member_ptr<&account_request::include_code>{});
+STRUCT_REFLECT(account_request) {
+    STRUCT_MEMBER(account_request, max_block)
+    STRUCT_MEMBER(account_request, first)
+    STRUCT_MEMBER(account_request, last)
+    STRUCT_MEMBER(account_request, max_results)
+    STRUCT_MEMBER(account_request, include_abi)
+    STRUCT_MEMBER(account_request, include_code)
 }
 
 // todo: versioning issues
@@ -103,10 +98,9 @@ struct account_response {
 
 inline std::string_view schema_type_name(account_response*) { return "account_response"; }
 
-template <typename F>
-void for_each_member(account_response*, F f) {
-    f("accounts", member_ptr<&account_response::accounts>{});
-    f("more", member_ptr<&account_response::more>{});
+STRUCT_REFLECT(account_response) {
+    STRUCT_MEMBER(account_response, accounts)
+    STRUCT_MEMBER(account_response, more)
 }
 
 struct abis_request {
@@ -118,10 +112,9 @@ struct abis_request {
 
 inline std::string_view schema_type_name(abis_request*) { return "abis_request"; }
 
-template <typename F>
-void for_each_member(abis_request*, F f) {
-    f("max_block", member_ptr<&abis_request::max_block>{});
-    f("names", member_ptr<&abis_request::names>{});
+STRUCT_REFLECT(abis_request) {
+    STRUCT_MEMBER(abis_request, max_block)
+    STRUCT_MEMBER(abis_request, names)
 }
 
 struct name_abi {
@@ -134,11 +127,10 @@ struct name_abi {
 
 inline std::string_view schema_type_name(name_abi*) { return "name_abi"; }
 
-template <typename F>
-void for_each_member(name_abi*, F f) {
-    f("name", member_ptr<&name_abi::name>{});
-    f("account_exists", member_ptr<&name_abi::account_exists>{});
-    f("abi", member_ptr<&name_abi::abi>{});
+STRUCT_REFLECT(name_abi) {
+    STRUCT_MEMBER(name_abi, name)
+    STRUCT_MEMBER(name_abi, account_exists)
+    STRUCT_MEMBER(name_abi, abi)
 }
 
 struct abis_response {
@@ -149,7 +141,6 @@ struct abis_response {
 
 inline std::string_view schema_type_name(abis_response*) { return "abis_response"; }
 
-template <typename F>
-void for_each_member(abis_response*, F f) {
-    f("abis", member_ptr<&abis_response::abis>{});
+STRUCT_REFLECT(abis_response) { //
+    STRUCT_MEMBER(abis_response, abis)
 }

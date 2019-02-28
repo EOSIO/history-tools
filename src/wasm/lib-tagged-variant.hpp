@@ -5,14 +5,16 @@
 #include <eosiolib/varint.hpp>
 #include <variant>
 
-template <eosio::name::raw N, typename T>
+namespace eosio {
+
+template <name::raw N, typename T>
 struct tagged_type {
     static inline constexpr eosio::name name          = eosio::name{N};
     static inline constexpr bool        type_is_empty = false;
     using type                                        = T;
 };
 
-template <eosio::name::raw N>
+template <name::raw N>
 struct tagged_empty_type {
     static inline constexpr eosio::name name          = eosio::name{N};
     static inline constexpr bool        type_is_empty = true;
@@ -24,7 +26,7 @@ struct is_tagged_empty_type {
     static constexpr bool value = false;
 };
 
-template <eosio::name::raw N>
+template <name::raw N>
 struct is_tagged_empty_type<tagged_empty_type<N>> {
     static constexpr bool value = true;
 };
@@ -41,7 +43,7 @@ enum tagged_variant_options {
 template <tagged_variant_options Options, typename... NamedTypes>
 struct tagged_variant {
     std::variant<typename NamedTypes::type...> value;
-    static inline constexpr eosio::name        keys[] = {NamedTypes::name...};
+    static inline constexpr name               keys[] = {NamedTypes::name...};
 };
 
 template <size_t I, typename DataStream, tagged_variant_options Options, typename... NamedTypes>
@@ -93,3 +95,5 @@ DataStream& operator<<(DataStream& ds, const tagged_variant<Options, NamedTypes.
         v.value);
     return ds;
 }
+
+} // namespace eosio

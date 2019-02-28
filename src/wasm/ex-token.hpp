@@ -30,13 +30,12 @@ struct token_transfer_key {
 
 inline std::string_view schema_type_name(token_transfer_key*) { return "token_transfer_key"; }
 
-template <typename F>
-void for_each_member(token_transfer_key*, F f) {
-    f("receipt_receiver", member_ptr<&token_transfer_key::receipt_receiver>{});
-    f("account", member_ptr<&token_transfer_key::account>{});
-    f("block", member_ptr<&token_transfer_key::block>{});
-    f("transaction_id", member_ptr<&token_transfer_key::transaction_id>{});
-    f("action_index", member_ptr<&token_transfer_key::action_index>{});
+STRUCT_REFLECT(token_transfer_key) {
+    STRUCT_MEMBER(token_transfer_key, receipt_receiver)
+    STRUCT_MEMBER(token_transfer_key, account)
+    STRUCT_MEMBER(token_transfer_key, block)
+    STRUCT_MEMBER(token_transfer_key, transaction_id)
+    STRUCT_MEMBER(token_transfer_key, action_index)
 }
 
 struct token_transfer {
@@ -51,13 +50,12 @@ struct token_transfer {
 
 inline std::string_view schema_type_name(token_transfer*) { return "token_transfer"; }
 
-template <typename F>
-void for_each_member(token_transfer*, F f) {
-    f("key", member_ptr<&token_transfer::key>{});
-    f("from", member_ptr<&token_transfer::from>{});
-    f("to", member_ptr<&token_transfer::to>{});
-    f("quantity", member_ptr<&token_transfer::quantity>{});
-    f("memo", member_ptr<&token_transfer::memo>{});
+STRUCT_REFLECT(token_transfer) {
+    STRUCT_MEMBER(token_transfer, key)
+    STRUCT_MEMBER(token_transfer, from)
+    STRUCT_MEMBER(token_transfer, to)
+    STRUCT_MEMBER(token_transfer, quantity)
+    STRUCT_MEMBER(token_transfer, memo)
 }
 
 // todo: version
@@ -73,15 +71,14 @@ struct token_transfer_request {
 
 inline std::string_view schema_type_name(token_transfer_request*) { return "token_transfer_request"; }
 
-template <typename F>
-void for_each_member(token_transfer_request*, F f) {
-    f("max_block", member_ptr<&token_transfer_request::max_block>{});
-    f("first_key", member_ptr<&token_transfer_request::first_key>{});
-    f("last_key", member_ptr<&token_transfer_request::last_key>{});
-    f("include_notify_incoming", member_ptr<&token_transfer_request::include_notify_incoming>{});
-    f("include_notify_outgoing", member_ptr<&token_transfer_request::include_notify_outgoing>{});
-    f("include_nonnotify", member_ptr<&token_transfer_request::include_nonnotify>{});
-    f("max_results", member_ptr<&token_transfer_request::max_results>{});
+STRUCT_REFLECT(token_transfer_request) {
+    STRUCT_MEMBER(token_transfer_request, max_block)
+    STRUCT_MEMBER(token_transfer_request, first_key)
+    STRUCT_MEMBER(token_transfer_request, last_key)
+    STRUCT_MEMBER(token_transfer_request, include_notify_incoming)
+    STRUCT_MEMBER(token_transfer_request, include_notify_outgoing)
+    STRUCT_MEMBER(token_transfer_request, include_nonnotify)
+    STRUCT_MEMBER(token_transfer_request, max_results)
 }
 
 // todo: version
@@ -94,10 +91,9 @@ struct token_transfer_response {
 
 inline std::string_view schema_type_name(token_transfer_response*) { return "token_transfer_response"; }
 
-template <typename F>
-void for_each_member(token_transfer_response*, F f) {
-    f("transfers", member_ptr<&token_transfer_response::transfers>{});
-    f("more", member_ptr<&token_transfer_response::more>{});
+STRUCT_REFLECT(token_transfer_response) {
+    STRUCT_MEMBER(token_transfer_response, transfers)
+    STRUCT_MEMBER(token_transfer_response, more)
 }
 
 // todo: version
@@ -112,14 +108,13 @@ struct balances_for_multiple_accounts_request {
 
 inline std::string_view schema_type_name(balances_for_multiple_accounts_request*) { return "balances_for_multiple_accounts_request"; }
 
-template <typename F>
-void for_each_member(balances_for_multiple_accounts_request*, F f) {
-    f("max_block", member_ptr<&balances_for_multiple_accounts_request::max_block>{});
-    f("code", member_ptr<&balances_for_multiple_accounts_request::code>{});
-    f("sym", member_ptr<&balances_for_multiple_accounts_request::sym>{});
-    f("first_account", member_ptr<&balances_for_multiple_accounts_request::first_account>{});
-    f("last_account", member_ptr<&balances_for_multiple_accounts_request::last_account>{});
-    f("max_results", member_ptr<&balances_for_multiple_accounts_request::max_results>{});
+STRUCT_REFLECT(balances_for_multiple_accounts_request) {
+    STRUCT_MEMBER(balances_for_multiple_accounts_request, max_block)
+    STRUCT_MEMBER(balances_for_multiple_accounts_request, code)
+    STRUCT_MEMBER(balances_for_multiple_accounts_request, sym)
+    STRUCT_MEMBER(balances_for_multiple_accounts_request, first_account)
+    STRUCT_MEMBER(balances_for_multiple_accounts_request, last_account)
+    STRUCT_MEMBER(balances_for_multiple_accounts_request, max_results)
 }
 
 struct bfmt_key {
@@ -136,10 +131,9 @@ struct bfmt_key {
 
 inline std::string_view schema_type_name(bfmt_key*) { return "bfmt_key"; }
 
-template <typename F>
-void for_each_member(bfmt_key*, F f) {
-    f("sym", member_ptr<&bfmt_key::sym>{});
-    f("code", member_ptr<&bfmt_key::code>{});
+STRUCT_REFLECT(bfmt_key) {
+    STRUCT_MEMBER(bfmt_key, sym)
+    STRUCT_MEMBER(bfmt_key, code)
 }
 
 // todo: version
@@ -153,13 +147,12 @@ struct balances_for_multiple_tokens_request {
 
 inline std::string_view schema_type_name(balances_for_multiple_tokens_request*) { return "balances_for_multiple_tokens_request"; }
 
-template <typename F>
-void for_each_member(balances_for_multiple_tokens_request*, F f) {
-    f("max_block", member_ptr<&balances_for_multiple_tokens_request::max_block>{});
-    f("account", member_ptr<&balances_for_multiple_tokens_request::account>{});
-    f("first_key", member_ptr<&balances_for_multiple_tokens_request::first_key>{});
-    f("last_key", member_ptr<&balances_for_multiple_tokens_request::last_key>{});
-    f("max_results", member_ptr<&balances_for_multiple_tokens_request::max_results>{});
+STRUCT_REFLECT(balances_for_multiple_tokens_request) {
+    STRUCT_MEMBER(balances_for_multiple_tokens_request, max_block)
+    STRUCT_MEMBER(balances_for_multiple_tokens_request, account)
+    STRUCT_MEMBER(balances_for_multiple_tokens_request, first_key)
+    STRUCT_MEMBER(balances_for_multiple_tokens_request, last_key)
+    STRUCT_MEMBER(balances_for_multiple_tokens_request, max_results)
 }
 
 struct token_balance {
@@ -169,10 +162,9 @@ struct token_balance {
 
 inline std::string_view schema_type_name(token_balance*) { return "token_balance"; }
 
-template <typename F>
-void for_each_member(token_balance*, F f) {
-    f("account", member_ptr<&token_balance::account>{});
-    f("amount", member_ptr<&token_balance::amount>{});
+STRUCT_REFLECT(token_balance) {
+    STRUCT_MEMBER(token_balance, account)
+    STRUCT_MEMBER(token_balance, amount)
 }
 
 // todo: version
@@ -185,10 +177,9 @@ struct balances_for_multiple_accounts_response {
 
 inline std::string_view schema_type_name(balances_for_multiple_accounts_response*) { return "balances_for_multiple_accounts_response"; }
 
-template <typename F>
-void for_each_member(balances_for_multiple_accounts_response*, F f) {
-    f("balances", member_ptr<&balances_for_multiple_accounts_response::balances>{});
-    f("more", member_ptr<&balances_for_multiple_accounts_response::more>{});
+STRUCT_REFLECT(balances_for_multiple_accounts_response) {
+    STRUCT_MEMBER(balances_for_multiple_accounts_response, balances)
+    STRUCT_MEMBER(balances_for_multiple_accounts_response, more)
 }
 
 // todo: version
@@ -201,8 +192,7 @@ struct balances_for_multiple_tokens_response {
 
 inline std::string_view schema_type_name(balances_for_multiple_tokens_response*) { return "balances_for_multiple_tokens_response"; }
 
-template <typename F>
-void for_each_member(balances_for_multiple_tokens_response*, F f) {
-    f("balances", member_ptr<&balances_for_multiple_tokens_response::balances>{});
-    f("more", member_ptr<&balances_for_multiple_tokens_response::more>{});
+STRUCT_REFLECT(balances_for_multiple_tokens_response) {
+    STRUCT_MEMBER(balances_for_multiple_tokens_response, balances)
+    STRUCT_MEMBER(balances_for_multiple_tokens_response, more)
 }

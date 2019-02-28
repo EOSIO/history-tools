@@ -2,6 +2,7 @@
 
 #pragma once
 #include "lib-placeholders.hpp"
+#include "lib-struct-reflection.hpp"
 #include <eosiolib/time.hpp>
 
 extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
@@ -48,13 +49,12 @@ struct context_data {
     uint32_t           first           = {};
 };
 
-template <typename F>
-void for_each_member(context_data*, F f) {
-    f("head", member_ptr<&context_data::head>{});
-    f("head_id", member_ptr<&context_data::head_id>{});
-    f("irreversible", member_ptr<&context_data::irreversible>{});
-    f("irreversible_id", member_ptr<&context_data::irreversible_id>{});
-    f("first", member_ptr<&context_data::first>{});
+STRUCT_REFLECT(context_data) {
+    STRUCT_MEMBER(context_data, head)
+    STRUCT_MEMBER(context_data, head_id)
+    STRUCT_MEMBER(context_data, irreversible)
+    STRUCT_MEMBER(context_data, irreversible_id)
+    STRUCT_MEMBER(context_data, first)
 }
 
 // todo: version number argument
@@ -80,10 +80,10 @@ inline context_data get_context_data() {
 }
 
 // todo: split out definitions useful for client-side
-using absolute_block     = tagged_type<"absolute"_n, int32_t>;
-using head_block         = tagged_type<"head"_n, int32_t>;
-using irreversible_block = tagged_type<"irreversible"_n, int32_t>;
-using block_select       = tagged_variant<serialize_tag_as_index, absolute_block, head_block, irreversible_block>;
+using absolute_block     = eosio::tagged_type<"absolute"_n, int32_t>;
+using head_block         = eosio::tagged_type<"head"_n, int32_t>;
+using irreversible_block = eosio::tagged_type<"irreversible"_n, int32_t>;
+using block_select       = eosio::tagged_variant<eosio::serialize_tag_as_index, absolute_block, head_block, irreversible_block>;
 
 // todo: which namespace?
 inline std::string_view schema_type_name(block_select*) { return "eosio::block_select"; }
@@ -128,18 +128,17 @@ struct block_info {
 
 inline std::string_view schema_type_name(block_info*) { return "block_info"; }
 
-template <typename F>
-void for_each_member(block_info*, F f) {
-    f("block_num", member_ptr<&block_info::block_num>{});
-    f("block_id", member_ptr<&block_info::block_id>{});
-    f("timestamp", member_ptr<&block_info::timestamp>{});
-    f("producer", member_ptr<&block_info::producer>{});
-    f("confirmed", member_ptr<&block_info::confirmed>{});
-    f("previous", member_ptr<&block_info::previous>{});
-    f("transaction_mroot", member_ptr<&block_info::transaction_mroot>{});
-    f("action_mroot", member_ptr<&block_info::action_mroot>{});
-    f("schedule_version", member_ptr<&block_info::schedule_version>{});
-    f("new_producers_version", member_ptr<&block_info::new_producers_version>{});
+STRUCT_REFLECT(block_info) {
+    STRUCT_MEMBER(block_info, block_num)
+    STRUCT_MEMBER(block_info, block_id)
+    STRUCT_MEMBER(block_info, timestamp)
+    STRUCT_MEMBER(block_info, producer)
+    STRUCT_MEMBER(block_info, confirmed)
+    STRUCT_MEMBER(block_info, previous)
+    STRUCT_MEMBER(block_info, transaction_mroot)
+    STRUCT_MEMBER(block_info, action_mroot)
+    STRUCT_MEMBER(block_info, schedule_version)
+    STRUCT_MEMBER(block_info, new_producers_version)
 }
 
 struct query_block_info_range_index {
@@ -219,19 +218,18 @@ struct account {
 
 inline std::string_view schema_type_name(account*) { return "account"; }
 
-template <typename F>
-void for_each_member(account*, F f) {
-    f("block_index", member_ptr<&account::block_index>{});
-    f("present", member_ptr<&account::present>{});
-    f("name", member_ptr<&account::name>{});
-    f("vm_type", member_ptr<&account::vm_type>{});
-    f("vm_version", member_ptr<&account::vm_version>{});
-    f("privileged", member_ptr<&account::privileged>{});
-    f("last_code_update", member_ptr<&account::last_code_update>{});
-    f("code_version", member_ptr<&account::code_version>{});
-    f("creation_date", member_ptr<&account::creation_date>{});
-    f("code", member_ptr<&account::code>{});
-    f("abi", member_ptr<&account::abi>{});
+STRUCT_REFLECT(account) {
+    STRUCT_MEMBER(account, block_index)
+    STRUCT_MEMBER(account, present)
+    STRUCT_MEMBER(account, name)
+    STRUCT_MEMBER(account, vm_type)
+    STRUCT_MEMBER(account, vm_version)
+    STRUCT_MEMBER(account, privileged)
+    STRUCT_MEMBER(account, last_code_update)
+    STRUCT_MEMBER(account, code_version)
+    STRUCT_MEMBER(account, creation_date)
+    STRUCT_MEMBER(account, code)
+    STRUCT_MEMBER(account, abi)
 }
 
 struct query_account_range_name {

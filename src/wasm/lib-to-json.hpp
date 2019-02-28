@@ -8,10 +8,15 @@
 #include <eosiolib/time.hpp>
 #include <vector>
 
+namespace eosio {
+
 // todo: replace
 __attribute__((noinline)) inline void append(std::vector<char>& dest, std::string_view sv) {
     dest.insert(dest.end(), sv.begin(), sv.end());
 }
+
+template <typename T>
+void to_json(const T& obj, std::vector<char>& dest);
 
 // todo: escape
 // todo: handle non-utf8
@@ -96,7 +101,7 @@ __attribute__((noinline)) inline void to_json(int64_t value, std::vector<char>& 
     dest.push_back('"');
 }
 
-__attribute__((noinline)) inline void to_json(eosio::name value, std::vector<char>& dest) {
+__attribute__((noinline)) inline void to_json(name value, std::vector<char>& dest) {
     char buffer[13];
     auto end = value.write_as_string(buffer, buffer + sizeof(buffer));
     dest.push_back('"');
@@ -104,14 +109,14 @@ __attribute__((noinline)) inline void to_json(eosio::name value, std::vector<cha
     dest.push_back('"');
 }
 
-__attribute__((noinline)) inline void to_json(eosio::symbol_code value, std::vector<char>& dest) {
+__attribute__((noinline)) inline void to_json(symbol_code value, std::vector<char>& dest) {
     char buffer[10];
     dest.push_back('"');
     append(dest, std::string_view{buffer, size_t(value.write_as_string(buffer, buffer + sizeof(buffer)) - buffer)});
     dest.push_back('"');
 }
 
-__attribute__((noinline)) inline void to_json(eosio::asset value, std::vector<char>& dest) {
+__attribute__((noinline)) inline void to_json(asset value, std::vector<char>& dest) {
     append(dest, "{\"symbol\":\"");
     char buffer[10];
     append(dest, std::string_view{buffer, size_t(value.symbol.code().write_as_string(buffer, buffer + sizeof(buffer)) - buffer)});
@@ -122,7 +127,7 @@ __attribute__((noinline)) inline void to_json(eosio::asset value, std::vector<ch
     append(dest, "}");
 }
 
-__attribute__((noinline)) inline void to_json(eosio::extended_asset value, std::vector<char>& dest) {
+__attribute__((noinline)) inline void to_json(extended_asset value, std::vector<char>& dest) {
     append(dest, "{\"contract\":");
     to_json(value.contract, dest);
     append(dest, ",\"symbol\":\"");
@@ -136,7 +141,7 @@ __attribute__((noinline)) inline void to_json(eosio::extended_asset value, std::
 }
 
 // todo: move hex conversion to checksum256
-__attribute__((noinline)) inline void to_json(const serial_wrapper<eosio::checksum256>& value, std::vector<char>& dest) {
+__attribute__((noinline)) inline void to_json(const serial_wrapper<checksum256>& value, std::vector<char>& dest) {
     static const char hex_digits[] = "0123456789ABCDEF";
     auto              bytes        = value.value.extract_as_byte_array();
     dest.push_back('"');
@@ -171,18 +176,16 @@ __attribute__((noinline)) inline void to_str_us(uint64_t microseconds, std::vect
 }
 
 // todo: move conversion to time_point
-__attribute__((noinline)) inline void to_json(eosio::time_point value, std::vector<char>& dest) {
+__attribute__((noinline)) inline void to_json(time_point value, std::vector<char>& dest) {
     dest.push_back('"');
     to_str_us(value.elapsed.count(), dest);
     dest.push_back('"');
 }
 
-__attribute__((noinline)) inline void to_json(eosio::block_timestamp value, std::vector<char>& dest) {
-    to_json(value.to_time_point(), dest);
-}
+__attribute__((noinline)) inline void to_json(block_timestamp value, std::vector<char>& dest) { to_json(value.to_time_point(), dest); }
 
 // todo
-__attribute__((noinline)) inline void to_json(const eosio::datastream<const char*>& value, std::vector<char>& dest) {
+__attribute__((noinline)) inline void to_json(const datastream<const char*>& value, std::vector<char>& dest) {
     if (value.remaining())
         append(dest, "\"<<<datastream>>>\"");
     else
@@ -253,3 +256,5 @@ __attribute__((noinline)) void kv_to_json(std::string_view key, const T& value, 
     dest.push_back(':');
     to_json(value, dest);
 }
+
+} // namespace eosio

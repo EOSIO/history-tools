@@ -6,6 +6,8 @@
 
 #include <type_traits>
 
+namespace eosio {
+
 // todo: remove
 using namespace std::literals;
 
@@ -44,45 +46,45 @@ __attribute__((noinline)) inline void make_json_schema(std::string_view*, std::v
     kv_to_json("type"sv, "string"sv, dest);
 }
 
-inline std::string_view schema_type_name(eosio::name*) { return "eosio::name"; }
+inline std::string_view schema_type_name(name*) { return "eosio::name"; }
 
-__attribute__((noinline)) inline void make_json_schema(eosio::name*, std::vector<char>& dest) {
+__attribute__((noinline)) inline void make_json_schema(name*, std::vector<char>& dest) {
     make_json_schema_string_pattern("... todo: name pattern ...", dest);
 }
 
-inline std::string_view schema_type_name(eosio::symbol_code*) { return "eosio::symbol_code"; }
+inline std::string_view schema_type_name(symbol_code*) { return "eosio::symbol_code"; }
 
-__attribute__((noinline)) inline void make_json_schema(eosio::symbol_code*, std::vector<char>& dest) {
+__attribute__((noinline)) inline void make_json_schema(symbol_code*, std::vector<char>& dest) {
     make_json_schema_string_pattern("... todo: symbol_code pattern ...", dest);
 }
 
-inline std::string_view schema_type_name(eosio::time_point*) { return "eosio::time_point"; }
+inline std::string_view schema_type_name(time_point*) { return "eosio::time_point"; }
 
-__attribute__((noinline)) inline void make_json_schema(eosio::time_point*, std::vector<char>& dest) {
+__attribute__((noinline)) inline void make_json_schema(time_point*, std::vector<char>& dest) {
     make_json_schema_string_pattern("... todo: time_point pattern ...", dest);
 }
 
-inline std::string_view schema_type_name(eosio::block_timestamp*) { return "eosio::block_timestamp"; }
+inline std::string_view schema_type_name(block_timestamp*) { return "eosio::block_timestamp"; }
 
-__attribute__((noinline)) inline void make_json_schema(eosio::block_timestamp*, std::vector<char>& dest) {
+__attribute__((noinline)) inline void make_json_schema(block_timestamp*, std::vector<char>& dest) {
     make_json_schema_string_pattern("... todo: block_timestamp pattern ...", dest);
 }
 
-inline std::string_view schema_type_name(eosio::extended_asset*) { return "eosio::extended_asset"; }
+inline std::string_view schema_type_name(extended_asset*) { return "eosio::extended_asset"; }
 
-__attribute__((noinline)) inline void make_json_schema(eosio::extended_asset*, std::vector<char>& dest) {
+__attribute__((noinline)) inline void make_json_schema(extended_asset*, std::vector<char>& dest) {
     make_json_schema_string_pattern("... todo: extended_asset pattern ...", dest);
 }
 
-inline std::string_view schema_type_name(serial_wrapper<eosio::checksum256>*) { return "eosio::checksum256"; }
+inline std::string_view schema_type_name(serial_wrapper<checksum256>*) { return "eosio::checksum256"; }
 
-__attribute__((noinline)) inline void make_json_schema(serial_wrapper<eosio::checksum256>*, std::vector<char>& dest) {
+__attribute__((noinline)) inline void make_json_schema(serial_wrapper<checksum256>*, std::vector<char>& dest) {
     make_json_schema_string_pattern("... todo: checksum256 pattern ...", dest);
 }
 
-inline std::string_view schema_type_name(eosio::datastream<const char*>*) { return "eosio::bytes"; }
+inline std::string_view schema_type_name(datastream<const char*>*) { return "eosio::bytes"; }
 
-__attribute__((noinline)) inline void make_json_schema(eosio::datastream<const char*>*, std::vector<char>& dest) {
+__attribute__((noinline)) inline void make_json_schema(datastream<const char*>*, std::vector<char>& dest) {
     make_json_schema_string_pattern("... todo: datastream pattern ...", dest);
 }
 
@@ -186,7 +188,7 @@ make_json_schema_definitions_recurse(T*, std::vector<std::string_view>& existing
         });
 }
 
-inline void append_escaped_name(eosio::name n, std::vector<char>& dest) {
+inline void append_escaped_name(name n, std::vector<char>& dest) {
     char buffer[13];
     auto end = n.write_as_string(buffer, buffer + sizeof(buffer));
     for (auto x = buffer; x != end; ++x) {
@@ -279,3 +281,5 @@ __attribute__((noinline)) inline std::vector<char> make_json_schema(T* = nullptr
     result.push_back('}');
     return result;
 }
+
+} // namespace eosio

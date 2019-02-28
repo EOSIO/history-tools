@@ -85,21 +85,20 @@ struct get_table_rows_params {
     bool             show_payer     = false;
 };
 
-template <typename F>
-void for_each_member(get_table_rows_params*, F f) {
-    f("json", member_ptr<&get_table_rows_params::json>{});
-    f("code", member_ptr<&get_table_rows_params::code>{});
-    f("scope", member_ptr<&get_table_rows_params::scope>{});
-    f("table", member_ptr<&get_table_rows_params::table>{});
-    f("table_key", member_ptr<&get_table_rows_params::table_key>{});
-    f("lower_bound", member_ptr<&get_table_rows_params::lower_bound>{});
-    f("upper_bound", member_ptr<&get_table_rows_params::upper_bound>{});
-    f("limit", member_ptr<&get_table_rows_params::limit>{});
-    f("key_type", member_ptr<&get_table_rows_params::key_type>{});
-    f("index_position", member_ptr<&get_table_rows_params::index_position>{});
-    f("encode_type", member_ptr<&get_table_rows_params::encode_type>{});
-    f("reverse", member_ptr<&get_table_rows_params::reverse>{});
-    f("show_payer", member_ptr<&get_table_rows_params::show_payer>{});
+STRUCT_REFLECT(get_table_rows_params) {
+    STRUCT_MEMBER(get_table_rows_params, json);
+    STRUCT_MEMBER(get_table_rows_params, code);
+    STRUCT_MEMBER(get_table_rows_params, scope);
+    STRUCT_MEMBER(get_table_rows_params, table);
+    STRUCT_MEMBER(get_table_rows_params, table_key);
+    STRUCT_MEMBER(get_table_rows_params, lower_bound);
+    STRUCT_MEMBER(get_table_rows_params, upper_bound);
+    STRUCT_MEMBER(get_table_rows_params, limit);
+    STRUCT_MEMBER(get_table_rows_params, key_type);
+    STRUCT_MEMBER(get_table_rows_params, index_position);
+    STRUCT_MEMBER(get_table_rows_params, encode_type);
+    STRUCT_MEMBER(get_table_rows_params, reverse);
+    STRUCT_MEMBER(get_table_rows_params, show_payer);
 }
 
 template <int size>

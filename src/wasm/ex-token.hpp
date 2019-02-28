@@ -1,7 +1,7 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include "lib-database.hpp"
+#include <eosio/database.hpp>
 
 struct token_transfer_key {
     eosio::name                        receipt_receiver = {};

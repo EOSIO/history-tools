@@ -2,7 +2,7 @@
 
 // todo: remove or replace everything in this file
 
-#include "lib-placeholders.hpp"
+#include <eosio/temp-placeholders.hpp>
 
 extern "C" void* memcpy(void* __restrict dest, const void* __restrict src, size_t size) {
     auto d = reinterpret_cast<char*>(dest);

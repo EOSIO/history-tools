@@ -3,7 +3,7 @@
 // todo: remove or replace everything in this file
 
 #pragma once
-#include "lib-tagged-variant.hpp"
+#include <eosio/tagged-variant.hpp>
 #include <eosiolib/asset.hpp>
 #include <eosiolib/datastream.hpp>
 #include <eosiolib/varint.hpp>
@@ -140,4 +140,3 @@ inline const char* asset_to_string(const eosio::asset& v) {
     *pos++ = 0;
     return result;
 }
-

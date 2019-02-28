@@ -1,8 +1,8 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include "lib-placeholders.hpp"
-#include "lib-struct-reflection.hpp"
+#include <eosio/struct-reflection.hpp>
+#include <eosio/temp-placeholders.hpp>
 #include <eosiolib/time.hpp>
 
 namespace eosio {

@@ -6,23 +6,18 @@
 #pragma once
 #include "ex-chain.hpp"
 #include "ex-token.hpp"
-#include "lib-tagged-variant.hpp"
 
-#include <string_view>
-
+#include <eosio/tagged-variant.hpp>
 #include <eosiolib/action.hpp>
 #include <eosiolib/asset.hpp>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
-
-#include "../../external/abieos/src/abieos_ripemd160.hpp"
-
-using namespace eosio;
-using namespace std;
 
 typedef void* cb_alloc_fn(void* cb_alloc_data, size_t size);
 
+/*
 struct html {
     std::vector<char> v;
 
@@ -174,7 +169,7 @@ inline html to_html(const public_key& key) {
 }
 
 } // namespace eosio
-
+*/
 extern "C" void get_input_data(void* cb_alloc_data, cb_alloc_fn* cb_alloc);
 
 template <typename Alloc_fn>
@@ -197,28 +192,28 @@ extern "C" void set_output_data(const char* begin, const char* end);
 inline void     set_output_data(const std::vector<char>& v) { set_output_data(v.data(), v.data() + v.size()); }
 inline void     set_output_data(const std::string_view& v) { set_output_data(v.data(), v.data() + v.size()); }
 
-using chain_request = tagged_variant<                //
-    serialize_tag_as_name,                           //
-    tagged_type<"block.info"_n, block_info_request>, //
-    tagged_type<"tapos"_n, tapos_request>,           //
-    tagged_type<"account"_n, account_request>,       //
-    tagged_type<"abis"_n, abis_request>>;            //
+using chain_request = eosio::tagged_variant<                //
+    eosio::serialize_tag_as_name,                           //
+    eosio::tagged_type<"block.info"_n, block_info_request>, //
+    eosio::tagged_type<"tapos"_n, tapos_request>,           //
+    eosio::tagged_type<"account"_n, account_request>,       //
+    eosio::tagged_type<"abis"_n, abis_request>>;            //
 
-using chain_response = tagged_variant<                //
-    serialize_tag_as_name,                            //
-    tagged_type<"block.info"_n, block_info_response>, //
-    tagged_type<"tapos"_n, tapos_response>,           //
-    tagged_type<"account"_n, account_response>,       //
-    tagged_type<"abis"_n, abis_response>>;            //
+using chain_response = eosio::tagged_variant<                //
+    eosio::serialize_tag_as_name,                            //
+    eosio::tagged_type<"block.info"_n, block_info_response>, //
+    eosio::tagged_type<"tapos"_n, tapos_response>,           //
+    eosio::tagged_type<"account"_n, account_response>,       //
+    eosio::tagged_type<"abis"_n, abis_response>>;            //
 
-using token_request = tagged_variant<                                      //
-    serialize_tag_as_name,                                                 //
-    tagged_type<"transfer"_n, token_transfer_request>,                     //
-    tagged_type<"bal.mult.acc"_n, balances_for_multiple_accounts_request>, //
-    tagged_type<"bal.mult.tok"_n, balances_for_multiple_tokens_request>>;  //
+using token_request = eosio::tagged_variant<                                      //
+    eosio::serialize_tag_as_name,                                                 //
+    eosio::tagged_type<"transfer"_n, token_transfer_request>,                     //
+    eosio::tagged_type<"bal.mult.acc"_n, balances_for_multiple_accounts_request>, //
+    eosio::tagged_type<"bal.mult.tok"_n, balances_for_multiple_tokens_request>>;  //
 
-using token_response = tagged_variant<                                      //
-    serialize_tag_as_name,                                                  //
-    tagged_type<"transfer"_n, token_transfer_response>,                     //
-    tagged_type<"bal.mult.acc"_n, balances_for_multiple_accounts_response>, //
-    tagged_type<"bal.mult.tok"_n, balances_for_multiple_tokens_response>>;  //
+using token_response = eosio::tagged_variant<                                      //
+    eosio::serialize_tag_as_name,                                                  //
+    eosio::tagged_type<"transfer"_n, token_transfer_response>,                     //
+    eosio::tagged_type<"bal.mult.acc"_n, balances_for_multiple_accounts_response>, //
+    eosio::tagged_type<"bal.mult.tok"_n, balances_for_multiple_tokens_response>>;  //

@@ -1,10 +1,10 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include "lib-placeholders.hpp"
-#include "lib-tagged-variant.hpp"
 
 #include <date/date.h>
+#include <eosio/tagged-variant.hpp>
+#include <eosio/temp-placeholders.hpp>
 #include <eosiolib/time.hpp>
 #include <vector>
 

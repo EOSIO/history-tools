@@ -1,8 +1,9 @@
 // copyright defined in LICENSE.txt
 
 #include "ex-token.hpp"
-#include "lib-database.hpp"
 #include "test-common.hpp"
+
+#include <eosio/database.hpp>
 
 // todo: move
 extern "C" void eosio_assert(uint32_t test, const char* msg) {
@@ -17,9 +18,9 @@ struct transfer {
     std::string_view memo     = {nullptr, 0};
 };
 
-void process(token_transfer_request& req, const context_data& context) {
-    print("    transfers\n");
-    auto s = exec_query(query_action_trace_executed_range_name_receiver_account_block_trans_action{
+void process(token_transfer_request& req, const eosio::context_data& context) {
+    eosio::print("    transfers\n");
+    auto s = exec_query(eosio::query_action_trace_executed_range_name_receiver_account_block_trans_action{
         .max_block = get_block_num(req.max_block, context),
         .first =
             {
@@ -42,13 +43,13 @@ void process(token_transfer_request& req, const context_data& context) {
         .max_results = req.max_results,
     });
 
-    print(s.size(), "\n");
+    eosio::print(s.size(), "\n");
     token_transfer_response response;
-    for_each_query_result<action_trace>(s, [&](action_trace& at) {
+    eosio::for_each_query_result<eosio::action_trace>(s, [&](eosio::action_trace& at) {
         response.more = token_transfer_key{
             .receipt_receiver = at.receipt_receiver,
             .account          = at.account,
-            .block            = make_absolute_block(at.block_index),
+            .block            = eosio::make_absolute_block(at.block_index),
             .transaction_id   = at.transaction_id,
             .action_index     = at.action_index,
         };
@@ -61,12 +62,12 @@ void process(token_transfer_request& req, const context_data& context) {
             (req.include_notify_outgoing && is_notify && at.receipt_receiver == unpacked.from) || //
             (req.include_nonnotify && !is_notify)) {
 
-            print("   ", at.block_index, " ", at.action_index, " ", at.account, " ", at.name, "\n");
+            eosio::print("   ", at.block_index, " ", at.action_index, " ", at.account, " ", at.name, "\n");
             response.transfers.push_back(token_transfer{
                 .key      = *response.more,
                 .from     = unpacked.from,
                 .to       = unpacked.to,
-                .quantity = extended_asset{unpacked.quantity, at.account},
+                .quantity = eosio::extended_asset{unpacked.quantity, at.account},
                 .memo     = unpacked.memo,
             });
         }
@@ -75,12 +76,12 @@ void process(token_transfer_request& req, const context_data& context) {
     if (response.more)
         ++*response.more;
     set_output_data(pack(token_response{std::move(response)}));
-    print("\n");
+    eosio::print("\n");
 }
 
-void process(balances_for_multiple_accounts_request& req, const context_data& context) {
-    print("    balances_for_multiple_accounts\n");
-    auto s = exec_query(query_contract_row_range_code_table_pk_scope{
+void process(balances_for_multiple_accounts_request& req, const eosio::context_data& context) {
+    eosio::print("    balances_for_multiple_accounts\n");
+    auto s = exec_query(eosio::query_contract_row_range_code_table_pk_scope{
         .max_block = get_block_num(req.max_block, context),
         .first =
             {
@@ -100,23 +101,23 @@ void process(balances_for_multiple_accounts_request& req, const context_data& co
     });
 
     balances_for_multiple_accounts_response response;
-    for_each_contract_row<asset>(s, [&](contract_row& r, asset* a) {
-        print("        ", r.block_index, " ", r.present, " ", r.code, " ", name{r.scope}, " ", r.payer);
-        response.more = name{r.scope + 1};
+    eosio::for_each_contract_row<eosio::asset>(s, [&](eosio::contract_row& r, eosio::asset* a) {
+        eosio::print("        ", r.block_index, " ", r.present, " ", r.code, " ", eosio::name{r.scope}, " ", r.payer);
+        response.more = eosio::name{r.scope + 1};
         if (r.present && a) {
-            print(" ", asset_to_string(*a));
-            response.balances.push_back({.account = name{r.scope}, .amount = extended_asset{*a, req.code}});
+            eosio::print(" ", asset_to_string(*a));
+            response.balances.push_back({.account = eosio::name{r.scope}, .amount = eosio::extended_asset{*a, req.code}});
         }
-        print("\n");
+        eosio::print("\n");
         return true;
     });
     set_output_data(pack(token_response{std::move(response)}));
-    print("\n");
+    eosio::print("\n");
 }
 
-void process(balances_for_multiple_tokens_request& req, const context_data& context) {
-    print("    balances_for_multiple_tokens\n");
-    auto s = exec_query(query_contract_row_range_scope_table_pk_code{
+void process(balances_for_multiple_tokens_request& req, const eosio::context_data& context) {
+    eosio::print("    balances_for_multiple_tokens\n");
+    auto s = exec_query(eosio::query_contract_row_range_scope_table_pk_code{
         .max_block = get_block_num(req.max_block, context),
         .first =
             {
@@ -136,27 +137,27 @@ void process(balances_for_multiple_tokens_request& req, const context_data& cont
     });
 
     balances_for_multiple_tokens_response response;
-    for_each_query_result<contract_row>(s, [&](contract_row& r) {
-        response.more = ++bfmt_key{.sym = symbol_code{r.primary_key}, .code = r.code};
+    eosio::for_each_query_result<eosio::contract_row>(s, [&](eosio::contract_row& r) {
+        response.more = ++bfmt_key{.sym = eosio::symbol_code{r.primary_key}, .code = r.code};
         if (!r.present || r.value.remaining() != 16)
             return true;
-        asset a;
+        eosio::asset a;
         r.value >> a;
         if (!a.is_valid() || a.symbol.code().raw() != r.primary_key)
             return true;
-        print("        ", name{r.scope}, " ", r.code, " ", asset_to_string(a), "\n");
+        eosio::print("        ", eosio::name{r.scope}, " ", r.code, " ", asset_to_string(a), "\n");
         if (!response.more->code.value)
-            response.more->sym = symbol_code{response.more->sym.raw() + 1};
+            response.more->sym = eosio::symbol_code{response.more->sym.raw() + 1};
         if (r.present)
-            response.balances.push_back({.account = name{r.scope}, .amount = extended_asset{a, r.code}});
+            response.balances.push_back({.account = eosio::name{r.scope}, .amount = eosio::extended_asset{a, r.code}});
         return true;
     });
     set_output_data(pack(token_response{std::move(response)}));
-    print("\n");
+    eosio::print("\n");
 }
 
 extern "C" void startup() {
-    auto request = unpack<token_request>(get_input_data());
-    print("request: ", token_request::keys[request.value.index()], "\n");
-    std::visit([](auto& x) { process(x, get_context_data()); }, request.value);
+    auto request = eosio::unpack<token_request>(get_input_data());
+    eosio::print("request: ", token_request::keys[request.value.index()], "\n");
+    std::visit([](auto& x) { process(x, eosio::get_context_data()); }, request.value);
 }

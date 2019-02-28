@@ -2,8 +2,7 @@
 
 #pragma once
 
-#include "lib-to-json.hpp"
-
+#include <eosio/to-json.hpp>
 #include <type_traits>
 
 namespace eosio {

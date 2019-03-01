@@ -5,6 +5,31 @@
 #include <string_view>
 #include <type_traits>
 
+/// \file
+/// \unique_name reflection
+/// These macros describe a struct to the JSON conversion and JSON schema functions.
+/// Members mentioned by `STRUCT_MEMBER` are converted. Members not mentioned are not
+/// converted.
+///
+/// Example use:
+///
+/// ```c++
+/// namespace my_namespace {
+///
+///     struct token_balance {
+///         eosio::name           account = {};
+///         eosio::extended_asset amount  = {};
+///     };
+/// 
+///     STRUCT_REFLECT(my_namespace::token_balance) {
+///         STRUCT_MEMBER(token_balance, account)
+///         STRUCT_MEMBER(token_balance, amount)
+///     }
+///
+/// }
+/// ```
+
+/// \exclude
 namespace eosio {
 
 template <auto P>

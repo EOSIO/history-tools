@@ -10,22 +10,24 @@
 
 namespace eosio {
 
-// todo: replace
-__attribute__((noinline)) inline void append(std::vector<char>& dest, std::string_view sv) {
-    dest.insert(dest.end(), sv.begin(), sv.end());
-}
+/// \exclude
+void append(std::vector<char>& dest, std::string_view sv);
 
+/// \exclude
 template <typename T>
 void to_json(const T& obj, std::vector<char>& dest);
 
 // todo: escape
 // todo: handle non-utf8
+/// \group to_json_explicit Convert explicit types to JSON
+/// Convert objects to JSON. Appends to `dest`. These overloads handle specified types.
 __attribute__((noinline)) inline void to_json(std::string_view sv, std::vector<char>& dest) {
     dest.push_back('"');
     dest.insert(dest.end(), sv.begin(), sv.end());
     dest.push_back('"');
 }
 
+/// \group to_json_explicit
 __attribute__((noinline)) inline void to_json(bool value, std::vector<char>& dest) {
     static const char t[] = "true";
     static const char f[] = "false";
@@ -37,6 +39,7 @@ __attribute__((noinline)) inline void to_json(bool value, std::vector<char>& des
 
 // todo: unify decimal conversions
 
+/// \group to_json_explicit
 __attribute__((noinline)) inline void to_json(uint8_t value, std::vector<char>& dest) {
     char  s[4];
     char* ch = s;
@@ -48,6 +51,7 @@ __attribute__((noinline)) inline void to_json(uint8_t value, std::vector<char>& 
     dest.insert(dest.end(), s, ch);
 }
 
+/// \group to_json_explicit
 __attribute__((noinline)) inline void to_json(uint32_t value, std::vector<char>& dest) {
     char  s[20];
     char* ch = s;
@@ -59,6 +63,7 @@ __attribute__((noinline)) inline void to_json(uint32_t value, std::vector<char>&
     dest.insert(dest.end(), s, ch);
 }
 
+/// \group to_json_explicit
 __attribute__((noinline)) inline void to_json(uint32_t value, int digits, std::vector<char>& dest) {
     char  s[20];
     char* ch = s;
@@ -70,8 +75,10 @@ __attribute__((noinline)) inline void to_json(uint32_t value, int digits, std::v
     dest.insert(dest.end(), s, ch);
 }
 
+/// \group to_json_explicit
 inline void to_json(uint16_t value, std::vector<char>& dest) { return to_json(uint32_t(value), dest); }
 
+/// \group to_json_explicit
 __attribute__((noinline)) inline void to_json(int32_t value, std::vector<char>& dest) {
     if (value < 0) {
         dest.push_back('-');
@@ -80,6 +87,7 @@ __attribute__((noinline)) inline void to_json(int32_t value, std::vector<char>& 
     to_json(uint32_t(value), dest);
 }
 
+/// \group to_json_explicit
 __attribute__((noinline)) inline void to_json(int64_t value, std::vector<char>& dest) {
     bool     neg = false;
     uint64_t u   = value;
@@ -101,6 +109,7 @@ __attribute__((noinline)) inline void to_json(int64_t value, std::vector<char>& 
     dest.push_back('"');
 }
 
+/// \group to_json_explicit
 __attribute__((noinline)) inline void to_json(name value, std::vector<char>& dest) {
     char buffer[13];
     auto end = value.write_as_string(buffer, buffer + sizeof(buffer));
@@ -109,6 +118,7 @@ __attribute__((noinline)) inline void to_json(name value, std::vector<char>& des
     dest.push_back('"');
 }
 
+/// \group to_json_explicit
 __attribute__((noinline)) inline void to_json(symbol_code value, std::vector<char>& dest) {
     char buffer[10];
     dest.push_back('"');
@@ -116,6 +126,7 @@ __attribute__((noinline)) inline void to_json(symbol_code value, std::vector<cha
     dest.push_back('"');
 }
 
+/// \group to_json_explicit
 __attribute__((noinline)) inline void to_json(asset value, std::vector<char>& dest) {
     append(dest, "{\"symbol\":\"");
     char buffer[10];
@@ -127,6 +138,7 @@ __attribute__((noinline)) inline void to_json(asset value, std::vector<char>& de
     append(dest, "}");
 }
 
+/// \group to_json_explicit
 __attribute__((noinline)) inline void to_json(extended_asset value, std::vector<char>& dest) {
     append(dest, "{\"contract\":");
     to_json(value.contract, dest);
@@ -141,6 +153,7 @@ __attribute__((noinline)) inline void to_json(extended_asset value, std::vector<
 }
 
 // todo: move hex conversion to checksum256
+/// \group to_json_explicit
 __attribute__((noinline)) inline void to_json(const serial_wrapper<checksum256>& value, std::vector<char>& dest) {
     static const char hex_digits[] = "0123456789ABCDEF";
     auto              bytes        = value.value.extract_as_byte_array();
@@ -154,6 +167,7 @@ __attribute__((noinline)) inline void to_json(const serial_wrapper<checksum256>&
     dest.push_back('"');
 }
 
+/// \exclude
 __attribute__((noinline)) inline void to_str_us(uint64_t microseconds, std::vector<char>& dest) {
     std::chrono::microseconds us{microseconds};
     date::sys_days            sd(std::chrono::floor<date::days>(us));
@@ -176,15 +190,18 @@ __attribute__((noinline)) inline void to_str_us(uint64_t microseconds, std::vect
 }
 
 // todo: move conversion to time_point
+/// \group to_json_explicit
 __attribute__((noinline)) inline void to_json(time_point value, std::vector<char>& dest) {
     dest.push_back('"');
     to_str_us(value.elapsed.count(), dest);
     dest.push_back('"');
 }
 
+/// \group to_json_explicit
 __attribute__((noinline)) inline void to_json(block_timestamp value, std::vector<char>& dest) { to_json(value.to_time_point(), dest); }
 
 // todo
+/// \group to_json_explicit
 __attribute__((noinline)) inline void to_json(const datastream<const char*>& value, std::vector<char>& dest) {
     if (value.remaining())
         append(dest, "\"<<<datastream>>>\"");
@@ -192,6 +209,7 @@ __attribute__((noinline)) inline void to_json(const datastream<const char*>& val
         append(dest, "\"<<<empty datastream>>>\"");
 }
 
+/// \group to_json_explicit
 template <typename T>
 __attribute__((noinline)) inline void to_json(const std::optional<T>& obj, std::vector<char>& dest) {
     if (obj)
@@ -200,6 +218,7 @@ __attribute__((noinline)) inline void to_json(const std::optional<T>& obj, std::
         append(dest, "null");
 }
 
+/// \group to_json_explicit
 template <typename T>
 __attribute__((noinline)) inline void to_json(const std::vector<T>& obj, std::vector<char>& dest) {
     dest.push_back('[');
@@ -213,6 +232,9 @@ __attribute__((noinline)) inline void to_json(const std::vector<T>& obj, std::ve
     dest.push_back(']');
 }
 
+/// \output_section Convert reflected objects to JSON
+/// Convert an object to JSON. Appends to `dest`. This overload works with
+/// [reflected objects](standardese://reflection/).
 template <typename T>
 __attribute__((noinline)) inline void to_json(const T& obj, std::vector<char>& dest) {
     dest.push_back('{');
@@ -228,6 +250,8 @@ __attribute__((noinline)) inline void to_json(const T& obj, std::vector<char>& d
     dest.push_back('}');
 }
 
+/// \output_section Convenience Wrapper
+/// Convert an object to JSON. This overload wraps the other `to_json` overloads. Returns result.
 template <typename T>
 __attribute__((noinline)) inline std::vector<char> to_json(const T& obj) {
     std::vector<char> result;
@@ -235,6 +259,7 @@ __attribute__((noinline)) inline std::vector<char> to_json(const T& obj) {
     return result;
 }
 
+/// \group to_json_explicit
 template <tagged_variant_options Options, typename... NamedTypes>
 __attribute__((noinline)) inline void to_json(const tagged_variant<Options, NamedTypes...>& v, std::vector<char>& dest) {
     dest.push_back('[');
@@ -248,6 +273,13 @@ __attribute__((noinline)) inline void to_json(const tagged_variant<Options, Name
         },
         v.value);
     dest.push_back(']');
+}
+
+// todo: replace
+/// \output_section JSON Conversion Helpers
+/// Append content in `sv` to `dest`
+__attribute__((noinline)) inline void append(std::vector<char>& dest, std::string_view sv) {
+    dest.insert(dest.end(), sv.begin(), sv.end());
 }
 
 template <typename T>

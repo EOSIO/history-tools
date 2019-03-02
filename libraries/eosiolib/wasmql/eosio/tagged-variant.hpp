@@ -39,7 +39,7 @@
 ///   or balances_for_multiple_tokens_request
 ///
 /// The 1-byte `eosio::unsigned_int` format is more compact, and is compatible with
-/// ABI 1.1's variant serialization. The 8-byte name format provides an easier path to
+/// ABI 1.1's variant serialization. The 8-byte `name` format provides an easier path to
 /// upgrading the format of binary data in the future.
 
 namespace eosio {

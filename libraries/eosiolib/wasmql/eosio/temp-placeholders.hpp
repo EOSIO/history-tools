@@ -70,14 +70,6 @@ inline datastream<Stream>& operator<<(datastream<Stream>& ds, const std::string_
 
 } // namespace eosio
 
-inline bool increment(eosio::checksum256& v) {
-    if (++v.data()[1])
-        return true;
-    if (++v.data()[0])
-        return true;
-    return false;
-}
-
 // todo: don't return static storage
 inline std::string_view asset_amount_to_string(const eosio::asset& v) {
     static char result[1000];

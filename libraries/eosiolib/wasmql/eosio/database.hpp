@@ -10,6 +10,24 @@
 
 namespace eosio {
 
+inline bool increment_key(uint8_t& key) { return ++key; }
+
+inline bool increment_key(uint16_t& key) { return ++key; }
+
+inline bool increment_key(uint32_t& key) { return ++key; }
+
+inline bool increment_key(uint64_t& key) { return ++key; }
+
+inline bool increment_key(name& key) { return ++key.value; }
+
+inline bool increment_key(checksum256& key) {
+    if (++key.data()[1])
+        return true;
+    if (++key.data()[0])
+        return true;
+    return false;
+}
+
 extern "C" void query_database(void* req_begin, void* req_end, void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
 
 template <typename T, typename Alloc_fn>
@@ -107,7 +125,7 @@ inline uint32_t get_block_num(const block_select& sel, const database_status& st
     }
 }
 
-inline uint32_t increment(block_select& sel) {
+inline bool increment_key(block_select& sel) {
     eosio_assert(sel.value.index() == 0, "can only increment absolute block_select");
     int32_t& result = std::get<0>(sel.value);
     result          = uint32_t(result) + 1;
@@ -192,6 +210,17 @@ struct query_action_trace_executed_range_name_receiver_account_block_trans_actio
         uint32_t                    block_index      = {};
         serial_wrapper<checksum256> transaction_id   = {};
         uint32_t                    action_index     = {};
+
+        static key from_data(const action_trace& data) {
+            return {
+                .name             = data.name,
+                .receipt_receiver = data.receipt_receiver,
+                .account          = data.account,
+                .block_index      = data.block_index,
+                .transaction_id   = data.transaction_id,
+                .action_index     = data.action_index,
+            };
+        }
     };
 
     name     query_name  = "at.e.nra"_n;
@@ -200,6 +229,15 @@ struct query_action_trace_executed_range_name_receiver_account_block_trans_actio
     key      last        = {};
     uint32_t max_results = {};
 };
+
+inline bool increment_key(query_action_trace_executed_range_name_receiver_account_block_trans_action::key& key) {
+    return increment_key(key.action_index) ||         //
+           increment_key(key.transaction_id.value) || //
+           increment_key(key.block_index) ||          //
+           increment_key(key.account) ||              //
+           increment_key(key.receipt_receiver) ||     //
+           increment_key(key.name);
+}
 
 struct account {
     uint32_t                    block_index      = {};
@@ -271,6 +309,7 @@ bool for_each_contract_row(const std::vector<char>& bytes, F f) {
 }
 
 struct query_contract_row_range_code_table_pk_scope {
+    // todo: from_data, increment_key
     struct key {
         name     code        = {};
         name     table       = {};
@@ -286,6 +325,7 @@ struct query_contract_row_range_code_table_pk_scope {
 };
 
 struct query_contract_row_range_code_table_scope_pk {
+    // todo: from_data, increment_key
     struct key {
         name     code        = {};
         name     table       = {};
@@ -301,6 +341,7 @@ struct query_contract_row_range_code_table_scope_pk {
 };
 
 struct query_contract_row_range_scope_table_pk_code {
+    // todo: from_data, increment_key
     struct key {
         uint64_t scope       = {};
         name     table       = {};
@@ -331,9 +372,8 @@ struct contract_secondary_index_with_row {
     datastream<const char*> row_value       = {nullptr, 0};
 };
 
-// todo: for_each_...
-
 struct query_contract_index64_range_code_table_scope_sk_pk {
+    // todo: from_data, increment_key
     struct key {
         name     code          = {};
         name     table         = {};

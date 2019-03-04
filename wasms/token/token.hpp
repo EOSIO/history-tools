@@ -10,21 +10,6 @@ struct token_transfer_key {
     serial_wrapper<eosio::checksum256> transaction_id   = {};
     uint32_t                           action_index     = {};
 
-    // todo: create a shortcut for defining this
-    token_transfer_key& operator++() {
-        if (++action_index)
-            return *this;
-        if (increment(transaction_id.value))
-            return *this;
-        if (increment(block))
-            return *this;
-        if (++account.value)
-            return *this;
-        if (++receipt_receiver.value)
-            return *this;
-        return *this;
-    }
-
     EOSLIB_SERIALIZE(token_transfer_key, (receipt_receiver)(account)(block)(transaction_id)(action_index))
 };
 

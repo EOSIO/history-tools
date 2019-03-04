@@ -14,7 +14,8 @@ struct transfer {
 
 void process(token_transfer_request& req, const eosio::database_status& status) {
     eosio::print("    transfers\n");
-    auto s = query_database(eosio::query_action_trace_executed_range_name_receiver_account_block_trans_action{
+    using query_type = eosio::query_action_trace_executed_range_name_receiver_account_block_trans_action;
+    auto s           = query_database(query_type{
         .max_block = get_block_num(req.max_block, status),
         .first =
             {
@@ -38,15 +39,10 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
     });
 
     eosio::print(s.size(), "\n");
-    token_transfer_response response;
+    token_transfer_response        response;
+    std::optional<query_type::key> last_key;
     eosio::for_each_query_result<eosio::action_trace>(s, [&](eosio::action_trace& at) {
-        response.more = token_transfer_key{
-            .receipt_receiver = at.receipt_receiver,
-            .account          = at.account,
-            .block            = eosio::make_absolute_block(at.block_index),
-            .transaction_id   = at.transaction_id,
-            .action_index     = at.action_index,
-        };
+        last_key = query_type::key::from_data(at);
 
         // todo: handle bad unpack
         auto unpacked = eosio::unpack<transfer>(at.data.pos(), at.data.remaining());
@@ -58,7 +54,14 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
 
             eosio::print("   ", at.block_index, " ", at.action_index, " ", at.account, " ", at.name, "\n");
             response.transfers.push_back(token_transfer{
-                .key      = *response.more,
+                .key =
+                    {
+                        .receipt_receiver = at.receipt_receiver,
+                        .account          = at.account,
+                        .block            = eosio::make_absolute_block(at.block_index),
+                        .transaction_id   = at.transaction_id,
+                        .action_index     = at.action_index,
+                    },
                 .from     = unpacked.from,
                 .to       = unpacked.to,
                 .quantity = eosio::extended_asset{unpacked.quantity, at.account},
@@ -67,8 +70,16 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
         }
         return true;
     });
-    if (response.more)
-        ++*response.more;
+    if (last_key) {
+        increment_key(*last_key);
+        response.more = token_transfer_key{
+            .receipt_receiver = last_key->receipt_receiver,
+            .account          = last_key->account,
+            .block            = eosio::make_absolute_block(last_key->block_index),
+            .transaction_id   = last_key->transaction_id,
+            .action_index     = last_key->action_index,
+        };
+    }
     eosio::set_output_data(pack(token_query_response{std::move(response)}));
     eosio::print("\n");
 }

@@ -324,7 +324,7 @@ struct request_data {
     std::string_view request = {nullptr, 0};
 };
 
-extern "C" void startup() {
+extern "C" void run_query() {
     auto request = eosio::unpack<request_data>(eosio::get_input_data());
     auto context = eosio::get_context_data();
     print_range(request.target.begin(), request.target.end());

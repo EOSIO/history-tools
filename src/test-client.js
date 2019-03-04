@@ -133,33 +133,33 @@ class ClientWasm {
         this.inst = new WebAssembly.Instance(this.mod, { env: this.env });
     }
 
-    describe_request() {
-        this.inst.exports.describe_request();
+    describe_query_request() {
+        this.inst.exports.describe_query_request();
         return JSON.parse(decoder.decode(this.output_data));
     }
 
-    describe_response() {
-        this.inst.exports.describe_response();
+    describe_query_response() {
+        this.inst.exports.describe_query_response();
         return JSON.parse(decoder.decode(this.output_data));
     }
 
-    create_request(request) {
+    create_query_request(request) {
         this.input_data = encoder.encode(JSON.stringify(request));
         this.output_data = new Uint8Array(0);
-        this.inst.exports.create_request();
+        this.inst.exports.create_query_request();
         return this.output_data;
     }
 
-    decode_response(reply) {
+    decode_query_response(reply) {
         this.input_data = new Uint8Array(reply);
         this.output_data = new Uint8Array(0);
-        this.inst.exports.decode_response();
+        this.inst.exports.decode_query_response();
         // console.log('<<' + decoder.decode(this.output_data) + '>>')
         return JSON.parse(decoder.decode(this.output_data));
     }
 
     async round_trip(request) {
-        const requestBin = this.create_request(request);
+        const requestBin = this.create_query_request(request);
         const bin = new SerialBuffer();
         bin.pushVaruint32(1);
         bin.pushBytes(requestBin);
@@ -169,7 +169,7 @@ class ClientWasm {
         const reply = new SerialBuffer({ array: new Uint8Array(await queryReply.arrayBuffer()) });
         if (reply.getVaruint32() != 1)
             throw new Error("expected 1 reply")
-        return this.decode_response(reply.getBytes());
+        return this.decode_query_response(reply.getBytes());
     }
 } // ClientWasm
 
@@ -307,10 +307,10 @@ async function dump_transfers(clientWasm) {
         const chainWasm = new ClientWasm('./chain-client.wasm');
         const tokenWasm = new ClientWasm('./token-client.wasm');
 
-        fs.writeFileSync('chain_request_schema.json', JSON.stringify(chainWasm.describe_request(), null, 4));
-        fs.writeFileSync('chain_response_schema.json', JSON.stringify(chainWasm.describe_response(), null, 4));
-        fs.writeFileSync('token_request_schema.json', JSON.stringify(tokenWasm.describe_request(), null, 4));
-        fs.writeFileSync('token_response_schema.json', JSON.stringify(tokenWasm.describe_response(), null, 4));
+        fs.writeFileSync('chain_request_schema.json', JSON.stringify(chainWasm.describe_query_request(), null, 4));
+        fs.writeFileSync('chain_response_schema.json', JSON.stringify(chainWasm.describe_query_response(), null, 4));
+        fs.writeFileSync('token_request_schema.json', JSON.stringify(tokenWasm.describe_query_request(), null, 4));
+        fs.writeFileSync('token_response_schema.json', JSON.stringify(tokenWasm.describe_query_response(), null, 4));
 
         await dump_block_info(chainWasm, ["irreversible", 0], ["irreversible", 1]);
         console.log();

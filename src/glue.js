@@ -44,12 +44,12 @@ const env = {
     },
 };
 
-function query(wasm_name) {
+function run_query(wasm_name) {
     try {
         if (!modules[wasm_name])
             modules[wasm_name] = new WebAssembly.Module(get_wasm(wasm_name));
         inst = new WebAssembly.Instance(modules[wasm_name], { env });
-        inst.exports.startup();
+        inst.exports.run_query();
     } catch (e) {
         print_js_str('Caught: ' + e + '\n');
         throw e;

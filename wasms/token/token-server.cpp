@@ -69,7 +69,7 @@ void process(token_transfer_request& req, const eosio::context_data& context) {
     });
     if (response.more)
         ++*response.more;
-    eosio::set_output_data(pack(token_response{std::move(response)}));
+    eosio::set_output_data(pack(token_query_response{std::move(response)}));
     eosio::print("\n");
 }
 
@@ -105,7 +105,7 @@ void process(balances_for_multiple_accounts_request& req, const eosio::context_d
         eosio::print("\n");
         return true;
     });
-    eosio::set_output_data(pack(token_response{std::move(response)}));
+    eosio::set_output_data(pack(token_query_response{std::move(response)}));
     eosio::print("\n");
 }
 
@@ -146,12 +146,12 @@ void process(balances_for_multiple_tokens_request& req, const eosio::context_dat
             response.balances.push_back({.account = eosio::name{r.scope}, .amount = eosio::extended_asset{a, r.code}});
         return true;
     });
-    eosio::set_output_data(pack(token_response{std::move(response)}));
+    eosio::set_output_data(pack(token_query_response{std::move(response)}));
     eosio::print("\n");
 }
 
-extern "C" void startup() {
-    auto request = eosio::unpack<token_request>(eosio::get_input_data());
-    eosio::print("request: ", token_request::keys[request.value.index()], "\n");
+extern "C" void run_query() {
+    auto request = eosio::unpack<token_query_request>(eosio::get_input_data());
+    eosio::print("request: ", token_query_request::keys[request.value.index()], "\n");
     std::visit([](auto& x) { process(x, eosio::get_context_data()); }, request.value);
 }

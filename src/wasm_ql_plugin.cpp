@@ -191,7 +191,7 @@ static std::vector<char> query(::state& state, const std::vector<char>& request)
             JS::RootedValue       rval(state.context.cx);
             JS::AutoValueArray<1> args(state.context.cx);
             args[0].set(JS::StringValue(JS_NewStringCopyZ(state.context.cx, ((std::string)wasm_name).c_str())));
-            if (!JS_CallFunctionName(state.context.cx, state.global, "query", args, &rval)) {
+            if (!JS_CallFunctionName(state.context.cx, state.global, "run_query", args, &rval)) {
                 // todo: detect assert
                 JS_ClearPendingException(state.context.cx);
                 throw std::runtime_error("JS_CallFunctionName failed");
@@ -218,7 +218,7 @@ static const std::vector<char>& legacy_query(::state& state, const std::string& 
         JS::RootedValue       rval(state.context.cx);
         JS::AutoValueArray<1> args(state.context.cx);
         args[0].set(JS::StringValue(JS_NewStringCopyZ(state.context.cx, "legacy")));
-        if (!JS_CallFunctionName(state.context.cx, state.global, "query", args, &rval)) {
+        if (!JS_CallFunctionName(state.context.cx, state.global, "run_query", args, &rval)) {
             // todo: detect assert
             JS_ClearPendingException(state.context.cx);
             throw std::runtime_error("JS_CallFunctionName failed");

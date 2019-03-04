@@ -12,7 +12,7 @@
 ///
 /// Example:
 /// ```c++
-/// using token_request = eosio::tagged_variant<                                      //
+/// using token_query_request = eosio::tagged_variant<                                //
 ///     eosio::serialize_tag_as_name,                                                 //
 ///     eosio::tagged_type<"transfer"_n, token_transfer_request>,                     //
 ///     eosio::tagged_type<"bal.mult.acc"_n, balances_for_multiple_accounts_request>, //

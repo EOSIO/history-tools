@@ -18,7 +18,7 @@ void process(block_info_request& req, const eosio::context_data& context) {
         response.blocks.push_back(b);
         return true;
     });
-    eosio::set_output_data(pack(chain_response{std::move(response)}));
+    eosio::set_output_data(pack(chain_query_response{std::move(response)}));
     eosio::print("\n");
 }
 
@@ -40,7 +40,7 @@ void process(tapos_request& req, const eosio::context_data& context) {
         return true;
     });
 
-    eosio::set_output_data(pack(chain_response{std::move(response)}));
+    eosio::set_output_data(pack(chain_query_response{std::move(response)}));
     eosio::print("\n");
 }
 
@@ -65,7 +65,7 @@ void process(account_request& req, const eosio::context_data& context) {
         }
         return true;
     });
-    eosio::set_output_data(pack(chain_response{std::move(response)}));
+    eosio::set_output_data(pack(chain_query_response{std::move(response)}));
     eosio::print("\n");
 }
 
@@ -90,12 +90,12 @@ void process(abis_request& req, const eosio::context_data& context) {
         if (!found)
             response.abis.push_back(name_abi{name, false, {nullptr, 0}});
     }
-    eosio::set_output_data(pack(chain_response{std::move(response)}));
+    eosio::set_output_data(pack(chain_query_response{std::move(response)}));
     eosio::print("\n");
 }
 
-extern "C" void startup() {
-    auto request = eosio::unpack<chain_request>(eosio::get_input_data());
-    eosio::print("request: ", chain_request::keys[request.value.index()], "\n");
+extern "C" void run_query() {
+    auto request = eosio::unpack<chain_query_request>(eosio::get_input_data());
+    eosio::print("request: ", chain_query_request::keys[request.value.index()], "\n");
     std::visit([](auto& x) { process(x, eosio::get_context_data()); }, request.value);
 }

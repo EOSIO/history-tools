@@ -42,7 +42,7 @@ cd wasm-api
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
-cp ~/firefox-64.0/js/src/build_DBG.OBJ/dist/bin/libmozglue.dylib .
+cp ~/firefox-64.0/js/src/build_REL.OBJ/dist/bin/libmozglue.dylib .
 make -j
 ../build-test
 brew install node

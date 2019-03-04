@@ -1,7 +1,7 @@
 abort
 eosio_assert_message
-exec_query
-get_context_data
+get_database_status
 get_input_data
 print_range
+query_database
 set_output_data

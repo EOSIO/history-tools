@@ -15,8 +15,8 @@ const env = {
         if (!test)
             throw new Error('assert failed');
     },
-    get_context_data(cb_alloc_data, cb_alloc) {
-        get_context_data(size => {
+    get_database_status(cb_alloc_data, cb_alloc) {
+        get_database_status(size => {
             // cb_alloc may resize memory, causing inst.exports.memory.buffer to change
             let ptr = inst.exports.__indirect_function_table.get(cb_alloc)(cb_alloc_data, size);
             return [inst.exports.memory.buffer, ptr];
@@ -32,8 +32,8 @@ const env = {
     set_output_data(begin, end) {
         set_output_data(inst.exports.memory.buffer, begin, end);
     },
-    exec_query(req_begin, req_end, cb_alloc_data, cb_alloc) {
-        exec_query(inst.exports.memory.buffer, req_begin, req_end, size => {
+    query_database(req_begin, req_end, cb_alloc_data, cb_alloc) {
+        query_database(inst.exports.memory.buffer, req_begin, req_end, size => {
             // cb_alloc may resize memory, causing inst.exports.memory.buffer to change
             let ptr = inst.exports.__indirect_function_table.get(cb_alloc)(cb_alloc_data, size);
             return [inst.exports.memory.buffer, ptr];

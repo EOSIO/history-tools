@@ -4,11 +4,11 @@
 #include <eosio/database.hpp>
 #include <eosio/input-output.hpp>
 
-void process(block_info_request& req, const eosio::context_data& context) {
+void process(block_info_request& req, const eosio::database_status& status) {
     eosio::print("    block_info_request\n");
-    auto s = exec_query(eosio::query_block_info_range_index{
-        .first       = get_block_num(req.first, context),
-        .last        = get_block_num(req.last, context),
+    auto s = query_database(eosio::query_block_info_range_index{
+        .first       = get_block_num(req.first, status),
+        .last        = get_block_num(req.last, status),
         .max_results = req.max_results,
     });
 
@@ -22,11 +22,11 @@ void process(block_info_request& req, const eosio::context_data& context) {
     eosio::print("\n");
 }
 
-void process(tapos_request& req, const eosio::context_data& context) {
+void process(tapos_request& req, const eosio::database_status& status) {
     eosio::print("    tapos_request\n");
-    auto s = exec_query(eosio::query_block_info_range_index{
-        .first       = get_block_num(req.ref_block, context),
-        .last        = get_block_num(req.ref_block, context),
+    auto s = query_database(eosio::query_block_info_range_index{
+        .first       = get_block_num(req.ref_block, status),
+        .last        = get_block_num(req.ref_block, status),
         .max_results = 1,
     });
 
@@ -44,10 +44,10 @@ void process(tapos_request& req, const eosio::context_data& context) {
     eosio::print("\n");
 }
 
-void process(account_request& req, const eosio::context_data& context) {
+void process(account_request& req, const eosio::database_status& status) {
     eosio::print("    account\n");
-    auto s = exec_query(eosio::query_account_range_name{
-        .max_block   = get_block_num(req.max_block, context),
+    auto s = query_database(eosio::query_account_range_name{
+        .max_block   = get_block_num(req.max_block, status),
         .first       = req.first,
         .last        = req.last,
         .max_results = req.max_results,
@@ -69,12 +69,12 @@ void process(account_request& req, const eosio::context_data& context) {
     eosio::print("\n");
 }
 
-void process(abis_request& req, const eosio::context_data& context) {
+void process(abis_request& req, const eosio::database_status& status) {
     eosio::print("    abis\n");
     abis_response response;
     for (auto name : req.names) {
-        auto s     = exec_query(eosio::query_account_range_name{
-            .max_block   = get_block_num(req.max_block, context),
+        auto s     = query_database(eosio::query_account_range_name{
+            .max_block   = get_block_num(req.max_block, status),
             .first       = name,
             .last        = name,
             .max_results = 1,
@@ -97,5 +97,5 @@ void process(abis_request& req, const eosio::context_data& context) {
 extern "C" void run_query() {
     auto request = eosio::unpack<chain_query_request>(eosio::get_input_data());
     eosio::print("request: ", chain_query_request::keys[request.value.index()], "\n");
-    std::visit([](auto& x) { process(x, eosio::get_context_data()); }, request.value);
+    std::visit([](auto& x) { process(x, eosio::get_database_status()); }, request.value);
 }

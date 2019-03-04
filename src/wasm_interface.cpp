@@ -136,23 +136,23 @@ bool print_wasm_str(JSContext* cx, unsigned argc, JS::Value* vp) {
 }
 
 // args: callback
-bool get_context_data(JSContext* cx, unsigned argc, JS::Value* vp) {
+bool get_database_status(JSContext* cx, unsigned argc, JS::Value* vp) {
     auto&        state = wasm_state::from_context(cx);
     JS::CallArgs args  = CallArgsFromVp(argc, vp);
-    if (!args.requireAtLeast(cx, "get_context_data", 1))
+    if (!args.requireAtLeast(cx, "get_database_status", 1))
         return false;
     try {
-        auto data = get_mem_from_callback(cx, args, 0, state.context_data.size());
-        if (!js_assert(data, cx, "get_context_data: failed to fetch buffer from callback"))
+        auto data = get_mem_from_callback(cx, args, 0, state.database_status.size());
+        if (!js_assert(data, cx, "get_database_status: failed to fetch buffer from callback"))
             return false;
-        memcpy(data, state.context_data.data(), state.context_data.size());
+        memcpy(data, state.database_status.data(), state.database_status.size());
         return true;
     } catch (const std::exception& e) {
-        return js_assert(false, cx, ("get_context_data: "s + e.what()).c_str());
+        return js_assert(false, cx, ("get_database_status: "s + e.what()).c_str());
     } catch (...) {
-        return js_assert(false, cx, "get_context_data error");
+        return js_assert(false, cx, "get_database_status error");
     }
-} // get_context_data
+} // get_database_status
 
 // args: callback
 bool get_input_data(JSContext* cx, unsigned argc, JS::Value* vp) {

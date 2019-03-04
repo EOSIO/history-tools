@@ -15,7 +15,7 @@ size_t wcslen(const wchar_t* str) { return ::wcslen(str); }
 
 eosio::datastream<const char*> get_raw_abi(eosio::name name, uint32_t max_block) {
     eosio::datastream<const char*> result = {nullptr, 0};
-    auto                           s      = exec_query(eosio::query_account_range_name{
+    auto                           s      = query_database(eosio::query_account_range_name{
         .max_block   = max_block,
         .first       = name,
         .last        = name,
@@ -182,13 +182,13 @@ eosio::name get_table_index_name(const get_table_rows_params& p, bool& primary) 
 } // get_table_index_name
 
 void get_table_rows_primary(
-    const get_table_rows_params& params, const eosio::context_data& context, uint64_t scope, abieos::abi_type* table_type) {
+    const get_table_rows_params& params, const eosio::database_status& status, uint64_t scope, abieos::abi_type* table_type) {
 
     auto lower_bound = convert_key(params.key_type, params.lower_bound, (uint64_t)0);
     auto upper_bound = convert_key(params.key_type, params.upper_bound, (uint64_t)0xffff'ffff'ffff'ffff);
 
-    auto s = exec_query(eosio::query_contract_row_range_code_table_scope_pk{
-        .max_block = context.head,
+    auto s = query_database(eosio::query_contract_row_range_code_table_scope_pk{
+        .max_block = status.head,
         .first =
             {
                 .code        = params.code,
@@ -242,13 +242,13 @@ void get_table_rows_primary(
 
 template <typename T>
 void get_table_rows_secondary(
-    const get_table_rows_params& params, const eosio::context_data& context, uint64_t scope, abieos::abi_type* table_type) {
+    const get_table_rows_params& params, const eosio::database_status& status, uint64_t scope, abieos::abi_type* table_type) {
 
     auto lower_bound = convert_key(params.key_type, params.lower_bound, (T)0);
     auto upper_bound = convert_key(params.key_type, params.upper_bound, (T)0xffff'ffff'ffff'ffff);
 
-    auto s = exec_query(eosio::query_contract_index64_range_code_table_scope_sk_pk{
-        .max_block = context.head,
+    auto s = query_database(eosio::query_contract_index64_range_code_table_scope_sk_pk{
+        .max_block = status.head,
         .first =
             {
                 .code          = params.code,
@@ -303,18 +303,18 @@ void get_table_rows_secondary(
 } // get_table_rows_secondary
 
 // todo: more
-void get_table_rows(std::string_view request, const eosio::context_data& context) {
+void get_table_rows(std::string_view request, const eosio::database_status& status) {
     auto                   params           = eosio::parse_json<get_table_rows_params>(request);
     bool                   primary          = false;
     auto                   table_with_index = get_table_index_name(params, primary);
-    std::unique_ptr<::abi> abi              = params.json ? get_abi(params.code, context.head) : nullptr;
+    std::unique_ptr<::abi> abi              = params.json ? get_abi(params.code, status.head) : nullptr;
     auto                   table_type       = get_table_type(abi.get(), abieos::name{params.table.value});
     auto                   scope            = guess_uint64(params.scope, "scope");
 
     if (primary)
-        get_table_rows_primary(params, context, scope, table_type);
+        get_table_rows_primary(params, status, scope, table_type);
     else if (params.key_type == "i64" || params.key_type == "name")
-        get_table_rows_secondary<uint64_t>(params, context, scope, table_type);
+        get_table_rows_secondary<uint64_t>(params, status, scope, table_type);
     else
         eosio_assert(false, ("unsupported key_type: " + (std::string)params.key_type).c_str());
 }
@@ -326,26 +326,26 @@ struct request_data {
 
 extern "C" void run_query() {
     auto request = eosio::unpack<request_data>(eosio::get_input_data());
-    auto context = eosio::get_context_data();
+    auto status  = eosio::get_database_status();
     print_range(request.target.begin(), request.target.end());
     eosio::print("\n");
 
     {
-        auto        b = context.head_id.extract_as_byte_array();
+        auto        b = status.head_id.extract_as_byte_array();
         std::string s;
         abieos::hex(b.begin(), b.end(), std::back_inserter(s));
-        eosio::print("head ", context.head, " ", s, "\n");
+        eosio::print("head ", status.head, " ", s, "\n");
     }
     {
-        auto        b = context.irreversible_id.extract_as_byte_array();
+        auto        b = status.irreversible_id.extract_as_byte_array();
         std::string s;
         abieos::hex(b.begin(), b.end(), std::back_inserter(s));
-        eosio::print("irreversible ", context.irreversible, " ", s, "\n");
+        eosio::print("irreversible ", status.irreversible, " ", s, "\n");
     }
-    eosio::print("first ", context.first, "\n");
+    eosio::print("first ", status.first, "\n");
 
     if (request.target == "/v1/chain/get_table_rows")
-        get_table_rows(request.request, context);
+        get_table_rows(request.request, status);
     else
         eosio_assert(false, "not found");
 }

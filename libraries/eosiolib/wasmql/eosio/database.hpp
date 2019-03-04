@@ -10,20 +10,20 @@
 
 namespace eosio {
 
-extern "C" void exec_query(void* req_begin, void* req_end, void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
+extern "C" void query_database(void* req_begin, void* req_end, void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
 
 template <typename T, typename Alloc_fn>
-inline void exec_query(const T& req, Alloc_fn alloc_fn) {
+inline void query_database(const T& req, Alloc_fn alloc_fn) {
     auto req_data = pack(req);
-    exec_query(req_data.data(), req_data.data() + req_data.size(), &alloc_fn, [](void* cb_alloc_data, size_t size) -> void* {
+    query_database(req_data.data(), req_data.data() + req_data.size(), &alloc_fn, [](void* cb_alloc_data, size_t size) -> void* {
         return (*reinterpret_cast<Alloc_fn*>(cb_alloc_data))(size);
     });
 }
 
 template <typename T>
-inline std::vector<char> exec_query(const T& req) {
+inline std::vector<char> query_database(const T& req) {
     std::vector<char> result;
-    exec_query(req, [&result](size_t size) {
+    query_database(req, [&result](size_t size) {
         result.resize(size);
         return result.data();
     });
@@ -46,7 +46,7 @@ bool for_each_query_result(const std::vector<char>& bytes, F f) {
     return true;
 }
 
-struct context_data {
+struct database_status {
     uint32_t    head            = {};
     checksum256 head_id         = {};
     uint32_t    irreversible    = {};
@@ -54,28 +54,28 @@ struct context_data {
     uint32_t    first           = {};
 };
 
-STRUCT_REFLECT(context_data) {
-    STRUCT_MEMBER(context_data, head)
-    STRUCT_MEMBER(context_data, head_id)
-    STRUCT_MEMBER(context_data, irreversible)
-    STRUCT_MEMBER(context_data, irreversible_id)
-    STRUCT_MEMBER(context_data, first)
+STRUCT_REFLECT(database_status) {
+    STRUCT_MEMBER(database_status, head)
+    STRUCT_MEMBER(database_status, head_id)
+    STRUCT_MEMBER(database_status, irreversible)
+    STRUCT_MEMBER(database_status, irreversible_id)
+    STRUCT_MEMBER(database_status, first)
 }
 
 // todo: version number argument
-extern "C" void get_context_data(void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
+extern "C" void get_database_status(void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
 
 template <typename Alloc_fn>
-inline void get_context_data(Alloc_fn alloc_fn) {
-    get_context_data(&alloc_fn, [](void* cb_alloc_data, size_t size) -> void* { //
+inline void get_database_status(Alloc_fn alloc_fn) {
+    get_database_status(&alloc_fn, [](void* cb_alloc_data, size_t size) -> void* { //
         return (*reinterpret_cast<Alloc_fn*>(cb_alloc_data))(size);
     });
 }
 
-inline context_data get_context_data() {
-    context_data      result;
+inline database_status get_database_status() {
+    database_status   result;
     std::vector<char> bin;
-    get_context_data([&bin](size_t size) {
+    get_database_status([&bin](size_t size) {
         bin.resize(size);
         return bin.data();
     });
@@ -98,11 +98,11 @@ inline block_select make_absolute_block(int32_t i) {
     return result;
 }
 
-inline uint32_t get_block_num(const block_select& sel, const context_data& context) {
+inline uint32_t get_block_num(const block_select& sel, const database_status& status) {
     switch (sel.value.index()) {
     case 0: return std::max((int32_t)0, std::get<0>(sel.value));
-    case 1: return std::max((int32_t)0, (int32_t)context.head + std::get<1>(sel.value));
-    case 2: return std::max((int32_t)0, (int32_t)context.irreversible + std::get<2>(sel.value));
+    case 1: return std::max((int32_t)0, (int32_t)status.head + std::get<1>(sel.value));
+    case 2: return std::max((int32_t)0, (int32_t)status.irreversible + std::get<2>(sel.value));
     default: return 0x7fff'ffff;
     }
 }

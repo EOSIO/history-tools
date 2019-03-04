@@ -48,13 +48,13 @@ struct pg_query_session : query_session {
         return pg::sql_to_checksum256(result[0][0].c_str());
     }
 
-    virtual std::vector<char> exec_query(abieos::input_buffer query_bin, uint32_t head) override {
+    virtual std::vector<char> query_database(abieos::input_buffer query_bin, uint32_t head) override {
         abieos::name query_name;
         abieos::bin_to_native(query_name, query_bin);
 
         auto it = db_iface->config.query_map.find(query_name);
         if (it == db_iface->config.query_map.end())
-            throw std::runtime_error("exec_query: unknown query: " + (std::string)query_name);
+            throw std::runtime_error("query_database: unknown query: " + (std::string)query_name);
         pg::query& query = *it->second;
 
         uint32_t max_block_index = 0;
@@ -92,13 +92,13 @@ struct pg_query_session : query_session {
             for (auto& type : query.result_types)
                 type.sql_to_bin(row_bin, r[i++]);
             if ((uint32_t)row_bin.size() != row_bin.size())
-                throw std::runtime_error("exec_query: row is too big");
+                throw std::runtime_error("query_database: row is too big");
             abieos::push_varuint32(result, row_bin.size());
             result.insert(result.end(), row_bin.begin(), row_bin.end());
         }
         t.commit();
         if ((uint32_t)result.size() != result.size())
-            throw std::runtime_error("exec_query: result is too big");
+            throw std::runtime_error("query_database: result is too big");
         return result;
     }
 }; // pg_query_session

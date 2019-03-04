@@ -81,10 +81,10 @@ static bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
 }
 
 // args: ArrayBuffer, row_request_begin, row_request_end, callback
-static bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
+static bool query_database(JSContext* cx, unsigned argc, JS::Value* vp) {
     auto&        state = ::state::from_context(cx);
     JS::CallArgs args  = CallArgsFromVp(argc, vp);
-    if (!args.requireAtLeast(cx, "exec_query", 4))
+    if (!args.requireAtLeast(cx, "query_database", 4))
         return false;
     std::vector<char> args_bin;
     bool              ok = true;
@@ -100,31 +100,31 @@ static bool exec_query(JSContext* cx, unsigned argc, JS::Value* vp) {
         }
     }
     if (!ok)
-        return js_assert(false, cx, "exec_query: invalid args");
+        return js_assert(false, cx, "query_database: invalid args");
 
     try {
-        auto result = state.query_session->exec_query({args_bin.data(), args_bin.data() + args_bin.size()}, state.fill_status.head);
+        auto result = state.query_session->query_database({args_bin.data(), args_bin.data() + args_bin.size()}, state.fill_status.head);
         auto data   = get_mem_from_callback(cx, args, 3, result.size());
-        if (!js_assert(data, cx, "exec_query: failed to fetch buffer from callback"))
+        if (!js_assert(data, cx, "query_database: failed to fetch buffer from callback"))
             return false;
         memcpy(data, result.data(), result.size());
         return true;
     } catch (const std::exception& e) {
-        return js_assert(false, cx, ("exec_query: "s + e.what()).c_str());
+        return js_assert(false, cx, ("query_database: "s + e.what()).c_str());
     } catch (...) {
-        return js_assert(false, cx, "exec_query error");
+        return js_assert(false, cx, "query_database error");
     }
-} // exec_query
+} // query_database
 
 static const JSFunctionSpec functions[] = {
-    JS_FN("exec_query", exec_query, 0, 0),             //
-    JS_FN("get_context_data", get_context_data, 0, 0), //
-    JS_FN("get_input_data", get_input_data, 0, 0),     //
-    JS_FN("get_wasm", get_wasm, 0, 0),                 //
-    JS_FN("print_js_str", print_js_str, 0, 0),         //
-    JS_FN("print_wasm_str", print_wasm_str, 0, 0),     //
-    JS_FN("set_output_data", set_output_data, 0, 0),   //
-    JS_FS_END                                          //
+    JS_FN("get_database_status", get_database_status, 0, 0), //
+    JS_FN("get_input_data", get_input_data, 0, 0),           //
+    JS_FN("get_wasm", get_wasm, 0, 0),                       //
+    JS_FN("print_js_str", print_js_str, 0, 0),               //
+    JS_FN("print_wasm_str", print_wasm_str, 0, 0),           //
+    JS_FN("query_database", query_database, 0, 0),           //
+    JS_FN("set_output_data", set_output_data, 0, 0),         //
+    JS_FS_END                                                //
 };
 
 static void init_glue(::state& state) {
@@ -133,12 +133,12 @@ static void init_glue(::state& state) {
 }
 
 static void fill_context_data(::state& state) {
-    state.context_data.clear();
-    abieos::native_to_bin(state.context_data, state.fill_status.head);
-    abieos::native_to_bin(state.context_data, state.fill_status.head_id);
-    abieos::native_to_bin(state.context_data, state.fill_status.irreversible);
-    abieos::native_to_bin(state.context_data, state.fill_status.irreversible_id);
-    abieos::native_to_bin(state.context_data, state.fill_status.first);
+    state.database_status.clear();
+    abieos::native_to_bin(state.database_status, state.fill_status.head);
+    abieos::native_to_bin(state.database_status, state.fill_status.head_id);
+    abieos::native_to_bin(state.database_status, state.fill_status.irreversible);
+    abieos::native_to_bin(state.database_status, state.fill_status.irreversible_id);
+    abieos::native_to_bin(state.database_status, state.fill_status.first);
 }
 
 // todo: detect state.fill_status.first changing (history trim)

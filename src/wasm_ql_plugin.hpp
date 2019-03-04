@@ -9,9 +9,9 @@
 struct query_session {
     virtual ~query_session() {}
 
-    virtual state_history::fill_status         get_fill_status()                                     = 0;
-    virtual std::optional<abieos::checksum256> get_block_id(uint32_t block_index)                    = 0;
-    virtual std::vector<char>                  exec_query(abieos::input_buffer query, uint32_t head) = 0;
+    virtual state_history::fill_status         get_fill_status()                                         = 0;
+    virtual std::optional<abieos::checksum256> get_block_id(uint32_t block_index)                        = 0;
+    virtual std::vector<char>                  query_database(abieos::input_buffer query, uint32_t head) = 0;
 };
 
 struct database_interface {

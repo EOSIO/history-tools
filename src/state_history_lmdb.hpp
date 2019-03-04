@@ -604,7 +604,7 @@ struct defs {
             for (auto& tab : tables) {
                 auto it = table_names.find(tab.name);
                 if (it == table_names.end())
-                    throw std::runtime_error("exec_query: unknown table: " + tab.name);
+                    throw std::runtime_error("query_database: unknown table: " + tab.name);
                 tab.short_name = it->second;
 
                 uint32_t pos = 0;

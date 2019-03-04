@@ -12,16 +12,16 @@ struct transfer {
     std::string_view memo     = {nullptr, 0};
 };
 
-void process(token_transfer_request& req, const eosio::context_data& context) {
+void process(token_transfer_request& req, const eosio::database_status& status) {
     eosio::print("    transfers\n");
-    auto s = exec_query(eosio::query_action_trace_executed_range_name_receiver_account_block_trans_action{
-        .max_block = get_block_num(req.max_block, context),
+    auto s = query_database(eosio::query_action_trace_executed_range_name_receiver_account_block_trans_action{
+        .max_block = get_block_num(req.max_block, status),
         .first =
             {
                 .name             = "transfer"_n,
                 .receipt_receiver = req.first_key.receipt_receiver,
                 .account          = req.first_key.account,
-                .block_index      = get_block_num(req.first_key.block, context),
+                .block_index      = get_block_num(req.first_key.block, status),
                 .transaction_id   = req.first_key.transaction_id,
                 .action_index     = req.first_key.action_index,
             },
@@ -30,7 +30,7 @@ void process(token_transfer_request& req, const eosio::context_data& context) {
                 .name             = "transfer"_n,
                 .receipt_receiver = req.last_key.receipt_receiver,
                 .account          = req.last_key.account,
-                .block_index      = get_block_num(req.last_key.block, context),
+                .block_index      = get_block_num(req.last_key.block, status),
                 .transaction_id   = req.last_key.transaction_id,
                 .action_index     = req.last_key.action_index,
             },
@@ -73,10 +73,10 @@ void process(token_transfer_request& req, const eosio::context_data& context) {
     eosio::print("\n");
 }
 
-void process(balances_for_multiple_accounts_request& req, const eosio::context_data& context) {
+void process(balances_for_multiple_accounts_request& req, const eosio::database_status& status) {
     eosio::print("    balances_for_multiple_accounts\n");
-    auto s = exec_query(eosio::query_contract_row_range_code_table_pk_scope{
-        .max_block = get_block_num(req.max_block, context),
+    auto s = query_database(eosio::query_contract_row_range_code_table_pk_scope{
+        .max_block = get_block_num(req.max_block, status),
         .first =
             {
                 .code        = req.code,
@@ -109,10 +109,10 @@ void process(balances_for_multiple_accounts_request& req, const eosio::context_d
     eosio::print("\n");
 }
 
-void process(balances_for_multiple_tokens_request& req, const eosio::context_data& context) {
+void process(balances_for_multiple_tokens_request& req, const eosio::database_status& status) {
     eosio::print("    balances_for_multiple_tokens\n");
-    auto s = exec_query(eosio::query_contract_row_range_scope_table_pk_code{
-        .max_block = get_block_num(req.max_block, context),
+    auto s = query_database(eosio::query_contract_row_range_scope_table_pk_code{
+        .max_block = get_block_num(req.max_block, status),
         .first =
             {
                 .scope       = req.account.value,
@@ -153,5 +153,5 @@ void process(balances_for_multiple_tokens_request& req, const eosio::context_dat
 extern "C" void run_query() {
     auto request = eosio::unpack<token_query_request>(eosio::get_input_data());
     eosio::print("request: ", token_query_request::keys[request.value.index()], "\n");
-    std::visit([](auto& x) { process(x, eosio::get_context_data()); }, request.value);
+    std::visit([](auto& x) { process(x, eosio::get_database_status()); }, request.value);
 }

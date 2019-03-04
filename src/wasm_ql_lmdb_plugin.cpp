@@ -57,17 +57,17 @@ struct lmdb_query_session : query_session {
         }
     }
 
-    virtual std::vector<char> exec_query(abieos::input_buffer query_bin, uint32_t head) override {
+    virtual std::vector<char> query_database(abieos::input_buffer query_bin, uint32_t head) override {
         abieos::name query_name;
         abieos::bin_to_native(query_name, query_bin);
 
         // todo: check if index is populated in lmdb
         auto it = db_iface->lmdb_inst->query_config.query_map.find(query_name);
         if (it == db_iface->lmdb_inst->query_config.query_map.end())
-            throw std::runtime_error("exec_query: unknown query: " + (std::string)query_name);
+            throw std::runtime_error("query_database: unknown query: " + (std::string)query_name);
         auto& query = *it->second;
         if (!query.arg_types.empty())
-            throw std::runtime_error("exec_query: query: " + (std::string)query_name + " not implemented");
+            throw std::runtime_error("query_database: query: " + (std::string)query_name + " not implemented");
 
         uint32_t max_block_index = 0;
         if (query.limit_block_index)
@@ -120,7 +120,7 @@ struct lmdb_query_session : query_session {
 
         auto result = abieos::native_to_bin(rows);
         if ((uint32_t)result.size() != result.size())
-            throw std::runtime_error("exec_query: result is too big");
+            throw std::runtime_error("query_database: result is too big");
         return result;
     }
 }; // lmdb_query_session

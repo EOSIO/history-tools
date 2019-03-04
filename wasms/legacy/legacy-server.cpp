@@ -6,18 +6,12 @@ namespace std {
 size_t wcslen(const wchar_t* str) { return ::wcslen(str); }
 } // namespace std
 
-#include "ex-chain.hpp"
-#include "test-common.hpp"
+#include "../chain/chain.hpp"
 
 #include <abieos.hpp>
 #include <eosio/database.hpp>
+#include <eosio/input-output.hpp>
 #include <eosio/parse-json.hpp>
-
-// todo: move
-extern "C" void eosio_assert(uint32_t test, const char* msg) {
-    if (!test)
-        eosio_assert_message(test, msg, strlen(msg));
-}
 
 eosio::datastream<const char*> get_raw_abi(eosio::name name, uint32_t max_block) {
     eosio::datastream<const char*> result = {nullptr, 0};
@@ -243,7 +237,7 @@ void get_table_rows_primary(
         return true;
     });
     result += "]}";
-    set_output_data(result);
+    eosio::set_output_data(result);
 } // get_table_rows_primary
 
 template <typename T>
@@ -305,7 +299,7 @@ void get_table_rows_secondary(
         return true;
     });
     result += "]}";
-    set_output_data(result);
+    eosio::set_output_data(result);
 } // get_table_rows_secondary
 
 // todo: more
@@ -331,7 +325,7 @@ struct request_data {
 };
 
 extern "C" void startup() {
-    auto request = eosio::unpack<request_data>(get_input_data());
+    auto request = eosio::unpack<request_data>(eosio::get_input_data());
     auto context = eosio::get_context_data();
     print_range(request.target.begin(), request.target.end());
     eosio::print("\n");

@@ -176,3 +176,15 @@ STRUCT_REFLECT(balances_for_multiple_tokens_response) {
     STRUCT_MEMBER(balances_for_multiple_tokens_response, balances)
     STRUCT_MEMBER(balances_for_multiple_tokens_response, more)
 }
+
+using token_request = eosio::tagged_variant<                                      //
+    eosio::serialize_tag_as_name,                                                 //
+    eosio::tagged_type<"transfer"_n, token_transfer_request>,                     //
+    eosio::tagged_type<"bal.mult.acc"_n, balances_for_multiple_accounts_request>, //
+    eosio::tagged_type<"bal.mult.tok"_n, balances_for_multiple_tokens_request>>;  //
+
+using token_response = eosio::tagged_variant<                                      //
+    eosio::serialize_tag_as_name,                                                  //
+    eosio::tagged_type<"transfer"_n, token_transfer_response>,                     //
+    eosio::tagged_type<"bal.mult.acc"_n, balances_for_multiple_accounts_response>, //
+    eosio::tagged_type<"bal.mult.tok"_n, balances_for_multiple_tokens_response>>;  //

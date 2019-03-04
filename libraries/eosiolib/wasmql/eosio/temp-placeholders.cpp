@@ -63,3 +63,8 @@ extern "C" void printi(int64_t value) {
 namespace eosio {
 void print(std::string_view sv) { print_range(sv.data(), sv.data() + sv.size()); }
 } // namespace eosio
+
+extern "C" void eosio_assert(uint32_t test, const char* msg) {
+    if (!test)
+        eosio_assert_message(test, msg, strlen(msg));
+}

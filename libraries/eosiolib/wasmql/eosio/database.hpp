@@ -1,5 +1,8 @@
 // copyright defined in LICENSE.txt
 
+// todo: first vs. first_key, last vs. last_key
+// todo: results vs. response vs. rows
+
 #pragma once
 #include <eosio/struct-reflection.hpp>
 #include <eosio/temp-placeholders.hpp>

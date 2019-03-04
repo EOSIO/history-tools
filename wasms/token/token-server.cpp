@@ -1,15 +1,9 @@
 // copyright defined in LICENSE.txt
 
-#include "ex-token.hpp"
-#include "test-common.hpp"
+#include "token.hpp"
 
 #include <eosio/database.hpp>
-
-// todo: move
-extern "C" void eosio_assert(uint32_t test, const char* msg) {
-    if (!test)
-        eosio_assert_message(test, msg, strlen(msg));
-}
+#include <eosio/input-output.hpp>
 
 struct transfer {
     eosio::name      from     = {};
@@ -75,7 +69,7 @@ void process(token_transfer_request& req, const eosio::context_data& context) {
     });
     if (response.more)
         ++*response.more;
-    set_output_data(pack(token_response{std::move(response)}));
+    eosio::set_output_data(pack(token_response{std::move(response)}));
     eosio::print("\n");
 }
 
@@ -111,7 +105,7 @@ void process(balances_for_multiple_accounts_request& req, const eosio::context_d
         eosio::print("\n");
         return true;
     });
-    set_output_data(pack(token_response{std::move(response)}));
+    eosio::set_output_data(pack(token_response{std::move(response)}));
     eosio::print("\n");
 }
 
@@ -152,12 +146,12 @@ void process(balances_for_multiple_tokens_request& req, const eosio::context_dat
             response.balances.push_back({.account = eosio::name{r.scope}, .amount = eosio::extended_asset{a, r.code}});
         return true;
     });
-    set_output_data(pack(token_response{std::move(response)}));
+    eosio::set_output_data(pack(token_response{std::move(response)}));
     eosio::print("\n");
 }
 
 extern "C" void startup() {
-    auto request = eosio::unpack<token_request>(get_input_data());
+    auto request = eosio::unpack<token_request>(eosio::get_input_data());
     eosio::print("request: ", token_request::keys[request.value.index()], "\n");
     std::visit([](auto& x) { process(x, eosio::get_context_data()); }, request.value);
 }

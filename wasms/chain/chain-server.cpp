@@ -1,14 +1,8 @@
 // copyright defined in LICENSE.txt
 
-#include "ex-chain.hpp"
-#include "test-common.hpp"
+#include "chain.hpp"
 #include <eosio/database.hpp>
-
-// todo: move
-extern "C" void eosio_assert(uint32_t test, const char* msg) {
-    if (!test)
-        eosio_assert_message(test, msg, strlen(msg));
-}
+#include <eosio/input-output.hpp>
 
 void process(block_info_request& req, const eosio::context_data& context) {
     eosio::print("    block_info_request\n");
@@ -24,7 +18,7 @@ void process(block_info_request& req, const eosio::context_data& context) {
         response.blocks.push_back(b);
         return true;
     });
-    set_output_data(pack(chain_response{std::move(response)}));
+    eosio::set_output_data(pack(chain_response{std::move(response)}));
     eosio::print("\n");
 }
 
@@ -46,7 +40,7 @@ void process(tapos_request& req, const eosio::context_data& context) {
         return true;
     });
 
-    set_output_data(pack(chain_response{std::move(response)}));
+    eosio::set_output_data(pack(chain_response{std::move(response)}));
     eosio::print("\n");
 }
 
@@ -71,7 +65,7 @@ void process(account_request& req, const eosio::context_data& context) {
         }
         return true;
     });
-    set_output_data(pack(chain_response{std::move(response)}));
+    eosio::set_output_data(pack(chain_response{std::move(response)}));
     eosio::print("\n");
 }
 
@@ -96,12 +90,12 @@ void process(abis_request& req, const eosio::context_data& context) {
         if (!found)
             response.abis.push_back(name_abi{name, false, {nullptr, 0}});
     }
-    set_output_data(pack(chain_response{std::move(response)}));
+    eosio::set_output_data(pack(chain_response{std::move(response)}));
     eosio::print("\n");
 }
 
 extern "C" void startup() {
-    auto request = eosio::unpack<chain_request>(get_input_data());
+    auto request = eosio::unpack<chain_request>(eosio::get_input_data());
     eosio::print("request: ", chain_request::keys[request.value.index()], "\n");
     std::visit([](auto& x) { process(x, eosio::get_context_data()); }, request.value);
 }

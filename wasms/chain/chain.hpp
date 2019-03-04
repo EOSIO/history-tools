@@ -126,3 +126,17 @@ struct abis_response {
 STRUCT_REFLECT(abis_response) { //
     STRUCT_MEMBER(abis_response, abis)
 }
+
+using chain_request = eosio::tagged_variant<                //
+    eosio::serialize_tag_as_name,                           //
+    eosio::tagged_type<"block.info"_n, block_info_request>, //
+    eosio::tagged_type<"tapos"_n, tapos_request>,           //
+    eosio::tagged_type<"account"_n, account_request>,       //
+    eosio::tagged_type<"abis"_n, abis_request>>;            //
+
+using chain_response = eosio::tagged_variant<                //
+    eosio::serialize_tag_as_name,                            //
+    eosio::tagged_type<"block.info"_n, block_info_response>, //
+    eosio::tagged_type<"tapos"_n, tapos_response>,           //
+    eosio::tagged_type<"account"_n, account_response>,       //
+    eosio::tagged_type<"abis"_n, abis_response>>;            //

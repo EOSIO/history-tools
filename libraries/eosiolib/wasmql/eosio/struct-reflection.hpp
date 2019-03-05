@@ -20,7 +20,7 @@
 ///         eosio::name           account = {};
 ///         eosio::extended_asset amount  = {};
 ///     };
-/// 
+///
 ///     STRUCT_REFLECT(my_namespace::token_balance) {
 ///         STRUCT_MEMBER(token_balance, account)
 ///         STRUCT_MEMBER(token_balance, amount)

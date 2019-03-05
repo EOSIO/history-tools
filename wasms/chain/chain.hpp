@@ -4,7 +4,7 @@
 // todo: read-only non-contract capabilities in /v1/chain
 
 #pragma once
-#include <eosio/database.hpp>
+#include <eosio/block_select.hpp>
 
 struct block_info_request {
     eosio::block_select first       = {};

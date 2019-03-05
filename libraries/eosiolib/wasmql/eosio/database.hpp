@@ -1,7 +1,7 @@
 // copyright defined in LICENSE.txt
 
 // todo: first vs. first_key, last vs. last_key
-// todo: results vs. response vs. rows
+// todo: results vs. response vs. rows vs. records
 
 #pragma once
 #include <eosio/struct-reflection.hpp>
@@ -178,23 +178,26 @@ struct contract_secondary_index_with_row {
 };
 
 /// \output_section Queries
-/// Get `block_info` for a range of block indexes.
+/// Pass to `query_database` to get `block_info` for a range of block indexes.
+/// The query results are sorted by `block_num`. Every record has a different block_num.
 struct query_block_info_range_index {
+    /// Identifies query type. Do not modify this field.
     name query_name = "block.info"_n;
 
-    /// First block index to retrieve
+    /// Query records with `block_num` in the range [`first`, `last`].
     uint32_t first = {};
 
-    /// Last block index to retrieve
+    /// Query records with `block_num` in the range [`first`, `last`].
     uint32_t last = {};
 
     /// Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.
     uint32_t max_results = {};
 };
 
-/// Get `action_trace` for a range of keys. Only includes actions in executed transactions.
+/// Pass to `query_database` to get `action_trace` for a range of keys. Only includes actions
+/// in executed transactions.
 ///
-/// The order of fields in `key` defines the order of query results. Every record has a different key.
+/// The query results are sorted by `key`. Every record has a different key.
 /// ```c++
 /// struct key {
 ///     eosio::name                 name             = {};
@@ -230,9 +233,10 @@ struct query_action_trace_executed_range_name_receiver_account_block_trans_actio
         }
     };
 
+    /// Identifies query type. Do not modify this field.
     name query_name = "at.e.nra"_n;
 
-    /// Look at this point of time in the history
+    /// Look at this point of time in history
     uint32_t max_block = {};
 
     /// Query records with keys in the range [`first`, `last`].
@@ -255,61 +259,192 @@ inline bool increment_key(query_action_trace_executed_range_name_receiver_accoun
            increment_key(key.name);
 }
 
+/// Pass to `query_database` to get `account` for a range of names.
+/// The query results are sorted by `name`. Every record has a different name.
 struct query_account_range_name {
-    name     query_name  = "account"_n;
-    uint32_t max_block   = {};
-    name     first       = {};
-    name     last        = {};
+    /// Identifies query type. Do not modify this field.
+    name query_name = "account"_n;
+
+    /// Look at this point of time in history
+    uint32_t max_block = {};
+
+    /// Query records with `name` in the range [`first`, `last`].
+    name first = {};
+
+    /// Query records with `name` in the range [`first`, `last`].
+    name last = {};
+
+    /// Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.
     uint32_t max_results = {};
 };
 
+/// Pass to `query_database` to get `contract_row` for a range of keys.
+///
+/// The query results are sorted by `key`. Every record has a different key.
+/// ```c++
+/// struct key {
+///     name     code        = {};
+///     name     table       = {};
+///     uint64_t primary_key = {};
+///     uint64_t scope       = {};
+///
+///     // Construct the key from `data`
+///     static key from_data(const contract_row& data);
+/// };
+/// ```
 struct query_contract_row_range_code_table_pk_scope {
-    // todo: from_data, increment_key
     struct key {
         name     code        = {};
         name     table       = {};
         uint64_t primary_key = {};
         uint64_t scope       = {};
+
+        // Extract the key from `data`
+        static key from_data(const contract_row& data) {
+            return {
+                .code        = data.code,
+                .table       = data.table,
+                .primary_key = data.primary_key,
+                .scope       = data.scope,
+            };
+        }
     };
 
-    name     query_name  = "cr.ctps"_n;
-    uint32_t max_block   = {};
-    key      first       = {};
-    key      last        = {};
+    /// Identifies query type. Do not modify this field.
+    name query_name = "cr.ctps"_n;
+
+    /// Look at this point of time in history
+    uint32_t max_block = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key first = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key last = {};
+
+    /// Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.
     uint32_t max_results = {};
 };
 
+/// \group increment_key
+inline bool increment_key(query_contract_row_range_code_table_pk_scope::key& key) {
+    return increment_key(key.scope) &&       //
+           increment_key(key.primary_key) && //
+           increment_key(key.table) &&       //
+           increment_key(key.code);
+}
+
+/// Pass to `query_database` to get `contract_row` for a range of keys.
+///
+/// The query results are sorted by `key`. Every record has a different key.
+/// ```c++
+/// struct key {
+///     name     code        = {};
+///     name     table       = {};
+///     uint64_t scope       = {};
+///     uint64_t primary_key = {};
+///
+///     // Construct the key from `data`
+///     static key from_data(const contract_row& data);
+/// };
+/// ```
 struct query_contract_row_range_code_table_scope_pk {
-    // todo: from_data, increment_key
     struct key {
         name     code        = {};
         name     table       = {};
         uint64_t scope       = {};
         uint64_t primary_key = {};
+
+        // Extract the key from `data`
+        static key from_data(const contract_row& data) {
+            return {
+                .code        = data.code,
+                .table       = data.table,
+                .scope       = data.scope,
+                .primary_key = data.primary_key,
+            };
+        }
     };
 
-    name     query_name  = "cr.ctsp"_n;
-    uint32_t max_block   = {};
-    key      first       = {};
-    key      last        = {};
+    /// Identifies query type. Do not modify this field.
+    name query_name = "cr.ctsp"_n;
+
+    /// Look at this point of time in history
+    uint32_t max_block = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key first = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key last = {};
+
+    /// Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.
     uint32_t max_results = {};
 };
 
-struct query_contract_row_range_scope_table_pk_code {
-    // todo: from_data, increment_key
+/// \group increment_key
+inline bool increment_key(query_contract_row_range_code_table_scope_pk::key& key) {
+    return increment_key(key.primary_key) && //
+           increment_key(key.scope) &&       //
+           increment_key(key.table) &&       //
+           increment_key(key.code);
+}
+
+/// Pass to `query_database` to get `contract_row` for a range of keys.
+///
+/// The query results are sorted by `key`. Every record has a different key.
+/// ```c++
+/// struct key {
+///     uint64_t scope       = {};
+///     name     table       = {};
+///     uint64_t primary_key = {};
+///     name     code        = {};
+///
+///     // Construct the key from `data`
+///     static key from_data(const contract_row& data);
+/// };
+/// ```
+struct query_contract_row_range_code_table_pk_scope {
     struct key {
         uint64_t scope       = {};
         name     table       = {};
         uint64_t primary_key = {};
         name     code        = {};
+
+        // Extract the key from `data`
+        static key from_data(const contract_row& data) {
+            return {
+                .scope       = data.scope,
+                .table       = data.table,
+                .primary_key = data.primary_key,
+                .code        = data.code,
+            };
+        }
     };
 
-    name     query_name  = "cr.stpc"_n;
-    uint32_t max_block   = {};
-    key      first       = {};
-    key      last        = {};
+    /// Identifies query type. Do not modify this field.
+    name query_name = "cr.stpc"_n;
+
+    /// Look at this point of time in history
+    uint32_t max_block = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key first = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key last = {};
+
+    /// Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.
     uint32_t max_results = {};
 };
+
+/// \group increment_key
+inline bool increment_key(query_contract_row_range_code_table_pk_scope::key& key) {
+    return increment_key(key.code) &&        //
+           increment_key(key.primary_key) && //
+           increment_key(key.table) &&       //
+           increment_key(key.scope);
+}
 
 struct query_contract_index64_range_code_table_scope_sk_pk {
     // todo: from_data, increment_key
@@ -321,6 +456,7 @@ struct query_contract_index64_range_code_table_scope_sk_pk {
         uint64_t primary_key   = {};
     };
 
+    /// Identifies query type. Do not modify this field.
     name     query_name  = "ci1.cts2p"_n;
     uint32_t max_block   = {};
     key      first       = {};
@@ -379,7 +515,7 @@ inline database_status get_database_status() {
 /// \output_section Query Database
 /// Query the database. `request` must be one of the `query_*` structs. Returns result in serialized form.
 /// The serialized form is the same as `vector<vector<char>>`'s serialized form. Each inner vector contains the
-/// serialized form of a row. The row type varies with query.
+/// serialized form of a record. The record type varies with query.
 ///
 /// Use `for_each_query_result` or `for_each_contract_row` to iterate through the result.
 template <typename T>
@@ -392,17 +528,17 @@ inline std::vector<char> query_database(const T& request) {
     return result;
 }
 
-/// Unpack each row of a query result and call `f(row)`. `T` is the row type.
+/// Unpack each record of a query result and call `f(record)`. `T` is the record type.
 template <typename T, typename F>
 bool for_each_query_result(const std::vector<char>& bytes, F f) {
     datastream<const char*> ds(bytes.data(), bytes.size());
     unsigned_int            size;
     ds >> size;
     for (uint32_t i = 0; i < size.value; ++i) {
-        datastream<const char*> row{nullptr, 0};
-        ds >> row;
+        datastream<const char*> record{nullptr, 0};
+        ds >> record;
         T r;
-        row >> r;
+        record >> r;
         if (!f(r))
             return false;
     }

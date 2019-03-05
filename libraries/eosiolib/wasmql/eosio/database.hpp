@@ -178,7 +178,7 @@ struct contract_secondary_index_with_row {
 };
 
 /// \output_section Queries
-/// Pass to `query_database` to get `block_info` for a range of block indexes.
+/// Pass this to `query_database` to get `block_info` for a range of block indexes.
 /// The query results are sorted by `block_num`. Every record has a different block_num.
 struct query_block_info_range_index {
     /// Identifies query type. Do not modify this field.
@@ -194,7 +194,7 @@ struct query_block_info_range_index {
     uint32_t max_results = {};
 };
 
-/// Pass to `query_database` to get `action_trace` for a range of keys. Only includes actions
+/// Pass this to `query_database` to get `action_trace` for a range of keys. Only includes actions
 /// in executed transactions.
 ///
 /// The query results are sorted by `key`. Every record has a different key.
@@ -259,7 +259,7 @@ inline bool increment_key(query_action_trace_executed_range_name_receiver_accoun
            increment_key(key.name);
 }
 
-/// Pass to `query_database` to get `account` for a range of names.
+/// Pass this to `query_database` to get `account` for a range of names.
 /// The query results are sorted by `name`. Every record has a different name.
 struct query_account_range_name {
     /// Identifies query type. Do not modify this field.
@@ -278,7 +278,7 @@ struct query_account_range_name {
     uint32_t max_results = {};
 };
 
-/// Pass to `query_database` to get `contract_row` for a range of keys.
+/// Pass this to `query_database` to get `contract_row` for a range of keys.
 ///
 /// The query results are sorted by `key`. Every record has a different key.
 /// ```c++
@@ -334,7 +334,7 @@ inline bool increment_key(query_contract_row_range_code_table_pk_scope::key& key
            increment_key(key.code);
 }
 
-/// Pass to `query_database` to get `contract_row` for a range of keys.
+/// Pass this to `query_database` to get `contract_row` for a range of keys.
 ///
 /// The query results are sorted by `key`. Every record has a different key.
 /// ```c++
@@ -390,7 +390,7 @@ inline bool increment_key(query_contract_row_range_code_table_scope_pk::key& key
            increment_key(key.code);
 }
 
-/// Pass to `query_database` to get `contract_row` for a range of keys.
+/// Pass this to `query_database` to get `contract_row` for a range of keys.
 ///
 /// The query results are sorted by `key`. Every record has a different key.
 /// ```c++
@@ -404,7 +404,7 @@ inline bool increment_key(query_contract_row_range_code_table_scope_pk::key& key
 ///     static key from_data(const contract_row& data);
 /// };
 /// ```
-struct query_contract_row_range_code_table_pk_scope {
+struct query_contract_row_range_scope_table_pk_code {
     struct key {
         uint64_t scope       = {};
         name     table       = {};
@@ -439,30 +439,72 @@ struct query_contract_row_range_code_table_pk_scope {
 };
 
 /// \group increment_key
-inline bool increment_key(query_contract_row_range_code_table_pk_scope::key& key) {
+inline bool increment_key(query_contract_row_range_scope_table_pk_code::key& key) {
     return increment_key(key.code) &&        //
            increment_key(key.primary_key) && //
            increment_key(key.table) &&       //
            increment_key(key.scope);
 }
 
+/// Pass this to `query_database` to get `contract_secondary_index_with_row<uint64_t>` for a range of keys.
+///
+/// The query results are sorted by `key`. Every record has a different key.
+/// ```c++
+/// struct key {
+///     name     code          = {};
+///     name     table         = {};
+///     uint64_t scope         = {};
+///     uint64_t secondary_key = {};
+///     uint64_t primary_key   = {};
+///
+///     // Construct the key from `data`
+///     static key from_data(const contract_secondary_index_with_row<uint64_t>& data);
+/// };
+/// ```
 struct query_contract_index64_range_code_table_scope_sk_pk {
-    // todo: from_data, increment_key
     struct key {
         name     code          = {};
         name     table         = {};
         uint64_t scope         = {};
         uint64_t secondary_key = {};
         uint64_t primary_key   = {};
+
+        // Extract the key from `data`
+        static key from_data(const contract_secondary_index_with_row<uint64_t>& data) {
+            return {
+                .code          = data.code,
+                .table         = data.table,
+                .scope         = data.scope,
+                .secondary_key = data.secondary_key,
+                .primary_key   = data.primary_key,
+            };
+        }
     };
 
     /// Identifies query type. Do not modify this field.
-    name     query_name  = "ci1.cts2p"_n;
-    uint32_t max_block   = {};
-    key      first       = {};
-    key      last        = {};
+    name query_name = "ci1.cts2p"_n;
+
+    /// Look at this point of time in history
+    uint32_t max_block = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key first = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key last = {};
+
+    /// Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.
     uint32_t max_results = {};
 };
+
+/// \group increment_key
+inline bool increment_key(query_contract_index64_range_code_table_scope_sk_pk::key& key) {
+    return increment_key(key.primary_key) &&   //
+           increment_key(key.secondary_key) && //
+           increment_key(key.scope) &&         //
+           increment_key(key.table) &&         //
+           increment_key(key.code);
+}
 
 /// \output_section Database Status
 /// Status of the database. Returned by `get_database_status`.

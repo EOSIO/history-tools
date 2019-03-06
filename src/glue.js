@@ -49,6 +49,7 @@ function run_query(wasm_name) {
         if (!modules[wasm_name])
             modules[wasm_name] = new WebAssembly.Module(get_wasm(wasm_name));
         inst = new WebAssembly.Instance(modules[wasm_name], { env });
+        inst.exports.initialize();
         inst.exports.run_query();
     } catch (e) {
         print_js_str('Caught: ' + e + '\n');

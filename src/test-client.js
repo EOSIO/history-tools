@@ -131,6 +131,7 @@ class ClientWasm {
 
     reset() {
         this.inst = new WebAssembly.Instance(this.mod, { env: this.env });
+        this.inst.exports.initialize();
     }
 
     describe_query_request() {

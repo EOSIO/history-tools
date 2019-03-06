@@ -324,8 +324,9 @@ struct request_data {
     std::string_view request = {nullptr, 0};
 };
 
-// todo: remove "uint64_t, uint64_t, uint64_t" after CDT changes
-extern "C" void run_query(uint64_t, uint64_t, uint64_t) {
+extern "C" __attribute__((eosio_wasm_entry)) void initialize() {}
+
+extern "C" void run_query() {
     auto request = eosio::unpack<request_data>(eosio::get_input_data());
     auto status  = eosio::get_database_status();
     print_range(request.target.begin(), request.target.end());

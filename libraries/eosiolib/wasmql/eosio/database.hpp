@@ -6,7 +6,7 @@
 #pragma once
 #include <eosio/struct-reflection.hpp>
 #include <eosio/temp-placeholders.hpp>
-#include <eosiolib/time.hpp>
+#include <eosio/time.hpp>
 
 namespace eosio {
 

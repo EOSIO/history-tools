@@ -3,10 +3,11 @@
 // todo: remove or replace everything in this file
 
 #pragma once
+#include <eosio/asset.hpp>
+#include <eosio/datastream.hpp>
+#include <eosio/fixed_bytes.hpp>
 #include <eosio/tagged-variant.hpp>
-#include <eosiolib/asset.hpp>
-#include <eosiolib/datastream.hpp>
-#include <eosiolib/varint.hpp>
+#include <eosio/varint.hpp>
 
 extern "C" void print_range(const char* begin, const char* end);
 

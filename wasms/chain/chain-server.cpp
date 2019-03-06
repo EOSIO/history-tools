@@ -94,7 +94,8 @@ void process(abis_request& req, const eosio::database_status& status) {
     eosio::print("\n");
 }
 
-extern "C" void run_query() {
+// todo: remove "uint64_t, uint64_t, uint64_t" after CDT changes
+extern "C" void run_query(uint64_t, uint64_t, uint64_t) {
     auto request = eosio::unpack<chain_query_request>(eosio::get_input_data());
     eosio::print("request: ", chain_query_request::keys[request.value.index()], "\n");
     std::visit([](auto& x) { process(x, eosio::get_database_status()); }, request.value);

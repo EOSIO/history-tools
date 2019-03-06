@@ -121,7 +121,7 @@ uint64_t guess_uint64(std::string_view str, std::string_view desc) {
     if (abieos::string_to_symbol_code(result, error, str))
         return result;
 
-    eosio_assert(
+    eosio::check(
         false, ("Could not convert " + std::string(desc) + " string '" + std::string(str) +
                 "' to any of the following: uint64_t, name, symbol, or symbol_code")
                    .c_str());
@@ -135,7 +135,7 @@ uint64_t convert_key(std::string_view key_type, std::string_view key, uint64_t d
         return eosio::name(key).value;
     std::string error;
     if (!abieos::decimal_to_binary(default_value, error, key))
-        eosio_assert(false, ("Invalid key: " + std::string(key)).c_str());
+        eosio::check(false, ("Invalid key: " + std::string(key)).c_str());
     return default_value;
 };
 
@@ -143,7 +143,7 @@ eosio::name get_table_index_name(const get_table_rows_params& p, bool& primary) 
     auto table = p.table;
     auto index = table.value & 0xFFFFFFFFFFFFFFF0ULL;
     if (index != table.value)
-        eosio_assert(false, ("Unsupported table name: " + p.table.to_string()).c_str());
+        eosio::check(false, ("Unsupported table name: " + p.table.to_string()).c_str());
 
     primary      = false;
     uint64_t pos = 0;
@@ -169,7 +169,7 @@ eosio::name get_table_index_name(const get_table_rows_params& p, bool& primary) 
     } else {
         std::string error;
         if (!abieos::decimal_to_binary(pos, error, p.index_position))
-            eosio_assert(false, ("Invalid index_position: " + std::string(p.index_position)).c_str());
+            eosio::check(false, ("Invalid index_position: " + std::string(p.index_position)).c_str());
         if (pos < 2) {
             primary = true;
             pos     = 0;
@@ -316,7 +316,7 @@ void get_table_rows(std::string_view request, const eosio::database_status& stat
     else if (params.key_type == "i64" || params.key_type == "name")
         get_table_rows_secondary<uint64_t>(params, status, scope, table_type);
     else
-        eosio_assert(false, ("unsupported key_type: " + (std::string)params.key_type).c_str());
+        eosio::check(false, ("unsupported key_type: " + (std::string)params.key_type).c_str());
 }
 
 struct request_data {
@@ -324,7 +324,8 @@ struct request_data {
     std::string_view request = {nullptr, 0};
 };
 
-extern "C" void run_query() {
+// todo: remove "uint64_t, uint64_t, uint64_t" after CDT changes
+extern "C" void run_query(uint64_t, uint64_t, uint64_t) {
     auto request = eosio::unpack<request_data>(eosio::get_input_data());
     auto status  = eosio::get_database_status();
     print_range(request.target.begin(), request.target.end());
@@ -347,5 +348,5 @@ extern "C" void run_query() {
     if (request.target == "/v1/chain/get_table_rows")
         get_table_rows(request.request, status);
     else
-        eosio_assert(false, "not found");
+        eosio::check(false, "not found");
 }

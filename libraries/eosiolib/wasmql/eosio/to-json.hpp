@@ -5,7 +5,7 @@
 #include <date/date.h>
 #include <eosio/tagged-variant.hpp>
 #include <eosio/temp-placeholders.hpp>
-#include <eosiolib/time.hpp>
+#include <eosio/time.hpp>
 #include <vector>
 
 namespace eosio {

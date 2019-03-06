@@ -1,8 +1,8 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include <eosiolib/name.hpp>
-#include <eosiolib/varint.hpp>
+#include <eosio/name.hpp>
+#include <eosio/varint.hpp>
 #include <variant>
 
 /// \file
@@ -107,7 +107,7 @@ DataStream& deserialize_named_variant_impl(DataStream& ds, tagged_variant<Option
             return deserialize_named_variant_impl<I + 1>(ds, v, i);
         }
     } else {
-        eosio_assert(false, "invalid variant index");
+        check(false, "invalid variant index");
         return ds;
     }
 }
@@ -121,7 +121,7 @@ DataStream& operator>>(DataStream& ds, tagged_variant<Options, NamedTypes...>& v
         for (size_t i = 0; i < sizeof...(NamedTypes); ++i)
             if (name == v.keys[i])
                 return deserialize_named_variant_impl<0>(ds, v, i);
-        eosio_assert(false, "invalid variant index name");
+        check(false, "invalid variant index name");
     } else if constexpr (!!(Options & serialize_tag_as_index)) {
         unsigned_int i;
         ds >> i;

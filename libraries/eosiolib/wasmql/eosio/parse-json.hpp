@@ -26,12 +26,12 @@ __attribute__((noinline)) inline void parse_json(T& result, const char*& pos, co
 /// \group parse_json_explicit Parse JSON (Explicit Types)
 /// Parse JSON and convert to `result`. These overloads handle specified types.
 __attribute__((noinline)) inline void parse_json(std::string_view& result, const char*& pos, const char* end) {
-    eosio_assert(pos != end && *pos++ == '"', "expected string");
+    check(pos != end && *pos++ == '"', "expected string");
     auto begin = pos;
     while (pos != end && *pos != '"')
         ++pos;
     auto e = pos;
-    eosio_assert(pos != end && *pos++ == '"', "expected end of string");
+    check(pos != end && *pos++ == '"', "expected end of string");
     result = std::string_view(begin, e - begin);
 }
 
@@ -48,7 +48,7 @@ __attribute__((noinline)) inline void parse_json(uint32_t& result, const char*& 
         result = result * 10 + *pos++ - '0';
         found  = true;
     }
-    eosio_assert(found, "expected positive integer");
+    check(found, "expected positive integer");
     parse_json_skip_space(pos, end);
     if (in_str) {
         parse_json_expect(pos, end, '"', "expected positive integer");
@@ -74,7 +74,7 @@ __attribute__((noinline)) inline void parse_json(int32_t& result, const char*& p
         result = result * 10 + *pos++ - '0';
         found  = true;
     }
-    eosio_assert(found, "expected integer");
+    check(found, "expected integer");
     parse_json_skip_space(pos, end);
     if (in_str) {
         parse_json_expect(pos, end, '"', "expected integer");
@@ -96,7 +96,7 @@ __attribute__((noinline)) inline void parse_json(bool& result, const char*& pos,
         result = false;
         return parse_json_skip_space(pos, end);
     }
-    eosio_assert(false, "expected boolean");
+    check(false, "expected boolean");
 }
 
 /// \group parse_json_explicit
@@ -119,7 +119,7 @@ __attribute__((noinline)) inline void parse_json(serial_wrapper<checksum256>& re
     auto             bytes = reinterpret_cast<char*>(result.value.data());
     std::string_view sv;
     parse_json(sv, pos, end);
-    eosio_assert(sv.size() == 64, "expected checksum256");
+    check(sv.size() == 64, "expected checksum256");
     auto p = sv.begin();
     for (int i = 0; i < 32; ++i) {
         auto get_digit = [&]() {
@@ -130,7 +130,7 @@ __attribute__((noinline)) inline void parse_json(serial_wrapper<checksum256>& re
                 return ch - 'a' + 10;
             if (ch >= 'A' && ch <= 'F')
                 return ch - 'A' + 10;
-            eosio_assert(false, "expected checksum256");
+            check(false, "expected checksum256");
             return 0;
         };
         auto h   = get_digit();
@@ -236,7 +236,7 @@ parse_named_variant_impl(tagged_variant<Options, NamedTypes...>& v, size_t i, co
             return parse_named_variant_impl<I + 1>(v, i, pos, end);
         }
     } else {
-        eosio_assert(false, "invalid variant index");
+        check(false, "invalid variant index");
     }
 }
 
@@ -256,7 +256,7 @@ __attribute__((noinline)) void parse_json(tagged_variant<Options, NamedTypes...>
             return;
         }
     }
-    eosio_assert(false, "invalid variant index name");
+    check(false, "invalid variant index name");
 }
 
 /// \output_section JSON Conversion Helpers
@@ -275,14 +275,14 @@ __attribute__((noinline)) inline void parse_json_skip_value(const char*& pos, co
 
 /// Asserts `ch` is next character. `msg` is the assertion message.
 __attribute__((noinline)) inline void parse_json_expect(const char*& pos, const char* end, char ch, const char* msg) {
-    eosio_assert(pos != end && *pos == ch, msg);
+    check(pos != end && *pos == ch, msg);
     ++pos;
     parse_json_skip_space(pos, end);
 }
 
 /// Asserts `pos == end`.
 __attribute__((noinline)) inline void parse_json_expect_end(const char*& pos, const char* end) {
-    eosio_assert(pos == end, "expected end of json");
+    check(pos == end, "expected end of json");
 }
 
 } // namespace eosio

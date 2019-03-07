@@ -1,0 +1,480 @@
+
+<!DOCTYPE HTML>
+<html lang="" >
+    <head>
+        <meta charset="UTF-8">
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <title>tagged_variant.hpp · GitBook</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="description" content="">
+        <meta name="generator" content="GitBook 3.2.3">
+        
+        
+        
+    
+    <link rel="stylesheet" href="../gitbook/style.css">
+
+    
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-highlight/website.css">
+                
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-search/search.css">
+                
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-fontsettings/website.css">
+                
+            
+        
+
+    
+
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+
+        
+    
+    
+    <meta name="HandheldFriendly" content="true"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="apple-touch-icon-precomposed" sizes="152x152" href="../gitbook/images/apple-touch-icon-precomposed-152.png">
+    <link rel="shortcut icon" href="../gitbook/images/favicon.ico" type="image/x-icon">
+
+    
+    <link rel="next" href="doc_to_json.html" />
+    
+    
+    <link rel="prev" href="doc_struct_reflection.html" />
+    
+
+    </head>
+    <body>
+        
+<div class="book">
+    <div class="book-summary">
+        
+            
+<div id="book-search-input" role="search">
+    <input type="text" placeholder="Type to search" />
+</div>
+
+            
+                <nav role="navigation">
+                
+
+
+<ul class="summary">
+    
+    
+
+    
+
+    
+        
+        
+    
+        <li class="chapter " data-level="1.1" data-path="../">
+            
+                <a href="../">
+            
+                    
+                    History Tools
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.2" >
+            
+                <span>
+            
+                    
+                    Building
+            
+                </span>
+            
+
+            
+            <ul class="articles">
+                
+    
+        <li class="chapter " data-level="1.2.1" data-path="../build-osx.html">
+            
+                <a href="../build-osx.html">
+            
+                    
+                    OSX
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.2.2" data-path="../build-ubuntu-1810.html">
+            
+                <a href="../build-ubuntu-1810.html">
+            
+                    
+                    Ubuntu 18.10
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.2.3" data-path="../build-doc.html">
+            
+                <a href="../build-doc.html">
+            
+                    
+                    Documentation
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+            </ul>
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3" >
+            
+                <span>
+            
+                    
+                    wasm-ql library
+            
+                </span>
+            
+
+            
+            <ul class="articles">
+                
+    
+        <li class="chapter " data-level="1.3.1" data-path="doc_block_select.html">
+            
+                <a href="doc_block_select.html">
+            
+                    
+                    block_select.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.2" data-path="doc_database.html">
+            
+                <a href="doc_database.html">
+            
+                    
+                    database.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.3" data-path="doc_input_output.html">
+            
+                <a href="doc_input_output.html">
+            
+                    
+                    input_output.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.4" data-path="doc_parse_json.html">
+            
+                <a href="doc_parse_json.html">
+            
+                    
+                    parse_json.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.5" data-path="doc_schema.html">
+            
+                <a href="doc_schema.html">
+            
+                    
+                    schema.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.6" data-path="doc_struct_reflection.html">
+            
+                <a href="doc_struct_reflection.html">
+            
+                    
+                    struct_reflection.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter active" data-level="1.3.7" data-path="doc_tagged_variant.html">
+            
+                <a href="doc_tagged_variant.html">
+            
+                    
+                    tagged_variant.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.8" data-path="doc_to_json.html">
+            
+                <a href="doc_to_json.html">
+            
+                    
+                    to_json.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+            </ul>
+            
+        </li>
+    
+
+    
+
+    <li class="divider"></li>
+
+    <li>
+        <a href="https://www.gitbook.com" target="blank" class="gitbook-link">
+            Published with GitBook
+        </a>
+    </li>
+</ul>
+
+
+                </nav>
+            
+        
+    </div>
+
+    <div class="book-body">
+        
+            <div class="body-inner">
+                
+                    
+
+<div class="book-header" role="navigation">
+    
+
+    <!-- Title -->
+    <h1>
+        <i class="fa fa-circle-o-notch fa-spin"></i>
+        <a href=".." >tagged_variant.hpp</a>
+    </h1>
+</div>
+
+
+
+
+                    <div class="page-wrapper" tabindex="-1" role="main">
+                        <div class="page-inner">
+                            
+<div id="book-search-results">
+    <div class="search-noresults">
+    
+                                <section class="normal markdown-section">
+                                
+                                <h1 id="header-file-taggedvarianthpp">Header file <code>tagged_variant.hpp</code></h1>
+<pre><code class="lang-cpp"><span class="hljs-keyword">namespace</span> eosio
+{
+    <span class="hljs-keyword">template</span> &lt;name::raw N, <span class="hljs-keyword">typename</span> T&gt;
+    <span class="hljs-keyword">struct</span> tagged_type;
+
+    <span class="hljs-keyword">enum</span> tagged_variant_options;
+
+    <span class="hljs-keyword">template</span> &lt;eosio::tagged_variant_options Options, <span class="hljs-keyword">typename</span> ... NamedTypes&gt;
+    <span class="hljs-keyword">struct</span> tagged_variant;
+}
+</code></pre>
+<p>A <code>tagged_variant</code> is a type-safe union; it may contain one value from a set of types. Each type is tagged with a name; this name appears in the JSON representation and optionally in the binary serialization.</p>
+<p>Example:</p>
+<pre><code class="lang-c++"><span class="hljs-keyword">using</span> token_query_request = eosio::tagged_variant&lt;                                <span class="hljs-comment">//</span>
+    eosio::serialize_tag_as_name,                                                 <span class="hljs-comment">//</span>
+    eosio::tagged_type&lt;<span class="hljs-string">&quot;transfer&quot;</span>_n, token_transfer_request&gt;,                     <span class="hljs-comment">//</span>
+    eosio::tagged_type&lt;<span class="hljs-string">&quot;bal.mult.acc&quot;</span>_n, balances_for_multiple_accounts_request&gt;, <span class="hljs-comment">//</span>
+    eosio::tagged_type&lt;<span class="hljs-string">&quot;bal.mult.tok&quot;</span>_n, balances_for_multiple_tokens_request&gt;&gt;;  <span class="hljs-comment">//</span>
+</code></pre>
+<p>The JSON representation takes one of the following forms:</p>
+<pre><code>[&quot;transfer&quot;, { ...token_transfer_request properties... }]
+[&quot;bal.mult.acc&quot;, { ...balances_for_multiple_accounts_request properties... }]
+[&quot;bal.mult.tok&quot;, { ...balances_for_multiple_tokens_request properties... }]
+</code></pre><p>Since this example uses the <code>eosio::serialize_tag_as_name</code> flag, the binary serialization for instances of this type contains:</p>
+<ul>
+<li><p>8-byte <code>eosio::name</code> containing &#x201C;transfer&#x201D;, &#x201C;bal.mult.acc&#x201D;, or &#x201C;bal.mult.tok&#x201D;</p>
+</li>
+<li><p>bytes for <code>token_transfer_request</code>, <code>balances_for_multiple_accounts_request</code>, or balances_for_multiple_tokens_request</p>
+</li>
+</ul>
+<p>If the <code>serialize_tag_as_index</code> was used instead, the binary serialization would contain:</p>
+<ul>
+<li><p>1-byte <code>eosio::unsigned_int</code> containing 0, 1, or 2</p>
+</li>
+<li><p>bytes for <code>token_transfer_request</code>, <code>balances_for_multiple_accounts_request</code>, or balances_for_multiple_tokens_request</p>
+</li>
+</ul>
+<p>The 1-byte <code>eosio::unsigned_int</code> format is more compact, and is compatible with ABI 1.1&#x2019;s variant serialization. The 8-byte <code>name</code> format provides an easier path to upgrading the format of binary data in the future.</p>
+<h3 id="struct-eosiotaggedtype">Struct <code>eosio::tagged_type</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-keyword">template</span> &lt;name::raw N, <span class="hljs-keyword">typename</span> T&gt;
+<span class="hljs-keyword">struct</span> tagged_type
+{
+    <span class="hljs-keyword">static</span> <span class="hljs-keyword">constexpr</span> eosio::name <span class="hljs-keyword">const</span> name = eosio::name{N};
+
+    <span class="hljs-keyword">using</span> type = T;
+};
+</code></pre>
+<p>Pairs a name with a type</p>
+<hr>
+<h3 id="enumeration-eosiotaggedvariantoptions">Enumeration <code>eosio::tagged_variant_options</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-keyword">enum</span> tagged_variant_options
+{
+    serialize_tag_as_name = <span class="hljs-number">1</span>,
+    serialize_tag_as_index = <span class="hljs-number">2</span>
+};
+</code></pre>
+<p>Options for <code>tagged_variant</code></p>
+<hr>
+<h3 id="struct-eosiotaggedvariant">Struct <code>eosio::tagged_variant</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-keyword">template</span> &lt;eosio::tagged_variant_options Options, <span class="hljs-keyword">typename</span> ... NamedTypes&gt;
+<span class="hljs-keyword">struct</span> tagged_variant
+{
+    <span class="hljs-built_in">std</span>::variant&lt;<span class="hljs-keyword">typename</span> NamedTypes::type...&gt; value;
+
+    <span class="hljs-keyword">static</span> <span class="hljs-keyword">constexpr</span> eosio::name <span class="hljs-keyword">const</span> keys[] = {NamedTypes::name...};
+};
+</code></pre>
+<p>Type-safe union</p>
+<hr>
+
+                                
+                                </section>
+                            
+    </div>
+    <div class="search-results">
+        <div class="has-results">
+            
+            <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+            <ul class="search-results-list"></ul>
+            
+        </div>
+        <div class="no-results">
+            
+            <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+            
+        </div>
+    </div>
+</div>
+
+                        </div>
+                    </div>
+                
+            </div>
+
+            
+                
+                <a href="doc_struct_reflection.html" class="navigation navigation-prev " aria-label="Previous page: struct_reflection.hpp">
+                    <i class="fa fa-angle-left"></i>
+                </a>
+                
+                
+                <a href="doc_to_json.html" class="navigation navigation-next " aria-label="Next page: to_json.hpp">
+                    <i class="fa fa-angle-right"></i>
+                </a>
+                
+            
+        
+    </div>
+
+    <script>
+        var gitbook = gitbook || [];
+        gitbook.push(function() {
+            gitbook.page.hasChanged({"page":{"title":"tagged_variant.hpp","level":"1.3.7","depth":2,"next":{"title":"to_json.hpp","level":"1.3.8","depth":2,"path":"generated/doc_to_json.md","ref":"generated/doc_to_json.md","articles":[]},"previous":{"title":"struct_reflection.hpp","level":"1.3.6","depth":2,"path":"generated/doc_struct_reflection.md","ref":"generated/doc_struct_reflection.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_tagged_variant.md","mtime":"2019-03-07T21:59:33.497Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-07T23:14:52.234Z"},"basePath":"..","book":{"language":""}});
+        });
+    </script>
+</div>
+
+        
+    <script src="../gitbook/gitbook.js"></script>
+    <script src="../gitbook/theme.js"></script>
+    
+        
+        <script src="../gitbook/gitbook-plugin-search/search-engine.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-search/search.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-sharing/buttons.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-fontsettings/fontsettings.js"></script>
+        
+    
+
+    </body>
+</html>
+

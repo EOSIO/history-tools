@@ -1,0 +1,432 @@
+
+<!DOCTYPE HTML>
+<html lang="" >
+    <head>
+        <meta charset="UTF-8">
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <title>block_select.hpp · GitBook</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="description" content="">
+        <meta name="generator" content="GitBook 3.2.3">
+        
+        
+        
+    
+    <link rel="stylesheet" href="../gitbook/style.css">
+
+    
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-highlight/website.css">
+                
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-search/search.css">
+                
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-fontsettings/website.css">
+                
+            
+        
+
+    
+
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+
+        
+    
+    
+    <meta name="HandheldFriendly" content="true"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="apple-touch-icon-precomposed" sizes="152x152" href="../gitbook/images/apple-touch-icon-precomposed-152.png">
+    <link rel="shortcut icon" href="../gitbook/images/favicon.ico" type="image/x-icon">
+
+    
+    <link rel="next" href="doc_database.html" />
+    
+    
+
+    </head>
+    <body>
+        
+<div class="book">
+    <div class="book-summary">
+        
+            
+<div id="book-search-input" role="search">
+    <input type="text" placeholder="Type to search" />
+</div>
+
+            
+                <nav role="navigation">
+                
+
+
+<ul class="summary">
+    
+    
+
+    
+
+    
+        
+        
+    
+        <li class="chapter " data-level="1.1" data-path="../">
+            
+                <a href="../">
+            
+                    
+                    History Tools
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.2" >
+            
+                <span>
+            
+                    
+                    Building
+            
+                </span>
+            
+
+            
+            <ul class="articles">
+                
+    
+        <li class="chapter " data-level="1.2.1" data-path="../build-osx.html">
+            
+                <a href="../build-osx.html">
+            
+                    
+                    OSX
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.2.2" data-path="../build-ubuntu-1810.html">
+            
+                <a href="../build-ubuntu-1810.html">
+            
+                    
+                    Ubuntu 18.10
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.2.3" data-path="../build-doc.html">
+            
+                <a href="../build-doc.html">
+            
+                    
+                    Documentation
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+            </ul>
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3" >
+            
+                <span>
+            
+                    
+                    wasm-ql library
+            
+                </span>
+            
+
+            
+            <ul class="articles">
+                
+    
+        <li class="chapter active" data-level="1.3.1" data-path="doc_block_select.html">
+            
+                <a href="doc_block_select.html">
+            
+                    
+                    block_select.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.2" data-path="doc_database.html">
+            
+                <a href="doc_database.html">
+            
+                    
+                    database.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.3" data-path="doc_input_output.html">
+            
+                <a href="doc_input_output.html">
+            
+                    
+                    input_output.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.4" data-path="doc_parse_json.html">
+            
+                <a href="doc_parse_json.html">
+            
+                    
+                    parse_json.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.5" data-path="doc_schema.html">
+            
+                <a href="doc_schema.html">
+            
+                    
+                    schema.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.6" data-path="doc_struct_reflection.html">
+            
+                <a href="doc_struct_reflection.html">
+            
+                    
+                    struct_reflection.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.7" data-path="doc_tagged_variant.html">
+            
+                <a href="doc_tagged_variant.html">
+            
+                    
+                    tagged_variant.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.8" data-path="doc_to_json.html">
+            
+                <a href="doc_to_json.html">
+            
+                    
+                    to_json.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+            </ul>
+            
+        </li>
+    
+
+    
+
+    <li class="divider"></li>
+
+    <li>
+        <a href="https://www.gitbook.com" target="blank" class="gitbook-link">
+            Published with GitBook
+        </a>
+    </li>
+</ul>
+
+
+                </nav>
+            
+        
+    </div>
+
+    <div class="book-body">
+        
+            <div class="body-inner">
+                
+                    
+
+<div class="book-header" role="navigation">
+    
+
+    <!-- Title -->
+    <h1>
+        <i class="fa fa-circle-o-notch fa-spin"></i>
+        <a href=".." >block_select.hpp</a>
+    </h1>
+</div>
+
+
+
+
+                    <div class="page-wrapper" tabindex="-1" role="main">
+                        <div class="page-inner">
+                            
+<div id="book-search-results">
+    <div class="search-noresults">
+    
+                                <section class="normal markdown-section">
+                                
+                                <h1 id="header-file-blockselecthpp">Header file <code>block_select.hpp</code></h1>
+<pre><code class="lang-cpp">
+
+</code></pre>
+<pre><code class="lang-c++"><span class="hljs-keyword">using</span> absolute_block     = tagged_type&lt;<span class="hljs-string">&quot;absolute&quot;</span>_n, <span class="hljs-keyword">int32_t</span>&gt;;
+<span class="hljs-keyword">using</span> head_block         = tagged_type&lt;<span class="hljs-string">&quot;head&quot;</span>_n, <span class="hljs-keyword">int32_t</span>&gt;;
+<span class="hljs-keyword">using</span> irreversible_block = tagged_type&lt;<span class="hljs-string">&quot;irreversible&quot;</span>_n, <span class="hljs-keyword">int32_t</span>&gt;;
+
+<span class="hljs-keyword">using</span> block_select       = tagged_variant&lt;
+                               serialize_tag_as_index,
+                               absolute_block,
+                               head_block,
+                               irreversible_block&gt;;
+
+<span class="hljs-function">block_select <span class="hljs-title">make_absolute_block</span><span class="hljs-params">(int32_t i)</span></span>;
+
+<span class="hljs-keyword">uint32_t</span> get_block_num(<span class="hljs-keyword">const</span> block_select&amp; sel, <span class="hljs-keyword">const</span> database_status&amp; status);
+</code></pre>
+<p><code>block_select</code> identifies blocks. This appears in JSON as one of the following:</p>
+<pre><code>[&quot;absolute&quot;, 1234]          Block 1234
+[&quot;head&quot;, -10]               10 blocks behind head
+[&quot;irreversible&quot;, -4]        4 blocks behind irreversible
+</code></pre><pre><code class="lang-c++"><span class="hljs-function">block_select <span class="hljs-title">make_absolute_block</span><span class="hljs-params">(int32_t i)</span></span>;
+</code></pre>
+<p>Returns a <code>block_select</code> which references block <code>i</code></p>
+<pre><code class="lang-c++"><span class="hljs-keyword">uint32_t</span> get_block_num(<span class="hljs-keyword">const</span> block_select&amp; sel, <span class="hljs-keyword">const</span> database_status&amp; status);
+</code></pre>
+<p>Returns the block that <code>sel</code> references.</p>
+
+                                
+                                </section>
+                            
+    </div>
+    <div class="search-results">
+        <div class="has-results">
+            
+            <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+            <ul class="search-results-list"></ul>
+            
+        </div>
+        <div class="no-results">
+            
+            <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+            
+        </div>
+    </div>
+</div>
+
+                        </div>
+                    </div>
+                
+            </div>
+
+            
+                
+                
+                <a href="doc_database.html" class="navigation navigation-next navigation-unique" aria-label="Next page: database.hpp">
+                    <i class="fa fa-angle-right"></i>
+                </a>
+                
+            
+        
+    </div>
+
+    <script>
+        var gitbook = gitbook || [];
+        gitbook.push(function() {
+            gitbook.page.hasChanged({"page":{"title":"block_select.hpp","level":"1.3.1","depth":2,"next":{"title":"database.hpp","level":"1.3.2","depth":2,"path":"generated/doc_database.md","ref":"generated/doc_database.md","articles":[]},"previous":{"title":"wasm-ql library","level":"1.3","depth":1,"ref":"","articles":[{"title":"block_select.hpp","level":"1.3.1","depth":2,"path":"generated/doc_block_select.md","ref":"generated/doc_block_select.md","articles":[]},{"title":"database.hpp","level":"1.3.2","depth":2,"path":"generated/doc_database.md","ref":"generated/doc_database.md","articles":[]},{"title":"input_output.hpp","level":"1.3.3","depth":2,"path":"generated/doc_input_output.md","ref":"generated/doc_input_output.md","articles":[]},{"title":"parse_json.hpp","level":"1.3.4","depth":2,"path":"generated/doc_parse_json.md","ref":"generated/doc_parse_json.md","articles":[]},{"title":"schema.hpp","level":"1.3.5","depth":2,"path":"generated/doc_schema.md","ref":"generated/doc_schema.md","articles":[]},{"title":"struct_reflection.hpp","level":"1.3.6","depth":2,"path":"generated/doc_struct_reflection.md","ref":"generated/doc_struct_reflection.md","articles":[]},{"title":"tagged_variant.hpp","level":"1.3.7","depth":2,"path":"generated/doc_tagged_variant.md","ref":"generated/doc_tagged_variant.md","articles":[]},{"title":"to_json.hpp","level":"1.3.8","depth":2,"path":"generated/doc_to_json.md","ref":"generated/doc_to_json.md","articles":[]}]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_block_select.md","mtime":"2019-03-07T21:59:33.497Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-07T23:14:52.234Z"},"basePath":"..","book":{"language":""}});
+        });
+    </script>
+</div>
+
+        
+    <script src="../gitbook/gitbook.js"></script>
+    <script src="../gitbook/theme.js"></script>
+    
+        
+        <script src="../gitbook/gitbook-plugin-search/search-engine.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-search/search.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-sharing/buttons.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-fontsettings/fontsettings.js"></script>
+        
+    
+
+    </body>
+</html>
+

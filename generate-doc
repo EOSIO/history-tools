@@ -1,0 +1,18 @@
+#!/bin/bash
+
+CDT_DIR=/usr/local/eosio.cdt
+
+mkdir -p doc-generated
+cd doc-generated
+standardese \
+    --output.format commonmark \
+    --compilation.standard=c++17 \
+    -DLLP64 \
+    -DEOSIO_NATIVE \
+    -I ../libraries/eosiolib/wasmql \
+    -I ../external/abieos/external/date/include \
+    -I $CDT_DIR/include/eosiolib/core \
+    -I $CDT_DIR/include/boost \
+    -I $CDT_DIR/include/libc \
+    -I $CDT_DIR/include/libcxx \
+    ../libraries/eosiolib/wasmql/eosio/

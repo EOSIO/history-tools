@@ -5,4 +5,4 @@ node_modules
 package-lock.json
 *.lmdb
 *.wasm
-doc-generated/
+_book

@@ -1,8 +1,8 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include <eosio/tagged-variant.hpp>
-#include <eosio/temp-placeholders.hpp>
+#include <eosio/tagged_variant.hpp>
+#include <eosio/temp_placeholders.hpp>
 
 namespace eosio {
 

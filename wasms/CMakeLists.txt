@@ -9,7 +9,7 @@ set(ROOT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..)
 set(ROOT_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/..)
 
 function(add_server TARGET SRC)
-    add_executable(${TARGET} ${SRC} ${ROOT_SOURCE_DIR}/libraries/eosiolib/wasmql/eosio/temp-placeholders.cpp)
+    add_executable(${TARGET} ${SRC} ${ROOT_SOURCE_DIR}/libraries/eosiolib/wasmql/eosio/temp_placeholders.cpp)
     target_link_libraries(${TARGET} -fquery-server --eosio-imports=${ROOT_SOURCE_DIR}/libraries/eosiolib/wasmql/server.imports)
     target_compile_options(${TARGET} PUBLIC "-Os")
     target_include_directories(${TARGET}
@@ -23,7 +23,7 @@ function(add_server TARGET SRC)
 endfunction()
 
 function(add_client TARGET SRC)
-    add_executable(${TARGET} ${SRC} ${ROOT_SOURCE_DIR}/libraries/eosiolib/wasmql/eosio/temp-placeholders.cpp)
+    add_executable(${TARGET} ${SRC} ${ROOT_SOURCE_DIR}/libraries/eosiolib/wasmql/eosio/temp_placeholders.cpp)
     target_link_libraries(${TARGET} -fquery-client --eosio-imports=${ROOT_SOURCE_DIR}/libraries/eosiolib/wasmql/client.imports)
     target_compile_options(${TARGET} PUBLIC "-Os")
     target_include_directories(${TARGET}

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <eosio/to-json.hpp>
+#include <eosio/to_json.hpp>
 #include <type_traits>
 
 namespace eosio {

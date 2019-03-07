@@ -4,8 +4,8 @@
 // todo: results vs. response vs. rows vs. records
 
 #pragma once
-#include <eosio/struct-reflection.hpp>
-#include <eosio/temp-placeholders.hpp>
+#include <eosio/struct_reflection.hpp>
+#include <eosio/temp_placeholders.hpp>
 #include <eosio/time.hpp>
 
 namespace eosio {

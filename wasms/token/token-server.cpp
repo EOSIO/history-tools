@@ -3,7 +3,7 @@
 #include "token.hpp"
 
 #include <eosio/database.hpp>
-#include <eosio/input-output.hpp>
+#include <eosio/input_output.hpp>
 
 struct transfer {
     eosio::name      from     = {};

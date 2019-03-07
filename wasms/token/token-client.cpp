@@ -1,10 +1,10 @@
 // copyright defined in LICENSE.txt
 
 #include "token.hpp"
-#include <eosio/input-output.hpp>
-#include <eosio/parse-json.hpp>
+#include <eosio/input_output.hpp>
+#include <eosio/parse_json.hpp>
 #include <eosio/schema.hpp>
-#include <eosio/to-json.hpp>
+#include <eosio/to_json.hpp>
 
 extern "C" __attribute__((eosio_wasm_entry)) void initialize() {}
 

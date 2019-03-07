@@ -2,7 +2,7 @@
 
 #include "chain.hpp"
 #include <eosio/database.hpp>
-#include <eosio/input-output.hpp>
+#include <eosio/input_output.hpp>
 
 void process(block_info_request& req, const eosio::database_status& status) {
     eosio::print("    block_info_request\n");

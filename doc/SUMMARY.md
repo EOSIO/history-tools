@@ -1,9 +1,10 @@
 # Summary
 
-* [Introduction](README.md)
+* [History Tools](README.md)
 * Building
     * [OSX](build-osx.md)
     * [Ubuntu 18.10](build-ubuntu-1810.md)
+    * [Documentation](build-doc.md)
 * wasm-ql library
     * [block_select.hpp](generated/doc_block_select.md)
     * [database.hpp](generated/doc_database.md)

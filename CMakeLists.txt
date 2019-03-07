@@ -1,6 +1,7 @@
 # copyright defined in LICENSE.txt
 
 set(CMAKE_OSX_DEPLOYMENT_TARGET 10.14)
+include(ExternalProject)
 
 cmake_minimum_required (VERSION 3.11)
 project(wasm-ql VERSION 0.1 LANGUAGES CXX)
@@ -14,6 +15,9 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
     "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
+
+set(EOSIO_WASM_OLD_BEHAVIOR "Off")
+find_package(eosio.cdt)
 
 find_library(PQ_LIB NAMES pq)
 find_library(PQXX_LIB NAMES pqxx)
@@ -154,4 +158,18 @@ message(STATUS "----------------------------------------------------")
 
 if (NOT FOUND_PQ AND NOT FOUND_LMDB)
     message(FATAL_ERROR "No database libraries found")
+endif()
+
+if (eosio.cdt_FOUND)
+    ExternalProject_Add(
+        wasms_project
+        SOURCE_DIR ${CMAKE_SOURCE_DIR}/wasms
+        BINARY_DIR ${CMAKE_BINARY_DIR}/wasms
+        CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${EOSIO_CDT_ROOT}/lib/cmake/eosio.cdt/EosioWasmToolchain.cmake
+        UPDATE_COMMAND ""
+        PATCH_COMMAND ""
+        TEST_COMMAND ""
+        INSTALL_COMMAND ""
+        BUILD_ALWAYS 1
+    )
 endif()

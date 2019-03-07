@@ -211,10 +211,10 @@ async function dump_tapos(clientWasm, ref_block, expire_seconds) {
     console.log(JSON.stringify(reply, null, 4));
 }
 
-async function dump_accounts(clientWasm, first, last) {
+async function dump_accounts(clientWasm, max_block, first, last) {
     do {
         const reply = await clientWasm.round_trip(['account', {
-            max_block: ["absolute", 30000000],
+            max_block,
             first: first,
             last: last,
             max_results: 100,
@@ -317,11 +317,11 @@ async function dump_transfers(clientWasm) {
         console.log();
         await dump_tapos(chainWasm, ["head", -3], 0);
         console.log();
-        await dump_accounts(chainWasm, 'eosio', 'eosio.bpay')
+        await dump_accounts(chainWasm, ["irreversible", 0], 'eosio', 'eosio.bpay')
         console.log();
         await get_abis(chainWasm, ['eosio', 'eosio.token', 'eosio.null', 'eosio.nope']);
         console.log();
-        await dump_eos_balances(["absolute", 20000000], tokenWasm, 'eosio', 'eosio.zzzzzzj');
+        await dump_eos_balances(["head", 0], tokenWasm, 'eosio', 'eosio.zzzzzzj');
         console.log();
         await dump_tokens(tokenWasm, 'b1', ["irreversible", 0], { sym: '', code: '' }, { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' });
         console.log();

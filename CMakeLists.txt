@@ -3,7 +3,7 @@
 set(CMAKE_OSX_DEPLOYMENT_TARGET 10.14)
 include(ExternalProject)
 
-cmake_minimum_required (VERSION 3.11)
+cmake_minimum_required (VERSION 3.10)
 project(wasm-ql VERSION 0.1 LANGUAGES CXX)
 
 set(default_build_type "Release")
@@ -22,7 +22,7 @@ find_package(eosio.cdt)
 find_library(PQ_LIB NAMES pq)
 find_library(PQXX_LIB NAMES pqxx)
 find_library(LMDB_LIB NAMES lmdb)
-find_package(Boost 1.58 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
+find_package(Boost 1.66 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(JS mozjs-64)
 
@@ -84,7 +84,7 @@ function(add_app APP FLAGS LIBS)
             ${Boost_INCLUDE_DIR}
             ${JS_INCLUDE_DIRS}
     )
-    target_link_libraries(${APP} appbase fc Boost::date_time Boost::filesystem Boost::system Boost::iostreams Boost::program_options ${LIBS} -lpthread)
+    target_link_libraries(${APP} appbase fc ${Boost_LIBRARIES} ${LIBS} -lpthread)
     target_compile_options(${APP} PUBLIC -DAPP_NAME="${APP}" ${JS_CFLAGS_OTHER} ${FLAGS})
 
     string(TOLOWER ${CMAKE_BUILD_TYPE} LOWERCASE_CMAKE_BUILD_TYPE)

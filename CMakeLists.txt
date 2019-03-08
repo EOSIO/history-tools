@@ -43,6 +43,15 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+   if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.0)
+      message(FATAL_ERROR "GCC version must be at least 8.0.")
+   endif()
+   if("${CMAKE_GENERATOR}" STREQUAL "Ninja")
+      add_compile_options(-fdiagnostics-color=always)
+   endif()
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/fc/CMakeModules")
 
 if ("${OPENSSL_ROOT_DIR}" STREQUAL "")
@@ -65,6 +74,16 @@ set(SKIP_FC_TESTS ON)
 include(SetupTargetMacros)
 include(GNUInstallDirs)
 include(VersionMacros)
+
+execute_process(COMMAND git submodule status --recursive
+                COMMAND grep -c "^[+\-]"
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                OUTPUT_VARIABLE submodule_status
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(submodule_status GREATER 0)
+   message(FATAL_ERROR "git submodules are not up to date.
+Please run the command 'git submodule update --init --recursive'.")
+endif()
 
 add_subdirectory(external/appbase)
 add_subdirectory(external/fc)

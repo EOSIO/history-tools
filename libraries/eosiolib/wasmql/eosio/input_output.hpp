@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <eosio/rope.hpp>
 #include <string_view>
 #include <vector>
 
@@ -41,5 +42,8 @@ inline void set_output_data(const std::vector<char>& v) { set_output_data(v.data
 
 /// Set the wasm's output data
 inline void set_output_data(const std::string_view& v) { set_output_data(v.data(), v.data() + v.size()); }
+
+/// Set the wasm's output data
+inline void set_output_data(rope v) { return set_output_data(v.sv()); }
 
 } // namespace eosio

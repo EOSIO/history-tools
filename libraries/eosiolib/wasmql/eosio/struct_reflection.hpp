@@ -61,6 +61,25 @@ struct member_ptr {
     static constexpr member_type* null = nullptr;
 };
 
+/// \exclude
+template <typename T>
+struct has_for_each_member {
+  private:
+    struct F {
+        template <typename A, typename B>
+        void operator()(const A&, const B&);
+    };
+
+    template <typename C>
+    static char test(decltype(for_each_member((C*)nullptr, F{}))*);
+
+    template <typename C>
+    static long test(...);
+
+  public:
+    static constexpr bool value = sizeof(test<T>((void*)nullptr)) == sizeof(char);
+};
+
 #define STRUCT_REFLECT(STRUCT)                                                                                                             \
     inline std::string_view schema_type_name(STRUCT*) { return #STRUCT; }                                                                  \
     template <typename F>                                                                                                                  \

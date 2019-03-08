@@ -6,7 +6,7 @@
 #include <eosio/asset.hpp>
 #include <eosio/datastream.hpp>
 #include <eosio/fixed_bytes.hpp>
-#include <eosio/tagged-variant.hpp>
+#include <eosio/tagged_variant.hpp>
 #include <eosio/varint.hpp>
 
 extern "C" void print_range(const char* begin, const char* end);

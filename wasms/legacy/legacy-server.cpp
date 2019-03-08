@@ -10,8 +10,8 @@ size_t wcslen(const wchar_t* str) { return ::wcslen(str); }
 
 #include <abieos.hpp>
 #include <eosio/database.hpp>
-#include <eosio/input-output.hpp>
-#include <eosio/parse-json.hpp>
+#include <eosio/input_output.hpp>
+#include <eosio/parse_json.hpp>
 
 eosio::datastream<const char*> get_raw_abi(eosio::name name, uint32_t max_block) {
     eosio::datastream<const char*> result = {nullptr, 0};

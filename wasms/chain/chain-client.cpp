@@ -1,8 +1,8 @@
 // copyright defined in LICENSE.txt
 
 #include "chain.hpp"
-#include <eosio/input-output.hpp>
-#include <eosio/parse-json.hpp>
+#include <eosio/input_output.hpp>
+#include <eosio/parse_json.hpp>
 #include <eosio/schema.hpp>
 
 extern "C" __attribute__((eosio_wasm_entry)) void initialize() {}

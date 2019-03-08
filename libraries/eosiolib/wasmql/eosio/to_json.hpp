@@ -3,8 +3,8 @@
 #pragma once
 
 #include <date/date.h>
-#include <eosio/tagged-variant.hpp>
-#include <eosio/temp-placeholders.hpp>
+#include <eosio/tagged_variant.hpp>
+#include <eosio/temp_placeholders.hpp>
 #include <eosio/time.hpp>
 #include <vector>
 

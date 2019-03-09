@@ -260,10 +260,10 @@ __attribute__((noinline)) inline rope make_json_schema_definitions(T*, std::vect
 }
 
 /// \output_section Make JSON Schema (Use This)
-/// Convert types to JSON Schema and return result. This creates a schema including
-/// the `definitions` section. The `make_json_schema` overloads assume the definitions already exist.
+/// Convert types to JSON Schema and return result. This overload creates a schema including
+/// the `definitions` section. The other overloads assume the definitions already exist.
 template <typename T>
-__attribute__((noinline)) inline rope make_json_schema_with_defs(T* = nullptr) {
+__attribute__((noinline)) inline rope make_json_schema() {
     std::vector<std::string_view> existing;
     return rope{R"({"definitions":{)"} +                         //
            make_json_schema_definitions((T*)nullptr, existing) + //

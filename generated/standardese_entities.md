@@ -14,8 +14,6 @@
     
       - [`action_trace`](doc_database.md#standardese-eosio__action_trace) - Details about action execution
     
-      - [`append`](doc_to_json.md#standardese-eosio__append-std__vector-char---std__string_view-) - Append content in `sv` to `dest`
-    
       - [`block_info`](doc_database.md#standardese-eosio__block_info) - Information extracted from a block
     
       - [`contract_row`](doc_database.md#standardese-eosio__contract_row) - A row in a contract’s table
@@ -38,9 +36,9 @@
         
           - [`eosio_assert`](doc_temp_placeholders.md#standardese-eosio__internal_use_do_not_use)
     
-      - [`kv_to_json`](doc_to_json.md#standardese-eosio)
+      - [`kv_to_json`](doc_to_json.md#standardese-eosio__kv_to_json-T--std__string_view-Tconst--)
     
-      - [`make_json_schema`](doc_schema.md#standardese-eosio__make_json_schema-std__string_view--std__vector-char---) - Convert types to JSON Schema. Appends to `dest`. The first argument is ignored; it may be `nullptr`. These overloads handle specified types.
+      - [`make_json_schema`](doc_schema.md#standardese-eosio__make_json_schema-std__string_view--) - Convert types to JSON Schema. Appends to `dest`. The first argument is ignored; it may be `nullptr`. These overloads handle specified types.
     
       - [`operator<<`](doc_temp_placeholders.md#standardese-eosio)
     
@@ -84,7 +82,7 @@
     
       - [`tagged_variant_options`](doc_tagged_variant.md#standardese-eosio__tagged_variant_options) - Options for `tagged_variant`
     
-      - [`to_json`](doc_to_json.md#standardese-eosio__to_json-std__string_view-std__vector-char---) - Convert objects to JSON. Appends to `dest`. These overloads handle specified types.
+      - [`to_json`](doc_to_json.md#standardese-eosio__to_json-std__string_view-) - Convert objects to JSON. These overloads handle specified types.
     
       - [`transaction_status`](doc_database.md#standardese-eosio__transaction_status) - Transaction status
 

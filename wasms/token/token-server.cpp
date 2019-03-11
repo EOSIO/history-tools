@@ -13,7 +13,6 @@ struct transfer {
 };
 
 void process(token_transfer_request& req, const eosio::database_status& status) {
-    eosio::print("    transfers\n");
     using query_type = eosio::query_action_trace_executed_range_name_receiver_account_block_trans_action;
     auto s           = query_database(query_type{
         .max_block = get_block_num(req.max_block, status),
@@ -38,7 +37,6 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
         .max_results = req.max_results,
     });
 
-    eosio::print(s.size(), "\n");
     token_transfer_response        response;
     std::optional<query_type::key> last_key;
     eosio::for_each_query_result<eosio::action_trace>(s, [&](eosio::action_trace& at) {
@@ -52,7 +50,6 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
             (req.include_notify_outgoing && is_notify && at.receipt_receiver == unpacked.from) || //
             (req.include_nonnotify && !is_notify)) {
 
-            eosio::print("   ", at.block_index, " ", at.action_index, " ", at.account, " ", at.name, "\n");
             response.transfers.push_back(token_transfer{
                 .key =
                     {
@@ -81,11 +78,9 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
         };
     }
     eosio::set_output_data(pack(token_query_response{std::move(response)}));
-    eosio::print("\n");
 }
 
 void process(balances_for_multiple_accounts_request& req, const eosio::database_status& status) {
-    eosio::print("    balances_for_multiple_accounts\n");
     auto s = query_database(eosio::query_contract_row_range_code_table_pk_scope{
         .max_block = get_block_num(req.max_block, status),
         .first =
@@ -107,21 +102,15 @@ void process(balances_for_multiple_accounts_request& req, const eosio::database_
 
     balances_for_multiple_accounts_response response;
     eosio::for_each_contract_row<eosio::asset>(s, [&](eosio::contract_row& r, eosio::asset* a) {
-        eosio::print("        ", r.block_index, " ", r.present, " ", r.code, " ", eosio::name{r.scope}, " ", r.payer);
         response.more = eosio::name{r.scope + 1};
-        if (r.present && a) {
-            eosio::print(" ", asset_to_string(*a));
+        if (r.present && a)
             response.balances.push_back({.account = eosio::name{r.scope}, .amount = eosio::extended_asset{*a, req.code}});
-        }
-        eosio::print("\n");
         return true;
     });
     eosio::set_output_data(pack(token_query_response{std::move(response)}));
-    eosio::print("\n");
 }
 
 void process(balances_for_multiple_tokens_request& req, const eosio::database_status& status) {
-    eosio::print("    balances_for_multiple_tokens\n");
     auto s = query_database(eosio::query_contract_row_range_scope_table_pk_code{
         .max_block = get_block_num(req.max_block, status),
         .first =
@@ -150,7 +139,6 @@ void process(balances_for_multiple_tokens_request& req, const eosio::database_st
         r.value >> a;
         if (!a.is_valid() || a.symbol.code().raw() != r.primary_key)
             return true;
-        eosio::print("        ", eosio::name{r.scope}, " ", r.code, " ", asset_to_string(a), "\n");
         if (!response.more->code.value)
             response.more->sym = eosio::symbol_code{response.more->sym.raw() + 1};
         if (r.present)
@@ -158,13 +146,11 @@ void process(balances_for_multiple_tokens_request& req, const eosio::database_st
         return true;
     });
     eosio::set_output_data(pack(token_query_response{std::move(response)}));
-    eosio::print("\n");
 }
 
 extern "C" __attribute__((eosio_wasm_entry)) void initialize() {}
 
 extern "C" void run_query() {
     auto request = eosio::unpack<token_query_request>(eosio::get_input_data());
-    eosio::print("request: ", token_query_request::keys[request.value.index()], "\n");
     std::visit([](auto& x) { process(x, eosio::get_database_status()); }, request.value);
 }

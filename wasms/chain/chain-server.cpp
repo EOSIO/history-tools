@@ -5,7 +5,6 @@
 #include <eosio/input_output.hpp>
 
 void process(block_info_request& req, const eosio::database_status& status) {
-    eosio::print("    block_info_request\n");
     auto s = query_database(eosio::query_block_info_range_index{
         .first       = get_block_num(req.first, status),
         .last        = get_block_num(req.last, status),
@@ -19,11 +18,9 @@ void process(block_info_request& req, const eosio::database_status& status) {
         return true;
     });
     eosio::set_output_data(pack(chain_query_response{std::move(response)}));
-    eosio::print("\n");
 }
 
 void process(tapos_request& req, const eosio::database_status& status) {
-    eosio::print("    tapos_request\n");
     auto s = query_database(eosio::query_block_info_range_index{
         .first       = get_block_num(req.ref_block, status),
         .last        = get_block_num(req.ref_block, status),
@@ -41,11 +38,9 @@ void process(tapos_request& req, const eosio::database_status& status) {
     });
 
     eosio::set_output_data(pack(chain_query_response{std::move(response)}));
-    eosio::print("\n");
 }
 
 void process(account_request& req, const eosio::database_status& status) {
-    eosio::print("    account\n");
     auto s = query_database(eosio::query_account_range_name{
         .max_block   = get_block_num(req.max_block, status),
         .first       = req.first,
@@ -66,11 +61,9 @@ void process(account_request& req, const eosio::database_status& status) {
         return true;
     });
     eosio::set_output_data(pack(chain_query_response{std::move(response)}));
-    eosio::print("\n");
 }
 
 void process(abis_request& req, const eosio::database_status& status) {
-    eosio::print("    abis\n");
     abis_response response;
     for (auto name : req.names) {
         auto s     = query_database(eosio::query_account_range_name{
@@ -91,13 +84,11 @@ void process(abis_request& req, const eosio::database_status& status) {
             response.abis.push_back(name_abi{name, false, {nullptr, 0}});
     }
     eosio::set_output_data(pack(chain_query_response{std::move(response)}));
-    eosio::print("\n");
 }
 
 extern "C" __attribute__((eosio_wasm_entry)) void initialize() {}
 
 extern "C" void run_query() {
     auto request = eosio::unpack<chain_query_request>(eosio::get_input_data());
-    eosio::print("request: ", chain_query_request::keys[request.value.index()], "\n");
     std::visit([](auto& x) { process(x, eosio::get_database_status()); }, request.value);
 }

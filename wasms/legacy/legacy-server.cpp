@@ -329,23 +329,6 @@ extern "C" __attribute__((eosio_wasm_entry)) void initialize() {}
 extern "C" void run_query() {
     auto request = eosio::unpack<request_data>(eosio::get_input_data());
     auto status  = eosio::get_database_status();
-    print_range(request.target.begin(), request.target.end());
-    eosio::print("\n");
-
-    {
-        auto        b = status.head_id.extract_as_byte_array();
-        std::string s;
-        abieos::hex(b.begin(), b.end(), std::back_inserter(s));
-        eosio::print("head ", status.head, " ", s, "\n");
-    }
-    {
-        auto        b = status.irreversible_id.extract_as_byte_array();
-        std::string s;
-        abieos::hex(b.begin(), b.end(), std::back_inserter(s));
-        eosio::print("irreversible ", status.irreversible, " ", s, "\n");
-    }
-    eosio::print("first ", status.first, "\n");
-
     if (request.target == "/v1/chain/get_table_rows")
         get_table_rows(request.request, status);
     else

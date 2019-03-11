@@ -4,34 +4,6 @@
 
 #include <eosio/temp_placeholders.hpp>
 
-extern "C" void* memcpy(void* __restrict dest, const void* __restrict src, size_t size) {
-    auto d = reinterpret_cast<char*>(dest);
-    auto s = reinterpret_cast<const char*>(src);
-    while (size--)
-        *d++ = *s++;
-    return dest;
-}
-
-extern "C" void* memmove(void* dest, const void* src, size_t size) {
-    auto d = reinterpret_cast<char*>(dest);
-    auto s = reinterpret_cast<const char*>(src);
-    if (d < s) {
-        while (size--)
-            *d++ = *s++;
-    } else {
-        for (size_t p = 0; p < size; ++p)
-            d[size - p - 1] = s[size - p - 1];
-    }
-    return dest;
-}
-
-extern "C" void* memset(void* dest, int v, size_t size) {
-    auto d = reinterpret_cast<char*>(dest);
-    while (size--)
-        *d++ = v;
-    return dest;
-}
-
 extern "C" void prints(const char* cstr) { print_range(cstr, cstr + strlen(cstr)); }
 extern "C" void prints_l(const char* cstr, uint32_t len) { print_range(cstr, cstr + len); }
 

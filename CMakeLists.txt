@@ -176,7 +176,7 @@ endforeach()
 message(STATUS "----------------------------------------------------")
 
 if (NOT FOUND_PQ AND NOT FOUND_LMDB)
-    message(FATAL_ERROR "No database libraries found")
+   message(WARNING "No database libraries found. Only building WASM files.")
 endif()
 
 if (eosio.cdt_FOUND)

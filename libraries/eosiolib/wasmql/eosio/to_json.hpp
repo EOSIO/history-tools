@@ -34,17 +34,51 @@ struct rope_buffer {
     void reverse() { std::reverse(begin, pos); }
 };
 
+inline constexpr char hex_digits[] = "0123456789ABCDEF";
+
 } // namespace internal_use_do_not_use
 
 /// \exclude
 template <typename T>
 rope to_json(const T& obj);
 
-// todo: escape
-// todo: handle non-utf8
+// todo: use hex if content isn't valid utf-8
 /// \group to_json_explicit Convert explicit types to JSON
 /// Convert objects to JSON. These overloads handle specified types.
-__attribute__((noinline)) inline rope to_json(std::string_view sv) { return rope{"\""} + sv + "\""; }
+__attribute__((noinline)) inline rope to_json(std::string_view sv) {
+    using namespace internal_use_do_not_use;
+    rope result = "\"";
+    auto begin  = sv.begin();
+    auto end    = sv.end();
+    while (begin != end) {
+        auto pos = begin;
+        while (pos != end && *pos != '"' && *pos != '\\' && (unsigned char)(*pos) >= 32 && *pos != 127)
+            ++pos;
+        if (begin != pos) {
+            result += std::string_view{begin, size_t(pos - begin)};
+            begin = pos;
+        }
+        if (begin != end) {
+            if (*begin == '"')
+                result += "\\\"";
+            else if (*begin == '\\')
+                result += "\\\\";
+            else {
+                rope_buffer b(6);
+                *b.pos++ = '\\';
+                *b.pos++ = 'u';
+                *b.pos++ = '0';
+                *b.pos++ = '0';
+                *b.pos++ = hex_digits[(unsigned char)(*begin) >> 4];
+                *b.pos++ = hex_digits[(unsigned char)(*begin) & 15];
+                result += b;
+            }
+            ++begin;
+        }
+    }
+    result += "\"";
+    return result;
+}
 
 /// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(shared_memory<std::string_view> sv) { return to_json(*sv); }
@@ -168,9 +202,8 @@ __attribute__((noinline)) inline rope to_json(extended_asset value) {
 /// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(const checksum256& value) {
     using namespace internal_use_do_not_use;
-    static const char hex_digits[] = "0123456789ABCDEF";
-    auto              bytes        = value.extract_as_byte_array();
-    rope_buffer       b{66};
+    auto        bytes = value.extract_as_byte_array();
+    rope_buffer b{66};
     *b.pos++ = '"';
     for (int i = 0; i < 32; ++i) {
         *b.pos++ = hex_digits[bytes[i] >> 4];

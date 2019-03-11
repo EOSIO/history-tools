@@ -1,6 +1,7 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
+#include <eosio/asset.hpp>
 #include <eosio/block_select.hpp>
 
 struct token_transfer_key {
@@ -22,11 +23,11 @@ STRUCT_REFLECT(token_transfer_key) {
 }
 
 struct token_transfer {
-    token_transfer_key    key      = {};
-    eosio::name           from     = {};
-    eosio::name           to       = {};
-    eosio::extended_asset quantity = {};
-    std::string_view      memo     = {nullptr, 0};
+    token_transfer_key                     key      = {};
+    eosio::name                            from     = {};
+    eosio::name                            to       = {};
+    eosio::extended_asset                  quantity = {};
+    eosio::shared_memory<std::string_view> memo     = {};
 
     EOSLIB_SERIALIZE(token_transfer, (key)(from)(to)(quantity)(memo))
 };

@@ -56,7 +56,7 @@ __attribute__((noinline)) inline rope make_json_schema_string_pattern(std::strin
 
 /// \group make_json_schema_explicit Make JSON Schema (Explicit Types)
 /// Convert types to JSON Schema. Appends to `dest`. The first argument is ignored; it may be `nullptr`. These overloads handle specified types.
-__attribute__((noinline)) inline rope make_json_schema(std::string_view*) { return "\"type\":\"string\""; }
+__attribute__((noinline)) inline rope make_json_schema(shared_memory<std::string_view>*) { return "\"type\":\"string\""; }
 
 /// \group schema_type_name_explicit Get JSON Schema type name (Explicit Types)
 inline std::string_view schema_type_name(name*) { return "eosio::name"; }
@@ -105,10 +105,10 @@ __attribute__((noinline)) inline rope make_json_schema(checksum256*) {
 }
 
 /// \group schema_type_name_explicit Get JSON Schema type name (Explicit Types)
-inline std::string_view schema_type_name(datastream<const char*>*) { return "eosio::bytes"; }
+inline std::string_view schema_type_name(shared_memory<datastream<const char*>>*) { return "eosio::bytes"; }
 
 /// \group make_json_schema_explicit
-__attribute__((noinline)) inline rope make_json_schema(datastream<const char*>*) {
+__attribute__((noinline)) inline rope make_json_schema(shared_memory<datastream<const char*>>*) {
     return make_json_schema_string_pattern("... todo: datastream pattern ...");
 }
 

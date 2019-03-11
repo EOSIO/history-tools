@@ -47,6 +47,9 @@ rope to_json(const T& obj);
 __attribute__((noinline)) inline rope to_json(std::string_view sv) { return rope{"\""} + sv + "\""; }
 
 /// \group to_json_explicit
+__attribute__((noinline)) inline rope to_json(shared_memory<std::string_view> sv) { return to_json(*sv); }
+
+/// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(bool value) {
     if (value)
         return "true";
@@ -208,8 +211,8 @@ __attribute__((noinline)) inline rope to_json(block_timestamp value) { return to
 
 // todo
 /// \group to_json_explicit
-__attribute__((noinline)) inline rope to_json(const datastream<const char*>& value) {
-    if (value.remaining())
+__attribute__((noinline)) inline rope to_json(const shared_memory<datastream<const char*>>& value) {
+    if (value->remaining())
         return "\"<<<datastream>>>\"";
     else
         return "\"<<<empty datastream>>>\"";

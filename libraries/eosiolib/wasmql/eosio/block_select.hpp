@@ -2,6 +2,7 @@
 
 #pragma once
 #include <eosio/database.hpp>
+#include <eosio/tagged_variant.hpp>
 
 /// \file
 /// ```c++

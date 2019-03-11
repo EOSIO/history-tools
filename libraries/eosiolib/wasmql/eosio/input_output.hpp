@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <eosio/print.hpp>
 #include <eosio/rope.hpp>
 #include <string_view>
 #include <vector>

@@ -53,9 +53,9 @@ void process(account_request& req, const eosio::database_status& status) {
         response.more = eosio::name{a.name.value + 1};
         if (a.present) {
             if (!req.include_abi)
-                a.abi = {nullptr, 0};
+                a.abi = {};
             if (!req.include_code)
-                a.code = {nullptr, 0};
+                a.code = {};
             response.accounts.push_back(a);
         }
         return true;
@@ -81,7 +81,7 @@ void process(abis_request& req, const eosio::database_status& status) {
             return true;
         });
         if (!found)
-            response.abis.push_back(name_abi{name, false, {nullptr, 0}});
+            response.abis.push_back(name_abi{name, false, {}});
     }
     eosio::set_output_data(pack(chain_query_response{std::move(response)}));
 }

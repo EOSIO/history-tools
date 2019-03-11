@@ -4,6 +4,9 @@
 // todo: results vs. response vs. rows vs. records
 
 #pragma once
+#include <eosio/fixed_bytes.hpp>
+#include <eosio/name.hpp>
+#include <eosio/shared_memory.hpp>
 #include <eosio/struct_reflection.hpp>
 #include <eosio/temp_placeholders.hpp>
 #include <eosio/time.hpp>
@@ -82,22 +85,22 @@ void for_each_member(block_info*, F f) {
 
 /// Details about action execution
 struct action_trace {
-    uint32_t                  block_index             = {};
-    checksum256               transaction_id          = {};
-    uint32_t                  action_index            = {};
-    uint32_t                  parent_action_index     = {};
-    eosio::transaction_status transaction_status      = {};
-    eosio::name               receipt_receiver        = {};
-    checksum256               receipt_act_digest      = {};
-    uint64_t                  receipt_global_sequence = {};
-    uint64_t                  receipt_recv_sequence   = {};
-    unsigned_int              receipt_code_sequence   = {};
-    unsigned_int              receipt_abi_sequence    = {};
-    eosio::name               account                 = {};
-    eosio::name               name                    = {};
-    datastream<const char*>   data                    = {nullptr, 0};
-    bool                      context_free            = {};
-    int64_t                   elapsed                 = {};
+    uint32_t                               block_index             = {};
+    checksum256                            transaction_id          = {};
+    uint32_t                               action_index            = {};
+    uint32_t                               parent_action_index     = {};
+    eosio::transaction_status              transaction_status      = {};
+    eosio::name                            receipt_receiver        = {};
+    checksum256                            receipt_act_digest      = {};
+    uint64_t                               receipt_global_sequence = {};
+    uint64_t                               receipt_recv_sequence   = {};
+    unsigned_int                           receipt_code_sequence   = {};
+    unsigned_int                           receipt_abi_sequence    = {};
+    eosio::name                            account                 = {};
+    eosio::name                            name                    = {};
+    shared_memory<datastream<const char*>> data                    = {};
+    bool                                   context_free            = {};
+    int64_t                                elapsed                 = {};
 
     EOSLIB_SERIALIZE(
         action_trace, (block_index)(transaction_id)(action_index)(parent_action_index)(transaction_status)(receipt_receiver)(
@@ -110,17 +113,17 @@ inline std::string_view schema_type_name(action_trace*) { return "eosio::action_
 
 /// Details about an account
 struct account {
-    uint32_t                block_index      = {};
-    bool                    present          = {};
-    eosio::name             name             = {};
-    uint8_t                 vm_type          = {};
-    uint8_t                 vm_version       = {};
-    bool                    privileged       = {};
-    time_point              last_code_update = time_point{};
-    checksum256             code_version     = {};
-    block_timestamp_type    creation_date    = block_timestamp_type{};
-    datastream<const char*> code             = {nullptr, 0};
-    datastream<const char*> abi              = {nullptr, 0};
+    uint32_t                               block_index      = {};
+    bool                                   present          = {};
+    eosio::name                            name             = {};
+    uint8_t                                vm_type          = {};
+    uint8_t                                vm_version       = {};
+    bool                                   privileged       = {};
+    time_point                             last_code_update = time_point{};
+    checksum256                            code_version     = {};
+    block_timestamp_type                   creation_date    = block_timestamp_type{};
+    shared_memory<datastream<const char*>> code             = {};
+    shared_memory<datastream<const char*>> abi              = {};
 
     EOSLIB_SERIALIZE(
         account, (block_index)(present)(name)(vm_type)(vm_version)(privileged)(last_code_update)(code_version)(creation_date)(code)(abi))
@@ -147,14 +150,14 @@ void for_each_member(account*, F f) {
 
 /// A row in a contract's table
 struct contract_row {
-    uint32_t                block_index = {};
-    bool                    present     = {};
-    name                    code        = {};
-    uint64_t                scope       = {};
-    name                    table       = {};
-    uint64_t                primary_key = {};
-    name                    payer       = {};
-    datastream<const char*> value       = {nullptr, 0};
+    uint32_t                               block_index = {};
+    bool                                   present     = {};
+    name                                   code        = {};
+    uint64_t                               scope       = {};
+    name                                   table       = {};
+    uint64_t                               primary_key = {};
+    name                                   payer       = {};
+    shared_memory<datastream<const char*>> value       = {};
 };
 
 /// \exclude
@@ -163,18 +166,18 @@ inline std::string_view schema_type_name(contract_row*) { return "eosio::contrac
 /// A secondary index entry in a contract's table. Also includes fields from `contract_row`.
 template <typename T>
 struct contract_secondary_index_with_row {
-    uint32_t                block_index     = {};
-    bool                    present         = {};
-    name                    code            = {};
-    uint64_t                scope           = {};
-    name                    table           = {};
-    uint64_t                primary_key     = {};
-    name                    payer           = {};
-    T                       secondary_key   = {};
-    uint32_t                row_block_index = {};
-    bool                    row_present     = {};
-    name                    row_payer       = {};
-    datastream<const char*> row_value       = {nullptr, 0};
+    uint32_t                               block_index     = {};
+    bool                                   present         = {};
+    name                                   code            = {};
+    uint64_t                               scope           = {};
+    name                                   table           = {};
+    uint64_t                               primary_key     = {};
+    name                                   payer           = {};
+    T                                      secondary_key   = {};
+    uint32_t                               row_block_index = {};
+    bool                                   row_present     = {};
+    name                                   row_payer       = {};
+    shared_memory<datastream<const char*>> row_value       = {};
 };
 
 /// \output_section Queries
@@ -577,10 +580,10 @@ bool for_each_query_result(const std::vector<char>& bytes, F f) {
     unsigned_int            size;
     ds >> size;
     for (uint32_t i = 0; i < size.value; ++i) {
-        datastream<const char*> record{nullptr, 0};
+        shared_memory<datastream<const char*>> record{};
         ds >> record;
         T r;
-        record >> r;
+        *record >> r;
         if (!f(r))
             return false;
     }
@@ -594,9 +597,9 @@ template <typename T, typename F>
 bool for_each_contract_row(const std::vector<char>& bytes, F f) {
     return for_each_query_result<contract_row>(bytes, [&](contract_row& row) {
         T p;
-        if (row.present && row.value.remaining()) {
+        if (row.present && row.value->remaining()) {
             // todo: don't assert if serialization fails
-            row.value >> p;
+            *row.value >> p;
             if (!f(row, &p))
                 return false;
         } else {

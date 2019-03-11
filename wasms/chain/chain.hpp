@@ -104,9 +104,9 @@ STRUCT_REFLECT(abis_request) {
 }
 
 struct name_abi {
-    eosio::name                    name           = {};
-    bool                           account_exists = {};
-    eosio::datastream<const char*> abi            = {nullptr, 0};
+    eosio::name                                          name           = {};
+    bool                                                 account_exists = {};
+    eosio::shared_memory<eosio::datastream<const char*>> abi            = {};
 
     EOSLIB_SERIALIZE(name_abi, (name)(account_exists)(abi))
 };

@@ -2,7 +2,9 @@
 
 // todo: remove or replace everything in this file
 
+#include <eosio/name.hpp>
 #include <eosio/temp_placeholders.hpp>
+#include <memory>
 
 extern "C" void prints(const char* cstr) { print_range(cstr, cstr + strlen(cstr)); }
 extern "C" void prints_l(const char* cstr, uint32_t len) { print_range(cstr, cstr + len); }

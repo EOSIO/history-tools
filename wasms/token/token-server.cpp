@@ -6,10 +6,10 @@
 #include <eosio/input_output.hpp>
 
 struct transfer {
-    eosio::name      from     = {};
-    eosio::name      to       = {};
-    eosio::asset     quantity = {};
-    std::string_view memo     = {nullptr, 0};
+    eosio::name                            from     = {};
+    eosio::name                            to       = {};
+    eosio::asset                           quantity = {};
+    eosio::shared_memory<std::string_view> memo     = {};
 };
 
 void process(token_transfer_request& req, const eosio::database_status& status) {
@@ -43,7 +43,7 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
         last_key = query_type::key::from_data(at);
 
         // todo: handle bad unpack
-        auto unpacked = eosio::unpack<transfer>(at.data.pos(), at.data.remaining());
+        auto unpacked = eosio::unpack<transfer>(at.data->pos(), at.data->remaining());
 
         bool is_notify = at.receipt_receiver != at.account;
         if ((req.include_notify_incoming && is_notify && at.receipt_receiver == unpacked.to) ||
@@ -133,10 +133,10 @@ void process(balances_for_multiple_tokens_request& req, const eosio::database_st
     balances_for_multiple_tokens_response response;
     eosio::for_each_query_result<eosio::contract_row>(s, [&](eosio::contract_row& r) {
         response.more = ++bfmt_key{.sym = eosio::symbol_code{r.primary_key}, .code = r.code};
-        if (!r.present || r.value.remaining() != 16)
+        if (!r.present || r.value->remaining() != 16)
             return true;
         eosio::asset a;
-        r.value >> a;
+        *r.value >> a;
         if (!a.is_valid() || a.symbol.code().raw() != r.primary_key)
             return true;
         if (!response.more->code.value)

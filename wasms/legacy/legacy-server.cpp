@@ -23,7 +23,7 @@ eosio::datastream<const char*> get_raw_abi(eosio::name name, uint32_t max_block)
     });
     eosio::for_each_query_result<eosio::account>(s, [&](eosio::account& a) {
         if (a.present)
-            result = a.abi;
+            result = *a.abi;
         return true;
     });
     return result;
@@ -64,19 +64,19 @@ abieos::abi_type* get_table_type(::abi* abi, abieos::name table) {
 }
 
 struct get_table_rows_params {
-    bool             json           = false;
-    eosio::name      code           = {};
-    std::string_view scope          = {};
-    eosio::name      table          = {};
-    std::string_view table_key      = {}; // todo
-    std::string_view lower_bound    = {};
-    std::string_view upper_bound    = {};
-    uint32_t         limit          = 10;
-    std::string_view key_type       = {};
-    std::string_view index_position = {};
-    std::string_view encode_type    = "dec"; // todo
-    bool             reverse        = false; // todo
-    bool             show_payer     = false;
+    bool                                   json           = false;
+    eosio::name                            code           = {};
+    eosio::shared_memory<std::string_view> scope          = {};
+    eosio::name                            table          = {};
+    eosio::shared_memory<std::string_view> table_key      = {}; // todo
+    eosio::shared_memory<std::string_view> lower_bound    = {};
+    eosio::shared_memory<std::string_view> upper_bound    = {};
+    uint32_t                               limit          = 10;
+    eosio::shared_memory<std::string_view> key_type       = {};
+    eosio::shared_memory<std::string_view> index_position = {};
+    eosio::shared_memory<std::string_view> encode_type    = {"dec"}; // todo
+    bool                                   reverse        = false;   // todo
+    bool                                   show_payer     = false;
 };
 
 STRUCT_REFLECT(get_table_rows_params) {
@@ -147,29 +147,29 @@ eosio::name get_table_index_name(const get_table_rows_params& p, bool& primary) 
 
     primary      = false;
     uint64_t pos = 0;
-    if (p.index_position.empty() || p.index_position == "first" || p.index_position == "primary" || p.index_position == "one") {
+    if (p.index_position->empty() || *p.index_position == "first" || *p.index_position == "primary" || *p.index_position == "one") {
         primary = true;
-    } else if (starts_with(p.index_position, "sec") || p.index_position == "two") {           // second, secondary
-    } else if (starts_with(p.index_position, "ter") || starts_with(p.index_position, "th")) { // tertiary, ternary, third, three
+    } else if (starts_with(*p.index_position, "sec") || *p.index_position == "two") {           // second, secondary
+    } else if (starts_with(*p.index_position, "ter") || starts_with(*p.index_position, "th")) { // tertiary, ternary, third, three
         pos = 1;
-    } else if (starts_with(p.index_position, "fou")) { // four, fourth
+    } else if (starts_with(*p.index_position, "fou")) { // four, fourth
         pos = 2;
-    } else if (starts_with(p.index_position, "fi")) { // five, fifth
+    } else if (starts_with(*p.index_position, "fi")) { // five, fifth
         pos = 3;
-    } else if (starts_with(p.index_position, "six")) { // six, sixth
+    } else if (starts_with(*p.index_position, "six")) { // six, sixth
         pos = 4;
-    } else if (starts_with(p.index_position, "sev")) { // seven, seventh
+    } else if (starts_with(*p.index_position, "sev")) { // seven, seventh
         pos = 5;
-    } else if (starts_with(p.index_position, "eig")) { // eight, eighth
+    } else if (starts_with(*p.index_position, "eig")) { // eight, eighth
         pos = 6;
-    } else if (starts_with(p.index_position, "nin")) { // nine, ninth
+    } else if (starts_with(*p.index_position, "nin")) { // nine, ninth
         pos = 7;
-    } else if (starts_with(p.index_position, "ten")) { // ten, tenth
+    } else if (starts_with(*p.index_position, "ten")) { // ten, tenth
         pos = 8;
     } else {
         std::string error;
-        if (!abieos::decimal_to_binary(pos, error, p.index_position))
-            eosio::check(false, ("Invalid index_position: " + std::string(p.index_position)).c_str());
+        if (!abieos::decimal_to_binary(pos, error, *p.index_position))
+            eosio::check(false, ("Invalid index_position: " + std::string(*p.index_position)).c_str());
         if (pos < 2) {
             primary = true;
             pos     = 0;
@@ -184,8 +184,8 @@ eosio::name get_table_index_name(const get_table_rows_params& p, bool& primary) 
 void get_table_rows_primary(
     const get_table_rows_params& params, const eosio::database_status& status, uint64_t scope, abieos::abi_type* table_type) {
 
-    auto lower_bound = convert_key(params.key_type, params.lower_bound, (uint64_t)0);
-    auto upper_bound = convert_key(params.key_type, params.upper_bound, (uint64_t)0xffff'ffff'ffff'ffff);
+    auto lower_bound = convert_key(*params.key_type, *params.lower_bound, (uint64_t)0);
+    auto upper_bound = convert_key(*params.key_type, *params.upper_bound, (uint64_t)0xffff'ffff'ffff'ffff);
 
     auto s = query_database(eosio::query_contract_row_range_code_table_scope_pk{
         .max_block = status.head,
@@ -219,7 +219,7 @@ void get_table_rows_primary(
             result += "{\"data\":";
         bool decoded = false;
         if (table_type) {
-            abieos::input_buffer bin{r.value.pos(), r.value.pos() + r.value.remaining()};
+            abieos::input_buffer bin{r.value->pos(), r.value->pos() + r.value->remaining()};
             std::string          error;
             std::string          json_row;
             if (bin_to_json(bin, error, table_type, json_row)) {
@@ -229,7 +229,7 @@ void get_table_rows_primary(
         }
         if (!decoded) {
             result += '"';
-            abieos::hex(r.value.pos(), r.value.pos() + r.value.remaining(), std::back_inserter(result));
+            abieos::hex(r.value->pos(), r.value->pos() + r.value->remaining(), std::back_inserter(result));
             result += '"';
         }
         if (params.show_payer)
@@ -244,8 +244,8 @@ template <typename T>
 void get_table_rows_secondary(
     const get_table_rows_params& params, const eosio::database_status& status, uint64_t scope, abieos::abi_type* table_type) {
 
-    auto lower_bound = convert_key(params.key_type, params.lower_bound, (T)0);
-    auto upper_bound = convert_key(params.key_type, params.upper_bound, (T)0xffff'ffff'ffff'ffff);
+    auto lower_bound = convert_key(*params.key_type, *params.lower_bound, (T)0);
+    auto upper_bound = convert_key(*params.key_type, *params.upper_bound, (T)0xffff'ffff'ffff'ffff);
 
     auto s = query_database(eosio::query_contract_index64_range_code_table_scope_sk_pk{
         .max_block = status.head,
@@ -281,7 +281,7 @@ void get_table_rows_secondary(
             result += "{\"data\":";
         bool decoded = false;
         if (table_type) {
-            abieos::input_buffer bin{r.row_value.pos(), r.row_value.pos() + r.row_value.remaining()};
+            abieos::input_buffer bin{r.row_value->pos(), r.row_value->pos() + r.row_value->remaining()};
             std::string          error;
             std::string          json_row;
             if (bin_to_json(bin, error, table_type, json_row)) {
@@ -291,7 +291,7 @@ void get_table_rows_secondary(
         }
         if (!decoded) {
             result += '"';
-            abieos::hex(r.row_value.pos(), r.row_value.pos() + r.row_value.remaining(), std::back_inserter(result));
+            abieos::hex(r.row_value->pos(), r.row_value->pos() + r.row_value->remaining(), std::back_inserter(result));
             result += '"';
         }
         if (params.show_payer)
@@ -309,19 +309,19 @@ void get_table_rows(std::string_view request, const eosio::database_status& stat
     auto                   table_with_index = get_table_index_name(params, primary);
     std::unique_ptr<::abi> abi              = params.json ? get_abi(params.code, status.head) : nullptr;
     auto                   table_type       = get_table_type(abi.get(), abieos::name{params.table.value});
-    auto                   scope            = guess_uint64(params.scope, "scope");
+    auto                   scope            = guess_uint64(*params.scope, "scope");
 
     if (primary)
         get_table_rows_primary(params, status, scope, table_type);
-    else if (params.key_type == "i64" || params.key_type == "name")
+    else if (*params.key_type == "i64" || *params.key_type == "name")
         get_table_rows_secondary<uint64_t>(params, status, scope, table_type);
     else
-        eosio::check(false, ("unsupported key_type: " + (std::string)params.key_type).c_str());
+        eosio::check(false, ("unsupported key_type: " + (std::string)(*params.key_type)).c_str());
 }
 
 struct request_data {
-    std::string_view target  = {nullptr, 0};
-    std::string_view request = {nullptr, 0};
+    eosio::shared_memory<std::string_view> target  = {};
+    eosio::shared_memory<std::string_view> request = {};
 };
 
 extern "C" __attribute__((eosio_wasm_entry)) void initialize() {}
@@ -329,8 +329,8 @@ extern "C" __attribute__((eosio_wasm_entry)) void initialize() {}
 extern "C" void run_query() {
     auto request = eosio::unpack<request_data>(eosio::get_input_data());
     auto status  = eosio::get_database_status();
-    if (request.target == "/v1/chain/get_table_rows")
-        get_table_rows(request.request, status);
+    if (*request.target == "/v1/chain/get_table_rows")
+        get_table_rows(*request.request, status);
     else
         eosio::check(false, "not found");
 }

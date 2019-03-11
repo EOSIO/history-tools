@@ -1,6 +1,7 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
+#include <eosio/asset.hpp>
 #include <eosio/tagged_variant.hpp>
 #include <eosio/temp_placeholders.hpp>
 
@@ -33,6 +34,11 @@ __attribute__((noinline)) inline void parse_json(std::string_view& result, const
     auto e = pos;
     check(pos != end && *pos++ == '"', "expected end of string");
     result = std::string_view(begin, e - begin);
+}
+
+/// \group parse_json_explicit Parse JSON (Explicit Types)
+__attribute__((noinline)) inline void parse_json(shared_memory<std::string_view>& result, const char*& pos, const char* end) {
+    return parse_json(*result, pos, end);
 }
 
 /// \group parse_json_explicit

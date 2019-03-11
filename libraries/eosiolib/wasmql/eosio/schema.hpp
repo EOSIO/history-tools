@@ -97,10 +97,10 @@ __attribute__((noinline)) inline rope make_json_schema(extended_asset*) {
 }
 
 /// \group schema_type_name_explicit Get JSON Schema type name (Explicit Types)
-inline std::string_view schema_type_name(serial_wrapper<checksum256>*) { return "eosio::checksum256"; }
+inline std::string_view schema_type_name(checksum256*) { return "eosio::checksum256"; }
 
 /// \group make_json_schema_explicit
-__attribute__((noinline)) inline rope make_json_schema(serial_wrapper<checksum256>*) {
+__attribute__((noinline)) inline rope make_json_schema(checksum256*) {
     return make_json_schema_string_pattern("... todo: checksum256 pattern ...");
 }
 

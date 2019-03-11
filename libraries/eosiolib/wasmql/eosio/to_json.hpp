@@ -163,10 +163,10 @@ __attribute__((noinline)) inline rope to_json(extended_asset value) {
 
 // todo: move hex conversion to checksum256
 /// \group to_json_explicit
-__attribute__((noinline)) inline rope to_json(const serial_wrapper<checksum256>& value) {
+__attribute__((noinline)) inline rope to_json(const checksum256& value) {
     using namespace internal_use_do_not_use;
     static const char hex_digits[] = "0123456789ABCDEF";
-    auto              bytes        = value.value.extract_as_byte_array();
+    auto              bytes        = value.extract_as_byte_array();
     rope_buffer       b{66};
     *b.pos++ = '"';
     for (int i = 0; i < 32; ++i) {

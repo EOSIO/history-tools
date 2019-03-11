@@ -32,7 +32,7 @@ void process(tapos_request& req, const eosio::database_status& status) {
 
     tapos_response response;
     eosio::for_each_query_result<eosio::block_info>(s, [&](eosio::block_info& b) {
-        uint32_t x                = b.block_id.value.data()[0] >> 32;
+        uint32_t x                = b.block_id.data()[0] >> 32;
         response.ref_block_num    = b.block_num;
         response.ref_block_prefix = (x << 24) | ((x & 0xff00) << 8) | ((x & 0xff0000) >> 8) | (x >> 24);
         response.expiration       = b.timestamp;

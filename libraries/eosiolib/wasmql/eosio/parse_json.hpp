@@ -113,11 +113,10 @@ __attribute__((noinline)) inline void parse_json(symbol_code& result, const char
     result = symbol_code{sv};
 }
 
-// todo: fix byte order
 /// \group parse_json_explicit
-__attribute__((noinline)) inline void parse_json(serial_wrapper<checksum256>& result, const char*& pos, const char* end) {
-    auto             bytes = reinterpret_cast<char*>(result.value.data());
-    std::string_view sv;
+__attribute__((noinline)) inline void parse_json(checksum256& result, const char*& pos, const char* end) {
+    std::array<uint8_t, 32> bytes;
+    std::string_view        sv;
     parse_json(sv, pos, end);
     check(sv.size() == 64, "expected checksum256");
     auto p = sv.begin();
@@ -137,6 +136,7 @@ __attribute__((noinline)) inline void parse_json(serial_wrapper<checksum256>& re
         auto l   = get_digit();
         bytes[i] = (h << 4) | l;
     }
+    result = bytes;
 }
 
 /// \group parse_json_explicit

@@ -4,11 +4,11 @@
 #include <eosio/block_select.hpp>
 
 struct token_transfer_key {
-    eosio::name                        receipt_receiver = {};
-    eosio::name                        account          = {};
-    eosio::block_select                block            = {};
-    serial_wrapper<eosio::checksum256> transaction_id   = {};
-    uint32_t                           action_index     = {};
+    eosio::name         receipt_receiver = {};
+    eosio::name         account          = {};
+    eosio::block_select block            = {};
+    eosio::checksum256  transaction_id   = {};
+    uint32_t            action_index     = {};
 
     EOSLIB_SERIALIZE(token_transfer_key, (receipt_receiver)(account)(block)(transaction_id)(action_index))
 };

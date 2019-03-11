@@ -16,23 +16,6 @@ T& lvalue(T&& v) {
     return v;
 }
 
-template <typename T>
-struct serial_wrapper {
-    T value{};
-};
-
-template <typename DataStream>
-DataStream& operator<<(DataStream& ds, serial_wrapper<eosio::checksum256>& obj) {
-    ds.write(reinterpret_cast<char*>(obj.value.data()), obj.value.num_words() * sizeof(eosio::checksum256::word_t));
-    return ds;
-}
-
-template <typename DataStream>
-DataStream& operator>>(DataStream& ds, serial_wrapper<eosio::checksum256>& obj) {
-    ds.read(reinterpret_cast<char*>(obj.value.data()), obj.value.num_words() * sizeof(eosio::checksum256::word_t));
-    return ds;
-}
-
 namespace eosio {
 
 template <typename Stream>

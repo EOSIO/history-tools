@@ -49,16 +49,16 @@ enum class transaction_status : uint8_t {
 
 /// Information extracted from a block
 struct block_info {
-    uint32_t                    block_num             = {};
-    serial_wrapper<checksum256> block_id              = {};
-    block_timestamp             timestamp             = block_timestamp{};
-    name                        producer              = {};
-    uint16_t                    confirmed             = {};
-    serial_wrapper<checksum256> previous              = {};
-    serial_wrapper<checksum256> transaction_mroot     = {};
-    serial_wrapper<checksum256> action_mroot          = {};
-    uint32_t                    schedule_version      = {};
-    uint32_t                    new_producers_version = {};
+    uint32_t        block_num             = {};
+    checksum256     block_id              = {};
+    block_timestamp timestamp             = block_timestamp{};
+    name            producer              = {};
+    uint16_t        confirmed             = {};
+    checksum256     previous              = {};
+    checksum256     transaction_mroot     = {};
+    checksum256     action_mroot          = {};
+    uint32_t        schedule_version      = {};
+    uint32_t        new_producers_version = {};
     //std::vector<producer_key> new_producers         = {}; // todo
 };
 
@@ -82,22 +82,22 @@ void for_each_member(block_info*, F f) {
 
 /// Details about action execution
 struct action_trace {
-    uint32_t                    block_index             = {};
-    serial_wrapper<checksum256> transaction_id          = {};
-    uint32_t                    action_index            = {};
-    uint32_t                    parent_action_index     = {};
-    eosio::transaction_status   transaction_status      = {};
-    eosio::name                 receipt_receiver        = {};
-    serial_wrapper<checksum256> receipt_act_digest      = {};
-    uint64_t                    receipt_global_sequence = {};
-    uint64_t                    receipt_recv_sequence   = {};
-    unsigned_int                receipt_code_sequence   = {};
-    unsigned_int                receipt_abi_sequence    = {};
-    eosio::name                 account                 = {};
-    eosio::name                 name                    = {};
-    datastream<const char*>     data                    = {nullptr, 0};
-    bool                        context_free            = {};
-    int64_t                     elapsed                 = {};
+    uint32_t                  block_index             = {};
+    checksum256               transaction_id          = {};
+    uint32_t                  action_index            = {};
+    uint32_t                  parent_action_index     = {};
+    eosio::transaction_status transaction_status      = {};
+    eosio::name               receipt_receiver        = {};
+    checksum256               receipt_act_digest      = {};
+    uint64_t                  receipt_global_sequence = {};
+    uint64_t                  receipt_recv_sequence   = {};
+    unsigned_int              receipt_code_sequence   = {};
+    unsigned_int              receipt_abi_sequence    = {};
+    eosio::name               account                 = {};
+    eosio::name               name                    = {};
+    datastream<const char*>   data                    = {nullptr, 0};
+    bool                      context_free            = {};
+    int64_t                   elapsed                 = {};
 
     EOSLIB_SERIALIZE(
         action_trace, (block_index)(transaction_id)(action_index)(parent_action_index)(transaction_status)(receipt_receiver)(
@@ -110,17 +110,17 @@ inline std::string_view schema_type_name(action_trace*) { return "eosio::action_
 
 /// Details about an account
 struct account {
-    uint32_t                    block_index      = {};
-    bool                        present          = {};
-    eosio::name                 name             = {};
-    uint8_t                     vm_type          = {};
-    uint8_t                     vm_version       = {};
-    bool                        privileged       = {};
-    time_point                  last_code_update = time_point{};
-    serial_wrapper<checksum256> code_version     = {};
-    block_timestamp_type        creation_date    = block_timestamp_type{};
-    datastream<const char*>     code             = {nullptr, 0};
-    datastream<const char*>     abi              = {nullptr, 0};
+    uint32_t                block_index      = {};
+    bool                    present          = {};
+    eosio::name             name             = {};
+    uint8_t                 vm_type          = {};
+    uint8_t                 vm_version       = {};
+    bool                    privileged       = {};
+    time_point              last_code_update = time_point{};
+    checksum256             code_version     = {};
+    block_timestamp_type    creation_date    = block_timestamp_type{};
+    datastream<const char*> code             = {nullptr, 0};
+    datastream<const char*> abi              = {nullptr, 0};
 
     EOSLIB_SERIALIZE(
         account, (block_index)(present)(name)(vm_type)(vm_version)(privileged)(last_code_update)(code_version)(creation_date)(code)(abi))
@@ -200,12 +200,12 @@ struct query_block_info_range_index {
 /// The query results are sorted by `key`. Every record has a different key.
 /// ```c++
 /// struct key {
-///     eosio::name                 name             = {};
-///     eosio::name                 receipt_receiver = {};
-///     eosio::name                 account          = {};
-///     uint32_t                    block_index      = {};
-///     serial_wrapper<checksum256> transaction_id   = {};
-///     uint32_t                    action_index     = {};
+///     eosio::name     name             = {};
+///     eosio::name     receipt_receiver = {};
+///     eosio::name     account          = {};
+///     uint32_t        block_index      = {};
+///     checksum256     transaction_id   = {};
+///     uint32_t        action_index     = {};
 ///
 ///     // Construct the key from `data`
 ///     static key from_data(const action_trace& data);
@@ -213,12 +213,12 @@ struct query_block_info_range_index {
 /// ```
 struct query_action_trace_executed_range_name_receiver_account_block_trans_action {
     struct key {
-        eosio::name                 name             = {};
-        eosio::name                 receipt_receiver = {};
-        eosio::name                 account          = {};
-        uint32_t                    block_index      = {};
-        serial_wrapper<checksum256> transaction_id   = {};
-        uint32_t                    action_index     = {};
+        eosio::name name             = {};
+        eosio::name receipt_receiver = {};
+        eosio::name account          = {};
+        uint32_t    block_index      = {};
+        checksum256 transaction_id   = {};
+        uint32_t    action_index     = {};
 
         // Extract the key from `data`
         static key from_data(const action_trace& data) {
@@ -251,11 +251,11 @@ struct query_action_trace_executed_range_name_receiver_account_block_trans_actio
 
 /// \group increment_key
 inline bool increment_key(query_action_trace_executed_range_name_receiver_account_block_trans_action::key& key) {
-    return increment_key(key.action_index) &&         //
-           increment_key(key.transaction_id.value) && //
-           increment_key(key.block_index) &&          //
-           increment_key(key.account) &&              //
-           increment_key(key.receipt_receiver) &&     //
+    return increment_key(key.action_index) &&     //
+           increment_key(key.transaction_id) &&   //
+           increment_key(key.block_index) &&      //
+           increment_key(key.account) &&          //
+           increment_key(key.receipt_receiver) && //
            increment_key(key.name);
 }
 

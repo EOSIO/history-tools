@@ -8,6 +8,7 @@
 #include <eosio/temp_placeholders.hpp>
 #include <eosio/time.hpp>
 #include <limits>
+#include <type_traits>
 #include <vector>
 
 namespace eosio {
@@ -95,16 +96,17 @@ __attribute__((noinline)) inline rope to_json(bool value) {
 template <typename T>
 __attribute__((noinline)) inline rope int_to_json(T value) {
     using namespace internal_use_do_not_use;
+    auto        uvalue = std::make_unsigned_t<T>(value);
     rope_buffer b(std::numeric_limits<T>::digits10 + 4);
     bool        neg = value < 0;
     if (neg)
-        value = -value;
+        uvalue = -uvalue;
     if (sizeof(T) > 4)
         *b.pos++ = '"';
     do {
-        *b.pos++ = '0' + (value % 10);
-        value /= 10;
-    } while (value);
+        *b.pos++ = '0' + (uvalue % 10);
+        uvalue /= 10;
+    } while (uvalue);
     if (neg)
         *b.pos++ = '-';
     if (sizeof(T) > 4)
@@ -198,7 +200,6 @@ __attribute__((noinline)) inline rope to_json(extended_asset value) {
            "}";
 }
 
-// todo: move hex conversion to checksum256
 /// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(const checksum256& value) {
     using namespace internal_use_do_not_use;
@@ -242,13 +243,19 @@ __attribute__((noinline)) inline rope to_json(time_point value) { return rope{"\
 /// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(block_timestamp value) { return to_json(value.to_time_point()); }
 
-// todo
 /// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(const shared_memory<datastream<const char*>>& value) {
-    if (value->remaining())
-        return "\"<<<datastream>>>\"";
-    else
-        return "\"<<<empty datastream>>>\"";
+    using namespace internal_use_do_not_use;
+    rope_buffer b(value->remaining() * 2 + 2);
+    *b.pos++ = '"';
+    auto pos = value->pos();
+    for (size_t i = 0; i < value->remaining(); ++i) {
+        *b.pos++ = hex_digits[(unsigned char)(*pos) >> 4];
+        *b.pos++ = hex_digits[(unsigned char)(*pos) & 15];
+        ++pos;
+    }
+    *b.pos++ = '"';
+    return b;
 }
 
 /// \group to_json_explicit
@@ -273,6 +280,19 @@ __attribute__((noinline)) inline rope to_json(const std::vector<T>& obj) {
     }
     result += "]";
     return result;
+}
+
+/// \group to_json_explicit
+__attribute__((noinline)) inline rope to_json(const std::vector<char>& obj) {
+    using namespace internal_use_do_not_use;
+    rope_buffer b(obj.size() * 2 + 2);
+    *b.pos++ = '"';
+    for (unsigned char byte : obj) {
+        *b.pos++ = hex_digits[byte >> 4];
+        *b.pos++ = hex_digits[byte & 15];
+    }
+    *b.pos++ = '"';
+    return b;
 }
 
 /// \output_section Convert reflected objects to JSON

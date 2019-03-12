@@ -5,8 +5,3 @@
 #pragma once
 
 extern "C" void print_range(const char* begin, const char* end);
-
-template <typename T>
-T& lvalue(T&& v) {
-    return v;
-}

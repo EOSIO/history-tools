@@ -16,5 +16,5 @@ extern "C" void create_query_request() {
 }
 
 extern "C" void decode_query_response() { //
-    eosio::set_output_data(to_json(lvalue(eosio::unpack<token_query_response>(eosio::get_input_data()))));
+    eosio::set_output_data(to_json(eosio::unpack<token_query_response>(eosio::get_input_data())));
 }

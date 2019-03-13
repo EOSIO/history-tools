@@ -18,4 +18,5 @@ standardese \
     ../../libraries/eosiolib/wasmql/eosio/
 
 popd
+jsdoc2md src/HistoryTools.js >doc/generated/HistoryTools_js.md
 gitbook build

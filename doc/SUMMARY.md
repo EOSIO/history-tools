@@ -1,10 +1,12 @@
 # Summary
 
 * [History Tools](README.md)
+    * [Using Client WASMs](using-client-wasms.md)
 * Building
     * [OSX](build-osx.md)
     * [Ubuntu 18.10](build-ubuntu-1810.md)
     * [Documentation](build-doc.md)
+* [HistoryTools.js](generated/HistoryTools_js.md)
 * wasm-ql library
     * [block_select.hpp](generated/doc_block_select.md)
     * [database.hpp](generated/doc_database.md)

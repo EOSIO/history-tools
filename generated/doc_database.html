@@ -100,6 +100,25 @@
             
 
             
+            <ul class="articles">
+                
+    
+        <li class="chapter " data-level="1.1.1" data-path="../using-client-wasms.html">
+            
+                <a href="../using-client-wasms.html">
+            
+                    
+                    Using Client WASMs
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+            </ul>
+            
         </li>
     
         <li class="chapter " data-level="1.2" >
@@ -160,7 +179,20 @@
             
         </li>
     
-        <li class="chapter " data-level="1.3" >
+        <li class="chapter " data-level="1.3" data-path="HistoryTools_js.html">
+            
+                <a href="HistoryTools_js.html">
+            
+                    
+                    HistoryTools.js
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.4" >
             
                 <span>
             
@@ -174,7 +206,7 @@
             <ul class="articles">
                 
     
-        <li class="chapter " data-level="1.3.1" data-path="doc_block_select.html">
+        <li class="chapter " data-level="1.4.1" data-path="doc_block_select.html">
             
                 <a href="doc_block_select.html">
             
@@ -187,7 +219,7 @@
             
         </li>
     
-        <li class="chapter active" data-level="1.3.2" data-path="doc_database.html">
+        <li class="chapter active" data-level="1.4.2" data-path="doc_database.html">
             
                 <a href="doc_database.html">
             
@@ -200,7 +232,7 @@
             
         </li>
     
-        <li class="chapter " data-level="1.3.3" data-path="doc_input_output.html">
+        <li class="chapter " data-level="1.4.3" data-path="doc_input_output.html">
             
                 <a href="doc_input_output.html">
             
@@ -213,7 +245,7 @@
             
         </li>
     
-        <li class="chapter " data-level="1.3.4" data-path="doc_parse_json.html">
+        <li class="chapter " data-level="1.4.4" data-path="doc_parse_json.html">
             
                 <a href="doc_parse_json.html">
             
@@ -226,7 +258,7 @@
             
         </li>
     
-        <li class="chapter " data-level="1.3.5" data-path="doc_schema.html">
+        <li class="chapter " data-level="1.4.5" data-path="doc_schema.html">
             
                 <a href="doc_schema.html">
             
@@ -239,7 +271,7 @@
             
         </li>
     
-        <li class="chapter " data-level="1.3.6" data-path="doc_struct_reflection.html">
+        <li class="chapter " data-level="1.4.6" data-path="doc_struct_reflection.html">
             
                 <a href="doc_struct_reflection.html">
             
@@ -252,7 +284,7 @@
             
         </li>
     
-        <li class="chapter " data-level="1.3.7" data-path="doc_tagged_variant.html">
+        <li class="chapter " data-level="1.4.7" data-path="doc_tagged_variant.html">
             
                 <a href="doc_tagged_variant.html">
             
@@ -265,7 +297,7 @@
             
         </li>
     
-        <li class="chapter " data-level="1.3.8" data-path="doc_to_json.html">
+        <li class="chapter " data-level="1.4.8" data-path="doc_to_json.html">
             
                 <a href="doc_to_json.html">
             
@@ -444,7 +476,7 @@
 {
     <span class="hljs-keyword">uint32_t</span> block_num = {};
 
-    serial_wrapper&lt;eosio::checksum256&gt; block_id = {};
+    eosio::checksum256 block_id = {};
 
     eosio::block_timestamp timestamp = block_timestamp{};
 
@@ -452,11 +484,11 @@
 
     <span class="hljs-keyword">uint16_t</span> confirmed = {};
 
-    serial_wrapper&lt;eosio::checksum256&gt; previous = {};
+    eosio::checksum256 previous = {};
 
-    serial_wrapper&lt;eosio::checksum256&gt; transaction_mroot = {};
+    eosio::checksum256 transaction_mroot = {};
 
-    serial_wrapper&lt;eosio::checksum256&gt; action_mroot = {};
+    eosio::checksum256 action_mroot = {};
 
     <span class="hljs-keyword">uint32_t</span> schedule_version = {};
 
@@ -466,25 +498,25 @@
 <p>Information extracted from a block</p>
 <hr>
 <h3 id="struct-eosioactiontrace">Struct <code>eosio::action_trace</code></h3>
-<pre><code class="lang-cpp"><span class="hljs-keyword">struct</span> action_trace
+<pre><code class="lang-cpp">struct action_trace
 {
-    <span class="hljs-keyword">uint32_t</span> block_index = {};
+    uint32_t block_index = {};
 
-    serial_wrapper&lt;eosio::checksum256&gt; transaction_id = {};
+    eosio::checksum256 transaction_id = {};
 
-    <span class="hljs-keyword">uint32_t</span> action_index = {};
+    uint32_t action_index = {};
 
-    <span class="hljs-keyword">uint32_t</span> parent_action_index = {};
+    uint32_t parent_action_index = {};
 
     eosio::transaction_status transaction_status = {};
 
     eosio::name receipt_receiver = {};
 
-    serial_wrapper&lt;eosio::checksum256&gt; receipt_act_digest = {};
+    eosio::checksum256 receipt_act_digest = {};
 
-    <span class="hljs-keyword">uint64_t</span> receipt_global_sequence = {};
+    uint64_t receipt_global_sequence = {};
 
-    <span class="hljs-keyword">uint64_t</span> receipt_recv_sequence = {};
+    uint64_t receipt_recv_sequence = {};
 
     eosio::unsigned_int receipt_code_sequence = {};
 
@@ -494,104 +526,104 @@
 
     eosio::name name = {};
 
-    datastream&lt;<span class="hljs-keyword">const</span> <span class="hljs-keyword">char</span> *&gt; data = {<span class="hljs-literal">nullptr</span>, <span class="hljs-number">0</span>};
+    &apos;hidden&apos; data = {};
 
-    <span class="hljs-keyword">bool</span> context_free = {};
+    bool context_free = {};
 
-    <span class="hljs-keyword">int64_t</span> elapsed = {};
+    int64_t elapsed = {};
 
-    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> DataStream&gt;
-    <span class="hljs-keyword">friend</span> DataStream&amp; <span class="hljs-keyword">operator</span>&lt;&lt;(DataStream&amp; ds, eosio::action_trace <span class="hljs-keyword">const</span>&amp; t);
+    template &lt;typename DataStream&gt;
+    friend DataStream&amp; operator&lt;&lt;(DataStream&amp; ds, eosio::action_trace const&amp; t);
 
-    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> DataStream&gt;
-    <span class="hljs-keyword">friend</span> DataStream&amp; <span class="hljs-keyword">operator</span>&gt;&gt;(DataStream&amp; ds, eosio::action_trace&amp; t);
+    template &lt;typename DataStream&gt;
+    friend DataStream&amp; operator&gt;&gt;(DataStream&amp; ds, eosio::action_trace&amp; t);
 };
 </code></pre>
 <p>Details about action execution</p>
 <hr>
 <h3 id="struct-eosioaccount">Struct <code>eosio::account</code></h3>
-<pre><code class="lang-cpp"><span class="hljs-keyword">struct</span> account
+<pre><code class="lang-cpp">struct account
 {
-    <span class="hljs-keyword">uint32_t</span> block_index = {};
+    uint32_t block_index = {};
 
-    <span class="hljs-keyword">bool</span> present = {};
+    bool present = {};
 
     eosio::name name = {};
 
-    <span class="hljs-keyword">uint8_t</span> vm_type = {};
+    uint8_t vm_type = {};
 
-    <span class="hljs-keyword">uint8_t</span> vm_version = {};
+    uint8_t vm_version = {};
 
-    <span class="hljs-keyword">bool</span> privileged = {};
+    bool privileged = {};
 
     eosio::time_point last_code_update = time_point{};
 
-    serial_wrapper&lt;eosio::checksum256&gt; code_version = {};
+    eosio::checksum256 code_version = {};
 
     eosio::block_timestamp_type creation_date = block_timestamp_type{};
 
-    datastream&lt;<span class="hljs-keyword">const</span> <span class="hljs-keyword">char</span> *&gt; code = {<span class="hljs-literal">nullptr</span>, <span class="hljs-number">0</span>};
+    &apos;hidden&apos; code = {};
 
-    datastream&lt;<span class="hljs-keyword">const</span> <span class="hljs-keyword">char</span> *&gt; abi = {<span class="hljs-literal">nullptr</span>, <span class="hljs-number">0</span>};
+    &apos;hidden&apos; abi = {};
 
-    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> DataStream&gt;
-    <span class="hljs-keyword">friend</span> DataStream&amp; <span class="hljs-keyword">operator</span>&lt;&lt;(DataStream&amp; ds, eosio::account <span class="hljs-keyword">const</span>&amp; t);
+    template &lt;typename DataStream&gt;
+    friend DataStream&amp; operator&lt;&lt;(DataStream&amp; ds, eosio::account const&amp; t);
 
-    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> DataStream&gt;
-    <span class="hljs-keyword">friend</span> DataStream&amp; <span class="hljs-keyword">operator</span>&gt;&gt;(DataStream&amp; ds, eosio::account&amp; t);
+    template &lt;typename DataStream&gt;
+    friend DataStream&amp; operator&gt;&gt;(DataStream&amp; ds, eosio::account&amp; t);
 };
 </code></pre>
 <p>Details about an account</p>
 <hr>
 <h3 id="struct-eosiocontractrow">Struct <code>eosio::contract_row</code></h3>
-<pre><code class="lang-cpp"><span class="hljs-keyword">struct</span> contract_row
+<pre><code class="lang-cpp">struct contract_row
 {
-    <span class="hljs-keyword">uint32_t</span> block_index = {};
+    uint32_t block_index = {};
 
-    <span class="hljs-keyword">bool</span> present = {};
+    bool present = {};
 
     eosio::name code = {};
 
-    <span class="hljs-keyword">uint64_t</span> scope = {};
+    uint64_t scope = {};
 
     eosio::name table = {};
 
-    <span class="hljs-keyword">uint64_t</span> primary_key = {};
+    uint64_t primary_key = {};
 
     eosio::name payer = {};
 
-    datastream&lt;<span class="hljs-keyword">const</span> <span class="hljs-keyword">char</span> *&gt; value = {<span class="hljs-literal">nullptr</span>, <span class="hljs-number">0</span>};
+    &apos;hidden&apos; value = {};
 };
 </code></pre>
 <p>A row in a contract&#x2019;s table</p>
 <hr>
 <h3 id="struct-eosiocontractsecondaryindexwithrow">Struct <code>eosio::contract_secondary_index_with_row</code></h3>
-<pre><code class="lang-cpp"><span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
-<span class="hljs-keyword">struct</span> contract_secondary_index_with_row
+<pre><code class="lang-cpp">template &lt;typename T&gt;
+struct contract_secondary_index_with_row
 {
-    <span class="hljs-keyword">uint32_t</span> block_index = {};
+    uint32_t block_index = {};
 
-    <span class="hljs-keyword">bool</span> present = {};
+    bool present = {};
 
     eosio::name code = {};
 
-    <span class="hljs-keyword">uint64_t</span> scope = {};
+    uint64_t scope = {};
 
     eosio::name table = {};
 
-    <span class="hljs-keyword">uint64_t</span> primary_key = {};
+    uint64_t primary_key = {};
 
     eosio::name payer = {};
 
     T secondary_key = {};
 
-    <span class="hljs-keyword">uint32_t</span> row_block_index = {};
+    uint32_t row_block_index = {};
 
-    <span class="hljs-keyword">bool</span> row_present = {};
+    bool row_present = {};
 
     eosio::name row_payer = {};
 
-    datastream&lt;<span class="hljs-keyword">const</span> <span class="hljs-keyword">char</span> *&gt; row_value = {<span class="hljs-literal">nullptr</span>, <span class="hljs-number">0</span>};
+    &apos;hidden&apos; row_value = {};
 };
 </code></pre>
 <p>A secondary index entry in a contract&#x2019;s table. Also includes fields from <code>contract_row</code>.</p>
@@ -637,12 +669,12 @@
 <p>Pass this to <code>query_database</code> to get <code>action_trace</code> for a range of keys. Only includes actions in executed transactions.</p>
 <p>The query results are sorted by <code>key</code>. Every record has a different key.</p>
 <pre><code class="lang-c++"><span class="hljs-keyword">struct</span> key {
-    eosio::name                 name             = {};
-    eosio::name                 receipt_receiver = {};
-    eosio::name                 account          = {};
-    <span class="hljs-keyword">uint32_t</span>                    block_index      = {};
-    serial_wrapper&lt;checksum256&gt; transaction_id   = {};
-    <span class="hljs-keyword">uint32_t</span>                    action_index     = {};
+    eosio::name     name             = {};
+    eosio::name     receipt_receiver = {};
+    eosio::name     account          = {};
+    <span class="hljs-keyword">uint32_t</span>        block_index      = {};
+    checksum256     transaction_id   = {};
+    <span class="hljs-keyword">uint32_t</span>        action_index     = {};
 
     <span class="hljs-comment">// Construct the key from `data`</span>
     <span class="hljs-function"><span class="hljs-keyword">static</span> key <span class="hljs-title">from_data</span><span class="hljs-params">(<span class="hljs-keyword">const</span> action_trace&amp; data)</span></span>;
@@ -915,7 +947,7 @@
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"database.hpp","level":"1.3.2","depth":2,"next":{"title":"input_output.hpp","level":"1.3.3","depth":2,"path":"generated/doc_input_output.md","ref":"generated/doc_input_output.md","articles":[]},"previous":{"title":"block_select.hpp","level":"1.3.1","depth":2,"path":"generated/doc_block_select.md","ref":"generated/doc_block_select.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_database.md","mtime":"2019-03-09T00:51:10.042Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-09T00:51:10.900Z"},"basePath":"..","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"database.hpp","level":"1.4.2","depth":2,"next":{"title":"input_output.hpp","level":"1.4.3","depth":2,"path":"generated/doc_input_output.md","ref":"generated/doc_input_output.md","articles":[]},"previous":{"title":"block_select.hpp","level":"1.4.1","depth":2,"path":"generated/doc_block_select.md","ref":"generated/doc_block_select.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_database.md","mtime":"2019-03-13T18:25:43.357Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-13T18:25:44.246Z"},"basePath":"..","book":{"language":""}});
         });
     </script>
 </div>

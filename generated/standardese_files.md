@@ -10,6 +10,8 @@
 
   - [`schema.hpp`](doc_schema.md#standardese-schema-hpp)
 
+  - [`shared_memory.hpp`](doc_shared_memory.md#standardese-shared_memory-hpp)
+
   - [`struct_reflection.hpp`](doc_struct_reflection.md#standardese-reflection) - These macros describe a struct to the JSON conversion and JSON schema functions.
 
   - [`tagged_variant.hpp`](doc_tagged_variant.md#standardese-tagged_variant-hpp) - A `tagged_variant` is a type-safe union; it may contain one value from a set of types. Each type is tagged with a name; this name appears in the JSON representation and optionally in the binary serialization.

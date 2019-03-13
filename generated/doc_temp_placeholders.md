@@ -2,35 +2,22 @@
 
 ``` cpp
 extern "C" void print_range(char const* begin, char const* end);
+```
+har const* cstr, uint32_t len);
 
-template <typename T>
-T& lvalue(T&& v);
+extern "C" void printn(uint64_t n);
 
-template <typename T>
-struct serial_wrapper;
+extern "C" void printui(uint64_t value);
 
-template <typename DataStream>
-DataStream& operator<<(DataStream& ds, serial_wrapper<eosio::checksum256>& obj);
-
-template <typename DataStream>
-DataStream& operator>>(DataStream& ds, serial_wrapper<eosio::checksum256>& obj);
+extern "C" void printi(int64_t value);
 
 namespace eosio
 {
-    template <typename Stream>
-    datastream<Stream>& operator>>(datastream<Stream>& ds, datastream<Stream>& dest);
+    void print(std::string_view sv);
 
-    template <typename Stream1, typename Stream2>
-    datastream<Stream1>& operator<<(datastream<Stream1>& ds, datastream<Stream2> const& obj);
-
-    template <typename Stream>
-    datastream<Stream>& operator>>(datastream<Stream>& ds, std::string_view& dest);
-
-    template <typename Stream>
-    datastream<Stream>& operator<<(datastream<Stream>& ds, std::string_view const& obj);
+    namespace internal_use_do_not_use
+    {
+        extern "C" void eosio_assert(uint32_t test, char const* msg);
+    }
 }
-
-std::string_view asset_amount_to_string(eosio::asset const& v);
-
-char const* asset_to_string(eosio::asset const& v);
 ```

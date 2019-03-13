@@ -4,10 +4,6 @@
 
   - [`STRUCT_REFLECT`](doc_struct_reflection.md#standardese-reflection)
 
-  - [`asset_amount_to_string`](doc_temp_placeholders.md#standardese-temp_placeholders-hpp)
-
-  - [`asset_to_string`](doc_temp_placeholders.md#standardese-temp_placeholders-hpp)
-
   - ## Namespace `eosio`
     
       - [`account`](doc_database.md#standardese-eosio__account) - Details about an account
@@ -36,23 +32,13 @@
         
           - [`eosio_assert`](doc_temp_placeholders.md#standardese-eosio__internal_use_do_not_use)
     
-      - [`kv_to_json`](doc_to_json.md#standardese-eosio__kv_to_json-T--std__string_view-Tconst--)
+      - [`make_json_schema`](doc_schema.md#standardese-eosio__make_json_schema) - Convert types to JSON Schema. Appends to `dest`. The first argument is ignored; it may be `nullptr`. These overloads handle specified types.
     
-      - [`make_json_schema`](doc_schema.md#standardese-eosio__make_json_schema-std__string_view--) - Convert types to JSON Schema. Appends to `dest`. The first argument is ignored; it may be `nullptr`. These overloads handle specified types.
+      - [`operator<<`](doc_shared_memory.md#standardese-eosio)
     
-      - [`operator<<`](doc_temp_placeholders.md#standardese-eosio)
-    
-      - [`operator>>`](doc_temp_placeholders.md#standardese-eosio)
+      - [`operator>>`](doc_shared_memory.md#standardese-eosio)
     
       - [`parse_json`](doc_parse_json.md#standardese-eosio__parse_json-std__string_view--charconst---charconst--) - Parse JSON and convert to `result`. These overloads handle specified types.
-    
-      - [`parse_json_expect`](doc_parse_json.md#standardese-eosio__parse_json_expect-charconst---charconst--char-charconst--) - Asserts `ch` is next character. `msg` is the assertion message.
-    
-      - [`parse_json_expect_end`](doc_parse_json.md#standardese-eosio__parse_json_expect_end-charconst---charconst--) - Asserts `pos == end`.
-    
-      - [`parse_json_skip_space`](doc_parse_json.md#standardese-eosio__parse_json_skip_space-charconst---charconst--) - Skip spaces
-    
-      - [`parse_json_skip_value`](doc_parse_json.md#standardese-eosio__parse_json_skip_value-charconst---charconst--) - Skip a JSON value. Caution: only partially implemented; currently mishandles most cases.
     
       - [`print`](doc_temp_placeholders.md#standardese-eosio)
     
@@ -76,6 +62,8 @@
     
       - [`set_output_data`](doc_input_output.md#standardese-set_output_data-charconst--charconst--) - Set the wasm’s output data
     
+      - [`shared_memory`](doc_shared_memory.md#standardese-eosio__shared_memory-T-) - Tag objects which share memory with streams or with other things. These reduce deserialization overhead, but require the source memory isn’t freed and remains untouched.
+    
       - [`tagged_type`](doc_tagged_variant.md#standardese-eosio__tagged_type-N-T-) - Pairs a name with a type
     
       - [`tagged_variant`](doc_tagged_variant.md#standardese-eosio__tagged_variant-Options-NamedTypes-) - Type-safe union
@@ -85,18 +73,6 @@
       - [`to_json`](doc_to_json.md#standardese-eosio__to_json-std__string_view-) - Convert objects to JSON. These overloads handle specified types.
     
       - [`transaction_status`](doc_database.md#standardese-eosio__transaction_status) - Transaction status
-
-  - [`lvalue`](doc_temp_placeholders.md#standardese-temp_placeholders-hpp)
-
-  - [`memcpy`](doc_temp_placeholders.md#standardese-temp_placeholders-cpp)
-
-  - [`memmove`](doc_temp_placeholders.md#standardese-temp_placeholders-cpp)
-
-  - [`memset`](doc_temp_placeholders.md#standardese-temp_placeholders-cpp)
-
-  - [`operator<<`](doc_temp_placeholders.md#standardese-temp_placeholders-hpp)
-
-  - [`operator>>`](doc_temp_placeholders.md#standardese-temp_placeholders-hpp)
 
   - [`print_range`](doc_temp_placeholders.md#standardese-temp_placeholders-hpp)
 
@@ -109,5 +85,3 @@
   - [`prints_l`](doc_temp_placeholders.md#standardese-temp_placeholders-cpp)
 
   - [`printui`](doc_temp_placeholders.md#standardese-temp_placeholders-cpp)
-
-  - [`serial_wrapper`](doc_temp_placeholders.md#standardese-temp_placeholders-hpp)

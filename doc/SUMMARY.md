@@ -1,7 +1,9 @@
 # Summary
 
 * [History Tools](README.md)
+* [wasm-ql](wasm-ql.md)
     * [Using Client WASMs](using-client-wasms.md)
+    * [Creating WASMs](creating-wasms.md)
 * Building
     * [OSX](build-osx.md)
     * [Ubuntu 18.10](build-ubuntu-1810.md)
@@ -13,6 +15,7 @@
     * [input_output.hpp](generated/doc_input_output.md)
     * [parse_json.hpp](generated/doc_parse_json.md)
     * [schema.hpp](generated/doc_schema.md)
+    * [shared_memory.hpp](generated/doc_shared_memory.md)
     * [struct_reflection.hpp](generated/doc_struct_reflection.md)
     * [tagged_variant.hpp](generated/doc_tagged_variant.md)
     * [to_json.hpp](generated/doc_to_json.md)

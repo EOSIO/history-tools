@@ -1,12 +1,10 @@
 // copyright defined in LICENSE.txt
 
-// todo: balance history
 // todo: timeout wasm
 // todo: timeout sql
 // todo: what should memory size limit be?
 // todo: check callbacks for recursion to limit stack size
 // todo: make sure spidermonkey limits stack size
-// todo: global constructors in wasm
 // todo: reformulate get_input_data and set_output_data for reentrancy
 // todo: wasms get whether a query is present
 // todo: indexes on authorized, ram usage, notify
@@ -42,6 +40,7 @@ namespace ws    = boost::beast::websocket;
 using tcp       = asio::ip::tcp;
 
 struct state : wasm_state {
+    std::string                         allow_origin  = {};
     std::shared_ptr<database_interface> db_iface      = {};
     std::unique_ptr<::query_session>    query_session = {};
     state_history::fill_status          fill_status   = {};
@@ -241,10 +240,12 @@ static void handle_request(::state& state, tcp::socket& socket, http::request<ht
         return res;
     };
 
-    auto const ok = [&req](std::vector<char> reply, const char* content_type) {
+    auto const ok = [&state, &req](std::vector<char> reply, const char* content_type) {
         http::response<http::vector_body<char>> res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, content_type);
+        if (!state.allow_origin.empty())
+            res.set(http::field::access_control_allow_origin, state.allow_origin);
         res.keep_alive(req.keep_alive());
         res.body() = std::move(reply);
         res.prepare_payload();
@@ -367,17 +368,19 @@ wasm_ql_plugin::~wasm_ql_plugin() { ilog("wasm_ql_plugin stopped"); }
 void wasm_ql_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op = cfg.add_options();
     op("wql-listen", bpo::value<std::string>()->default_value("localhost:8880"), "Endpoint to listen on");
+    op("wql-allow-origin", bpo::value<std::string>()->default_value(""), "Access-Control-Allow-Origin header. Use \"*\" to allow any.");
     op("wql-console", "Show console output");
 }
 
 void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
     try {
         JS_Init();
-        auto ip_port         = options.at("wql-listen").as<std::string>();
-        my->state            = std::make_unique<::state>();
-        my->state->console   = options.count("wql-console");
-        my->endpoint_port    = ip_port.substr(ip_port.find(':') + 1, ip_port.size());
-        my->endpoint_address = ip_port.substr(0, ip_port.find(':'));
+        auto ip_port            = options.at("wql-listen").as<std::string>();
+        my->state               = std::make_unique<::state>();
+        my->state->console      = options.count("wql-console");
+        my->endpoint_port       = ip_port.substr(ip_port.find(':') + 1, ip_port.size());
+        my->endpoint_address    = ip_port.substr(0, ip_port.find(':'));
+        my->state->allow_origin = options.at("wql-allow-origin").as<std::string>();
         init_glue(*my->state);
     }
     FC_LOG_AND_RETHROW()

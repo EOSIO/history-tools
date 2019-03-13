@@ -1,0 +1,739 @@
+
+<!DOCTYPE HTML>
+<html lang="" >
+    <head>
+        <meta charset="UTF-8">
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <title>Creating WASMs · GitBook</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="description" content="">
+        <meta name="generator" content="GitBook 3.2.3">
+        
+        
+        
+    
+    <link rel="stylesheet" href="gitbook/style.css">
+
+    
+            
+                
+                <link rel="stylesheet" href="gitbook/gitbook-plugin-highlight/website.css">
+                
+            
+                
+                <link rel="stylesheet" href="gitbook/gitbook-plugin-search/search.css">
+                
+            
+                
+                <link rel="stylesheet" href="gitbook/gitbook-plugin-fontsettings/website.css">
+                
+            
+        
+
+    
+
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+
+        
+    
+    
+    <meta name="HandheldFriendly" content="true"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="apple-touch-icon-precomposed" sizes="152x152" href="gitbook/images/apple-touch-icon-precomposed-152.png">
+    <link rel="shortcut icon" href="gitbook/images/favicon.ico" type="image/x-icon">
+
+    
+    
+    <link rel="prev" href="using-client-wasms.html" />
+    
+
+    </head>
+    <body>
+        
+<div class="book">
+    <div class="book-summary">
+        
+            
+<div id="book-search-input" role="search">
+    <input type="text" placeholder="Type to search" />
+</div>
+
+            
+                <nav role="navigation">
+                
+
+
+<ul class="summary">
+    
+    
+
+    
+
+    
+        
+        
+    
+        <li class="chapter " data-level="1.1" data-path="./">
+            
+                <a href="./">
+            
+                    
+                    History Tools
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.2" data-path="wasm-ql.html">
+            
+                <a href="wasm-ql.html">
+            
+                    
+                    wasm-ql
+            
+                </a>
+            
+
+            
+            <ul class="articles">
+                
+    
+        <li class="chapter " data-level="1.2.1" data-path="using-client-wasms.html">
+            
+                <a href="using-client-wasms.html">
+            
+                    
+                    Using Client WASMs
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter active" data-level="1.2.2" data-path="creating-wasms.html">
+            
+                <a href="creating-wasms.html">
+            
+                    
+                    Creating WASMs
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+            </ul>
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3" >
+            
+                <span>
+            
+                    
+                    Building
+            
+                </span>
+            
+
+            
+            <ul class="articles">
+                
+    
+        <li class="chapter " data-level="1.3.1" data-path="build-osx.html">
+            
+                <a href="build-osx.html">
+            
+                    
+                    OSX
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.2" data-path="build-ubuntu-1810.html">
+            
+                <a href="build-ubuntu-1810.html">
+            
+                    
+                    Ubuntu 18.10
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.3" data-path="build-doc.html">
+            
+                <a href="build-doc.html">
+            
+                    
+                    Documentation
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+            </ul>
+            
+        </li>
+    
+        <li class="chapter " data-level="1.4" data-path="generated/HistoryTools_js.html">
+            
+                <a href="generated/HistoryTools_js.html">
+            
+                    
+                    HistoryTools.js
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.5" >
+            
+                <span>
+            
+                    
+                    wasm-ql library
+            
+                </span>
+            
+
+            
+            <ul class="articles">
+                
+    
+        <li class="chapter " data-level="1.5.1" data-path="generated/doc_block_select.html">
+            
+                <a href="generated/doc_block_select.html">
+            
+                    
+                    block_select.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.5.2" data-path="generated/doc_database.html">
+            
+                <a href="generated/doc_database.html">
+            
+                    
+                    database.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.5.3" data-path="generated/doc_input_output.html">
+            
+                <a href="generated/doc_input_output.html">
+            
+                    
+                    input_output.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.5.4" data-path="generated/doc_parse_json.html">
+            
+                <a href="generated/doc_parse_json.html">
+            
+                    
+                    parse_json.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.5.5" data-path="generated/doc_schema.html">
+            
+                <a href="generated/doc_schema.html">
+            
+                    
+                    schema.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.5.6" data-path="generated/doc_shared_memory.html">
+            
+                <a href="generated/doc_shared_memory.html">
+            
+                    
+                    shared_memory.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.5.7" data-path="generated/doc_struct_reflection.html">
+            
+                <a href="generated/doc_struct_reflection.html">
+            
+                    
+                    struct_reflection.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.5.8" data-path="generated/doc_tagged_variant.html">
+            
+                <a href="generated/doc_tagged_variant.html">
+            
+                    
+                    tagged_variant.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.5.9" data-path="generated/doc_to_json.html">
+            
+                <a href="generated/doc_to_json.html">
+            
+                    
+                    to_json.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+            </ul>
+            
+        </li>
+    
+
+    
+
+    <li class="divider"></li>
+
+    <li>
+        <a href="https://www.gitbook.com" target="blank" class="gitbook-link">
+            Published with GitBook
+        </a>
+    </li>
+</ul>
+
+
+                </nav>
+            
+        
+    </div>
+
+    <div class="book-body">
+        
+            <div class="body-inner">
+                
+                    
+
+<div class="book-header" role="navigation">
+    
+
+    <!-- Title -->
+    <h1>
+        <i class="fa fa-circle-o-notch fa-spin"></i>
+        <a href="." >Creating WASMs</a>
+    </h1>
+</div>
+
+
+
+
+                    <div class="page-wrapper" tabindex="-1" role="main">
+                        <div class="page-inner">
+                            
+<div id="book-search-results">
+    <div class="search-noresults">
+    
+                                <section class="normal markdown-section">
+                                
+                                <h1 id="creating-wasms">Creating WASMs</h1>
+<p>The sources for a minimal WASM pair include:</p>
+<ul>
+<li>A common header (<code>my.hpp</code>)</li>
+<li>A server implementation (<code>my-server.cpp</code>)</li>
+<li>A client implementation (<code>my-client.cpp</code>)</li>
+</ul>
+<h2 id="header">Header</h2>
+<p>The header declares the set of available queries and responses. Here&apos;s an example header for a WASM pair which can query token balances for a range of accounts.</p>
+<pre><code class="lang-cpp"><span class="hljs-comment">// my.hpp</span>
+
+<span class="hljs-meta">#<span class="hljs-meta-keyword">pragma</span> once</span>
+<span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-meta-string">&lt;eosio/asset.hpp&gt;</span></span>
+<span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-meta-string">&lt;eosio/block_select.hpp&gt;</span></span>
+
+<span class="hljs-comment">// Parameters for a query</span>
+<span class="hljs-keyword">struct</span> get_my_tokens_request {
+    eosio::block_select max_block     = {};
+    eosio::name         code          = {};
+    eosio::symbol_code  sym           = {};
+    eosio::name         first_account = {};
+    eosio::name         last_account  = {};
+    <span class="hljs-keyword">uint32_t</span>            max_results   = {};
+};
+
+<span class="hljs-comment">// Enables JSON &lt;&gt; binary conversion</span>
+STRUCT_REFLECT(get_my_tokens_request) {
+    STRUCT_MEMBER(get_my_tokens_request, max_block)
+    STRUCT_MEMBER(get_my_tokens_request, code)
+    STRUCT_MEMBER(get_my_tokens_request, sym)
+    STRUCT_MEMBER(get_my_tokens_request, first_account)
+    STRUCT_MEMBER(get_my_tokens_request, last_account)
+    STRUCT_MEMBER(get_my_tokens_request, max_results)
+}
+
+<span class="hljs-comment">// A single balance</span>
+<span class="hljs-keyword">struct</span> token_balance {
+    eosio::name           account = {};
+    eosio::extended_asset amount  = {};
+};
+
+STRUCT_REFLECT(token_balance) {
+    STRUCT_MEMBER(token_balance, account)
+    STRUCT_MEMBER(token_balance, amount)
+}
+
+<span class="hljs-comment">// Query response</span>
+<span class="hljs-keyword">struct</span> get_my_tokens_response {
+    <span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;token_balance&gt; balances = {};
+    <span class="hljs-built_in">std</span>::optional&lt;eosio::name&gt; more     = {};
+
+    EOSLIB_SERIALIZE(get_my_tokens_response, (balances)(more))
+};
+
+STRUCT_REFLECT(get_my_tokens_response) {
+    STRUCT_MEMBER(get_my_tokens_response, balances)
+    STRUCT_MEMBER(get_my_tokens_response, more)
+}
+
+<span class="hljs-comment">// The set of available queries. Each query has a name which identifies it.</span>
+<span class="hljs-keyword">using</span> my_query_request = eosio::tagged_variant&lt;
+    eosio::serialize_tag_as_name,
+    eosio::tagged_type&lt;<span class="hljs-string">&quot;get.my.toks&quot;</span>_n, get_my_tokens_request&gt;&gt;;
+
+<span class="hljs-comment">// The set of available responses. Each response has a name which identifies it.</span>
+<span class="hljs-comment">// The name must match the request&apos;s name.</span>
+<span class="hljs-keyword">using</span> my_query_response = eosio::tagged_variant&lt;
+    eosio::serialize_tag_as_name,
+    eosio::tagged_type&lt;<span class="hljs-string">&quot;get.my.toks&quot;</span>_n, get_my_tokens_response&gt;&gt;;
+</code></pre>
+<h2 id="server-wasm">Server WASM</h2>
+<p>The server WASM uses the database to find answers to incoming requests.</p>
+<pre><code class="lang-cpp"><span class="hljs-comment">// my-server.cpp</span>
+
+<span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-string">&quot;my.hpp&quot;</span></span>
+<span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-meta-string">&lt;eosio/database.hpp&gt;</span></span>
+<span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-meta-string">&lt;eosio/input_output.hpp&gt;</span></span>
+
+<span class="hljs-comment">// process this query</span>
+<span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">process</span><span class="hljs-params">(get_my_tokens_request&amp; req, <span class="hljs-keyword">const</span> eosio::database_status&amp; status)</span> </span>{
+
+    <span class="hljs-comment">// query the database for a range of contract rows,</span>
+    <span class="hljs-comment">// ordered by (code, table, primary_key, scope)</span>
+    <span class="hljs-keyword">auto</span> s = query_database(eosio::query_contract_row_range_code_table_pk_scope{
+        <span class="hljs-comment">// look at this point in time</span>
+        .max_block = get_block_num(req.max_block, status),
+
+        <span class="hljs-comment">// get records with keys &gt;= first</span>
+        .first =
+            {
+                .code        = req.code,
+                .table       = <span class="hljs-string">&quot;accounts&quot;</span>_n,
+                .primary_key = req.sym.raw(),
+                .scope       = req.first_account.value,
+            },
+
+        <span class="hljs-comment">// get records with keys &lt;= last</span>
+        .last =
+            {
+                .code        = req.code,
+                .table       = <span class="hljs-string">&quot;accounts&quot;</span>_n,
+                .primary_key = req.sym.raw(),
+                .scope       = req.last_account.value,
+            },
+
+        <span class="hljs-comment">// get this many results max. wasm-ql may return fewer results.</span>
+        .max_results = req.max_results,
+    });
+
+    get_my_tokens_response response;
+
+    <span class="hljs-comment">// loop through each record</span>
+    eosio::for_each_contract_row&lt;eosio::asset&gt;(s, [&amp;](eosio::contract_row&amp; r, eosio::asset* a) {
+        <span class="hljs-comment">// let requestor know how to continue the search</span>
+        response.more = eosio::name{r.scope + <span class="hljs-number">1</span>};
+
+        <span class="hljs-comment">// if the row is present and contains a valid asset, record the result</span>
+        <span class="hljs-keyword">if</span> (r.present &amp;&amp; a)
+            response.balances.push_back({
+                .account = eosio::name{r.scope},
+                .amount = eosio::extended_asset{*a, req.code}
+            });
+
+        <span class="hljs-comment">// continue the loop</span>
+        <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>;
+    });
+
+    <span class="hljs-comment">// send the result to the requestor</span>
+    eosio::set_output_data(pack(my_query_response{<span class="hljs-built_in">std</span>::move(response)}));
+}
+
+<span class="hljs-comment">// initialize this WASM</span>
+<span class="hljs-keyword">extern</span> <span class="hljs-string">&quot;C&quot;</span> __attribute__((eosio_wasm_entry)) <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">initialize</span><span class="hljs-params">()</span> </span>{}
+
+<span class="hljs-comment">// wasm-ql calls this for each incoming query</span>
+<span class="hljs-keyword">extern</span> <span class="hljs-string">&quot;C&quot;</span> <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">run_query</span><span class="hljs-params">()</span> </span>{
+    <span class="hljs-comment">// deserialize the request</span>
+    <span class="hljs-keyword">auto</span> request = eosio::unpack&lt;my_query_request&gt;(eosio::get_input_data());
+
+    <span class="hljs-comment">// dispatch the request to the appropriate `process` overload</span>
+    <span class="hljs-built_in">std</span>::visit([](<span class="hljs-keyword">auto</span>&amp; x) { process(x, eosio::get_database_status()); }, request.value);
+}
+</code></pre>
+<h2 id="client-wasm">Client WASM</h2>
+<p>The client WASM converts between JSON and the binary format the server WASM understands</p>
+<pre><code class="lang-cpp"><span class="hljs-comment">// my-client.cpp</span>
+
+<span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-string">&quot;my.hpp&quot;</span></span>
+<span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-meta-string">&lt;eosio/input_output.hpp&gt;</span></span>
+<span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-meta-string">&lt;eosio/parse_json.hpp&gt;</span></span>
+<span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-meta-string">&lt;eosio/schema.hpp&gt;</span></span>
+
+<span class="hljs-comment">// initialize this WASM</span>
+<span class="hljs-keyword">extern</span> <span class="hljs-string">&quot;C&quot;</span> __attribute__((eosio_wasm_entry)) <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">initialize</span><span class="hljs-params">()</span> </span>{}
+
+<span class="hljs-comment">// produce JSON schema for request</span>
+<span class="hljs-keyword">extern</span> <span class="hljs-string">&quot;C&quot;</span> <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">describe_query_request</span><span class="hljs-params">()</span> </span>{
+    eosio::set_output_data(eosio::make_json_schema&lt;my_query_request&gt;());
+}
+
+<span class="hljs-comment">// produce JSON schema for response</span>
+<span class="hljs-keyword">extern</span> <span class="hljs-string">&quot;C&quot;</span> <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">describe_query_response</span><span class="hljs-params">()</span> </span>{
+    eosio::set_output_data(eosio::make_json_schema&lt;my_query_response&gt;());
+}
+
+<span class="hljs-comment">// convert request from JSON to binary</span>
+<span class="hljs-keyword">extern</span> <span class="hljs-string">&quot;C&quot;</span> <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">create_query_request</span><span class="hljs-params">()</span> </span>{
+    eosio::set_output_data(pack(<span class="hljs-built_in">std</span>::make_tuple(
+        <span class="hljs-string">&quot;local&quot;</span>_n,      <span class="hljs-comment">// must be &quot;local&quot;</span>
+        <span class="hljs-string">&quot;my&quot;</span>_n,         <span class="hljs-comment">// name of server WASM</span>
+        eosio::parse_json&lt;my_query_request&gt;(eosio::get_input_data()))));
+}
+
+<span class="hljs-comment">// convert response from binary to JSON</span>
+<span class="hljs-keyword">extern</span> <span class="hljs-string">&quot;C&quot;</span> <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">decode_query_response</span><span class="hljs-params">()</span> </span>{
+    eosio::set_output_data(to_json(eosio::unpack&lt;my_query_response&gt;(eosio::get_input_data())));
+}
+</code></pre>
+<h2 id="building">Building</h2>
+<p>Use the CDT to build the WASMs:</p>
+<pre><code class="lang-sh"><span class="hljs-comment"># Location of History Tools repository</span>
+<span class="hljs-built_in">export</span> HT_TOOLS_DIR=~/<span class="hljs-built_in">history</span>-tools
+
+<span class="hljs-comment"># Location of the CDT</span>
+<span class="hljs-built_in">export</span> CDT_DIR=/usr/<span class="hljs-built_in">local</span>/eosio.cdt
+
+<span class="hljs-variable">$CDT_DIR</span>/bin/eosio-cpp                                                      \
+    -c -Os                                                                  \
+    -I <span class="hljs-variable">$HT_TOOLS_DIR</span>/libraries/eosiolib/wasmql                              \
+    -I <span class="hljs-variable">$HT_TOOLS_DIR</span>/external/abieos/external/date/include                  \
+    <span class="hljs-variable">$HT_TOOLS_DIR</span>/libraries/eosiolib/wasmql/eosio/temp_placeholders.cpp     \
+    -o temp_placeholders.o
+
+<span class="hljs-variable">$CDT_DIR</span>/bin/eosio-cpp                                                      \
+    -c -Os                                                                  \
+    -I <span class="hljs-variable">$HT_TOOLS_DIR</span>/libraries/eosiolib/wasmql                              \
+    -I <span class="hljs-variable">$HT_TOOLS_DIR</span>/external/abieos/external/date/include                  \
+    my-server.cpp                                                           \
+    -o my-server.o
+
+<span class="hljs-variable">$CDT_DIR</span>/bin/eosio-ld                                                       \
+    -fquery-server                                                          \
+    --eosio-imports=<span class="hljs-variable">$HT_TOOLS_DIR</span>/libraries/eosiolib/wasmql/server.imports  \
+    -L <span class="hljs-variable">$CDT_DIR</span>/lib                                                         \
+    my-server.o                                                             \
+    temp_placeholders.o                                                     \
+    -o my-server.wasm
+
+<span class="hljs-variable">$CDT_DIR</span>/bin/eosio-cpp                                                      \
+    -c -Os                                                                  \
+    -I <span class="hljs-variable">$HT_TOOLS_DIR</span>/libraries/eosiolib/wasmql                              \
+    -I <span class="hljs-variable">$HT_TOOLS_DIR</span>/external/abieos/external/date/include                  \
+    my-client.cpp                                                           \
+    -o my-client.o
+
+<span class="hljs-variable">$CDT_DIR</span>/bin/eosio-ld                                                       \
+    -fquery-client                                                          \
+    --eosio-imports=<span class="hljs-variable">$HT_TOOLS_DIR</span>/libraries/eosiolib/wasmql/client.imports  \
+    -L <span class="hljs-variable">$CDT_DIR</span>/lib                                                         \
+    my-client.o                                                             \
+    temp_placeholders.o                                                     \
+    -o my-client.wasm
+</code></pre>
+<h2 id="deploying">Deploying</h2>
+<p>Place <code>my-server.wasm</code> in the directory where you run wasm-ql. Make <code>my-client.wasm</code> available to clients.</p>
+<h2 id="example-use">Example use</h2>
+<p>Modify the code in <a href="using-client-wasms.html">Using Client WASMs</a>:</p>
+<pre><code class="lang-js"><span class="hljs-comment">// Use this for browsers:</span>
+<span class="hljs-keyword">const</span> myClientWasm = <span class="hljs-keyword">await</span> HistoryTools.createClientWasm({
+    mod: <span class="hljs-keyword">await</span> WebAssembly.compileStreaming(fetch(<span class="hljs-string">&apos;.../path/to/my-client.wasm&apos;</span>)),
+    encoder, decoder
+});
+
+<span class="hljs-comment">// Use this for nodejs</span>
+<span class="hljs-keyword">const</span> myClientWasm = <span class="hljs-keyword">await</span> HistoryTools.createClientWasm({
+    mod: <span class="hljs-keyword">new</span> WebAssembly.Module(fs.readFileSync(<span class="hljs-string">&apos;.../path/to/my-client.wasm&apos;</span>)),
+    encoder, decoder
+});
+
+<span class="hljs-comment">// Use this for either:</span>
+<span class="hljs-keyword">const</span> request = myClientWasm.createQueryRequest(<span class="hljs-built_in">JSON</span>.stringify(
+    [<span class="hljs-string">&apos;get.my.toks&apos;</span>, {
+        max_block: [<span class="hljs-string">&apos;head&apos;</span>, <span class="hljs-number">0</span>],
+        code: <span class="hljs-string">&apos;eosio.token&apos;</span>,
+        sym: <span class="hljs-string">&apos;EOS&apos;</span>,
+        first_account: <span class="hljs-string">&apos;eosio&apos;</span>,
+        last_account: <span class="hljs-string">&apos;eosio.zzzzzz&apos;</span>,
+        max_results: <span class="hljs-number">10</span>,
+    }]
+));
+
+<span class="hljs-keyword">const</span> queryReply = <span class="hljs-keyword">await</span> fetch(<span class="hljs-string">&apos;http(s)://server.name:port/wasmql/v1/query&apos;</span>, {
+    method: <span class="hljs-string">&apos;POST&apos;</span>,
+    body: HistoryTools.combineRequests([
+        request,
+    ]),
+});
+<span class="hljs-keyword">if</span> (queryReply.status !== <span class="hljs-number">200</span>)
+    <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-built_in">Error</span>(queryReply.status + <span class="hljs-string">&apos;: &apos;</span> + queryReply.statusText + <span class="hljs-string">&apos;: &apos;</span> + <span class="hljs-keyword">await</span> queryReply.text());
+
+<span class="hljs-keyword">const</span> responses = HistoryTools.splitResponses(<span class="hljs-keyword">new</span> <span class="hljs-built_in">Uint8Array</span>(<span class="hljs-keyword">await</span> queryReply.arrayBuffer()));
+
+prettyPrint(<span class="hljs-string">&apos;The tokens&apos;</span>, myClientWasm.decodeQueryResponse(responses[<span class="hljs-number">0</span>]));
+</code></pre>
+
+                                
+                                </section>
+                            
+    </div>
+    <div class="search-results">
+        <div class="has-results">
+            
+            <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+            <ul class="search-results-list"></ul>
+            
+        </div>
+        <div class="no-results">
+            
+            <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+            
+        </div>
+    </div>
+</div>
+
+                        </div>
+                    </div>
+                
+            </div>
+
+            
+                
+                <a href="using-client-wasms.html" class="navigation navigation-prev navigation-unique" aria-label="Previous page: Using Client WASMs">
+                    <i class="fa fa-angle-left"></i>
+                </a>
+                
+                
+            
+        
+    </div>
+
+    <script>
+        var gitbook = gitbook || [];
+        gitbook.push(function() {
+            gitbook.page.hasChanged({"page":{"title":"Creating WASMs","level":"1.2.2","depth":2,"next":{"title":"Building","level":"1.3","depth":1,"ref":"","articles":[{"title":"OSX","level":"1.3.1","depth":2,"path":"build-osx.md","ref":"build-osx.md","articles":[]},{"title":"Ubuntu 18.10","level":"1.3.2","depth":2,"path":"build-ubuntu-1810.md","ref":"build-ubuntu-1810.md","articles":[]},{"title":"Documentation","level":"1.3.3","depth":2,"path":"build-doc.md","ref":"build-doc.md","articles":[]}]},"previous":{"title":"Using Client WASMs","level":"1.2.1","depth":2,"path":"using-client-wasms.md","ref":"using-client-wasms.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"creating-wasms.md","mtime":"2019-03-13T21:24:38.404Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-13T21:43:01.141Z"},"basePath":".","book":{"language":""}});
+        });
+    </script>
+</div>
+
+        
+    <script src="gitbook/gitbook.js"></script>
+    <script src="gitbook/theme.js"></script>
+    
+        
+        <script src="gitbook/gitbook-plugin-search/search-engine.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-search/search.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-sharing/buttons.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-fontsettings/fontsettings.js"></script>
+        
+    
+
+    </body>
+</html>
+

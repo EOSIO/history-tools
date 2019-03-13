@@ -4,7 +4,7 @@
     <head>
         <meta charset="UTF-8">
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
-        <title>Documentation · GitBook</title>
+        <title>wasm-ql · GitBook</title>
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="description" content="">
         <meta name="generator" content="GitBook 3.2.3">
@@ -57,10 +57,10 @@
     <link rel="shortcut icon" href="gitbook/images/favicon.ico" type="image/x-icon">
 
     
-    <link rel="next" href="generated/HistoryTools_js.html" />
+    <link rel="next" href="using-client-wasms.html" />
     
     
-    <link rel="prev" href="build-ubuntu-1810.html" />
+    <link rel="prev" href="./" />
     
 
     </head>
@@ -102,7 +102,7 @@
             
         </li>
     
-        <li class="chapter " data-level="1.2" data-path="wasm-ql.html">
+        <li class="chapter active" data-level="1.2" data-path="wasm-ql.html">
             
                 <a href="wasm-ql.html">
             
@@ -187,7 +187,7 @@
             
         </li>
     
-        <li class="chapter active" data-level="1.3.3" data-path="build-doc.html">
+        <li class="chapter " data-level="1.3.3" data-path="build-doc.html">
             
                 <a href="build-doc.html">
             
@@ -384,7 +384,7 @@
     <!-- Title -->
     <h1>
         <i class="fa fa-circle-o-notch fa-spin"></i>
-        <a href="." >Documentation</a>
+        <a href="." >wasm-ql</a>
     </h1>
 </div>
 
@@ -399,24 +399,36 @@
     
                                 <section class="normal markdown-section">
                                 
-                                <h1 id="building-the-documentation">Building the documentation</h1>
+                                <h1 id="wasm-ql">wasm-ql</h1>
+<pre><code>+----------+    +------------+    +---------------+       +-------------------+
+| database |    | database   |    | wasm-ql       |       | web browser       |
+| filler   |    |            |    | ------------- |       | ---------------   |
+|          | =&gt; | postgresql | =&gt; | Server WASM A |  &lt;=&gt;  | Client WASM A     |
+|          |    |     or     |    | Server WASM B |  &lt;=&gt;  | Client WASM B     |
+|          |    |    lmdb    |    | ...           |       |                   |
+|          |    |            |    | Legacy WASM   |  &lt;=&gt;  | js using /v1/ RPC |
++----------+    +------------+    +---------------+       +-------------------+
+</code></pre><p>wasm-ql listens on an http port and answers the following:</p>
 <ul>
-<li>Build and install <a href="https://github.com/foonathan/standardese" target="_blank">https://github.com/foonathan/standardese</a><ul>
-<li>Point it at the CDT&apos;s llvm while building it</li>
+<li>POST binary data to <code>http://host:port/wasmql/v1/query</code><ul>
+<li>The binary data includes a set of queries directed to particular server WASMs</li>
+<li>wasm-ql passes each query to the appropriate WASM</li>
+<li>wasm-ql collects the query replies and produces a binary response containing the replies</li>
 </ul>
 </li>
-<li>Install these:<ul>
-<li><code>npm i -g gitbook-cli npm jsdoc-to-markdown</code></li>
+<li>POST JSON query to <code>http://host:port/v1/*</code><ul>
+<li>The legacy server WASM handles these requests</li>
+<li>The WASM produces a JSON response</li>
+<li>wasm-ql forwards the response to the client</li>
 </ul>
 </li>
-<li>Run the <code>generate-doc</code> script<ul>
-<li>If there&apos;s an error similar to the following, then rerun the script<ul>
-<li><code>Error: ENOENT: no such file or directory, stat &apos;.../_book/...&apos;</code></li>
 </ul>
-</li>
-<li>Result is in the <code>_book</code> directory</li>
-</ul>
-</li>
+<p>Client WASMs provide these functions to js clients:</p>
+<ul>
+<li><code>create_query_request()</code>: Convert a JSON request to the binary format the server WASM expects</li>
+<li><code>decode_query_response()</code>: Convert a binary response from the server WASM to JSON</li>
+<li><code>describe_query_request()</code>: Describes the JSON request format to clients using JSON Schema</li>
+<li><code>describe_query_response()</code>: Describes the JSON response format to clients using JSON Schema</li>
 </ul>
 
                                 
@@ -445,12 +457,12 @@
 
             
                 
-                <a href="build-ubuntu-1810.html" class="navigation navigation-prev " aria-label="Previous page: Ubuntu 18.10">
+                <a href="./" class="navigation navigation-prev " aria-label="Previous page: History Tools">
                     <i class="fa fa-angle-left"></i>
                 </a>
                 
                 
-                <a href="generated/HistoryTools_js.html" class="navigation navigation-next " aria-label="Next page: HistoryTools.js">
+                <a href="using-client-wasms.html" class="navigation navigation-next " aria-label="Next page: Using Client WASMs">
                     <i class="fa fa-angle-right"></i>
                 </a>
                 
@@ -461,7 +473,7 @@
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"Documentation","level":"1.3.3","depth":2,"next":{"title":"HistoryTools.js","level":"1.4","depth":1,"path":"generated/HistoryTools_js.md","ref":"generated/HistoryTools_js.md","articles":[]},"previous":{"title":"Ubuntu 18.10","level":"1.3.2","depth":2,"path":"build-ubuntu-1810.md","ref":"build-ubuntu-1810.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"build-doc.md","mtime":"2019-03-12T21:24:09.752Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-13T21:43:01.141Z"},"basePath":".","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"wasm-ql","level":"1.2","depth":1,"next":{"title":"Using Client WASMs","level":"1.2.1","depth":2,"path":"using-client-wasms.md","ref":"using-client-wasms.md","articles":[]},"previous":{"title":"History Tools","level":"1.1","depth":1,"path":"README.md","ref":"README.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"wasm-ql.md","mtime":"2019-03-13T19:21:17.735Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-13T21:43:01.141Z"},"basePath":".","book":{"language":""}});
         });
     </script>
 </div>

@@ -4,7 +4,7 @@
     <head>
         <meta charset="UTF-8">
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
-        <title>tagged_variant.hpp · GitBook</title>
+        <title>shared_memory.hpp · GitBook</title>
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="description" content="">
         <meta name="generator" content="GitBook 3.2.3">
@@ -57,10 +57,10 @@
     <link rel="shortcut icon" href="../gitbook/images/favicon.ico" type="image/x-icon">
 
     
-    <link rel="next" href="doc_to_json.html" />
+    <link rel="next" href="doc_struct_reflection.html" />
     
     
-    <link rel="prev" href="doc_struct_reflection.html" />
+    <link rel="prev" href="doc_schema.html" />
     
 
     </head>
@@ -297,7 +297,7 @@
             
         </li>
     
-        <li class="chapter " data-level="1.5.6" data-path="doc_shared_memory.html">
+        <li class="chapter active" data-level="1.5.6" data-path="doc_shared_memory.html">
             
                 <a href="doc_shared_memory.html">
             
@@ -323,7 +323,7 @@
             
         </li>
     
-        <li class="chapter active" data-level="1.5.8" data-path="doc_tagged_variant.html">
+        <li class="chapter " data-level="1.5.8" data-path="doc_tagged_variant.html">
             
                 <a href="doc_tagged_variant.html">
             
@@ -384,7 +384,7 @@
     <!-- Title -->
     <h1>
         <i class="fa fa-circle-o-notch fa-spin"></i>
-        <a href=".." >tagged_variant.hpp</a>
+        <a href=".." >shared_memory.hpp</a>
     </h1>
 </div>
 
@@ -399,75 +399,41 @@
     
                                 <section class="normal markdown-section">
                                 
-                                <h1 id="header-file-taggedvarianthpp">Header file <code>tagged_variant.hpp</code></h1>
+                                <h1 id="header-file-sharedmemoryhpp">Header file <code>shared_memory.hpp</code></h1>
 <pre><code class="lang-cpp"><span class="hljs-keyword">namespace</span> eosio
 {
-    <span class="hljs-keyword">template</span> &lt;name::raw N, <span class="hljs-keyword">typename</span> T&gt;
-    <span class="hljs-keyword">struct</span> tagged_type;
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+    <span class="hljs-keyword">struct</span> shared_memory;
 
-    <span class="hljs-keyword">enum</span> tagged_variant_options;
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> Stream&gt;
+    datastream&lt;Stream&gt;&amp; <span class="hljs-keyword">operator</span>&gt;&gt;(datastream&lt;Stream&gt;&amp; ds, shared_memory&lt;datastream&lt;Stream&gt;&gt;&amp; dest);
 
-    <span class="hljs-keyword">template</span> &lt;eosio::tagged_variant_options Options, <span class="hljs-keyword">typename</span> ... NamedTypes&gt;
-    <span class="hljs-keyword">struct</span> tagged_variant;
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> Stream1, <span class="hljs-keyword">typename</span> Stream2&gt;
+    datastream&lt;Stream1&gt;&amp; <span class="hljs-keyword">operator</span>&lt;&lt;(datastream&lt;Stream1&gt;&amp; ds, shared_memory&lt;datastream&lt;Stream2&gt;&gt; <span class="hljs-keyword">const</span>&amp; obj);
+
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> Stream&gt;
+    datastream&lt;Stream&gt;&amp; <span class="hljs-keyword">operator</span>&gt;&gt;(datastream&lt;Stream&gt;&amp; ds, shared_memory&lt;<span class="hljs-built_in">std</span>::string_view&gt;&amp; dest);
+
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> Stream&gt;
+    datastream&lt;Stream&gt;&amp; <span class="hljs-keyword">operator</span>&lt;&lt;(datastream&lt;Stream&gt;&amp; ds, shared_memory&lt;<span class="hljs-built_in">std</span>::string_view&gt; <span class="hljs-keyword">const</span>&amp; obj);
 }
 </code></pre>
-<p>A <code>tagged_variant</code> is a type-safe union; it may contain one value from a set of types. Each type is tagged with a name; this name appears in the JSON representation and optionally in the binary serialization.</p>
-<p>Example:</p>
-<pre><code class="lang-c++"><span class="hljs-keyword">using</span> token_query_request = eosio::tagged_variant&lt;                                <span class="hljs-comment">//</span>
-    eosio::serialize_tag_as_name,                                                 <span class="hljs-comment">//</span>
-    eosio::tagged_type&lt;<span class="hljs-string">&quot;transfer&quot;</span>_n, token_transfer_request&gt;,                     <span class="hljs-comment">//</span>
-    eosio::tagged_type&lt;<span class="hljs-string">&quot;bal.mult.acc&quot;</span>_n, balances_for_multiple_accounts_request&gt;, <span class="hljs-comment">//</span>
-    eosio::tagged_type&lt;<span class="hljs-string">&quot;bal.mult.tok&quot;</span>_n, balances_for_multiple_tokens_request&gt;&gt;;  <span class="hljs-comment">//</span>
-</code></pre>
-<p>The JSON representation takes one of the following forms:</p>
-<pre><code>[&quot;transfer&quot;, { ...token_transfer_request properties... }]
-[&quot;bal.mult.acc&quot;, { ...balances_for_multiple_accounts_request properties... }]
-[&quot;bal.mult.tok&quot;, { ...balances_for_multiple_tokens_request properties... }]
-</code></pre><p>Since this example uses the <code>eosio::serialize_tag_as_name</code> flag, the binary serialization for instances of this type contains:</p>
-<ul>
-<li><p>8-byte <code>eosio::name</code> containing &#x201C;transfer&#x201D;, &#x201C;bal.mult.acc&#x201D;, or &#x201C;bal.mult.tok&#x201D;</p>
-</li>
-<li><p>bytes for <code>token_transfer_request</code>, <code>balances_for_multiple_accounts_request</code>, or balances_for_multiple_tokens_request</p>
-</li>
-</ul>
-<p>If the <code>serialize_tag_as_index</code> was used instead, the binary serialization would contain:</p>
-<ul>
-<li><p>1-byte <code>eosio::unsigned_int</code> containing 0, 1, or 2</p>
-</li>
-<li><p>bytes for <code>token_transfer_request</code>, <code>balances_for_multiple_accounts_request</code>, or balances_for_multiple_tokens_request</p>
-</li>
-</ul>
-<p>The 1-byte <code>eosio::unsigned_int</code> format is more compact, and is compatible with ABI 1.1&#x2019;s variant serialization. The 8-byte <code>name</code> format provides an easier path to upgrading the format of binary data in the future.</p>
-<h3 id="struct-eosiotaggedtype">Struct <code>eosio::tagged_type</code></h3>
-<pre><code class="lang-cpp"><span class="hljs-keyword">template</span> &lt;name::raw N, <span class="hljs-keyword">typename</span> T&gt;
-<span class="hljs-keyword">struct</span> tagged_type
+<h3 id="struct-eosiosharedmemory">Struct <code>eosio::shared_memory</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+<span class="hljs-keyword">struct</span> shared_memory
 {
-    <span class="hljs-keyword">static</span> <span class="hljs-keyword">constexpr</span> eosio::name <span class="hljs-keyword">const</span> name = eosio::name{N};
+    T value = {};
 
-    <span class="hljs-keyword">using</span> type = T;
-};
-</code></pre>
-<p>Pairs a name with a type</p>
-<hr>
-<h3 id="enumeration-eosiotaggedvariantoptions">Enumeration <code>eosio::tagged_variant_options</code></h3>
-<pre><code class="lang-cpp"><span class="hljs-keyword">enum</span> tagged_variant_options
-{
-    serialize_tag_as_name = <span class="hljs-number">1</span>,
-    serialize_tag_as_index = <span class="hljs-number">2</span>
-};
-</code></pre>
-<p>Options for <code>tagged_variant</code></p>
-<hr>
-<h3 id="struct-eosiotaggedvariant">Struct <code>eosio::tagged_variant</code></h3>
-<pre><code class="lang-cpp"><span class="hljs-keyword">template</span> &lt;eosio::tagged_variant_options Options, <span class="hljs-keyword">typename</span> ... NamedTypes&gt;
-<span class="hljs-keyword">struct</span> tagged_variant
-{
-    <span class="hljs-built_in">std</span>::variant&lt;<span class="hljs-keyword">typename</span> NamedTypes::type...&gt; value;
+    T&amp; <span class="hljs-keyword">operator</span>*();
 
-    <span class="hljs-keyword">static</span> <span class="hljs-keyword">constexpr</span> eosio::name <span class="hljs-keyword">const</span> keys[] = {NamedTypes::name...};
+    T <span class="hljs-keyword">const</span>&amp; <span class="hljs-keyword">operator</span>*() <span class="hljs-keyword">const</span>;
+
+    T* <span class="hljs-keyword">operator</span>-&gt;();
+
+    T <span class="hljs-keyword">const</span>* <span class="hljs-keyword">operator</span>-&gt;() <span class="hljs-keyword">const</span>;
 };
 </code></pre>
-<p>Type-safe union</p>
+<p>Tag objects which share memory with streams or with other things. These reduce deserialization overhead, but require the source memory isn&#x2019;t freed and remains untouched.</p>
 <hr>
 
                                 
@@ -496,12 +462,12 @@
 
             
                 
-                <a href="doc_struct_reflection.html" class="navigation navigation-prev " aria-label="Previous page: struct_reflection.hpp">
+                <a href="doc_schema.html" class="navigation navigation-prev " aria-label="Previous page: schema.hpp">
                     <i class="fa fa-angle-left"></i>
                 </a>
                 
                 
-                <a href="doc_to_json.html" class="navigation navigation-next " aria-label="Next page: to_json.hpp">
+                <a href="doc_struct_reflection.html" class="navigation navigation-next " aria-label="Next page: struct_reflection.hpp">
                     <i class="fa fa-angle-right"></i>
                 </a>
                 
@@ -512,7 +478,7 @@
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"tagged_variant.hpp","level":"1.5.8","depth":2,"next":{"title":"to_json.hpp","level":"1.5.9","depth":2,"path":"generated/doc_to_json.md","ref":"generated/doc_to_json.md","articles":[]},"previous":{"title":"struct_reflection.hpp","level":"1.5.7","depth":2,"path":"generated/doc_struct_reflection.md","ref":"generated/doc_struct_reflection.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_tagged_variant.md","mtime":"2019-03-13T21:43:00.246Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-13T21:43:01.141Z"},"basePath":"..","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"shared_memory.hpp","level":"1.5.6","depth":2,"next":{"title":"struct_reflection.hpp","level":"1.5.7","depth":2,"path":"generated/doc_struct_reflection.md","ref":"generated/doc_struct_reflection.md","articles":[]},"previous":{"title":"schema.hpp","level":"1.5.5","depth":2,"path":"generated/doc_schema.md","ref":"generated/doc_schema.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_shared_memory.md","mtime":"2019-03-13T21:43:00.246Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-13T21:43:01.141Z"},"basePath":"..","book":{"language":""}});
         });
     </script>
 </div>

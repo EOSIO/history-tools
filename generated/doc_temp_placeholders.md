@@ -1,9 +1,9 @@
-# Header file `temp_placeholders.hpp`
+# Header file `temp_placeholders.cpp`
 
 ``` cpp
-extern "C" void print_range(char const* begin, char const* end);
-```
-har const* cstr, uint32_t len);
+extern "C" void prints(char const* cstr);
+
+extern "C" void prints_l(char const* cstr, uint32_t len);
 
 extern "C" void printn(uint64_t n);
 

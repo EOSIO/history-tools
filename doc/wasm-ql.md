@@ -4,9 +4,9 @@
 +----------+    +------------+    +---------------+       +-------------------+
 | database |    | database   |    | wasm-ql       |       | web browser       |
 | filler   |    |            |    | ------------- |       | ---------------   |
-|          | => | postgresql | => | Server WASM A |  <=>  | Client WASM A     |
+|          | => | PostgreSQL | => | Server WASM A |  <=>  | Client WASM A     |
 |          |    |     or     |    | Server WASM B |  <=>  | Client WASM B     |
-|          |    |    lmdb    |    | ...           |       |                   |
+|          |    |    LMDB    |    | ...           |       |                   |
 |          |    |            |    | Legacy WASM   |  <=>  | js using /v1/ RPC |
 +----------+    +------------+    +---------------+       +-------------------+
 ```

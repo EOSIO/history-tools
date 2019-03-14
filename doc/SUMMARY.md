@@ -1,7 +1,10 @@
 # Summary
 
 * [History Tools](README.md)
+* [Database Fillers](database-fillers.md)
+    * [nodeos State History](nodeos-state-history.md)
 * [wasm-ql](wasm-ql.md)
+    * [Running a Server](running-wasmql-server.md)
     * [Using Client WASMs](using-client-wasms.md)
     * [Creating WASMs](creating-wasms.md)
 * Building

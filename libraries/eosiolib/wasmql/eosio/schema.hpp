@@ -2,13 +2,14 @@
 
 #pragma once
 
+#include <eosio/struct_reflection.hpp>
 #include <eosio/to_json.hpp>
 #include <type_traits>
 
 namespace eosio {
 
 /// \output_section Get JSON Schema type name (Default)
-/// Get JSON Schema type name. The first argument is ignored; it may be `nullptr`.
+/// Get JSON Schema type name. The argument is ignored; it may be `nullptr`.
 /// Returns "", which prevents the type from being in the `definitions` section
 /// of the schema.
 template <typename T>
@@ -17,7 +18,7 @@ std::string_view schema_type_name(T*) {
 }
 
 /// \group schema_type_name_explicit Get JSON Schema type name (Explicit Types)
-/// Get JSON Schema type name. The first argument is ignored; it may be `nullptr`.
+/// Get JSON Schema type name. The argument is ignored; it may be `nullptr`.
 inline std::string_view schema_type_name(uint8_t*) { return "eosio::uint8_t"; }
 
 /// \group schema_type_name_explicit Get JSON Schema type name (Explicit Types)
@@ -55,7 +56,7 @@ __attribute__((noinline)) inline rope make_json_schema_string_pattern(std::strin
 }
 
 /// \group make_json_schema_explicit Make JSON Schema (Explicit Types)
-/// Convert types to JSON Schema. Appends to `dest`. The first argument is ignored; it may be `nullptr`. These overloads handle specified types.
+/// Convert types to JSON Schema. The argument is ignored; it may be `nullptr`. These overloads handle specified types.
 __attribute__((noinline)) inline rope make_json_schema(shared_memory<std::string_view>*) { return "\"type\":\"string\""; }
 
 /// \group schema_type_name_explicit Get JSON Schema type name (Explicit Types)
@@ -156,7 +157,7 @@ __attribute__((noinline)) inline rope make_json_schema_definitions_recurse(std::
 }
 
 /// \output_section Make JSON Schema (Reflected Objects)
-/// Convert types to JSON Schema. Appends to `dest`. The first argument is ignored; it may be `nullptr`.
+/// Convert types to JSON Schema. The argument is ignored; it may be `nullptr`.
 /// This overload works with [reflected objects](standardese://reflection/).
 template <typename T>
 __attribute__((noinline)) inline rope make_json_schema(T*) {

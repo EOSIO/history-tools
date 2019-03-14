@@ -2,6 +2,8 @@
 
 #pragma once
 #include <eosio/asset.hpp>
+#include <eosio/fixed_bytes.hpp>
+#include <eosio/shared_memory.hpp>
 #include <eosio/tagged_variant.hpp>
 #include <eosio/temp_placeholders.hpp>
 

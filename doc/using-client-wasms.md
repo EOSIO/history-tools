@@ -5,7 +5,7 @@ The client WASMs convert queries and query results between JSON and binary form.
 * Load the client WASMs during app initialization
 * Use the client WASMs to convert 1 or more queries to binary
 * Combine the binary queries into a single binary
-* POST the query binary to `http(s)://server.name/wasmql/v1/query`. The response is a binary.
+* POST the query binary to `http(s)://server.name:port/wasmql/v1/query`. The response is a binary.
 * Split the binary response into multiple responses
 * Use the client WASMs to convert them to JSON
 

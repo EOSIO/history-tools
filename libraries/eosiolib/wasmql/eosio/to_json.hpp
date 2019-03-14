@@ -3,7 +3,10 @@
 #pragma once
 
 #include <date/date.h>
+#include <eosio/asset.hpp>
+#include <eosio/fixed_bytes.hpp>
 #include <eosio/rope.hpp>
+#include <eosio/shared_memory.hpp>
 #include <eosio/tagged_variant.hpp>
 #include <eosio/temp_placeholders.hpp>
 #include <eosio/time.hpp>
@@ -329,12 +332,6 @@ __attribute__((noinline)) inline rope to_json(const tagged_variant<Options, Name
         v.value);
     result += "]";
     return result;
-}
-
-/// \output_section JSON Conversion Helpers
-template <typename T>
-__attribute__((noinline)) rope kv_to_json(std::string_view key, const T& value) {
-    return to_json(key) + ":" + to_json(value);
 }
 
 } // namespace eosio

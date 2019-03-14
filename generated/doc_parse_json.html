@@ -449,15 +449,101 @@
 {
     <span class="hljs-comment">//=== Parse JSON (Explicit Types) ===//</span>
     <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::string_view&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
-    <span class="hljs-keyword">void</span> parse_json;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(shared_memory&lt;<span class="hljs-built_in">std</span>::string_view&gt;&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(uint32_t&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(int32_t&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(<span class="hljs-keyword">bool</span>&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(eosio::name&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(eosio::symbol_code&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(eosio::checksum256&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;T&gt;&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+    <span class="hljs-keyword">template</span> &lt;eosio::tagged_variant_options Options, <span class="hljs-keyword">typename</span> ... NamedTypes&gt;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(tagged_variant&lt;Options, NamedTypes...&gt;&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+
+    <span class="hljs-comment">//=== Parse JSON (Reflected Objects) ===//</span>
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(T&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+
+    <span class="hljs-comment">//=== Convenience Wrappers ===//</span>
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+    <span class="hljs-function">T <span class="hljs-title">parse_json</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;<span class="hljs-keyword">char</span>&gt; <span class="hljs-keyword">const</span>&amp; v)</span></span>;
+
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+    <span class="hljs-function">T <span class="hljs-title">parse_json</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::string_view s)</span></span>;
+
+    <span class="hljs-comment">//=== JSON Conversion Helpers ===//</span>
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json_skip_space</span><span class="hljs-params">(<span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json_skip_value</span><span class="hljs-params">(<span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json_expect</span><span class="hljs-params">(<span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end, <span class="hljs-keyword">char</span> ch, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* msg)</span></span>;
+
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json_expect_end</span><span class="hljs-params">(<span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
 }
 </code></pre>
 <h3 id="parse-json-explicit-types">Parse JSON (Explicit Types)</h3>
 <pre><code class="lang-cpp">(<span class="hljs-number">1</span>) <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::string_view&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
 
-(<span class="hljs-number">2</span>) <span class="hljs-keyword">void</span> parse_json;
+(<span class="hljs-number">2</span>) <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(shared_memory&lt;<span class="hljs-built_in">std</span>::string_view&gt;&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+
+(<span class="hljs-number">3</span>) <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(uint32_t&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+
+(<span class="hljs-number">4</span>) <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(int32_t&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+
+(<span class="hljs-number">5</span>) <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(<span class="hljs-keyword">bool</span>&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+
+(<span class="hljs-number">6</span>) <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(eosio::name&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+
+(<span class="hljs-number">7</span>) <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(eosio::symbol_code&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+
+(<span class="hljs-number">8</span>) <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(eosio::checksum256&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+
+(<span class="hljs-number">9</span>) <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+<span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;T&gt;&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+
+(<span class="hljs-number">10</span>) <span class="hljs-keyword">template</span> &lt;eosio::tagged_variant_options Options, <span class="hljs-keyword">typename</span> ... NamedTypes&gt;
+<span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(tagged_variant&lt;Options, NamedTypes...&gt;&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
 </code></pre>
 <p>Parse JSON and convert to <code>result</code>. These overloads handle specified types.</p>
+<hr>
+<h3 id="function-eosioparsejson">Function <code>eosio::parse_json</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+<span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json</span><span class="hljs-params">(T&amp; result, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+</code></pre>
+<p>Parse JSON and convert to <code>result</code>. This overload works with <a href="doc_struct_reflection.html#standardese-reflection">reflected objects</a>.</p>
+<hr>
+<h3 id="function-eosioparsejson">Function <code>eosio::parse_json</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+<span class="hljs-function">T <span class="hljs-title">parse_json</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;<span class="hljs-keyword">char</span>&gt; <span class="hljs-keyword">const</span>&amp; v)</span></span>;
+</code></pre>
+<p>Parse JSON and return result. This overload wraps the other <code>to_json</code> overloads.</p>
+<hr>
+<h3 id="function-eosioparsejson">Function <code>eosio::parse_json</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+<span class="hljs-function">T <span class="hljs-title">parse_json</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::string_view s)</span></span>;
+</code></pre>
+<p>Parse JSON and return result. This overload wraps the other <code>to_json</code> overloads.</p>
+<hr>
+<h3 id="function-eosioparsejsonskipspace">Function <code>eosio::parse_json_skip_space</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json_skip_space</span><span class="hljs-params">(<span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+</code></pre>
+<p>Skip spaces</p>
+<hr>
+<h3 id="function-eosioparsejsonskipvalue">Function <code>eosio::parse_json_skip_value</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json_skip_value</span><span class="hljs-params">(<span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+</code></pre>
+<p>Skip a JSON value. Caution: only partially implemented; currently mishandles most cases.</p>
+<hr>
+<h3 id="function-eosioparsejsonexpect">Function <code>eosio::parse_json_expect</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json_expect</span><span class="hljs-params">(<span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end, <span class="hljs-keyword">char</span> ch, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* msg)</span></span>;
+</code></pre>
+<p>Asserts <code>ch</code> is next character. <code>msg</code> is the assertion message.</p>
+<hr>
+<h3 id="function-eosioparsejsonexpectend">Function <code>eosio::parse_json_expect_end</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">parse_json_expect_end</span><span class="hljs-params">(<span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>*&amp; pos, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
+</code></pre>
+<p>Asserts <code>pos == end</code>.</p>
 <hr>
 
                                 
@@ -502,7 +588,7 @@
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"parse_json.hpp","level":"1.6.4","depth":2,"next":{"title":"schema.hpp","level":"1.6.5","depth":2,"path":"generated/doc_schema.md","ref":"generated/doc_schema.md","articles":[]},"previous":{"title":"input_output.hpp","level":"1.6.3","depth":2,"path":"generated/doc_input_output.md","ref":"generated/doc_input_output.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_parse_json.md","mtime":"2019-03-14T16:30:56.864Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-14T16:30:57.743Z"},"basePath":"..","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"parse_json.hpp","level":"1.6.4","depth":2,"next":{"title":"schema.hpp","level":"1.6.5","depth":2,"path":"generated/doc_schema.md","ref":"generated/doc_schema.md","articles":[]},"previous":{"title":"input_output.hpp","level":"1.6.3","depth":2,"path":"generated/doc_input_output.md","ref":"generated/doc_input_output.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_parse_json.md","mtime":"2019-03-14T20:52:47.253Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-14T20:52:48.193Z"},"basePath":"..","book":{"language":""}});
         });
     </script>
 </div>

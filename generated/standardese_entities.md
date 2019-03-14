@@ -32,13 +32,21 @@
         
           - [`eosio_assert`](doc_temp_placeholders.md#standardese-eosio__internal_use_do_not_use)
     
-      - [`make_json_schema`](doc_schema.md#standardese-eosio__make_json_schema) - Convert types to JSON Schema. Appends to `dest`. The first argument is ignored; it may be `nullptr`. These overloads handle specified types.
+      - [`make_json_schema`](doc_schema.md#standardese-eosio__make_json_schema-shared_memory-std__string_view---) - Convert types to JSON Schema. The argument is ignored; it may be `nullptr`. These overloads handle specified types.
     
       - [`operator<<`](doc_shared_memory.md#standardese-eosio)
     
       - [`operator>>`](doc_shared_memory.md#standardese-eosio)
     
       - [`parse_json`](doc_parse_json.md#standardese-eosio__parse_json-std__string_view--charconst---charconst--) - Parse JSON and convert to `result`. These overloads handle specified types.
+    
+      - [`parse_json_expect`](doc_parse_json.md#standardese-eosio__parse_json_expect-charconst---charconst--char-charconst--) - Asserts `ch` is next character. `msg` is the assertion message.
+    
+      - [`parse_json_expect_end`](doc_parse_json.md#standardese-eosio__parse_json_expect_end-charconst---charconst--) - Asserts `pos == end`.
+    
+      - [`parse_json_skip_space`](doc_parse_json.md#standardese-eosio__parse_json_skip_space-charconst---charconst--) - Skip spaces
+    
+      - [`parse_json_skip_value`](doc_parse_json.md#standardese-eosio__parse_json_skip_value-charconst---charconst--) - Skip a JSON value. Caution: only partially implemented; currently mishandles most cases.
     
       - [`print`](doc_temp_placeholders.md#standardese-eosio)
     
@@ -58,7 +66,7 @@
     
       - [`query_database`](doc_database.md#standardese-eosio__query_database-T--Tconst--) - Query the database. `request` must be one of the `query_*` structs. Returns result in serialized form.
     
-      - [`schema_type_name`](doc_schema.md#standardese-eosio__schema_type_name-T--T--) - Get JSON Schema type name. The first argument is ignored; it may be `nullptr`.
+      - [`schema_type_name`](doc_schema.md#standardese-eosio__schema_type_name-T--T--) - Get JSON Schema type name. The argument is ignored; it may be `nullptr`.
     
       - [`set_output_data`](doc_input_output.md#standardese-set_output_data-charconst--charconst--) - Set the wasm’s output data
     

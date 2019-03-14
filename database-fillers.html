@@ -4,7 +4,7 @@
     <head>
         <meta charset="UTF-8">
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
-        <title>wasm-ql · GitBook</title>
+        <title>Database Fillers · GitBook</title>
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="description" content="">
         <meta name="generator" content="GitBook 3.2.3">
@@ -57,10 +57,10 @@
     <link rel="shortcut icon" href="gitbook/images/favicon.ico" type="image/x-icon">
 
     
-    <link rel="next" href="running-wasmql-server.html" />
+    <link rel="next" href="nodeos-state-history.html" />
     
     
-    <link rel="prev" href="nodeos-state-history.html" />
+    <link rel="prev" href="./" />
     
 
     </head>
@@ -102,7 +102,7 @@
             
         </li>
     
-        <li class="chapter " data-level="1.2" data-path="database-fillers.html">
+        <li class="chapter active" data-level="1.2" data-path="database-fillers.html">
             
                 <a href="database-fillers.html">
             
@@ -134,7 +134,7 @@
             
         </li>
     
-        <li class="chapter active" data-level="1.3" data-path="wasm-ql.html">
+        <li class="chapter " data-level="1.3" data-path="wasm-ql.html">
             
                 <a href="wasm-ql.html">
             
@@ -429,7 +429,7 @@
     <!-- Title -->
     <h1>
         <i class="fa fa-circle-o-notch fa-spin"></i>
-        <a href="." >wasm-ql</a>
+        <a href="." >Database Fillers</a>
     </h1>
 </div>
 
@@ -444,37 +444,112 @@
     
                                 <section class="normal markdown-section">
                                 
-                                <h1 id="wasm-ql">wasm-ql</h1>
-<pre><code>+----------+    +------------+    +---------------+       +-------------------+
-| database |    | database   |    | wasm-ql       |       | web browser       |
-| filler   |    |            |    | ------------- |       | ---------------   |
-|          | =&gt; | PostgreSQL | =&gt; | Server WASM A |  &lt;=&gt;  | Client WASM A     |
-|          |    |     or     |    | Server WASM B |  &lt;=&gt;  | Client WASM B     |
-|          |    |    LMDB    |    | ...           |       |                   |
-|          |    |            |    | Legacy WASM   |  &lt;=&gt;  | js using /v1/ RPC |
-+----------+    +------------+    +---------------+       +-------------------+
-</code></pre><p>wasm-ql listens on an http port and answers the following:</p>
+                                <h1 id="database-fillers">Database Fillers</h1>
+<p>The database fillers connect to the nodeos state-history plugin and populate databases. </p>
+<h2 id="postgresql-vs-lmdb">PostgreSQL vs. LMDB</h2>
 <ul>
-<li>POST binary data to <code>http://host:port/wasmql/v1/query</code><ul>
-<li>The binary data includes a set of queries directed to particular server WASMs</li>
-<li>wasm-ql passes each query to the appropriate WASM</li>
-<li>wasm-ql collects the query replies and produces a binary response containing the replies</li>
+<li>PostgreSQL<ul>
+<li>Supports full history</li>
+<li>Partial history can fall behind on large chains; PostgreSQL sometimes struggles to delete large numbers of rows</li>
+<li>Scaling: supports wasm-ql running on multiple machines connecting to a single database</li>
 </ul>
 </li>
-<li>POST JSON query to <code>http://host:port/v1/*</code><ul>
-<li>The legacy server WASM handles these requests</li>
-<li>The WASM produces a JSON response</li>
-<li>wasm-ql forwards the response to the client</li>
+<li>LMDB<ul>
+<li>Supports partial history</li>
+<li>Full history not recommended for large chains</li>
+<li>Simpler setup; LMDB is an in-process database</li>
+<li>Scaling: each machine has a separate database</li>
 </ul>
 </li>
 </ul>
-<p>Client WASMs provide these functions to js clients:</p>
+<h2 id="running-fillers">Running fillers</h2>
+<p>When running <code>fill-pg</code> for the first time, use the <code>--fpg-create</code> option to create the schema and tables. To wipe the schema and start over, run with <code>--fpg-drop --fpg-create</code>. </p>
+<p><code>fill-lmdb</code> automatically creates a database if it doesn&apos;t exist; it doesn&apos;t have <code>drop</code> or <code>create</code> options.</p>
+<p>After starting, a filler will populate the database. It will track real-time updates from nodeos after it catches up.</p>
+<p>Use SIGINT or SIGTERM to stop.</p>
+<h2 id="option-matrix">Option matrix</h2>
+<table>
+<thead>
+<tr>
+<th>LMDB fill</th>
+<th>PostgreSQL fill</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>--fill-connect-to</td>
+<td>--fill-connect-to</td>
+<td>localhost:8080</td>
+<td>state-history-plugin endpoint to connect to</td>
+</tr>
+<tr>
+<td></td>
+<td>--pg-schema</td>
+<td>chain</td>
+<td>schema to use</td>
+</tr>
+<tr>
+<td>--lmdb-database</td>
+<td></td>
+<td></td>
+<td>database path</td>
+</tr>
+<tr>
+<td>--lmdb-set-db-size-gb</td>
+<td></td>
+<td></td>
+<td>set maximum database size</td>
+</tr>
+<tr>
+<td>--query-config</td>
+<td></td>
+<td></td>
+<td>query configuration file</td>
+</tr>
+<tr>
+<td></td>
+<td>--fpg-drop</td>
+<td></td>
+<td>drop (delete) schema and tables</td>
+</tr>
+<tr>
+<td></td>
+<td>--fpg-create</td>
+<td></td>
+<td>create schema and tables</td>
+</tr>
+<tr>
+<td>--fill-trim</td>
+<td>--fill-trim</td>
+<td></td>
+<td>trim history before irreversible</td>
+</tr>
+<tr>
+<td>--fill-skip-to</td>
+<td>--fill-skip-to</td>
+<td></td>
+<td>skip blocks before arg</td>
+</tr>
+<tr>
+<td>--fill-stop</td>
+<td>--fill-stop</td>
+<td></td>
+<td>stop filling at block arg</td>
+</tr>
+</tbody>
+</table>
+<h2 id="postgresql-configuration">PostgreSQL configuration</h2>
+<p>fill-postgresql relies on PostgreSQL environment variables to establish connections; see the PostgreSQL manual.</p>
+<p>A quick-and-dirty way to connect to PostgreSQL server running on another machine is to set these:</p>
 <ul>
-<li><code>create_query_request()</code>: Convert a JSON request to the binary format the server WASM expects</li>
-<li><code>decode_query_response()</code>: Convert a binary response from the server WASM to JSON</li>
-<li><code>describe_query_request()</code>: Describes the JSON request format to clients using JSON Schema</li>
-<li><code>describe_query_response()</code>: Describes the JSON response format to clients using JSON Schema</li>
+<li>PGUSER</li>
+<li>PGPASSWORD</li>
+<li>PGDATABASE</li>
+<li>PGHOST</li>
 </ul>
+<p>Use the <code>psql</code> utility to verify your connection.</p>
 
                                 
                                 </section>
@@ -502,12 +577,12 @@
 
             
                 
-                <a href="nodeos-state-history.html" class="navigation navigation-prev " aria-label="Previous page: nodeos State History">
+                <a href="./" class="navigation navigation-prev " aria-label="Previous page: History Tools">
                     <i class="fa fa-angle-left"></i>
                 </a>
                 
                 
-                <a href="running-wasmql-server.html" class="navigation navigation-next " aria-label="Next page: Running a Server">
+                <a href="nodeos-state-history.html" class="navigation navigation-next " aria-label="Next page: nodeos State History">
                     <i class="fa fa-angle-right"></i>
                 </a>
                 
@@ -518,7 +593,7 @@
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"wasm-ql","level":"1.3","depth":1,"next":{"title":"Running a Server","level":"1.3.1","depth":2,"path":"running-wasmql-server.md","ref":"running-wasmql-server.md","articles":[]},"previous":{"title":"nodeos State History","level":"1.2.1","depth":2,"path":"nodeos-state-history.md","ref":"nodeos-state-history.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"wasm-ql.md","mtime":"2019-03-14T16:25:33.821Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-14T16:30:57.743Z"},"basePath":".","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"Database Fillers","level":"1.2","depth":1,"next":{"title":"nodeos State History","level":"1.2.1","depth":2,"path":"nodeos-state-history.md","ref":"nodeos-state-history.md","articles":[]},"previous":{"title":"History Tools","level":"1.1","depth":1,"path":"README.md","ref":"README.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"database-fillers.md","mtime":"2019-03-14T16:24:42.799Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-14T16:30:57.743Z"},"basePath":".","book":{"language":""}});
         });
     </script>
 </div>

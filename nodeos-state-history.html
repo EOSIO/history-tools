@@ -4,7 +4,7 @@
     <head>
         <meta charset="UTF-8">
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
-        <title>wasm-ql · GitBook</title>
+        <title>nodeos State History · GitBook</title>
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="description" content="">
         <meta name="generator" content="GitBook 3.2.3">
@@ -57,10 +57,10 @@
     <link rel="shortcut icon" href="gitbook/images/favicon.ico" type="image/x-icon">
 
     
-    <link rel="next" href="running-wasmql-server.html" />
+    <link rel="next" href="wasm-ql.html" />
     
     
-    <link rel="prev" href="nodeos-state-history.html" />
+    <link rel="prev" href="database-fillers.html" />
     
 
     </head>
@@ -116,7 +116,7 @@
             <ul class="articles">
                 
     
-        <li class="chapter " data-level="1.2.1" data-path="nodeos-state-history.html">
+        <li class="chapter active" data-level="1.2.1" data-path="nodeos-state-history.html">
             
                 <a href="nodeos-state-history.html">
             
@@ -134,7 +134,7 @@
             
         </li>
     
-        <li class="chapter active" data-level="1.3" data-path="wasm-ql.html">
+        <li class="chapter " data-level="1.3" data-path="wasm-ql.html">
             
                 <a href="wasm-ql.html">
             
@@ -429,7 +429,7 @@
     <!-- Title -->
     <h1>
         <i class="fa fa-circle-o-notch fa-spin"></i>
-        <a href="." >wasm-ql</a>
+        <a href="." >nodeos State History</a>
     </h1>
 </div>
 
@@ -444,37 +444,84 @@
     
                                 <section class="normal markdown-section">
                                 
-                                <h1 id="wasm-ql">wasm-ql</h1>
-<pre><code>+----------+    +------------+    +---------------+       +-------------------+
-| database |    | database   |    | wasm-ql       |       | web browser       |
-| filler   |    |            |    | ------------- |       | ---------------   |
-|          | =&gt; | PostgreSQL | =&gt; | Server WASM A |  &lt;=&gt;  | Client WASM A     |
-|          |    |     or     |    | Server WASM B |  &lt;=&gt;  | Client WASM B     |
-|          |    |    LMDB    |    | ...           |       |                   |
-|          |    |            |    | Legacy WASM   |  &lt;=&gt;  | js using /v1/ RPC |
-+----------+    +------------+    +---------------+       +-------------------+
-</code></pre><p>wasm-ql listens on an http port and answers the following:</p>
+                                <h1 id="nodeos-state-history">nodeos State History</h1>
+<h2 id="nodeos-configuration">nodeos Configuration</h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--plugin eosio::state_history_plugin</code></td>
+<td>always</td>
+</tr>
+<tr>
+<td><code>--state-history-endpoint</code></td>
+<td>optional; defaults to 127.0.0.1:8080</td>
+</tr>
+<tr>
+<td><code>--trace-history</code></td>
+<td>needed for wasm-ql; enable to collect transaction and action traces</td>
+</tr>
+<tr>
+<td><code>--chain-state-history</code></td>
+<td>needed for wasm-ql; enable to collect state (tables)</td>
+</tr>
+</tbody>
+</table>
+<p>Caution: either use a firewall to block access to the state-history endpoint, or leave it as <code>127.0.0.1:8080</code> to disable remote access.</p>
+<h2 id="fast-start-without-history-on-existing-chains">Fast start without history on existing chains</h2>
+<p>This option creates a database which tracks the chain state, but lacks most historical information.</p>
 <ul>
-<li>POST binary data to <code>http://host:port/wasmql/v1/query</code><ul>
-<li>The binary data includes a set of queries directed to particular server WASMs</li>
-<li>wasm-ql passes each query to the appropriate WASM</li>
-<li>wasm-ql collects the query replies and produces a binary response containing the replies</li>
+<li>Get the following:<ul>
+<li>A portable snapshot (<code>data/snapshots/snapshot-xxxxxxx.bin</code>)</li>
+<li>Optional: a block log which includes the block the snapshot was taken at</li>
 </ul>
 </li>
-<li>POST JSON query to <code>http://host:port/v1/*</code><ul>
-<li>The legacy server WASM handles these requests</li>
-<li>The WASM produces a JSON response</li>
-<li>wasm-ql forwards the response to the client</li>
+<li>Make sure <code>data/state</code> does not exist</li>
+<li>Start nodeos with the <code>--snapshot</code> option, and the options listed in &quot;Nodeos configuration&quot; above</li>
+<li>Look for <code>Placing initial state in block n</code> in the log</li>
+<li>Start a filler with <code>--fpg-create</code> (if PostgreSQL), <code>--fill-skip-to n</code>, and <code>--fill-trim</code>. Replace <code>n</code> with the value above.</li>
+<li>Do not stop nodeos until it has received at least 1 block from the network, or it won&apos;t be able to restart.</li>
+</ul>
+<p>If nodeos fails to receive blocks from the network, then try the above using <code>net_api_plugin</code>. Use <code>cleos net disconnect</code> and <code>cleos net connect</code> to reconnect nodes which timed out. Caution when using net_api_plugin: either use a firewall to block access to <code>http-server-address</code>, or change it to <code>localhost:8888</code> to disable remote access.</p>
+<p>Whenever you run a filler after this point, use the <code>--fill-trim</code> option. Only use <code>--fpg-create</code> and <code>--fill-skip-to</code> the first time.</p>
+<h2 id="creating-a-portable-snapshot-with-full-state-history">Creating a portable snapshot with full state-history</h2>
+<ul>
+<li>Enable the <code>producer_api_plugin</code> on a node with full state-history. Caution when using producer_api_plugin: either use a firewall to block access to <code>http-server-address</code>, or change it to <code>localhost:8888</code> to disable remote access.</li>
+<li>Create a portable snapshot: <code>curl http://127.0.0.1:8888/v1/producer/create_snapshot | json_pp</code></li>
+<li>Wait for nodeos to process several blocks after the snapshot completed. The goal is for the state-history files to contain at least 1 more block than the portable snapshot has, and for the block log to contain the block after it has become irreversible.</li>
+<li>Note: if the block included in the portable snapshot is forked out, then the snapshot will be invalid. Repeat this process if this happens.</li>
+<li>Stop nodeos</li>
+<li>Make backups of:<ul>
+<li>The newly-created portable snapshot (<code>data/snapshots/snapshot-xxxxxxx.bin</code>)</li>
+<li>The contents of <code>data/state-history</code>:<ul>
+<li><code>chain_state_history.log</code></li>
+<li><code>trace_history.log</code></li>
+<li><code>chain_state_history.index</code>: optional. Restoring will take longer without this file.</li>
+<li><code>trace_history.index</code>: optional. Restoring will take longer without this file.</li>
+</ul>
+</li>
+<li>Optional: the contents of <code>data/blocks</code>, but excluding <code>data/blocks/reversible</code>.</li>
 </ul>
 </li>
 </ul>
-<p>Client WASMs provide these functions to js clients:</p>
+<h2 id="restoring-a-portable-snapshot-with-full-state-history">Restoring a portable snapshot with full state-history</h2>
 <ul>
-<li><code>create_query_request()</code>: Convert a JSON request to the binary format the server WASM expects</li>
-<li><code>decode_query_response()</code>: Convert a binary response from the server WASM to JSON</li>
-<li><code>describe_query_request()</code>: Describes the JSON request format to clients using JSON Schema</li>
-<li><code>describe_query_response()</code>: Describes the JSON response format to clients using JSON Schema</li>
+<li>Get the following:<ul>
+<li>A portable snapshot (<code>data/snapshots/snapshot-xxxxxxx.bin</code>)</li>
+<li>The contents of <code>data/state-history</code></li>
+<li>Optional: a block log which includes the block the snapshot was taken at. Do not include <code>data/blocks/reversible</code>.</li>
 </ul>
+</li>
+<li>Make sure <code>data/state</code> does not exist</li>
+<li>Start nodeos with the <code>--snapshot</code> option, and the options listed in &quot;Nodeos configuration&quot; above</li>
+<li>Do not stop nodeos until it has received at least 1 block from the network, or it won&apos;t be able to restart.</li>
+</ul>
+<p>If nodeos fails to receive blocks from the network, then try the above using <code>net_api_plugin</code>. Use <code>cleos net disconnect</code> and <code>cleos net connect</code> to reconnect nodes which timed out. Caution when using net_api_plugin: either use a firewall to block access to <code>http-server-address</code>, or change it to <code>localhost:8888</code> to disable remote access.</p>
 
                                 
                                 </section>
@@ -502,12 +549,12 @@
 
             
                 
-                <a href="nodeos-state-history.html" class="navigation navigation-prev " aria-label="Previous page: nodeos State History">
+                <a href="database-fillers.html" class="navigation navigation-prev " aria-label="Previous page: Database Fillers">
                     <i class="fa fa-angle-left"></i>
                 </a>
                 
                 
-                <a href="running-wasmql-server.html" class="navigation navigation-next " aria-label="Next page: Running a Server">
+                <a href="wasm-ql.html" class="navigation navigation-next " aria-label="Next page: wasm-ql">
                     <i class="fa fa-angle-right"></i>
                 </a>
                 
@@ -518,7 +565,7 @@
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"wasm-ql","level":"1.3","depth":1,"next":{"title":"Running a Server","level":"1.3.1","depth":2,"path":"running-wasmql-server.md","ref":"running-wasmql-server.md","articles":[]},"previous":{"title":"nodeos State History","level":"1.2.1","depth":2,"path":"nodeos-state-history.md","ref":"nodeos-state-history.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"wasm-ql.md","mtime":"2019-03-14T16:25:33.821Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-14T16:30:57.743Z"},"basePath":".","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"nodeos State History","level":"1.2.1","depth":2,"next":{"title":"wasm-ql","level":"1.3","depth":1,"path":"wasm-ql.md","ref":"wasm-ql.md","articles":[{"title":"Running a Server","level":"1.3.1","depth":2,"path":"running-wasmql-server.md","ref":"running-wasmql-server.md","articles":[]},{"title":"Using Client WASMs","level":"1.3.2","depth":2,"path":"using-client-wasms.md","ref":"using-client-wasms.md","articles":[]},{"title":"Creating WASMs","level":"1.3.3","depth":2,"path":"creating-wasms.md","ref":"creating-wasms.md","articles":[]}]},"previous":{"title":"Database Fillers","level":"1.2","depth":1,"path":"database-fillers.md","ref":"database-fillers.md","articles":[{"title":"nodeos State History","level":"1.2.1","depth":2,"path":"nodeos-state-history.md","ref":"nodeos-state-history.md","articles":[]}]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"nodeos-state-history.md","mtime":"2019-03-14T16:21:11.879Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-14T16:30:57.743Z"},"basePath":".","book":{"language":""}});
         });
     </script>
 </div>

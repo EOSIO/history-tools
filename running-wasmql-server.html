@@ -4,7 +4,7 @@
     <head>
         <meta charset="UTF-8">
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
-        <title>wasm-ql · GitBook</title>
+        <title>Running a Server · GitBook</title>
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="description" content="">
         <meta name="generator" content="GitBook 3.2.3">
@@ -57,10 +57,10 @@
     <link rel="shortcut icon" href="gitbook/images/favicon.ico" type="image/x-icon">
 
     
-    <link rel="next" href="running-wasmql-server.html" />
+    <link rel="next" href="using-client-wasms.html" />
     
     
-    <link rel="prev" href="nodeos-state-history.html" />
+    <link rel="prev" href="wasm-ql.html" />
     
 
     </head>
@@ -134,7 +134,7 @@
             
         </li>
     
-        <li class="chapter active" data-level="1.3" data-path="wasm-ql.html">
+        <li class="chapter " data-level="1.3" data-path="wasm-ql.html">
             
                 <a href="wasm-ql.html">
             
@@ -148,7 +148,7 @@
             <ul class="articles">
                 
     
-        <li class="chapter " data-level="1.3.1" data-path="running-wasmql-server.html">
+        <li class="chapter active" data-level="1.3.1" data-path="running-wasmql-server.html">
             
                 <a href="running-wasmql-server.html">
             
@@ -429,7 +429,7 @@
     <!-- Title -->
     <h1>
         <i class="fa fa-circle-o-notch fa-spin"></i>
-        <a href="." >wasm-ql</a>
+        <a href="." >Running a Server</a>
     </h1>
 </div>
 
@@ -444,37 +444,84 @@
     
                                 <section class="normal markdown-section">
                                 
-                                <h1 id="wasm-ql">wasm-ql</h1>
-<pre><code>+----------+    +------------+    +---------------+       +-------------------+
-| database |    | database   |    | wasm-ql       |       | web browser       |
-| filler   |    |            |    | ------------- |       | ---------------   |
-|          | =&gt; | PostgreSQL | =&gt; | Server WASM A |  &lt;=&gt;  | Client WASM A     |
-|          |    |     or     |    | Server WASM B |  &lt;=&gt;  | Client WASM B     |
-|          |    |    LMDB    |    | ...           |       |                   |
-|          |    |            |    | Legacy WASM   |  &lt;=&gt;  | js using /v1/ RPC |
-+----------+    +------------+    +---------------+       +-------------------+
-</code></pre><p>wasm-ql listens on an http port and answers the following:</p>
+                                <h1 id="running-a-wasm-ql-server">Running a wasm-ql Server</h1>
+<p>A wasm-ql system needs:</p>
 <ul>
-<li>POST binary data to <code>http://host:port/wasmql/v1/query</code><ul>
-<li>The binary data includes a set of queries directed to particular server WASMs</li>
-<li>wasm-ql passes each query to the appropriate WASM</li>
-<li>wasm-ql collects the query replies and produces a binary response containing the replies</li>
+<li>nodeos running the state-history plugin, with either full or recent history</li>
+<li>A database: PostgreSQL or LMDB</li>
+<li>A database filler</li>
+<li>1 or more wasm-ql server processes</li>
 </ul>
-</li>
-<li>POST JSON query to <code>http://host:port/v1/*</code><ul>
-<li>The legacy server WASM handles these requests</li>
-<li>The WASM produces a JSON response</li>
-<li>wasm-ql forwards the response to the client</li>
-</ul>
-</li>
-</ul>
-<p>Client WASMs provide these functions to js clients:</p>
+<h2 id="minimal-lmdb-based-system">Minimal LMDB-based system</h2>
 <ul>
-<li><code>create_query_request()</code>: Convert a JSON request to the binary format the server WASM expects</li>
-<li><code>decode_query_response()</code>: Convert a binary response from the server WASM to JSON</li>
-<li><code>describe_query_request()</code>: Describes the JSON request format to clients using JSON Schema</li>
-<li><code>describe_query_response()</code>: Describes the JSON response format to clients using JSON Schema</li>
+<li><code>combo-lmdb</code> fills an LMDB database and has a single-process, single-thread wasm-ql server.</li>
+<li>Suitable for single-developer testing</li>
 </ul>
+<h2 id="multiple-process-lmdb-based-system">Multiple-process LMDB-based system</h2>
+<ul>
+<li><code>fill-lmdb</code> fills an LMDB database. Run 1 instance of this on a machine.</li>
+<li><code>wasm-ql-lmdb</code> uses the database to answer queries. It serves requests from the main thread; to scale it, run multiple instances of this on the same machine as <code>fill-lmdb</code>.</li>
+</ul>
+<h2 id="multiple-process-postgresql-based-system">Multiple-process PostgreSQL-based system</h2>
+<ul>
+<li><code>fill-pg</code> fills a PostgreSQL database. Run 1 instance of this.</li>
+<li><code>wasm-ql-pg</code> uses the database to answer queries. It serves requests from the main thread; to scale it, run multiple instances of this, either on 1 machine, or spread across several.</li>
+</ul>
+<h2 id="connecting-to-a-database">Connecting to a database</h2>
+<p>wasm-ql servers use the same connection methods and options as the <a href="database-fillers.html">database fillers</a>.</p>
+<ul>
+<li>PostgreSQL: <code>fill-pg</code> sets up a bare database without indexes and query functions. After <code>fill-pg</code> is caught up to the chain, stop it then run <code>init.sql</code> in this repository&apos;s source directory. e.g. <code>psql -f path/to/init.sql</code>.</li>
+<li>LMDB: <code>fill-lmdb</code> and <code>combo-lmdb</code> create a full set of indexes.</li>
+</ul>
+<h2 id="testing-wasm-ql">Testing wasm-ql</h2>
+<p>This uses the legacy API (/v1/...) to verify wasm-ql is operational. It queries active name bids on the system contract.</p>
+<pre><code>cd build
+curl localhost:8880/v1/chain/get_table_rows -d &apos;{&quot;code&quot;:&quot;eosio&quot;, &quot;scope&quot;:&quot;eosio&quot;, &quot;table&quot;:&quot;namebids&quot;, &quot;show_payer&quot;:true, &quot;json&quot;:true, &quot;key_type&quot;: &quot;name&quot;, &quot;index_position&quot;: &quot;2&quot;, &quot;limit&quot;:100}&apos; | json_pp
+node ../src/test-client.js
+</code></pre><h2 id="option-matrix">Option matrix</h2>
+<p>Options:</p>
+<table>
+<thead>
+<tr>
+<th>LMDB wasm-ql</th>
+<th>PostgreSQL wasm-ql</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>--wql-listen</td>
+<td>--wql-listen</td>
+<td>localhost:8880</td>
+<td>endpoint to listen for incoming queries</td>
+</tr>
+<tr>
+<td>--wql-wasm-dir</td>
+<td>--wql-wasm-dir</td>
+<td>.</td>
+<td>directory to fetch WASMs from</td>
+</tr>
+<tr>
+<td></td>
+<td>--pg-schema</td>
+<td>chain</td>
+<td>schema to use</td>
+</tr>
+<tr>
+<td>--lmdb-database</td>
+<td></td>
+<td></td>
+<td>database path</td>
+</tr>
+<tr>
+<td>--query-config</td>
+<td>--query-config</td>
+<td></td>
+<td>query configuration file</td>
+</tr>
+</tbody>
+</table>
 
                                 
                                 </section>
@@ -502,12 +549,12 @@
 
             
                 
-                <a href="nodeos-state-history.html" class="navigation navigation-prev " aria-label="Previous page: nodeos State History">
+                <a href="wasm-ql.html" class="navigation navigation-prev " aria-label="Previous page: wasm-ql">
                     <i class="fa fa-angle-left"></i>
                 </a>
                 
                 
-                <a href="running-wasmql-server.html" class="navigation navigation-next " aria-label="Next page: Running a Server">
+                <a href="using-client-wasms.html" class="navigation navigation-next " aria-label="Next page: Using Client WASMs">
                     <i class="fa fa-angle-right"></i>
                 </a>
                 
@@ -518,7 +565,7 @@
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"wasm-ql","level":"1.3","depth":1,"next":{"title":"Running a Server","level":"1.3.1","depth":2,"path":"running-wasmql-server.md","ref":"running-wasmql-server.md","articles":[]},"previous":{"title":"nodeos State History","level":"1.2.1","depth":2,"path":"nodeos-state-history.md","ref":"nodeos-state-history.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"wasm-ql.md","mtime":"2019-03-14T16:25:33.821Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-14T16:30:57.743Z"},"basePath":".","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"Running a Server","level":"1.3.1","depth":2,"next":{"title":"Using Client WASMs","level":"1.3.2","depth":2,"path":"using-client-wasms.md","ref":"using-client-wasms.md","articles":[]},"previous":{"title":"wasm-ql","level":"1.3","depth":1,"path":"wasm-ql.md","ref":"wasm-ql.md","articles":[{"title":"Running a Server","level":"1.3.1","depth":2,"path":"running-wasmql-server.md","ref":"running-wasmql-server.md","articles":[]},{"title":"Using Client WASMs","level":"1.3.2","depth":2,"path":"using-client-wasms.md","ref":"using-client-wasms.md","articles":[]},{"title":"Creating WASMs","level":"1.3.3","depth":2,"path":"creating-wasms.md","ref":"creating-wasms.md","articles":[]}]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"running-wasmql-server.md","mtime":"2019-03-14T16:25:19.293Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-14T16:30:57.743Z"},"basePath":".","book":{"language":""}});
         });
     </script>
 </div>

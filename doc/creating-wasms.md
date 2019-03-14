@@ -222,7 +222,7 @@ $CDT_DIR/bin/eosio-cpp                                                      \
 
 ## Deploying
 
-Place `my-server.wasm` in the directory where you run wasm-ql. Make `my-client.wasm` available to clients.
+Place `my-server.wasm` in the directory that wasm-ql's `--wql-wasm-dir` option points to. Make `my-client.wasm` available to clients.
 
 ## Example use
 

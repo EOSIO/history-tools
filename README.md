@@ -59,6 +59,7 @@ Options:
 |---------------------  |-------------------------- |---------------------  |-------------------------- |--------------------   |-------------|
 | --fill-connect-to     | --fill-connect-to         |                       |                           | localhost:8080        | state-history-plugin endpoint to connect to |
 |                       |                           | --wql-listen          | --wql-listen              | localhost:8880        | endpoint to listen for incoming queries |
+|                       |                           | --wql-wasm-dir        | --wql-wasm-dir            | .                     | directory to fetch WASMs from |
 |                       | --pg-schema               |                       | --pg-schema               | chain                 | schema to use |
 | --lmdb-database       |                           | --lmdb-database       |                           |                       | database path |
 | --lmdb-set-db-size-gb |                           |                       |                           |                       | set maximum database size |

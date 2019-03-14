@@ -41,6 +41,7 @@ using tcp       = asio::ip::tcp;
 
 struct state : wasm_state {
     std::string                         allow_origin  = {};
+    std::string                         wasm_dir      = {};
     std::shared_ptr<database_interface> db_iface      = {};
     std::unique_ptr<::query_session>    query_session = {};
     state_history::fill_status          fill_status   = {};
@@ -50,7 +51,8 @@ struct state : wasm_state {
 
 // args: wasm_name
 static bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
-    JS::CallArgs args = CallArgsFromVp(argc, vp);
+    auto&        state = ::state::from_context(cx);
+    JS::CallArgs args  = CallArgsFromVp(argc, vp);
     if (!args.requireAtLeast(cx, "get_wasm", 1))
         return false;
     std::string wasm_name;
@@ -58,7 +60,7 @@ static bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
         return false;
 
     // todo: sanitize wasm_name
-    wasm_name += "-server.wasm";
+    wasm_name = state.wasm_dir + "/" + wasm_name + "-server.wasm";
 
     try {
         std::fstream file(wasm_name, std::ios_base::in | std::ios_base::binary);
@@ -369,6 +371,7 @@ void wasm_ql_plugin::set_program_options(options_description& cli, options_descr
     auto op = cfg.add_options();
     op("wql-listen", bpo::value<std::string>()->default_value("localhost:8880"), "Endpoint to listen on");
     op("wql-allow-origin", bpo::value<std::string>()->default_value(""), "Access-Control-Allow-Origin header. Use \"*\" to allow any.");
+    op("wql-wasm-dir", bpo::value<std::string>()->default_value("."), "Directory to fetch WASMs from");
     op("wql-console", "Show console output");
 }
 
@@ -381,6 +384,7 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
         my->endpoint_port       = ip_port.substr(ip_port.find(':') + 1, ip_port.size());
         my->endpoint_address    = ip_port.substr(0, ip_port.find(':'));
         my->state->allow_origin = options.at("wql-allow-origin").as<std::string>();
+        my->state->wasm_dir     = options.at("wql-wasm-dir").as<std::string>();
         init_glue(*my->state);
     }
     FC_LOG_AND_RETHROW()

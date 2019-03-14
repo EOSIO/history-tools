@@ -200,40 +200,23 @@ export HT_TOOLS_DIR=~/history-tools
 export CDT_DIR=/usr/local/eosio.cdt
 
 $CDT_DIR/bin/eosio-cpp                                                      \
-    -c -Os                                                                  \
+    -Os                                                                     \
     -I $HT_TOOLS_DIR/libraries/eosiolib/wasmql                              \
     -I $HT_TOOLS_DIR/external/abieos/external/date/include                  \
     $HT_TOOLS_DIR/libraries/eosiolib/wasmql/eosio/temp_placeholders.cpp     \
-    -o temp_placeholders.o
-
-$CDT_DIR/bin/eosio-cpp                                                      \
-    -c -Os                                                                  \
-    -I $HT_TOOLS_DIR/libraries/eosiolib/wasmql                              \
-    -I $HT_TOOLS_DIR/external/abieos/external/date/include                  \
-    my-server.cpp                                                           \
-    -o my-server.o
-
-$CDT_DIR/bin/eosio-ld                                                       \
     -fquery-server                                                          \
     --eosio-imports=$HT_TOOLS_DIR/libraries/eosiolib/wasmql/server.imports  \
-    -L $CDT_DIR/lib                                                         \
-    my-server.o                                                             \
-    temp_placeholders.o                                                     \
+    my-server.cpp                                                           \
     -o my-server.wasm
 
 $CDT_DIR/bin/eosio-cpp                                                      \
-    -c -Os                                                                  \
+    -Os                                                                     \
     -I $HT_TOOLS_DIR/libraries/eosiolib/wasmql                              \
     -I $HT_TOOLS_DIR/external/abieos/external/date/include                  \
-    my-client.cpp                                                           \
-    -o my-client.o
-
-$CDT_DIR/bin/eosio-ld                                                       \
+    $HT_TOOLS_DIR/libraries/eosiolib/wasmql/eosio/temp_placeholders.cpp     \
     -fquery-client                                                          \
     --eosio-imports=$HT_TOOLS_DIR/libraries/eosiolib/wasmql/client.imports  \
-    -L $CDT_DIR/lib                                                         \
-    my-client.o                                                             \
-    temp_placeholders.o                                                     \
+    my-client.cpp                                                           \
     -o my-client.wasm
 ```
 

@@ -1,9 +1,9 @@
 [submodule "external/abieos"]
 	path = external/abieos
-	url = git@github.com:EOSIO/abieos.git
+	url = https://github.com/EOSIO/abieos.git
 [submodule "external/fc"]
 	path = external/fc
-	url = git@github.com:EOSIO/fc.git
+	url = https://github.com/EOSIO/fc.git
 [submodule "external/appbase"]
 	path = external/appbase
-	url = git@github.com:EOSIO/appbase.git
+	url = https://github.com/EOSIO/appbase.git

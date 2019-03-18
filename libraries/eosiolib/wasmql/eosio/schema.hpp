@@ -280,10 +280,10 @@ __attribute__((noinline)) inline rope make_json_schema_tagged_variant(bool need_
     rope result;
     if (need_comma)
         result += ",";
-    result += R"({"type":"array","items":[{"type":"string","pattern":")" +              //
-              escape_dots_in_name(NamedType::name) +                                    //
-              R"("},)" + make_json_schema_recurse((typename NamedType::type*)nullptr) + //
-              "]}" +                                                                    //
+    result += R"({"type":"array","items":[{"type":"string","pattern":"^)" +              //
+              escape_dots_in_name(NamedType::name) +                                     //
+              R"($"},)" + make_json_schema_recurse((typename NamedType::type*)nullptr) + //
+              "]}" +                                                                     //
               make_json_schema_tagged_variant<Options, NamedTypes...>(true);
     return result;
 }

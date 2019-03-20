@@ -1,0 +1,902 @@
+
+<!DOCTYPE HTML>
+<html lang="" >
+    <head>
+        <meta charset="UTF-8">
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <title>Balance Snapshot Example · GitBook</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="description" content="">
+        <meta name="generator" content="GitBook 3.2.3">
+        
+        
+        
+    
+    <link rel="stylesheet" href="gitbook/style.css">
+
+    
+            
+                
+                <link rel="stylesheet" href="gitbook/gitbook-plugin-highlight/website.css">
+                
+            
+                
+                <link rel="stylesheet" href="gitbook/gitbook-plugin-search/search.css">
+                
+            
+                
+                <link rel="stylesheet" href="gitbook/gitbook-plugin-fontsettings/website.css">
+                
+            
+        
+
+    
+
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+
+        
+    
+    
+    <meta name="HandheldFriendly" content="true"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="apple-touch-icon-precomposed" sizes="152x152" href="gitbook/images/apple-touch-icon-precomposed-152.png">
+    <link rel="shortcut icon" href="gitbook/images/favicon.ico" type="image/x-icon">
+
+    
+    
+    <link rel="prev" href="creating-wasms.html" />
+    
+
+    </head>
+    <body>
+        
+<div class="book">
+    <div class="book-summary">
+        
+            
+<div id="book-search-input" role="search">
+    <input type="text" placeholder="Type to search" />
+</div>
+
+            
+                <nav role="navigation">
+                
+
+
+<ul class="summary">
+    
+    
+
+    
+
+    
+        
+        
+    
+        <li class="chapter " data-level="1.1" data-path="./">
+            
+                <a href="./">
+            
+                    
+                    History Tools
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.2" data-path="database-fillers.html">
+            
+                <a href="database-fillers.html">
+            
+                    
+                    Database Fillers
+            
+                </a>
+            
+
+            
+            <ul class="articles">
+                
+    
+        <li class="chapter " data-level="1.2.1" data-path="nodeos-state-history.html">
+            
+                <a href="nodeos-state-history.html">
+            
+                    
+                    nodeos State History
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+            </ul>
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3" data-path="wasm-ql.html">
+            
+                <a href="wasm-ql.html">
+            
+                    
+                    wasm-ql
+            
+                </a>
+            
+
+            
+            <ul class="articles">
+                
+    
+        <li class="chapter " data-level="1.3.1" data-path="running-wasmql-server.html">
+            
+                <a href="running-wasmql-server.html">
+            
+                    
+                    Running a Server
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.2" data-path="using-client-wasms.html">
+            
+                <a href="using-client-wasms.html">
+            
+                    
+                    Using Client WASMs
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3.3" data-path="creating-wasms.html">
+            
+                <a href="creating-wasms.html">
+            
+                    
+                    Creating WASMs
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter active" data-level="1.3.4" data-path="balance-snapshot.html">
+            
+                <a href="balance-snapshot.html">
+            
+                    
+                    Balance Snapshot Example
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+            </ul>
+            
+        </li>
+    
+        <li class="chapter " data-level="1.4" >
+            
+                <span>
+            
+                    
+                    Building
+            
+                </span>
+            
+
+            
+            <ul class="articles">
+                
+    
+        <li class="chapter " data-level="1.4.1" data-path="build-osx.html">
+            
+                <a href="build-osx.html">
+            
+                    
+                    OSX
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.4.2" data-path="build-ubuntu-1810.html">
+            
+                <a href="build-ubuntu-1810.html">
+            
+                    
+                    Ubuntu 18.10
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.4.3" data-path="build-doc.html">
+            
+                <a href="build-doc.html">
+            
+                    
+                    Documentation
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+            </ul>
+            
+        </li>
+    
+        <li class="chapter " data-level="1.5" data-path="generated/HistoryTools_js.html">
+            
+                <a href="generated/HistoryTools_js.html">
+            
+                    
+                    HistoryTools.js
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.6" >
+            
+                <span>
+            
+                    
+                    wasm-ql library
+            
+                </span>
+            
+
+            
+            <ul class="articles">
+                
+    
+        <li class="chapter " data-level="1.6.1" data-path="generated/doc_block_select.html">
+            
+                <a href="generated/doc_block_select.html">
+            
+                    
+                    block_select.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.6.2" data-path="generated/doc_database.html">
+            
+                <a href="generated/doc_database.html">
+            
+                    
+                    database.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.6.3" data-path="generated/doc_input_output.html">
+            
+                <a href="generated/doc_input_output.html">
+            
+                    
+                    input_output.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.6.4" data-path="generated/doc_parse_json.html">
+            
+                <a href="generated/doc_parse_json.html">
+            
+                    
+                    parse_json.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.6.5" data-path="generated/doc_schema.html">
+            
+                <a href="generated/doc_schema.html">
+            
+                    
+                    schema.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.6.6" data-path="generated/doc_shared_memory.html">
+            
+                <a href="generated/doc_shared_memory.html">
+            
+                    
+                    shared_memory.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.6.7" data-path="generated/doc_struct_reflection.html">
+            
+                <a href="generated/doc_struct_reflection.html">
+            
+                    
+                    struct_reflection.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.6.8" data-path="generated/doc_tagged_variant.html">
+            
+                <a href="generated/doc_tagged_variant.html">
+            
+                    
+                    tagged_variant.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.6.9" data-path="generated/doc_to_json.html">
+            
+                <a href="generated/doc_to_json.html">
+            
+                    
+                    to_json.hpp
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+            </ul>
+            
+        </li>
+    
+
+    
+
+    <li class="divider"></li>
+
+    <li>
+        <a href="https://www.gitbook.com" target="blank" class="gitbook-link">
+            Published with GitBook
+        </a>
+    </li>
+</ul>
+
+
+                </nav>
+            
+        
+    </div>
+
+    <div class="book-body">
+        
+            <div class="body-inner">
+                
+                    
+
+<div class="book-header" role="navigation">
+    
+
+    <!-- Title -->
+    <h1>
+        <i class="fa fa-circle-o-notch fa-spin"></i>
+        <a href="." >Balance Snapshot Example</a>
+    </h1>
+</div>
+
+
+
+
+                    <div class="page-wrapper" tabindex="-1" role="main">
+                        <div class="page-inner">
+                            
+<div id="book-search-results">
+    <div class="search-noresults">
+    
+                                <section class="normal markdown-section">
+                                
+                                <h1 id="balance-snapshot-example">Balance Snapshot Example</h1>
+<p>This example collects a snapshot of system token balances. At a requested block number it collects these for all accounts and saves the result
+to a .csv file:</p>
+<ul>
+<li>Liquid system token balances</li>
+<li>Staked balances</li>
+<li>Pending stake refunds</li>
+</ul>
+<p>It automatically determines the system token from the system contract&apos;s <code>rammarket</code> table. This example makes the following assumptions:</p>
+<ul>
+<li>The example <code>eosio.system</code> contract in <a href="https://github.com/EOSIO/eosio.contracts" target="_blank">https://github.com/EOSIO/eosio.contracts</a> is installed and initialized on the <code>eosio</code> account.</li>
+<li>The example <code>eosio.token</code> contract in <a href="https://github.com/EOSIO/eosio.contracts" target="_blank">https://github.com/EOSIO/eosio.contracts</a> is installed on the <code>eosio.token</code> account and manages the system token.</li>
+</ul>
+<p>Note: use the <code>update_eosio_token_to_cdt1.6</code> branch (temporary) of <code>eosio.contracts</code> during build.</p>
+<h2 id="balancesnaphpp">balance.snap.hpp</h2>
+<pre><code class="lang-cpp"><span class="hljs-meta">#<span class="hljs-meta-keyword">pragma</span> once</span>
+<span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-meta-string">&lt;eosio/asset.hpp&gt;</span></span>
+<span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-meta-string">&lt;eosio/block_select.hpp&gt;</span></span>
+
+<span class="hljs-keyword">struct</span> base_request {
+    <span class="hljs-keyword">uint32_t</span>    block         = {};
+    eosio::name first_account = {};
+};
+
+STRUCT_REFLECT(base_request) {
+    STRUCT_MEMBER(base_request, block)
+    STRUCT_MEMBER(base_request, first_account)
+}
+
+<span class="hljs-keyword">struct</span> get_liquid_request : base_request {};
+<span class="hljs-keyword">struct</span> get_staked_request : base_request {};
+<span class="hljs-keyword">struct</span> get_refund_request : base_request {};
+
+<span class="hljs-keyword">struct</span> balance {
+    eosio::name account = {};
+    <span class="hljs-keyword">int64_t</span>     amount  = {};
+};
+
+STRUCT_REFLECT(balance) {
+    STRUCT_MEMBER(balance, account)
+    STRUCT_MEMBER(balance, amount)
+}
+
+<span class="hljs-keyword">struct</span> base_response {
+    <span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;balance&gt;       balances = {};
+    <span class="hljs-built_in">std</span>::optional&lt;eosio::name&gt; more     = {};
+
+    EOSLIB_SERIALIZE(base_response, (balances)(more))
+};
+
+STRUCT_REFLECT(base_response) {
+    STRUCT_MEMBER(base_response, balances)
+    STRUCT_MEMBER(base_response, more)
+}
+
+<span class="hljs-keyword">struct</span> get_liquid_response : base_response {};
+<span class="hljs-keyword">struct</span> get_staked_response : base_response {};
+<span class="hljs-keyword">struct</span> get_refund_response : base_response {};
+
+<span class="hljs-keyword">using</span> balance_snap_query_request = eosio::tagged_variant&lt;
+    eosio::serialize_tag_as_name,
+    eosio::tagged_type&lt;<span class="hljs-string">&quot;get.liquid&quot;</span>_n, get_liquid_request&gt;,
+    eosio::tagged_type&lt;<span class="hljs-string">&quot;get.staked&quot;</span>_n, get_staked_request&gt;,
+    eosio::tagged_type&lt;<span class="hljs-string">&quot;get.refund&quot;</span>_n, get_refund_request&gt;&gt;;
+
+<span class="hljs-keyword">using</span> balance_snap_query_response = eosio::tagged_variant&lt;
+    eosio::serialize_tag_as_name,
+    eosio::tagged_type&lt;<span class="hljs-string">&quot;get.liquid&quot;</span>_n, get_liquid_response&gt;,
+    eosio::tagged_type&lt;<span class="hljs-string">&quot;get.staked&quot;</span>_n, get_staked_response&gt;,
+    eosio::tagged_type&lt;<span class="hljs-string">&quot;get.refund&quot;</span>_n, get_refund_response&gt;&gt;;
+</code></pre>
+<h2 id="balancesnap-serverhpp">balance.snap-server.hpp</h2>
+<pre><code class="lang-cpp">#include &quot;balance.snap.hpp&quot;
+#include &lt;eosio/database.hpp&gt;
+#include &lt;eosio/input_output.hpp&gt;
+#include &lt;eosio/multi_index.hpp&gt;
+#include &lt;eosio/types.h&gt;
+
+#include &lt;eosio.system/eosio.system.hpp&gt;
+
+// refunds table in eosio.system
+struct eosiosystem_refund_request {
+    eosio::name           owner;
+    eosio::time_point_sec request_time;
+    eosio::asset          net_amount;
+    eosio::asset          cpu_amount;
+};
+
+// Identify system token
+eosio::symbol get_system_token(uint32_t block) {
+    auto s = query_database(eosio::query_contract_row_range_code_table_scope_pk{
+        .max_block = block,
+        .first =
+            {
+                .code        = &quot;eosio&quot;_n,
+                .table       = &quot;rammarket&quot;_n,
+                .scope       = &quot;eosio&quot;_n.value,
+                .primary_key = 0,
+            },
+        .last =
+            {
+                .code        = &quot;eosio&quot;_n,
+                .table       = &quot;rammarket&quot;_n,
+                .scope       = &quot;eosio&quot;_n.value,
+                .primary_key = 0xffff&apos;ffff&apos;ffff&apos;ffff,
+            },
+        .max_results = 100,
+    });
+
+    eosio::symbol symbol;
+    bool          found = false;
+    eosio::for_each_contract_row&lt;eosiosystem::exchange_state&gt;(s, [&amp;](eosio::contract_row&amp; r, auto* state) {
+        if (r.present &amp;&amp; state) {
+            eosio::check(!found, &quot;Found more than 1 rammarket row&quot;);
+            symbol = state-&gt;quote.balance.symbol;
+            found  = true;
+        }
+        return true;
+    });
+    eosio::check(found, &quot;Didn&apos;t find a rammarket row&quot;);
+    return symbol;
+}
+
+// Fetch liquid balances
+void process(get_liquid_request&amp; req, const eosio::database_status&amp; status) {
+    if (req.block &lt; status.first || req.block &gt; status.irreversible)
+        eosio::check(false, &quot;requested block is out of range&quot;);
+    auto system_token = get_system_token(req.block);
+
+    auto s = query_database(eosio::query_contract_row_range_code_table_pk_scope{
+        .max_block = req.block,
+        .first =
+            {
+                .code        = &quot;eosio.token&quot;_n,
+                .table       = &quot;accounts&quot;_n,
+                .primary_key = system_token.code().raw(),
+                .scope       = req.first_account.value,
+            },
+        .last =
+            {
+                .code        = &quot;eosio.token&quot;_n,
+                .table       = &quot;accounts&quot;_n,
+                .primary_key = system_token.code().raw(),
+                .scope       = 0xffff&apos;ffff&apos;ffff&apos;ffff,
+            },
+        .max_results = 100,
+    });
+
+    get_liquid_response response;
+    eosio::for_each_contract_row&lt;eosio::asset&gt;(s, [&amp;](eosio::contract_row&amp; r, eosio::asset* a) {
+        if (r.present &amp;&amp; a)
+            response.balances.push_back(balance{eosio::name{r.scope}, a-&gt;amount});
+        return true;
+    });
+    if (!response.balances.empty())
+        response.more = eosio::name{response.balances.back().account.value + 1};
+    eosio::set_output_data(pack(balance_snap_query_response{std::move(response)}));
+}
+
+// Fetch staked balances
+void process(get_staked_request&amp; req, const eosio::database_status&amp; status) {
+    if (req.block &lt; status.first || req.block &gt; status.irreversible)
+        eosio::check(false, &quot;requested block is out of range&quot;);
+    auto system_token = get_system_token(req.block);
+
+    auto s = query_database(eosio::query_contract_row_range_code_table_scope_pk{
+        .max_block = req.block,
+        .first =
+            {
+                .code        = &quot;eosio&quot;_n,
+                .table       = &quot;voters&quot;_n,
+                .scope       = &quot;eosio&quot;_n.value,
+                .primary_key = req.first_account.value,
+            },
+        .last =
+            {
+                .code        = &quot;eosio&quot;_n,
+                .table       = &quot;voters&quot;_n,
+                .scope       = &quot;eosio&quot;_n.value,
+                .primary_key = 0xffff&apos;ffff&apos;ffff&apos;ffff,
+            },
+        .max_results = 100,
+    });
+
+    get_staked_response response;
+    eosio::for_each_contract_row&lt;eosiosystem::voter_info&gt;(s, [&amp;](eosio::contract_row&amp; r, eosiosystem::voter_info* info) {
+        if (r.present &amp;&amp; info)
+            response.balances.push_back(balance{info-&gt;owner, info-&gt;staked});
+        return true;
+    });
+    if (!response.balances.empty())
+        response.more = eosio::name{response.balances.back().account.value + 1};
+    eosio::set_output_data(pack(balance_snap_query_response{std::move(response)}));
+}
+
+// Fetch refund balances
+void process(get_refund_request&amp; req, const eosio::database_status&amp; status) {
+    if (req.block &lt; status.first || req.block &gt; status.irreversible)
+        eosio::check(false, &quot;requested block is out of range&quot;);
+    auto system_token = get_system_token(req.block);
+
+    auto s = query_database(eosio::query_contract_row_range_code_table_scope_pk{
+        .max_block = req.block,
+        .first =
+            {
+                .code        = &quot;eosio&quot;_n,
+                .table       = &quot;refunds&quot;_n,
+                .scope       = req.first_account.value,
+                .primary_key = 0,
+            },
+        .last =
+            {
+                .code        = &quot;eosio&quot;_n,
+                .table       = &quot;refunds&quot;_n,
+                .scope       = 0xffff&apos;ffff&apos;ffff&apos;ffff,
+                .primary_key = 0xffff&apos;ffff&apos;ffff&apos;ffff,
+            },
+        .max_results = 100,
+    });
+
+    get_refund_response response;
+    eosio::for_each_contract_row&lt;eosiosystem_refund_request&gt;(s, [&amp;](eosio::contract_row&amp; r, eosiosystem_refund_request* refund) {
+        if (r.present &amp;&amp; refund)
+            response.balances.push_back(balance{refund-&gt;owner, refund-&gt;net_amount.amount + refund-&gt;cpu_amount.amount});
+        return true;
+    });
+    if (!response.balances.empty())
+        response.more = eosio::name{response.balances.back().account.value + 1};
+    eosio::set_output_data(pack(balance_snap_query_response{std::move(response)}));
+}
+
+extern &quot;C&quot; __attribute__((eosio_wasm_entry)) void initialize() {}
+
+extern &quot;C&quot; void run_query() {
+    auto request = eosio::unpack&lt;balance_snap_query_request&gt;(eosio::get_input_data());
+    std::visit([](auto&amp; x) { process(x, eosio::get_database_status()); }, request.value);
+}
+</code></pre>
+<h2 id="balancesnap-clienthpp">balance.snap-client.hpp</h2>
+<pre><code class="lang-cpp"><span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-string">&quot;balance.snap.hpp&quot;</span></span>
+<span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-meta-string">&lt;eosio/input_output.hpp&gt;</span></span>
+<span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-meta-string">&lt;eosio/parse_json.hpp&gt;</span></span>
+<span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-meta-string">&lt;eosio/schema.hpp&gt;</span></span>
+
+<span class="hljs-keyword">extern</span> <span class="hljs-string">&quot;C&quot;</span> __attribute__((eosio_wasm_entry)) <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">initialize</span><span class="hljs-params">()</span> </span>{}
+<span class="hljs-keyword">extern</span> <span class="hljs-string">&quot;C&quot;</span> <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">describe_query_request</span><span class="hljs-params">()</span> </span>{ eosio::set_output_data(eosio::make_json_schema&lt;balance_snap_query_request&gt;()); }
+<span class="hljs-keyword">extern</span> <span class="hljs-string">&quot;C&quot;</span> <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">describe_query_response</span><span class="hljs-params">()</span> </span>{ eosio::set_output_data(eosio::make_json_schema&lt;balance_snap_query_response&gt;()); }
+
+<span class="hljs-keyword">extern</span> <span class="hljs-string">&quot;C&quot;</span> <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">create_query_request</span><span class="hljs-params">()</span> </span>{
+    eosio::set_output_data(
+        pack(<span class="hljs-built_in">std</span>::make_tuple(<span class="hljs-string">&quot;local&quot;</span>_n, <span class="hljs-string">&quot;balance.snap&quot;</span>_n, eosio::parse_json&lt;balance_snap_query_request&gt;(eosio::get_input_data()))));
+}
+
+<span class="hljs-keyword">extern</span> <span class="hljs-string">&quot;C&quot;</span> <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">decode_query_response</span><span class="hljs-params">()</span> </span>{
+    eosio::set_output_data(to_json(eosio::unpack&lt;balance_snap_query_response&gt;(eosio::get_input_data())));
+}
+</code></pre>
+<h2 id="building">Building</h2>
+<p>Use the CDT to build the WASMs:</p>
+<pre><code class="lang-sh"><span class="hljs-comment"># Location of History Tools repository</span>
+<span class="hljs-built_in">export</span> HT_TOOLS_DIR=~/<span class="hljs-built_in">history</span>-tools
+
+<span class="hljs-comment"># Location of the CDT</span>
+<span class="hljs-built_in">export</span> CDT_DIR=/usr/<span class="hljs-built_in">local</span>/eosio.cdt
+
+<span class="hljs-comment"># Location of eosio.contracts</span>
+<span class="hljs-built_in">export</span> CONTRACTS_DIR=~/eosio.contracts
+
+<span class="hljs-variable">$CDT_DIR</span>/bin/eosio-cpp                                                      \
+    -Os                                                                     \
+    -I <span class="hljs-variable">$CDT_DIR</span>/include/eosiolib/capi                                       \
+    -I <span class="hljs-variable">$HT_TOOLS_DIR</span>/libraries/eosiolib/wasmql                              \
+    -I <span class="hljs-variable">$HT_TOOLS_DIR</span>/external/abieos/external/date/include                  \
+    -I <span class="hljs-variable">$CONTRACTS_DIR</span>/contracts/eosio.system/include                        \
+    <span class="hljs-variable">$HT_TOOLS_DIR</span>/libraries/eosiolib/wasmql/eosio/temp_placeholders.cpp     \
+    -fquery-server                                                          \
+    --eosio-imports=<span class="hljs-variable">$HT_TOOLS_DIR</span>/libraries/eosiolib/wasmql/server.imports  \
+    balance.snap-server.cpp                                                 \
+    -o balance.snap-server.wasm
+
+<span class="hljs-variable">$CDT_DIR</span>/bin/eosio-cpp                                                      \
+    -Os                                                                     \
+    -I <span class="hljs-variable">$HT_TOOLS_DIR</span>/libraries/eosiolib/wasmql                              \
+    -I <span class="hljs-variable">$HT_TOOLS_DIR</span>/external/abieos/external/date/include                  \
+    -I <span class="hljs-variable">$CONTRACTS_DIR</span>/contracts/eosio.system/include                        \
+    <span class="hljs-variable">$HT_TOOLS_DIR</span>/libraries/eosiolib/wasmql/eosio/temp_placeholders.cpp     \
+    -fquery-client                                                          \
+    --eosio-imports=<span class="hljs-variable">$HT_TOOLS_DIR</span>/libraries/eosiolib/wasmql/client.imports  \
+    balance.snap-client.cpp                                                 \
+    -o balance.snap-client.wasm
+</code></pre>
+<h2 id="deploying">Deploying</h2>
+<p>Place <code>balance.snap-server.wasm</code> in the directory that wasm-ql&apos;s <code>--wql-wasm-dir</code> option points to.</p>
+<h2 id="nodejs-client">nodejs Client</h2>
+<pre><code class="lang-js"><span class="hljs-keyword">const</span> HistoryTools = <span class="hljs-built_in">require</span>(<span class="hljs-string">&apos;./src/HistoryTools.js&apos;</span>);
+<span class="hljs-keyword">const</span> fs = <span class="hljs-built_in">require</span>(<span class="hljs-string">&apos;fs&apos;</span>);
+<span class="hljs-keyword">const</span> { TextDecoder, TextEncoder } = <span class="hljs-built_in">require</span>(<span class="hljs-string">&apos;util&apos;</span>);
+<span class="hljs-keyword">const</span> fetch = <span class="hljs-built_in">require</span>(<span class="hljs-string">&apos;node-fetch&apos;</span>);
+<span class="hljs-keyword">const</span> encoder = <span class="hljs-keyword">new</span> TextEncoder(<span class="hljs-string">&apos;utf8&apos;</span>);
+<span class="hljs-keyword">const</span> decoder = <span class="hljs-keyword">new</span> TextDecoder(<span class="hljs-string">&apos;utf8&apos;</span>);
+
+<span class="hljs-comment">// Run one of the balance.snap queries and merge the results</span>
+<span class="hljs-comment">// into accounts.</span>
+<span class="hljs-keyword">async</span> <span class="hljs-function"><span class="hljs-keyword">function</span> <span class="hljs-title">query</span>(<span class="hljs-params">block, wasm, type, accounts, field</span>) </span>{
+    <span class="hljs-keyword">let</span> first_account = <span class="hljs-string">&apos;&apos;</span>;
+    <span class="hljs-keyword">let</span> num_found = <span class="hljs-number">0</span>;
+    <span class="hljs-keyword">while</span> (first_account != <span class="hljs-literal">null</span>) {
+        <span class="hljs-comment">// Create request</span>
+        <span class="hljs-keyword">const</span> request = wasm.createQueryRequest(<span class="hljs-built_in">JSON</span>.stringify(
+            [type, {
+                block,
+                first_account,
+            }]
+        ));
+
+        <span class="hljs-comment">// Fetch reply</span>
+        <span class="hljs-keyword">const</span> queryReply = <span class="hljs-keyword">await</span> fetch(<span class="hljs-string">&apos;http://127.0.0.1:8880/wasmql/v1/query&apos;</span>, {
+            method: <span class="hljs-string">&apos;POST&apos;</span>,
+            body: HistoryTools.combineRequests([
+                request,
+            ]),
+        });
+        <span class="hljs-keyword">if</span> (queryReply.status !== <span class="hljs-number">200</span>)
+            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-built_in">Error</span>(queryReply.status + <span class="hljs-string">&apos;: &apos;</span> + queryReply.statusText + <span class="hljs-string">&apos;: &apos;</span> + <span class="hljs-keyword">await</span> queryReply.text());
+
+        <span class="hljs-comment">// Convert from binary</span>
+        <span class="hljs-keyword">const</span> responses = HistoryTools.splitResponses(<span class="hljs-keyword">new</span> <span class="hljs-built_in">Uint8Array</span>(<span class="hljs-keyword">await</span> queryReply.arrayBuffer()));
+        <span class="hljs-keyword">const</span> response = <span class="hljs-built_in">JSON</span>.parse(wasm.decodeQueryResponse(responses[<span class="hljs-number">0</span>]))[<span class="hljs-number">1</span>];
+
+        <span class="hljs-comment">// Merge result into accounts</span>
+        <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> bal <span class="hljs-keyword">of</span> response.balances) {
+            <span class="hljs-keyword">let</span> account = accounts[bal.account] = accounts[bal.account] || {};
+            account[field] = bal.amount;
+        }
+        num_found += response.balances.length;
+        <span class="hljs-built_in">console</span>.log(field, num_found, <span class="hljs-string">&apos;more=&apos;</span> + response.more);
+
+        <span class="hljs-comment">// Results span multiple queries</span>
+        first_account = response.more;
+    }
+}
+
+<span class="hljs-keyword">if</span> (process.argv.length != <span class="hljs-number">3</span>) {
+    <span class="hljs-built_in">console</span>.log(<span class="hljs-string">&apos;usage: nodejs balance.snap.js block_num&apos;</span>);
+} <span class="hljs-keyword">else</span> {
+    <span class="hljs-keyword">const</span> block = +process.argv[<span class="hljs-number">2</span>];
+    (<span class="hljs-keyword">async</span> () =&gt; {
+        <span class="hljs-keyword">try</span> {
+            <span class="hljs-keyword">const</span> myClientWasm = <span class="hljs-keyword">await</span> HistoryTools.createClientWasm({
+                mod: <span class="hljs-keyword">new</span> WebAssembly.Module(fs.readFileSync(<span class="hljs-string">&apos;balance.snap-client.wasm&apos;</span>)),
+                encoder, decoder
+            });
+            <span class="hljs-keyword">let</span> accounts = {};
+            <span class="hljs-keyword">await</span> query(block, myClientWasm, <span class="hljs-string">&apos;get.liquid&apos;</span>, accounts, <span class="hljs-string">&apos;liquid&apos;</span>);
+            <span class="hljs-keyword">await</span> query(block, myClientWasm, <span class="hljs-string">&apos;get.staked&apos;</span>, accounts, <span class="hljs-string">&apos;staked&apos;</span>);
+            <span class="hljs-keyword">await</span> query(block, myClientWasm, <span class="hljs-string">&apos;get.refund&apos;</span>, accounts, <span class="hljs-string">&apos;refund&apos;</span>);
+            <span class="hljs-keyword">let</span> csv = <span class="hljs-string">&apos;&apos;</span>;
+            <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> name <span class="hljs-keyword">of</span> <span class="hljs-built_in">Object</span>.keys(accounts).sort()) {
+                <span class="hljs-keyword">const</span> acc = accounts[name];
+                csv += <span class="hljs-string">`&quot;<span class="hljs-subst">${name}</span>&quot;,<span class="hljs-subst">${acc.liquid || 0}</span>,<span class="hljs-subst">${acc.staked || 0}</span>,<span class="hljs-subst">${acc.refund || 0}</span>`</span> + <span class="hljs-string">&apos;\n&apos;</span>;
+            }
+            fs.writeFileSync(block + <span class="hljs-string">&apos;.csv&apos;</span>, csv);
+            <span class="hljs-built_in">console</span>.log(<span class="hljs-string">&apos;wrote to &apos;</span> + block + <span class="hljs-string">&apos;.csv&apos;</span>);
+        } <span class="hljs-keyword">catch</span> (e) {
+            <span class="hljs-built_in">console</span>.log(e);
+        }
+    })()
+}
+</code></pre>
+
+                                
+                                </section>
+                            
+    </div>
+    <div class="search-results">
+        <div class="has-results">
+            
+            <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+            <ul class="search-results-list"></ul>
+            
+        </div>
+        <div class="no-results">
+            
+            <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+            
+        </div>
+    </div>
+</div>
+
+                        </div>
+                    </div>
+                
+            </div>
+
+            
+                
+                <a href="creating-wasms.html" class="navigation navigation-prev navigation-unique" aria-label="Previous page: Creating WASMs">
+                    <i class="fa fa-angle-left"></i>
+                </a>
+                
+                
+            
+        
+    </div>
+
+    <script>
+        var gitbook = gitbook || [];
+        gitbook.push(function() {
+            gitbook.page.hasChanged({"page":{"title":"Balance Snapshot Example","level":"1.3.4","depth":2,"next":{"title":"Building","level":"1.4","depth":1,"ref":"","articles":[{"title":"OSX","level":"1.4.1","depth":2,"path":"build-osx.md","ref":"build-osx.md","articles":[]},{"title":"Ubuntu 18.10","level":"1.4.2","depth":2,"path":"build-ubuntu-1810.md","ref":"build-ubuntu-1810.md","articles":[]},{"title":"Documentation","level":"1.4.3","depth":2,"path":"build-doc.md","ref":"build-doc.md","articles":[]}]},"previous":{"title":"Creating WASMs","level":"1.3.3","depth":2,"path":"creating-wasms.md","ref":"creating-wasms.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"balance-snapshot.md","mtime":"2019-03-20T20:32:54.375Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-20T20:37:07.311Z"},"basePath":".","book":{"language":""}});
+        });
+    </script>
+</div>
+
+        
+    <script src="gitbook/gitbook.js"></script>
+    <script src="gitbook/theme.js"></script>
+    
+        
+        <script src="gitbook/gitbook-plugin-search/search-engine.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-search/search.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-sharing/buttons.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-fontsettings/fontsettings.js"></script>
+        
+    
+
+    </body>
+</html>
+

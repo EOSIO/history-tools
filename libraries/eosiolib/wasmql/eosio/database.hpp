@@ -603,7 +603,7 @@ bool for_each_contract_row(const std::vector<char>& bytes, F f) {
             if (!f(row, &p))
                 return false;
         } else {
-            if (!f(row, nullptr))
+            if (!f(row, (T*)nullptr))
                 return false;
         }
         return true;

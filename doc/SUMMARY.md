@@ -7,6 +7,7 @@
     * [Running a Server](running-wasmql-server.md)
     * [Using Client WASMs](using-client-wasms.md)
     * [Creating WASMs](creating-wasms.md)
+    * [Balance Snapshot Example](balance-snapshot.md)
 * Building
     * [OSX](build-osx.md)
     * [Ubuntu 18.10](build-ubuntu-1810.md)

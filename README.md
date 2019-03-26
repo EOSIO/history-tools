@@ -20,11 +20,15 @@ Note: by default, `history-tools` does nothing; use the `--plugin` option to sel
 
 See the [documentation site](https://eosio.github.io/wasm-api/)
 
-## Contribution
-Check out the [Contributing](./CONTRIBUTING.md) guide.
+## Contributing
+
+[Contributing Guide](./CONTRIBUTING.md)
+
+[Code of Conduct](./CONTRIBUTING.md#conduct)
 
 ## License
-[MIT licensed](./LICENSE)
+
+[MIT](./LICENSE)
 
 ## Important
 

@@ -18,4 +18,4 @@ The history tools repo has these components:
 
 Note: by default, `history-tools` does nothing; use the `--plugin` option to select plugins.
 
-See the [documentation site](https://eosio.github.io/wasm-api/)
+See the [documentation site](https://eosio.github.io/history-tools/)

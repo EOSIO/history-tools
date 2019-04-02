@@ -32,6 +32,9 @@ if (LMDB_LIB)
 else()
     set(LMDB_LIB "")
 endif()
+if(NOT PQXX_FOUND)
+    set(PQXX_LIBRARIES "")
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -65,10 +68,6 @@ endif()
 
 set(SKIP_FC_TESTS ON)
 
-include(SetupTargetMacros)
-include(GNUInstallDirs)
-include(VersionMacros)
-
 execute_process(COMMAND git submodule status --recursive
                 COMMAND grep -c "^[+\-]"
                 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -78,6 +77,10 @@ if(submodule_status GREATER 0)
    message(FATAL_ERROR "git submodules are not up to date.
 Please run the command 'git submodule update --init --recursive'.")
 endif()
+
+include(SetupTargetMacros)
+include(GNUInstallDirs)
+include(VersionMacros)
 
 add_subdirectory(external/appbase)
 add_subdirectory(external/fc)
@@ -107,6 +110,9 @@ function(add_app APP FLAGS LIBS)
 
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_compile_options(${APP} PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics)
+    endif()
+    if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+        target_compile_options(${APP} PRIVATE -fdiagnostics-color=auto)
     endif()
 endfunction(add_app)
 

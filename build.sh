@@ -9,7 +9,7 @@ TIME_BEGIN=$( date -u +%s )
 
 CONSOLE=0
 ERR_TRAPPED=0
-KEEPLOGS=0
+KEEP=0
 NONINTERACTIVE=0
 CMAKE_BUILD_TYPE=Release
 ENABLE_LMDB=0
@@ -23,7 +23,7 @@ txtrst=$(tput sgr0)
 
 function usage()
 {
-    printf "\\nUsage: %s \\n  -o        Build Option [<Debug|Release|RelWithDebInfo|MinSizeRel>]\\n  -j        Enable JavaScript [<Y|y|1|N|n|0>] (default: no)\\n  -k        Keep Logs\\n  -l        Enable LMDB [<Y|y|1|N|n|0>] (default: no)\\n  -n        Enable Ninja [<Y|y|1|N|n|0>] (default: no)\\n  -p        Enable Postgresql  [<Y|y|1|N|n|0>] (default: no)\\n  -c        Console Friendly -- disables terminal UI\\n  -y        Noninteractive -- no prompts, installs everything\\n\\n" "$0" 1>&2
+    printf "\\nUsage: %s \\n  -o        Build Option [<Debug|Release|RelWithDebInfo|MinSizeRel>]\\n  -j        Enable JavaScript [<Y|y|1|N|n|0>] (default: no)\\n  -k        Keep Logs and Downloads\\n  -l        Enable LMDB [<Y|y|1|N|n|0>] (default: no)\\n  -n        Enable Ninja [<Y|y|1|N|n|0>] (default: no)\\n  -p        Enable Postgresql  [<Y|y|1|N|n|0>] (default: no)\\n  -c        Console Friendly -- disables terminal UI\\n  -y        Noninteractive -- no prompts, installs everything\\n\\n" "$0" 1>&2
     exit 1
 }
 
@@ -55,7 +55,7 @@ if [ $# -ne 0 ]; then
                 parse_enable $OPTARG ENABLE_JS "Unrecognized argument to -${opt}: $OPTARG\\n" usage
             ;;
             k )
-                KEEPLOGS=1
+                KEEP=1
             ;;
             l )
                 parse_enable $OPTARG ENABLE_LMDB "Unrecognized argument to -${opt}: $OPTARG\\n" usage
@@ -93,10 +93,10 @@ fi
 
 graceful_exit() {
     if [[ $ERR_TRAPPED = 0 ]]; then
-        [[ $KEEPLOGS = 0 && -f install_boost.log ]] && rm install_boost.log || :
-        [[ $KEEPLOGS = 0 && -f install_pqxx.log ]] && rm install_pqxx.log || :
-        [[ $KEEPLOGS = 0 && -f install_js.log ]] && rm install_js.log || :
-        #[[ $KEEPLOGS = 0 && -f install.log ]] && rm install.log || :
+        [[ $KEEP = 0 && -f install_boost.log ]] && rm install_boost.log || :
+        [[ $KEEP = 0 && -f install_pqxx.log ]] && rm install_pqxx.log || :
+        [[ $KEEP = 0 && -f install_js.log ]] && rm install_js.log || :
+        [[ $KEEP = 0 && -f install.log ]] && rm install.log || :
     fi
 }
 
@@ -141,7 +141,7 @@ LOGFD=3
 if [[ "x${DIALOG}" = "x" ]]; then CONSOLE=1; fi
 
 DEP_ARRAY=(
-    build-essential cmake libboost-all-dev git libssl-dev libgmp-dev pv
+    build-essential cmake libboost-all-dev git libssl1.0-dev libgmp-dev pv
 )
 
 OPTIONAL_DEP_ARRAY=(
@@ -271,7 +271,7 @@ dprintf() {
 }
 
 install_boost() {
-    [[ -n "$1" ]] && local FD="$1"; [[ -z "$FD" ]] && local FD='1'
+    local FD="${1-"1"}"
     printf "Checking Boost library installation...\\n" | tee -a /dev/fd/${FD} >&${LOGFD}
     BOOSTVERSION=$( grep "#define BOOST_VERSION " "/usr/include/boost/version.hpp" 2>/dev/null | tail -1 | tr -s ' ' | cut -d\  -f3 )
     if [ "${BOOSTVERSION}" != "${BOOST_VERSION_MAJOR}0${BOOST_VERSION_MINOR}0${BOOST_VERSION_PATCH}" ]; then
@@ -291,7 +291,7 @@ install_boost() {
             fi
             printf " - Installing Boost ${BOOST_VERSION_PRINT}...\\n" | tee -a /dev/fd/${FD} >&${LOGFD}
             FILENAME=boost_$BOOST_VERSION.tar.bz2
-            pushd $SRC_LOCATION
+            pushd $SRC_LOCATION >/dev/null
             dprintf $FD "Downloading $FILENAME..." " - "
             [[ $FD != 1 ]] && WGET_DIALOG="2>&1 | stdbuf -o0 awk '/[.] +[0-9][0-9]?[0-9]?%/ { print substr(\$0,63,3) }'" || WGET_DIALOG=''
             eval wget --show-progress https://dl.bintray.com/boostorg/release/${BOOST_VERSION_MAJOR}.${BOOST_VERSION_MINOR}.${BOOST_VERSION_PATCH}/source/"$FILENAME" ${WGET_DIALOG}
@@ -299,15 +299,17 @@ install_boost() {
             [[ $FD = 1 ]] && PVARG='' || PVARG='-n'
             (pv -p $PVARG "$FILENAME" | tar xjf -) 2>&1
             dprintf $FD "Bootstrapping Boost build..." " - "
-            cd ${BOOST_ROOT}
+            pushd ${BOOST_ROOT} >/dev/null
             ./bootstrap.sh --prefix=$BOOST_ROOT 1>/dev/fd/${FD} 2>/dev/fd/${FD}
             dprintf $FD "Building Boost ${BOOST_VERSION_PRINT}..." " - "
             ./b2 -q -j"${JOBS}" install 1>/dev/fd/${FD} 2>/dev/fd/${FD}
-            cd ..
-            rm -f "${FILENAME}"
+            popd >/dev/null
+            if [[ $KEEP = 0 ]]; then
+                rm -f "${FILENAME}"
+            fi
             rm -rf ${BOOST_LINK_LOCATION}
             ln -s $BOOST_ROOT $BOOST_LINK_LOCATION
-            popd
+            popd >/dev/null
             printf " - Boost library successfully installed to ${BOOST_ROOT}.  Symlink created at ${BOOST_LINK_LOCATION}.\\n" | tee -a /dev/fd/${FD} >&${LOGFD}
         else
             printf "found.\\n" | tee -a /dev/fd/${FD} >&${LOGFD}
@@ -316,12 +318,11 @@ install_boost() {
     else
         printf "Using system installation of Boost ${BOOST_VERSION_PRINT}.\\n" | tee -a /dev/fd/${FD} >&${LOGFD}
     fi
-    [[ $FD -ne 1 ]] && fuser -s -INT -k install_boost.log
-    return 0
+    if [[ $FD -ne 1 ]]; then fuser -s -INT -k install_boost.log; fi
 }
 
 install_pqxx() {
-    [[ -n "$1" ]] && local FD="$1"; [[ -z "$FD" ]] && local FD='1'
+    local FD="${1-"1"}"
     dprintf $FD "Checking pqxx library version..."
     PQXXVERSION=$( pkg-config --modversion libpqxx 2>/dev/null ) || true
     if [ $(ver ${PQXXVERSION}) -gt $(ver ${PQXX_VERSION}) ]; then
@@ -333,7 +334,7 @@ install_pqxx() {
             printf " - System installation of pqxx ${PQXXVERSION} does not meet minimum required version ${PQXX_VERSION}.\\n" | tee -a /dev/fd/${FD} >&${LOGFD}
         fi
         FILENAME=${PQXX_VERSION}.tar.gz
-        pushd $SRC_LOCATION
+        pushd $SRC_LOCATION >/dev/null
         dprintf $FD "Downloading $FILENAME..." " - "
         [[ FD != 1 ]] && WGET_DIALOG="2>&1 | stdbuf -o0 awk '/[.] +[0-9][0-9]?[0-9]?%/ { print substr(\$0,63,3) }'" || WGET_DIALOG=''
         eval wget --show-progress https://github.com/jtv/libpqxx/archive/${FILENAME} ${WGET_DIALOG}
@@ -341,48 +342,58 @@ install_pqxx() {
         [[ $FD = 1 ]] && PVARG='' || PVARG='-n'
         (pv -p $PVARG "$FILENAME" | tar xzf -) 2>&1
         dprintf $FD "Building libpqxx ${PQXX_VERSION}" " - "
-        cd libpqxx-${PQXX_VERSION}
+        pushd libpqxx-${PQXX_VERSION} >/dev/null
         ./configure --prefix=${OPT_LOCATION}/libqpxx-${PQXX_VERSION}
         if [ $ENABLE_NINJA = 1 ]; then
             ninja
         else
             make -j${JOBS}
         fi
-        cd ..
-        rm -f "${FILENAME}"
-        popd
+        popd >/dev/null
+        if [ $KEEP = 0 ]; then
+            rm -f "${FILENAME}"
+        fi
+        popd >/dev/null
         printf " - Postgres library successfully installed.\\n" | tee -a /dev/fd/${FD} >&{LOGFD}
     fi
-    [[ $FD -ne 1 ]] && fuser -s -INT -k install_pqxx.log
+    if [[ $FD -ne 1 ]]; then fuser -s -INT -k install_pqxx.log; fi
 }
 
 install_js() {
     local FD="${1-"1"}"
     dprintf $FD "Building Javascript interpreter."
     FILENAME=firefox-${FIREFOX_VERSION}.source.tar.xz
-    pushd $SRC_LOCATION
-    dprintf $FD "Downloading $FILENAME..." " - "
-    [[ $FD != 1 ]] && WGET_DIALOG="2>&1 | stdbuf -o0 awk '/[.] +[0-9][0-9]?[0-9]?%/ { print substr(\$0,63,3) }'" || WGET_DIALOG=''
-    eval wget --show-progress https://archive.mozilla.org/pub/firefox/releases/${FIREFOX_VERSION}/source/${FILENAME} ${WGET_DIALOG}
-    dprintf $FD "Extracting $FILENAME..." " - "
-    [[ $FD = 1 ]] && PVARG='' || PVARG='-n'
-    (pv -p $PVARG "$FILENAME" | tar xf -) 2>&1
-    cd "firefox-${FIREFOX_VERSION}/js/src"
+    pushd $SRC_LOCATION >/dev/null
+    if [ ! -f $FILENAME ]; then
+        dprintf $FD "Downloading $FILENAME..." " - "
+        [[ $FD != 1 ]] && WGET_DIALOG="2>&1 | stdbuf -o0 awk '/[.] +[0-9][0-9]?[0-9]?%/ { print substr(\$0,63,3) }'" || WGET_DIALOG=''
+        eval wget --show-progress https://archive.mozilla.org/pub/firefox/releases/${FIREFOX_VERSION}/source/${FILENAME} ${WGET_DIALOG}
+    fi
+    if [ ! -d "firefox-64.0" ]; then
+        dprintf $FD "Extracting $FILENAME..." " - "
+        [[ $FD = 1 ]] && PVARG='' || PVARG='-n'
+        (pv -p $PVARG "$FILENAME" | tar xJf -) 2>&1
+    fi
+    pushd "firefox-${FIREFOX_VERSION}/js/src" >/dev/null
     dprintf $FD "Building Spidermonkey ${FIREFOX_VERSION}..." " - "
     autoconf2.13
-    mkdir -p build/release
-    pushd build/release
-    ../configure --disable-debug --enable-optimize --disable-jemalloc --disable-replace-malloc --prefix=$FIREFOX_ROOT 1>/dev/fd/${FD} 2>dev/fd/${FD}
+    mkdir -p build
+    pushd build >/dev/null
+    ../configure --disable-debug --enable-optimize --disable-jemalloc --disable-replace-malloc 1>/dev/fd/${FD} 2>/dev/fd/${FD}
     if [ $ENABLE_NINJA = 1 ]; then
         ninja
     else
         make -j${JOBS}
+        if [[ ! -f /usr/local/lib/libjs_static.ajs || ! -f /usr/local/lib/libmozjs-64.so ]]; then
+            sudo make install
+        fi
     fi
-    popd
+    popd >/dev/null
+    popd >/dev/null
     rm -f "${FILENAME}"
     dprintf $FD " - Spidermonkey library successfully installed."
-    popd
-    [[ $FD -ne 1 ]] && fuser -s -INT -k install_js.log
+    popd >/dev/null
+    if [[ $FD -ne 1 ]]; then fuser -s -INT -k install_js.log; fi
 }
 
 if [ $CONSOLE = 1 ]; then

@@ -344,10 +344,20 @@ template<> inline constexpr type type_for<abieos::public_key>       = make_type_
 template<> inline constexpr type type_for<abieos::bytes>            = make_type_for<abieos::bytes>(             "bytea"                     );
 template<> inline constexpr type type_for<abieos::input_buffer>     = make_type_for<abieos::input_buffer>(      "bytea"                     );
 template<> inline constexpr type type_for<transaction_status>       = make_type_for<transaction_status>(        "transaction_status_type"   );
+// clang-format on
 
 template <typename T>
-inline constexpr type type_for<std::optional<T>> = make_type_for<std::optional<T>>(type_for<T>.name);
+inline constexpr auto make_optional_type_for() {
+    if constexpr (is_known_type(type_for<T>))
+        return make_type_for<std::optional<T>>(type_for<T>.name);
+    else
+        return unknown_type<std::optional<T>>{};
+}
 
+template <typename T>
+inline constexpr auto type_for<std::optional<T>> = make_optional_type_for<T>();
+
+// clang-format off
 inline const std::map<std::string_view, type> abi_type_to_sql_type = {
     {"bool",                    type_for<bool>},
     {"uint8",                   type_for<uint8_t>},

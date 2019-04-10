@@ -234,10 +234,10 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         t.exec("insert into " + t.quote_name(config->schema) + R"(.fill_status values (0, '', 0, '', 0))");
 
         // clang-format off
-        create_table<permission_level>(         t, "action_trace_authorization",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<account_auth_sequence>(    t, "action_trace_auth_sequence",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<account_delta>(            t, "action_trace_ram_delta",      "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<action_trace_v0>(          t, "action_trace",                "block_index, transaction_id, action_index",            "block_index bigint, transaction_id varchar(64), action_index integer, parent_action_index integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+        create_table<permission_level>(         t, "action_trace_authorization",  "block_index, transaction_id, action_ordinal, ordinal", "block_index bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+        create_table<account_auth_sequence>(    t, "action_trace_auth_sequence",  "block_index, transaction_id, action_ordinal, ordinal", "block_index bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+        create_table<account_delta>(            t, "action_trace_ram_delta",      "block_index, transaction_id, action_ordinal, ordinal", "block_index bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+        create_table<action_trace_v0>(          t, "action_trace",                "block_index, transaction_id, action_ordinal",          "block_index bigint, transaction_id varchar(64),                                          transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_index, id",                                      "block_index bigint, failed_dtrx_trace varchar(64)");
         // clang-format on
 
@@ -709,53 +709,48 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         std::string values    = std::to_string(block_num) + sep(bulk) + quote(bulk, failed_id);
         write("transaction_trace", block_num, ttrace, fields, values, bulk, t, pipeline);
 
-        int32_t num_actions = 0;
         for (auto& atrace : ttrace.action_traces)
-            write_action_trace(block_num, ttrace, num_actions, 0, std::get<action_trace_v0>(atrace), bulk, t, pipeline);
+            write_action_trace(block_num, ttrace, std::get<action_trace_v0>(atrace), bulk, t, pipeline);
         if (failed)
             write_transaction_trace(block_num, *failed, bulk, t, pipeline);
     } // write_transaction_trace
 
     void write_action_trace(
-        uint32_t block_num, transaction_trace_v0& ttrace, int32_t& num_actions, int32_t parent_action_index, action_trace_v0& atrace,
-        bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        uint32_t block_num, transaction_trace_v0& ttrace, action_trace_v0& atrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
 
-        const auto action_index = ++num_actions;
-
-        std::string fields = "block_index, transaction_id, action_index, parent_action_index, transaction_status";
-        std::string values = std::to_string(block_num) + sep(bulk) + quote(bulk, (std::string)ttrace.id) + sep(bulk) +
-                             std::to_string(action_index) + sep(bulk) + std::to_string(parent_action_index) + sep(bulk) +
-                             quote(bulk, to_string(ttrace.status));
+        std::string fields = "block_index, transaction_id, transaction_status";
+        std::string values =
+            std::to_string(block_num) + sep(bulk) + quote(bulk, (std::string)ttrace.id) + sep(bulk) + quote(bulk, to_string(ttrace.status));
 
         write("action_trace", block_num, atrace, fields, values, bulk, t, pipeline);
         write_action_trace_subtable(
-            "action_trace_authorization", block_num, ttrace, action_index, atrace.act.authorization, bulk, t, pipeline);
+            "action_trace_authorization", block_num, ttrace, atrace.action_ordinal.value, atrace.act.authorization, bulk, t, pipeline);
         if (atrace.receipt)
             write_action_trace_subtable(
-                "action_trace_auth_sequence", block_num, ttrace, action_index, std::get<action_receipt_v0>(*atrace.receipt).auth_sequence,
-                bulk, t, pipeline);
+                "action_trace_auth_sequence", block_num, ttrace, atrace.action_ordinal.value,
+                std::get<action_receipt_v0>(*atrace.receipt).auth_sequence, bulk, t, pipeline);
         write_action_trace_subtable(
-            "action_trace_ram_delta", block_num, ttrace, action_index, atrace.account_ram_deltas, bulk, t, pipeline);
+            "action_trace_ram_delta", block_num, ttrace, atrace.action_ordinal.value, atrace.account_ram_deltas, bulk, t, pipeline);
     } // write_action_trace
 
     template <typename T>
     void write_action_trace_subtable(
-        const std::string& name, uint32_t block_num, transaction_trace_v0& ttrace, int32_t action_index, T& objects, bool bulk,
+        const std::string& name, uint32_t block_num, transaction_trace_v0& ttrace, int32_t action_ordinal, T& objects, bool bulk,
         pqxx::work& t, pqxx::pipeline& pipeline) {
 
         int32_t num = 0;
         for (auto& obj : objects)
-            write_action_trace_subtable(name, block_num, ttrace, action_index, num, obj, bulk, t, pipeline);
+            write_action_trace_subtable(name, block_num, ttrace, action_ordinal, num, obj, bulk, t, pipeline);
     }
 
     template <typename T>
     void write_action_trace_subtable(
-        const std::string& name, uint32_t block_num, transaction_trace_v0& ttrace, int32_t action_index, int32_t& num, T& obj, bool bulk,
+        const std::string& name, uint32_t block_num, transaction_trace_v0& ttrace, int32_t action_ordinal, int32_t& num, T& obj, bool bulk,
         pqxx::work& t, pqxx::pipeline& pipeline) {
         ++num;
-        std::string fields = "block_index, transaction_id, action_index, index, transaction_status";
+        std::string fields = "block_index, transaction_id, action_ordinal, ordinal, transaction_status";
         std::string values = std::to_string(block_num) + sep(bulk) + quote(bulk, (std::string)ttrace.id) + sep(bulk) +
-                             std::to_string(action_index) + sep(bulk) + std::to_string(num) + sep(bulk) +
+                             std::to_string(action_ordinal) + sep(bulk) + std::to_string(num) + sep(bulk) +
                              quote(bulk, to_string(ttrace.status));
 
         write(name, block_num, obj, fields, values, bulk, t, pipeline);

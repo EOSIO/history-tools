@@ -185,7 +185,6 @@ constexpr void for_each_field(action*, F f) {
 struct action_trace_v0 {
     abieos::varuint32             action_ordinal         = {};
     abieos::varuint32             creator_action_ordinal = {};
-    abieos::varuint32             parent_action_ordinal  = {};
     std::optional<action_receipt> receipt                = {};
     abieos::name                  receiver               = {};
     action                        act                    = {};
@@ -200,7 +199,6 @@ template <typename F>
 constexpr void for_each_field(action_trace_v0*, F f) {
     f("action_ordinal", abieos::member_ptr<&action_trace_v0::action_ordinal>{});
     f("creator_action_ordinal", abieos::member_ptr<&action_trace_v0::creator_action_ordinal>{});
-    f("parent_action_ordinal", abieos::member_ptr<&action_trace_v0::parent_action_ordinal>{});
     f("receipt", abieos::member_ptr<&action_trace_v0::receipt>{});
     f("receiver", abieos::member_ptr<&action_trace_v0::receiver>{});
     f("act", abieos::member_ptr<&action_trace_v0::act>{});

@@ -193,6 +193,7 @@ struct action_trace_v0 {
     std::string                   console                = {};
     std::vector<account_delta>    account_ram_deltas     = {};
     std::optional<std::string>    except                 = {};
+    std::optional<uint64_t>       error_code             = {};
 };
 
 template <typename F>
@@ -207,6 +208,7 @@ constexpr void for_each_field(action_trace_v0*, F f) {
     f("console", abieos::member_ptr<&action_trace_v0::console>{});
     f("account_ram_deltas", abieos::member_ptr<&action_trace_v0::account_ram_deltas>{});
     f("except", abieos::member_ptr<&action_trace_v0::except>{});
+    f("error_code", abieos::member_ptr<&action_trace_v0::error_code>{});
 }
 
 using action_trace = std::variant<action_trace_v0>;
@@ -224,6 +226,7 @@ struct transaction_trace_v0 {
     std::vector<action_trace>              action_traces     = {};
     std::optional<account_delta>           account_ram_delta = {};
     std::optional<std::string>             except            = {};
+    std::optional<uint64_t>                error_code        = {};
     std::vector<recurse_transaction_trace> failed_dtrx_trace = {};
 };
 
@@ -239,6 +242,7 @@ constexpr void for_each_field(transaction_trace_v0*, F f) {
     f("action_traces", abieos::member_ptr<&transaction_trace_v0::action_traces>{});
     f("account_ram_delta", abieos::member_ptr<&transaction_trace_v0::account_ram_delta>{});
     f("except", abieos::member_ptr<&transaction_trace_v0::except>{});
+    f("error_code", abieos::member_ptr<&transaction_trace_v0::error_code>{});
     f("failed_dtrx_trace", abieos::member_ptr<&transaction_trace_v0::failed_dtrx_trace>{});
 }
 

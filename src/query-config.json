@@ -4,7 +4,7 @@
             "name": "block_info",
             "fields": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "type": "uint32"
                 },
                 {
@@ -49,7 +49,7 @@
             "name": "action_trace",
             "fields": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "type": "uint32"
                 },
                 {
@@ -118,7 +118,7 @@
             "name": "account",
             "history_keys": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "desc": true
                 },
                 {
@@ -133,7 +133,7 @@
             ],
             "fields": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "type": "uint32"
                 },
                 {
@@ -182,7 +182,7 @@
             "name": "contract_row",
             "history_keys": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "desc": true
                 },
                 {
@@ -206,7 +206,7 @@
             ],
             "fields": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "type": "uint32"
                 },
                 {
@@ -244,7 +244,7 @@
             "name": "contract_index64",
             "history_keys": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "desc": true
                 },
                 {
@@ -268,7 +268,7 @@
             ],
             "fields": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "type": "uint32"
                 },
                 {
@@ -312,7 +312,7 @@
             "max_results": 100,
             "sort_keys": [
                 {
-                    "name": "block_index"
+                    "name": "block_num"
                 }
             ]
         },
@@ -322,7 +322,7 @@
             "function": "at_executed_range_name_receiver_account_block_trans_action",
             "table": "action_trace",
             "max_results": 100,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "name"
@@ -334,7 +334,7 @@
                     "name": "account"
                 },
                 {
-                    "name": "block_index"
+                    "name": "block_num"
                 },
                 {
                     "name": "transaction_id"
@@ -354,7 +354,7 @@
             "table": "account",
             "max_results": 100,
             "is_state": true,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "name"
@@ -363,12 +363,12 @@
         },
         {
             "wasm_name": "cr.ctps",
-            "index": "contract_row_code_table_primary_key_scope_block_index_prese_idx",
+            "index": "contract_row_code_table_primary_key_scope_block_num_prese_idx",
             "function": "contract_row_range_code_table_pk_scope",
             "table": "contract_row",
             "max_results": 100,
             "is_state": true,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "code"
@@ -386,12 +386,12 @@
         },
         {
             "wasm_name": "cr.ctsp",
-            "index": "contract_row_code_table_scope_primary_key_block_index_prese_idx",
+            "index": "contract_row_code_table_scope_primary_key_block_num_prese_idx",
             "function": "contract_row_range_code_table_scope_pk",
             "table": "contract_row",
             "max_results": 100,
             "is_state": true,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "code"
@@ -409,12 +409,12 @@
         },
         {
             "wasm_name": "cr.stpc",
-            "index": "contract_row_scope_table_primary_key_code_block_index_prese_idx",
+            "index": "contract_row_scope_table_primary_key_code_block_num_prese_idx",
             "function": "contract_row_range_scope_table_pk_code",
             "table": "contract_row",
             "max_results": 100,
             "is_state": true,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "scope"
@@ -432,12 +432,12 @@
         },
         {
             "wasm_name": "ci1.cts2p",
-            "index": "contract_index64_code_table_scope_sk_pk_block_index_prese_idx",
+            "index": "contract_index64_code_table_scope_sk_pk_block_num_prese_idx",
             "function": "contract_index64_range_code_table_scope_sk_pk",
             "table": "contract_index64",
             "max_results": 100,
             "is_state": true,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "code"
@@ -477,8 +477,8 @@
             ],
             "fields_from_join": [
                 {
-                    "name": "block_index",
-                    "new_name": "row_block_index"
+                    "name": "block_num",
+                    "new_name": "row_block_num"
                 },
                 {
                     "name": "present",

@@ -85,7 +85,7 @@ void for_each_member(block_info*, F f) {
 
 /// Details about action execution
 struct action_trace {
-    uint32_t                               block_index             = {};
+    uint32_t                               block_num               = {};
     checksum256                            transaction_id          = {};
     uint32_t                               action_index            = {};
     uint32_t                               parent_action_index     = {};
@@ -103,7 +103,7 @@ struct action_trace {
     int64_t                                elapsed                 = {};
 
     EOSLIB_SERIALIZE(
-        action_trace, (block_index)(transaction_id)(action_index)(parent_action_index)(transaction_status)(receipt_receiver)(
+        action_trace, (block_num)(transaction_id)(action_index)(parent_action_index)(transaction_status)(receipt_receiver)(
                           receipt_act_digest)(receipt_global_sequence)(receipt_recv_sequence)(receipt_code_sequence)(receipt_abi_sequence)(
                           account)(name)(data)(context_free)(elapsed))
 };
@@ -113,7 +113,7 @@ inline std::string_view schema_type_name(action_trace*) { return "eosio::action_
 
 /// Details about an account
 struct account {
-    uint32_t                               block_index      = {};
+    uint32_t                               block_num        = {};
     bool                                   present          = {};
     eosio::name                            name             = {};
     uint8_t                                vm_type          = {};
@@ -126,7 +126,7 @@ struct account {
     shared_memory<datastream<const char*>> abi              = {};
 
     EOSLIB_SERIALIZE(
-        account, (block_index)(present)(name)(vm_type)(vm_version)(privileged)(last_code_update)(code_version)(creation_date)(code)(abi))
+        account, (block_num)(present)(name)(vm_type)(vm_version)(privileged)(last_code_update)(code_version)(creation_date)(code)(abi))
 };
 
 /// \exclude
@@ -135,7 +135,7 @@ inline std::string_view schema_type_name(account*) { return "eosio::account"; }
 /// \exclude
 template <typename F>
 void for_each_member(account*, F f) {
-    STRUCT_MEMBER(account, block_index)
+    STRUCT_MEMBER(account, block_num)
     STRUCT_MEMBER(account, present)
     STRUCT_MEMBER(account, name)
     STRUCT_MEMBER(account, vm_type)
@@ -150,7 +150,7 @@ void for_each_member(account*, F f) {
 
 /// A row in a contract's table
 struct contract_row {
-    uint32_t                               block_index = {};
+    uint32_t                               block_num   = {};
     bool                                   present     = {};
     name                                   code        = {};
     uint64_t                               scope       = {};
@@ -166,18 +166,18 @@ inline std::string_view schema_type_name(contract_row*) { return "eosio::contrac
 /// A secondary index entry in a contract's table. Also includes fields from `contract_row`.
 template <typename T>
 struct contract_secondary_index_with_row {
-    uint32_t                               block_index     = {};
-    bool                                   present         = {};
-    name                                   code            = {};
-    uint64_t                               scope           = {};
-    name                                   table           = {};
-    uint64_t                               primary_key     = {};
-    name                                   payer           = {};
-    T                                      secondary_key   = {};
-    uint32_t                               row_block_index = {};
-    bool                                   row_present     = {};
-    name                                   row_payer       = {};
-    shared_memory<datastream<const char*>> row_value       = {};
+    uint32_t                               block_num     = {};
+    bool                                   present       = {};
+    name                                   code          = {};
+    uint64_t                               scope         = {};
+    name                                   table         = {};
+    uint64_t                               primary_key   = {};
+    name                                   payer         = {};
+    T                                      secondary_key = {};
+    uint32_t                               row_block_num = {};
+    bool                                   row_present   = {};
+    name                                   row_payer     = {};
+    shared_memory<datastream<const char*>> row_value     = {};
 };
 
 /// \output_section Queries
@@ -206,7 +206,7 @@ struct query_block_info_range_index {
 ///     eosio::name     name             = {};
 ///     eosio::name     receipt_receiver = {};
 ///     eosio::name     account          = {};
-///     uint32_t        block_index      = {};
+///     uint32_t        block_num        = {};
 ///     checksum256     transaction_id   = {};
 ///     uint32_t        action_index     = {};
 ///
@@ -219,7 +219,7 @@ struct query_action_trace_executed_range_name_receiver_account_block_trans_actio
         eosio::name name             = {};
         eosio::name receipt_receiver = {};
         eosio::name account          = {};
-        uint32_t    block_index      = {};
+        uint32_t    block_num        = {};
         checksum256 transaction_id   = {};
         uint32_t    action_index     = {};
 
@@ -229,7 +229,7 @@ struct query_action_trace_executed_range_name_receiver_account_block_trans_actio
                 .name             = data.name,
                 .receipt_receiver = data.receipt_receiver,
                 .account          = data.account,
-                .block_index      = data.block_index,
+                .block_num        = data.block_num,
                 .transaction_id   = data.transaction_id,
                 .action_index     = data.action_index,
             };
@@ -256,7 +256,7 @@ struct query_action_trace_executed_range_name_receiver_account_block_trans_actio
 inline bool increment_key(query_action_trace_executed_range_name_receiver_account_block_trans_action::key& key) {
     return increment_key(key.action_index) &&     //
            increment_key(key.transaction_id) &&   //
-           increment_key(key.block_index) &&      //
+           increment_key(key.block_num) &&        //
            increment_key(key.account) &&          //
            increment_key(key.receipt_receiver) && //
            increment_key(key.name);

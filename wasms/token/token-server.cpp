@@ -21,7 +21,7 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
                 .name             = "transfer"_n,
                 .receipt_receiver = req.first_key.receipt_receiver,
                 .account          = req.first_key.account,
-                .block_index      = get_block_num(req.first_key.block, status),
+                .block_num        = get_block_num(req.first_key.block, status),
                 .transaction_id   = req.first_key.transaction_id,
                 .action_index     = req.first_key.action_index,
             },
@@ -30,7 +30,7 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
                 .name             = "transfer"_n,
                 .receipt_receiver = req.last_key.receipt_receiver,
                 .account          = req.last_key.account,
-                .block_index      = get_block_num(req.last_key.block, status),
+                .block_num        = get_block_num(req.last_key.block, status),
                 .transaction_id   = req.last_key.transaction_id,
                 .action_index     = req.last_key.action_index,
             },
@@ -55,7 +55,7 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
                     {
                         .receipt_receiver = at.receipt_receiver,
                         .account          = at.account,
-                        .block            = eosio::make_absolute_block(at.block_index),
+                        .block            = eosio::make_absolute_block(at.block_num),
                         .transaction_id   = at.transaction_id,
                         .action_index     = at.action_index,
                     },
@@ -72,7 +72,7 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
         response.more = token_transfer_key{
             .receipt_receiver = last_key->receipt_receiver,
             .account          = last_key->account,
-            .block            = eosio::make_absolute_block(last_key->block_index),
+            .block            = eosio::make_absolute_block(last_key->block_num),
             .transaction_id   = last_key->transaction_id,
             .action_index     = last_key->action_index,
         };

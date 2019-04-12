@@ -303,8 +303,8 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
 
         query = R"(
             create function chain.trim_history(
-                prev_block_index bigint,
-                irrev_block_index bigint
+                prev_block_num bigint,
+                irrev_block_num bigint
             ) returns void
             as $$
                 declare
@@ -326,8 +326,8 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                     delete from )" +
                      t.quote_name(config->schema) + "." + t.quote_name(table) + R"(
                     where
-                        block_num >= prev_block_index
-                        and block_num < irrev_block_index;
+                        block_num >= prev_block_num
+                        and block_num < irrev_block_num;
                     )";
         }
 
@@ -341,7 +341,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                             )" +
                          t.quote_name(config->schema) + "." + t.quote_name(table.type) + R"(
                         where
-                            block_num > prev_block_index and block_num <= irrev_block_index
+                            block_num > prev_block_num and block_num <= irrev_block_num
                         order by block_num desc, present desc
                         limit 1
                     loop
@@ -372,7 +372,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                             )" +
                          t.quote_name(config->schema) + "." + t.quote_name(table.type) + R"(
                         where
-                            block_num > prev_block_index and block_num <= irrev_block_index
+                            block_num > prev_block_num and block_num <= irrev_block_num
                         order by )" +
                          keys + R"(, block_num desc, present desc
                     loop

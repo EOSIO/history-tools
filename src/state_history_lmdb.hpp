@@ -374,12 +374,12 @@ void for_each_subkey(transaction& t, database& d, const std::vector<char>& lower
 // Description                      Notes   Data format         Key format
 // =======================================================================================================
 // fill_status                              fill_status         key_tag::fill_status
-// received_block                   1       received_block      key_tag::block,             block_index,    key_tag::received_block
-// table row (non-state tables)     1       row content         key_tag::block,             block_index,    key_tag::table_row,         table_name,         primary key fields
-// table delta (state tables)       1       row content         key_tag::block,             block_index,    key_tag::table_delta,       table_name,         present,        primary key fields
+// received_block                   1       received_block      key_tag::block,             block_num,      key_tag::received_block
+// table row (non-state tables)     1       row content         key_tag::block,             block_num,      key_tag::table_row,         table_name,         primary key fields
+// table delta (state tables)       1       row content         key_tag::block,             block_num,      key_tag::table_delta,       table_name,         present,        primary key fields
 // table index (non-state tables)           table delta's key   key_tag::table_index,       table_name,     index_name,                 index fields
-// table index (state tables)               table delta's key   key_tag::table_index,       table_name,     index_name,                 index fields,       ~block_index,   !present
-// table index reference            2       table index's key   key_tag::table_index_ref,   block_index,    table's key,                table index's key
+// table index (state tables)               table delta's key   key_tag::table_index,       table_name,     index_name,                 index fields,       ~block_num,     !present
+// table index reference            2       table index's key   key_tag::table_index_ref,   block_num,      table's key,                table index's key
 //
 // Notes
 //  *: Keys are serialized in lexigraphical sort order. See native_to_bin_key() and bin_to_native_key().
@@ -457,13 +457,13 @@ inline std::vector<char> make_fill_status_key() {
 }
 
 struct received_block {
-    uint32_t            block_index = {};
-    abieos::checksum256 block_id    = {};
+    uint32_t            block_num = {};
+    abieos::checksum256 block_id  = {};
 };
 
 template <typename F>
 constexpr void for_each_field(received_block*, F f) {
-    f("block_index", abieos::member_ptr<&received_block::block_index>{});
+    f("block_num", abieos::member_ptr<&received_block::block_num>{});
     f("block_id", abieos::member_ptr<&received_block::block_id>{});
 }
 

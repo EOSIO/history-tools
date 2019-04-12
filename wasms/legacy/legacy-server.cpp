@@ -193,14 +193,14 @@ void get_table_rows_primary(
             {
                 .code        = params.code,
                 .table       = params.table,
-                .scope       = scope,
+                .scope       = eosio::name{scope},
                 .primary_key = lower_bound,
             },
         .last =
             {
                 .code        = params.code,
                 .table       = params.table,
-                .scope       = scope,
+                .scope       = eosio::name{scope},
                 .primary_key = upper_bound,
             },
         .max_results = std::min((uint32_t)100, params.limit),
@@ -253,7 +253,7 @@ void get_table_rows_secondary(
             {
                 .code          = params.code,
                 .table         = params.table,
-                .scope         = scope,
+                .scope         = eosio::name{scope},
                 .secondary_key = lower_bound,
                 .primary_key   = 0,
             },
@@ -261,7 +261,7 @@ void get_table_rows_secondary(
             {
                 .code          = params.code,
                 .table         = params.table,
-                .scope         = scope,
+                .scope         = eosio::name{scope},
                 .secondary_key = upper_bound,
                 .primary_key   = 0xffff'ffff'ffff'ffff,
             },

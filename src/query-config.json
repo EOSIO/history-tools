@@ -57,16 +57,20 @@
                     "type": "checksum256"
                 },
                 {
-                    "name": "action_index",
-                    "type": "uint32"
-                },
-                {
-                    "name": "parent_action_index",
-                    "type": "uint32"
-                },
-                {
                     "name": "transaction_status",
                     "type": "transaction_status"
+                },
+                {
+                    "name": "action_ordinal",
+                    "type": "varuint32"
+                },
+                {
+                    "name": "creator_action_ordinal",
+                    "type": "varuint32"
+                },
+                {
+                    "name": "receipt_present",
+                    "type": "bool"
                 },
                 {
                     "name": "receipt_receiver",
@@ -93,15 +97,19 @@
                     "type": "varuint32"
                 },
                 {
-                    "name": "account",
+                    "name": "receiver",
                     "type": "name"
                 },
                 {
-                    "name": "name",
+                    "name": "act_account",
                     "type": "name"
                 },
                 {
-                    "name": "data",
+                    "name": "act_name",
+                    "type": "name"
+                },
+                {
+                    "name": "act_data",
                     "type": "bytes"
                 },
                 {
@@ -111,6 +119,18 @@
                 {
                     "name": "elapsed",
                     "type": "int64"
+                },
+                {
+                    "name": "console",
+                    "type": "string"
+                },
+                {
+                    "name": "except",
+                    "type": "string"
+                },
+                {
+                    "name": "error_code",
+                    "type": "uint64"
                 }
             ]
         },
@@ -325,13 +345,13 @@
             "limit_block_num": true,
             "sort_keys": [
                 {
-                    "name": "name"
+                    "name": "act_name"
                 },
                 {
-                    "name": "receipt_receiver"
+                    "name": "receiver"
                 },
                 {
-                    "name": "account"
+                    "name": "act_account"
                 },
                 {
                     "name": "block_num"
@@ -340,7 +360,7 @@
                     "name": "transaction_id"
                 },
                 {
-                    "name": "action_index"
+                    "name": "action_ordinal"
                 }
             ],
             "conditions": [

@@ -267,18 +267,18 @@ async function dump_tokens(clientWasm, account, max_block, first_key, last_key) 
 
 async function dump_transfers(clientWasm) {
     let first_key = {
-        receipt_receiver: 'eosio.bpay',
+        receiver: 'eosio.bpay',
         account: 'eosio.token',
         block: ['absolute', 0],
         transaction_id: '0000000000000000000000000000000000000000000000000000000000000000',
-        action_index: 0,
+        action_ordinal: 0,
     };
     let last_key = {
-        receipt_receiver: 'eosio.bpay',
+        receiver: 'eosio.bpay',
         account: 'eosio.token',
         block: ['irreversible', 0],
         transaction_id: 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
-        action_index: 0xffffffff,
+        action_ordinal: 0xffffffff,
     };
 
     let i = 0;

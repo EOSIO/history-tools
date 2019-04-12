@@ -84,28 +84,45 @@ void for_each_member(block_info*, F f) {
 }
 
 /// Details about action execution
+struct receipt {
+    eosio::name  receiver        = {};
+    checksum256  act_digest      = {};
+    uint64_t     global_sequence = {};
+    uint64_t     recv_sequence   = {};
+    unsigned_int code_sequence   = {};
+    unsigned_int abi_sequence    = {};
+
+    EOSLIB_SERIALIZE(receipt, (receiver)(act_digest)(global_sequence)(recv_sequence)(code_sequence)(abi_sequence))
+};
+
+/// Details about action execution
+struct action {
+    eosio::name                            account = {};
+    eosio::name                            name    = {};
+    shared_memory<datastream<const char*>> data    = {};
+
+    EOSLIB_SERIALIZE(action, (account)(name)(data))
+};
+
+/// Details about action execution
 struct action_trace {
-    uint32_t                               block_num               = {};
-    checksum256                            transaction_id          = {};
-    uint32_t                               action_index            = {};
-    uint32_t                               parent_action_index     = {};
-    eosio::transaction_status              transaction_status      = {};
-    eosio::name                            receipt_receiver        = {};
-    checksum256                            receipt_act_digest      = {};
-    uint64_t                               receipt_global_sequence = {};
-    uint64_t                               receipt_recv_sequence   = {};
-    unsigned_int                           receipt_code_sequence   = {};
-    unsigned_int                           receipt_abi_sequence    = {};
-    eosio::name                            account                 = {};
-    eosio::name                            name                    = {};
-    shared_memory<datastream<const char*>> data                    = {};
-    bool                                   context_free            = {};
-    int64_t                                elapsed                 = {};
+    uint32_t                  block_num              = {};
+    checksum256               transaction_id         = {};
+    eosio::transaction_status transaction_status     = {};
+    unsigned_int              action_ordinal         = {};
+    unsigned_int              creator_action_ordinal = {};
+    std::optional<receipt>    receipt                = {};
+    eosio::name               receiver               = {};
+    struct action             action                 = {};
+    bool                      context_free           = {};
+    int64_t                   elapsed                = {};
+    std::string               console                = {};
+    std::string               except                 = {};
+    uint64_t                  error_code             = {};
 
     EOSLIB_SERIALIZE(
-        action_trace, (block_num)(transaction_id)(action_index)(parent_action_index)(transaction_status)(receipt_receiver)(
-                          receipt_act_digest)(receipt_global_sequence)(receipt_recv_sequence)(receipt_code_sequence)(receipt_abi_sequence)(
-                          account)(name)(data)(context_free)(elapsed))
+        action_trace, (block_num)(transaction_id)(transaction_status)(action_ordinal)(creator_action_ordinal)(receipt)(receiver)(action)(
+                          context_free)(elapsed)(console)(except)(error_code))
 };
 
 /// \exclude
@@ -153,7 +170,7 @@ struct contract_row {
     uint32_t                               block_num   = {};
     bool                                   present     = {};
     name                                   code        = {};
-    uint64_t                               scope       = {};
+    name                                   scope       = {};
     name                                   table       = {};
     uint64_t                               primary_key = {};
     name                                   payer       = {};
@@ -169,7 +186,7 @@ struct contract_secondary_index_with_row {
     uint32_t                               block_num     = {};
     bool                                   present       = {};
     name                                   code          = {};
-    uint64_t                               scope         = {};
+    name                                   scope         = {};
     name                                   table         = {};
     uint64_t                               primary_key   = {};
     name                                   payer         = {};
@@ -204,11 +221,11 @@ struct query_block_info_range_index {
 /// ```c++
 /// struct key {
 ///     eosio::name     name             = {};
-///     eosio::name     receipt_receiver = {};
+///     eosio::name     receiver         = {};
 ///     eosio::name     account          = {};
 ///     uint32_t        block_num        = {};
 ///     checksum256     transaction_id   = {};
-///     uint32_t        action_index     = {};
+///     uint32_t        action_ordinal   = {};
 ///
 ///     // Construct the key from `data`
 ///     static key from_data(const action_trace& data);
@@ -216,22 +233,22 @@ struct query_block_info_range_index {
 /// ```
 struct query_action_trace_executed_range_name_receiver_account_block_trans_action {
     struct key {
-        eosio::name name             = {};
-        eosio::name receipt_receiver = {};
-        eosio::name account          = {};
-        uint32_t    block_num        = {};
-        checksum256 transaction_id   = {};
-        uint32_t    action_index     = {};
+        eosio::name name           = {};
+        eosio::name receiver       = {};
+        eosio::name account        = {};
+        uint32_t    block_num      = {};
+        checksum256 transaction_id = {};
+        uint32_t    action_ordinal = {};
 
         // Extract the key from `data`
         static key from_data(const action_trace& data) {
             return {
-                .name             = data.name,
-                .receipt_receiver = data.receipt_receiver,
-                .account          = data.account,
-                .block_num        = data.block_num,
-                .transaction_id   = data.transaction_id,
-                .action_index     = data.action_index,
+                .name           = data.action.name,
+                .receiver       = data.receiver,
+                .account        = data.action.account,
+                .block_num      = data.block_num,
+                .transaction_id = data.transaction_id,
+                .action_ordinal = data.action_ordinal,
             };
         }
     };
@@ -254,11 +271,11 @@ struct query_action_trace_executed_range_name_receiver_account_block_trans_actio
 
 /// \group increment_key
 inline bool increment_key(query_action_trace_executed_range_name_receiver_account_block_trans_action::key& key) {
-    return increment_key(key.action_index) &&     //
-           increment_key(key.transaction_id) &&   //
-           increment_key(key.block_num) &&        //
-           increment_key(key.account) &&          //
-           increment_key(key.receipt_receiver) && //
+    return increment_key(key.action_ordinal) && //
+           increment_key(key.transaction_id) && //
+           increment_key(key.block_num) &&      //
+           increment_key(key.account) &&        //
+           increment_key(key.receiver) &&       //
            increment_key(key.name);
 }
 
@@ -289,7 +306,7 @@ struct query_account_range_name {
 ///     name     code        = {};
 ///     name     table       = {};
 ///     uint64_t primary_key = {};
-///     uint64_t scope       = {};
+///     name     scope       = {};
 ///
 ///     // Construct the key from `data`
 ///     static key from_data(const contract_row& data);
@@ -300,7 +317,7 @@ struct query_contract_row_range_code_table_pk_scope {
         name     code        = {};
         name     table       = {};
         uint64_t primary_key = {};
-        uint64_t scope       = {};
+        name     scope       = {};
 
         // Extract the key from `data`
         static key from_data(const contract_row& data) {
@@ -344,7 +361,7 @@ inline bool increment_key(query_contract_row_range_code_table_pk_scope::key& key
 /// struct key {
 ///     name     code        = {};
 ///     name     table       = {};
-///     uint64_t scope       = {};
+///     name     scope       = {};
 ///     uint64_t primary_key = {};
 ///
 ///     // Construct the key from `data`
@@ -355,7 +372,7 @@ struct query_contract_row_range_code_table_scope_pk {
     struct key {
         name     code        = {};
         name     table       = {};
-        uint64_t scope       = {};
+        name     scope       = {};
         uint64_t primary_key = {};
 
         // Extract the key from `data`
@@ -398,7 +415,7 @@ inline bool increment_key(query_contract_row_range_code_table_scope_pk::key& key
 /// The query results are sorted by `key`. Every record has a different key.
 /// ```c++
 /// struct key {
-///     uint64_t scope       = {};
+///     name     scope       = {};
 ///     name     table       = {};
 ///     uint64_t primary_key = {};
 ///     name     code        = {};
@@ -409,7 +426,7 @@ inline bool increment_key(query_contract_row_range_code_table_scope_pk::key& key
 /// ```
 struct query_contract_row_range_scope_table_pk_code {
     struct key {
-        uint64_t scope       = {};
+        name     scope       = {};
         name     table       = {};
         uint64_t primary_key = {};
         name     code        = {};
@@ -456,7 +473,7 @@ inline bool increment_key(query_contract_row_range_scope_table_pk_code::key& key
 /// struct key {
 ///     name     code          = {};
 ///     name     table         = {};
-///     uint64_t scope         = {};
+///     name     scope         = {};
 ///     uint64_t secondary_key = {};
 ///     uint64_t primary_key   = {};
 ///
@@ -468,7 +485,7 @@ struct query_contract_index64_range_code_table_scope_sk_pk {
     struct key {
         name     code          = {};
         name     table         = {};
-        uint64_t scope         = {};
+        name     scope         = {};
         uint64_t secondary_key = {};
         uint64_t primary_key   = {};
 

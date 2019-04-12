@@ -173,6 +173,8 @@ std::string sql_str(pqxx::connection& c, bool bulk, const T& obj) {
     if constexpr (abieos::is_optional_v<T>) {
         if (obj)
             return sql_str(c, bulk, *obj);
+        else if (std::is_arithmetic_v<typename T::value_type>)
+            return "0";
         else if (abieos::is_string_v<typename T::value_type>)
             return quote(bulk, "");
         else
@@ -187,6 +189,8 @@ std::string bin_to_sql(pqxx::connection& c, bool bulk, abieos::input_buffer& bin
     if constexpr (abieos::is_optional_v<T>) {
         if (abieos::read_raw<bool>(bin))
             return bin_to_sql<typename T::value_type>(c, bulk, bin);
+        else if (std::is_arithmetic_v<typename T::value_type>)
+            return "0";
         else if (abieos::is_string_v<typename T::value_type>)
             return quote(bulk, "");
         else
@@ -289,7 +293,7 @@ template <> inline void sql_to_bin<abieos::block_timestamp>    (std::vector<char
 template <> inline void sql_to_bin<abieos::checksum256>        (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_to_checksum256(f.c_str())); }
 template <> inline void sql_to_bin<abieos::public_key>         (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<public_key> not implemented"); }
 template <> inline void sql_to_bin<abieos::bytes>              (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_to_bytes(f.c_str())); }
-template <> inline void sql_to_bin<std::string>                (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<std::string> not implemented"); }
+template <> inline void sql_to_bin<std::string>                (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, std::string{f.c_str()}); } // todo: unescape
 template <> inline void sql_to_bin<abieos::input_buffer>       (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<input_buffer> not implemented"); }
 // clang-format on
 

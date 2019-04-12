@@ -292,25 +292,23 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         action_trace_table->short_name = "atrace"_n;
         fill_fields(*action_trace_table, "", abieos::abi_field{"block_num", &get_type("uint32")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"transaction_id", &get_type("checksum256")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"action_index", &get_type("uint32")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"parent_action_index", &get_type("uint32")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"transaction_status", &get_type("uint8")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_receiver", &get_type("name")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_act_digest", &get_type("checksum256")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_global_sequence", &get_type("uint64")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_recv_sequence", &get_type("uint64")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_code_sequence", &get_type("varuint32")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_abi_sequence", &get_type("varuint32")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"account", &get_type("name")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"name", &get_type("name")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"data", &get_type("bytes")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"action_ordinal", &get_type("varuint32")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"creator_action_ordinal", &get_type("varuint32")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"receiver", &get_type("name")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"act_account", &get_type("name")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"act_name", &get_type("name")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"act_data", &get_type("bytes")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"context_free", &get_type("bool")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"elapsed", &get_type("int64")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"console", &get_type("string")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"except", &get_type("string")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"error_code", &get_type("uint64")});
         auto& action_trace_trim = action_trace_table->indexes["trim"_n];
         action_trace_trim.name  = "trim"_n;
         action_trace_trim.fields.push_back(action_trace_table->field_map["block_num"]);
         action_trace_trim.fields.push_back(action_trace_table->field_map["transaction_id"]);
-        action_trace_trim.fields.push_back(action_trace_table->field_map["action_index"]);
+        action_trace_trim.fields.push_back(action_trace_table->field_map["action_ordinal"]);
     } // init_tables
 
     void init_indexes() {
@@ -612,21 +610,31 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     void receive_traces(lmdb::transaction& t, uint32_t block_num, input_buffer buf) {
         auto         data = zlib_decompress(buf);
         input_buffer bin{data.data(), data.data() + data.size()};
-        auto         num = read_varuint32(bin);
+        auto         num          = read_varuint32(bin);
+        uint32_t     num_ordinals = 0;
         for (uint32_t i = 0; i < num; ++i) {
             state_history::transaction_trace trace;
             bin_to_native(trace, bin);
-            write_transaction_trace(t, block_num, trace);
+            write_transaction_trace(t, block_num, num_ordinals, std::get<state_history::transaction_trace_v0>(trace));
         }
     }
 
-    void write_transaction_trace(lmdb::transaction& t, uint32_t block_num, const state_history::transaction_trace& ttrace) {
+    void write_transaction_trace(
+        lmdb::transaction& t, uint32_t block_num, uint32_t& num_ordinals, const state_history::transaction_trace_v0& ttrace) {
+        auto* failed = !ttrace.failed_dtrx_trace.empty()
+                           ? &std::get<state_history::transaction_trace_v0>(ttrace.failed_dtrx_trace[0].recurse)
+                           : nullptr;
+        if (failed)
+            write_transaction_trace(t, block_num, num_ordinals, *failed);
+        uint32_t transaction_ordinal = ++num_ordinals;
+
         std::vector<char> key;
         lmdb::append_transaction_trace_key(key, block_num, ttrace.id);
 
         std::vector<char> value;
         abieos::native_to_bin(value, block_num);
-        abieos::native_to_bin(value, ttrace.failed_dtrx_trace.empty() ? abieos::checksum256{} : ttrace.failed_dtrx_trace[0].id);
+        abieos::native_to_bin(value, transaction_ordinal);
+        abieos::native_to_bin(value, failed ? failed->id : abieos::checksum256{});
         abieos::native_to_bin(value, ttrace.id);
         abieos::native_to_bin(value, (uint8_t)ttrace.status);
         abieos::native_to_bin(value, ttrace.cpu_usage_us);
@@ -634,26 +642,27 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         abieos::native_to_bin(value, ttrace.elapsed);
         abieos::native_to_bin(value, ttrace.net_usage);
         abieos::native_to_bin(value, ttrace.scheduled);
+        abieos::native_to_bin(value, ttrace.account_ram_delta.has_value());
+        if (ttrace.account_ram_delta) {
+            abieos::native_to_bin(value, ttrace.account_ram_delta->account);
+            abieos::native_to_bin(value, ttrace.account_ram_delta->delta);
+        }
         abieos::native_to_bin(value, ttrace.except ? *ttrace.except : "");
+        abieos::native_to_bin(value, ttrace.error_code ? *ttrace.error_code : 0);
 
         // lmdb::put(t, lmdb_inst->db, key, value); // todo: indexes, including trim
 
-        uint32_t          prev_action_index = 0;
         std::vector<char> index_key;
         for (auto& atrace : ttrace.action_traces)
-            write_action_trace(t, block_num, ttrace, atrace, 0, prev_action_index, key, value, index_key);
+            write_action_trace(t, block_num, ttrace, std::get<state_history::action_trace_v0>(atrace), key, value, index_key);
     }
 
     void write_action_trace(
-        lmdb::transaction& t, uint32_t block_num, const state_history::transaction_trace& ttrace, const state_history::action_trace& atrace,
-        uint32_t parent_action_index, uint32_t& prev_action_index, std::vector<char>& key, std::vector<char>& value,
-        std::vector<char>& index_key) {
-
-        auto action_index = ++prev_action_index;
+        lmdb::transaction& t, uint32_t block_num, const state_history::transaction_trace_v0& ttrace,
+        const state_history::action_trace_v0& atrace, std::vector<char>& key, std::vector<char>& value, std::vector<char>& index_key) {
 
         key.clear();
-        lmdb::append_action_trace_key(key, block_num, ttrace.id, action_index);
-
+        lmdb::append_action_trace_key(key, block_num, ttrace.id, atrace.action_ordinal.value);
         value.clear();
 
         std::vector<uint32_t> positions;
@@ -664,20 +673,28 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
 
         f(block_num);
         f(ttrace.id);
-        f(action_index);
-        f(parent_action_index);
         f((uint8_t)ttrace.status);
-        f(atrace.receipt_receiver);
-        f(atrace.receipt_act_digest);
-        f(atrace.receipt_global_sequence);
-        f(atrace.receipt_recv_sequence);
-        f(atrace.receipt_code_sequence);
-        f(atrace.receipt_abi_sequence);
-        f(atrace.account);
-        f(atrace.name);
-        f(atrace.data);
+        f(atrace.action_ordinal);
+        f(atrace.creator_action_ordinal);
+        abieos::native_to_bin(value, atrace.receipt.has_value());
+        if (atrace.receipt) {
+            auto& receipt = std::get<state_history::action_receipt_v0>(*atrace.receipt);
+            abieos::native_to_bin(value, receipt.receiver);
+            abieos::native_to_bin(value, receipt.act_digest);
+            abieos::native_to_bin(value, receipt.global_sequence);
+            abieos::native_to_bin(value, receipt.recv_sequence);
+            abieos::native_to_bin(value, receipt.code_sequence);
+            abieos::native_to_bin(value, receipt.abi_sequence);
+        }
+        f(atrace.receiver);
+        f(atrace.act.account);
+        f(atrace.act.name);
+        f(atrace.act.data);
         f(atrace.context_free);
         f(atrace.elapsed);
+        f(atrace.console);
+        f(atrace.except ? *atrace.except : "");
+        f(atrace.error_code ? *atrace.error_code : 0);
 
         abieos::native_to_bin(value, atrace.console);
         abieos::native_to_bin(value, atrace.except ? *atrace.except : std::string());
@@ -697,9 +714,6 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         // todo: receipt_auth_sequence
         // todo: authorization
         // todo: account_ram_deltas
-
-        for (auto& child : atrace.inline_traces)
-            write_action_trace(t, block_num, ttrace, child, action_index, prev_action_index, key, value, index_key);
     }
 
     template <typename F>

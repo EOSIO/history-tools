@@ -115,7 +115,11 @@ inline void bin_to_bin<state_history::transaction_status>(std::vector<char>& des
 
 template <typename T>
 void bin_to_bin_key(std::vector<char>& dest, abieos::input_buffer& bin) {
-    fixup_key<T>(dest, [&] { bin_to_bin<T>(dest, bin); });
+    if constexpr (std::is_same_v<std::decay_t<T>, abieos::varuint32>) {
+        reverse_bin(dest, [&] { abieos::native_to_bin(dest, abieos::bin_to_native<abieos::varuint32>(bin).value); });
+    } else {
+        fixup_key<T>(dest, [&] { bin_to_bin<T>(dest, bin); });
+    }
 }
 
 template <typename T>

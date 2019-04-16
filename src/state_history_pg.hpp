@@ -205,6 +205,11 @@ std::string native_to_sql(pqxx::connection& c, bool bulk, const void* p) {
     return sql_str(c, bulk, *reinterpret_cast<const T*>(p));
 }
 
+template <typename T>
+std::string empty_to_sql(pqxx::connection& c, bool bulk) {
+    return sql_str(c, bulk, T{});
+}
+
 template <>
 inline std::string bin_to_sql<std::string>(pqxx::connection& c, bool bulk, abieos::input_buffer& bin) {
     return sql_str(c, bulk, read_string(bin));
@@ -230,6 +235,11 @@ inline std::string native_to_sql<abieos::bytes>(pqxx::connection&, bool bulk, co
 }
 
 template <>
+inline std::string empty_to_sql<abieos::bytes>(pqxx::connection&, bool bulk) {
+    return quote_bytea(bulk, "");
+}
+
+template <>
 inline std::string bin_to_sql<abieos::input_buffer>(pqxx::connection&, bool, abieos::input_buffer& bin) {
     throw abieos::error("bin_to_sql: input_buffer unsupported");
 }
@@ -240,6 +250,11 @@ inline std::string native_to_sql<abieos::input_buffer>(pqxx::connection&, bool b
     std::string result;
     abieos::hex(obj.pos, obj.end, back_inserter(result));
     return quote_bytea(bulk, result);
+}
+
+template <>
+inline std::string empty_to_sql<abieos::input_buffer>(pqxx::connection&, bool bulk) {
+    return quote_bytea(bulk, "");
 }
 
 inline abieos::time_point sql_to_time_point(std::string s) {
@@ -301,6 +316,7 @@ struct type {
     const char* name                                                          = "";
     std::string (*bin_to_sql)(pqxx::connection&, bool, abieos::input_buffer&) = nullptr;
     std::string (*native_to_sql)(pqxx::connection&, bool, const void*)        = nullptr;
+    std::string (*empty_to_sql)(pqxx::connection&, bool)                      = nullptr;
     void (*sql_to_bin)(std::vector<char>& bin, const pqxx::field&)            = nullptr;
 };
 
@@ -319,7 +335,7 @@ inline constexpr unknown_type<T> type_for;
 
 template <typename T>
 constexpr type make_type_for(const char* name) {
-    return type{name, bin_to_sql<T>, native_to_sql<T>, sql_to_bin<T>};
+    return type{name, bin_to_sql<T>, native_to_sql<T>, empty_to_sql<T>, sql_to_bin<T>};
 }
 
 // clang-format off

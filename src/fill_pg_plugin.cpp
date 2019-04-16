@@ -189,6 +189,10 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         if (field.type->filled_struct) {
             for (auto& f : field.type->fields)
                 fill_field(t, base_name + field.name + "_", fields, f);
+        } else if (field.type->optional_of && field.type->optional_of->filled_struct) {
+            fields += ", "s + t.quote_name(base_name + field.name + "_present") + " boolean";
+            for (auto& f : field.type->optional_of->fields)
+                fill_field(t, base_name + field.name + "_", fields, f);
         } else if (field.type->filled_variant && field.type->fields.size() == 1 && field.type->fields[0].type->filled_struct) {
             for (auto& f : field.type->fields[0].type->fields)
                 fill_field(t, base_name + field.name + "_", fields, f);
@@ -564,6 +568,24 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         if (field.type->filled_struct) {
             for (auto& f : field.type->fields)
                 fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
+        } else if (field.type->optional_of && field.type->optional_of->filled_struct) {
+            auto present = read_raw<bool>(bin);
+            fields += ", " + t.quote_name(base_name + field.name + "_present");
+            values += sep(bulk) + sql_str(bulk, present);
+            if (present) {
+                for (auto& f : field.type->optional_of->fields)
+                    fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
+            } else {
+                for (auto& f : field.type->optional_of->fields) {
+                    auto it = abi_type_to_sql_type.find(f.type->name);
+                    if (it == abi_type_to_sql_type.end())
+                        throw std::runtime_error("don't know sql type for abi type: " + f.type->name);
+                    if (!it->second.empty_to_sql)
+                        throw std::runtime_error("don't know how to process empty " + field.type->name);
+                    fields += ", " + t.quote_name(base_name + field.name + "_" + f.name);
+                    values += sep(bulk) + it->second.empty_to_sql(*sql_connection, bulk);
+                }
+            }
         } else if (field.type->filled_variant && field.type->fields.size() == 1 && field.type->fields[0].type->filled_struct) {
             auto v = read_varuint32(bin);
             if (v)

@@ -5,6 +5,17 @@
 
 namespace state_history {
 
+struct extension {
+    uint16_t             type = {};
+    abieos::input_buffer data = {};
+};
+
+template <typename F>
+constexpr void for_each_field(extension*, F f) {
+    f("type", abieos::member_ptr<&extension::type>{});
+    f("data", abieos::member_ptr<&extension::data>{});
+}
+
 struct fill_status {
     uint32_t            head            = {};
     abieos::checksum256 head_id         = {};
@@ -213,6 +224,33 @@ constexpr void for_each_field(action_trace_v0*, F f) {
 
 using action_trace = std::variant<action_trace_v0>;
 
+struct partial_transaction_v0 {
+    abieos::time_point_sec            expiration             = {};
+    uint16_t                          ref_block_num          = {};
+    uint32_t                          ref_block_prefix       = {};
+    abieos::varuint32                 max_net_usage_words    = {};
+    uint8_t                           max_cpu_usage_ms       = {};
+    abieos::varuint32                 delay_sec              = {};
+    std::vector<extension>            transaction_extensions = {}; // todo: fill-pg
+    std::vector<abieos::signature>    signatures             = {}; // todo: fill-pg
+    std::vector<abieos::input_buffer> context_free_data      = {}; // todo: fill-pg
+};
+
+template <typename F>
+constexpr void for_each_field(partial_transaction_v0*, F f) {
+    f("expiration", abieos::member_ptr<&partial_transaction_v0::expiration>{});
+    f("ref_block_num", abieos::member_ptr<&partial_transaction_v0::ref_block_num>{});
+    f("ref_block_prefix", abieos::member_ptr<&partial_transaction_v0::ref_block_prefix>{});
+    f("max_net_usage_words", abieos::member_ptr<&partial_transaction_v0::max_net_usage_words>{});
+    f("max_cpu_usage_ms", abieos::member_ptr<&partial_transaction_v0::max_cpu_usage_ms>{});
+    f("delay_sec", abieos::member_ptr<&partial_transaction_v0::delay_sec>{});
+    f("transaction_extensions", abieos::member_ptr<&partial_transaction_v0::transaction_extensions>{});
+    f("signatures", abieos::member_ptr<&partial_transaction_v0::signatures>{});
+    f("context_free_data", abieos::member_ptr<&partial_transaction_v0::context_free_data>{});
+}
+
+using partial_transaction = std::variant<partial_transaction_v0>;
+
 struct recurse_transaction_trace;
 
 struct transaction_trace_v0 {
@@ -228,6 +266,7 @@ struct transaction_trace_v0 {
     std::optional<std::string>             except            = {};
     std::optional<uint64_t>                error_code        = {};
     std::vector<recurse_transaction_trace> failed_dtrx_trace = {};
+    std::optional<partial_transaction>     partial           = {};
 };
 
 template <typename F>
@@ -244,6 +283,7 @@ constexpr void for_each_field(transaction_trace_v0*, F f) {
     f("except", abieos::member_ptr<&transaction_trace_v0::except>{});
     f("error_code", abieos::member_ptr<&transaction_trace_v0::error_code>{});
     f("failed_dtrx_trace", abieos::member_ptr<&transaction_trace_v0::failed_dtrx_trace>{});
+    f("partial", abieos::member_ptr<&transaction_trace_v0::partial>{});
 }
 
 using transaction_trace = std::variant<transaction_trace_v0>;
@@ -269,17 +309,6 @@ template <typename F>
 constexpr void for_each_field(producer_key*, F f) {
     f("producer_name", abieos::member_ptr<&producer_key::producer_name>{});
     f("block_signing_key", abieos::member_ptr<&producer_key::block_signing_key>{});
-}
-
-struct extension {
-    uint16_t             type = {};
-    abieos::input_buffer data = {};
-};
-
-template <typename F>
-constexpr void for_each_field(extension*, F f) {
-    f("type", abieos::member_ptr<&extension::type>{});
-    f("data", abieos::member_ptr<&extension::data>{});
 }
 
 struct producer_schedule {

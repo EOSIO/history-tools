@@ -112,6 +112,14 @@ STRUCT_REFLECT(get_block_params) {
     STRUCT_MEMBER(get_block_params, block_num_or_id);
 }
 
+struct get_account_params {
+    eosio::name account_name = {};
+};
+
+STRUCT_REFLECT(get_account_params) {
+    STRUCT_MEMBER(get_account_params, account_name);
+}
+
 template <int size>
 bool starts_with(std::string_view s, const char (&prefix)[size]) {
     if (s.size() < size)
@@ -363,6 +371,24 @@ void get_block(std::string_view request, const eosio::database_status& status) {
     eosio::set_output_data(result);
 }
 
+void get_account(std::string_view request, const eosio::database_status& status) {
+    auto params = eosio::parse_json<get_account_params>(request);
+
+    auto s = query_database(eosio::query_account_range_name{
+        .max_block = std::numeric_limits<uint32_t>::max(),
+        .first = params.account_name,
+        .last = params.account_name,
+        .max_results = 1,
+    });
+
+    std::string result;
+    eosio::for_each_query_result<eosio::account>(s, [&](eosio::account& r) {
+        result += to_json(r).sv();
+        return true;
+    });
+    eosio::set_output_data(result);
+}
+
 struct request_data {
     eosio::shared_memory<std::string_view> target  = {};
     eosio::shared_memory<std::string_view> request = {};
@@ -379,6 +405,8 @@ extern "C" void run_query() {
         get_transaction(*request.request, status);
     else if (*request.target == "/v1/chain/get_block")
         get_block(*request.request, status);
+    else if (*request.target == "/v1/chain/get_account")
+        get_account(*request.request, status);
     else
         eosio::check(false, "not found");
 }

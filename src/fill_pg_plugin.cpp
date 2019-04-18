@@ -205,6 +205,15 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             t.exec(query);
             fields += ", " + t.quote_name(base_name + field.name) + " " + t.quote_name(config->schema) + "." +
                       t.quote_name(field.type->array_of->name) + "[]";
+        } else if (field.type->array_of && field.type->array_of->filled_variant && field.type->array_of->fields[0].type->filled_struct) {
+            auto*       s = field.type->array_of->fields[0].type;
+            std::string sub_fields;
+            for (auto& f : s->fields)
+                fill_field(t, "", sub_fields, f);
+            std::string query =
+                "create type " + t.quote_name(config->schema) + "." + t.quote_name(s->name) + " as (" + sub_fields.substr(2) + ")";
+            t.exec(query);
+            fields += ", " + t.quote_name(base_name + field.name) + " " + t.quote_name(config->schema) + "." + t.quote_name(s->name) + "[]";
         } else {
             auto abi_type = field.type->name;
             if (abi_type.size() >= 1 && abi_type.back() == '?')
@@ -611,6 +620,28 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                 values += end_object_in_array(bulk);
             }
             values += end_array(bulk, t, config->schema, field.type->array_of->name);
+        } else if (field.type->array_of && field.type->array_of->filled_variant && field.type->array_of->fields[0].type->filled_struct) {
+            auto* s = field.type->array_of->fields[0].type;
+            fields += ", " + t.quote_name(base_name + field.name);
+            values += sep(bulk) + begin_array(bulk);
+            uint32_t n = read_varuint32(bin);
+            for (uint32_t i = 0; i < n; ++i) {
+                if (read_varuint32(bin) != 0)
+                    throw std::runtime_error("expected 0 variant index");
+                if (i)
+                    values += ",";
+                values += begin_object_in_array(bulk);
+                std::string struct_fields;
+                std::string struct_values;
+                for (auto& f : s->fields)
+                    fill_value(bulk, true, t, "", struct_fields, struct_values, bin, f);
+                if (bulk)
+                    values += struct_values.substr(1);
+                else
+                    values += struct_values.substr(2);
+                values += end_object_in_array(bulk);
+            }
+            values += end_array(bulk, t, config->schema, s->name);
         } else {
             auto abi_type    = field.type->name;
             bool is_optional = false;

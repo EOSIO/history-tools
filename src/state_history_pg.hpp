@@ -46,6 +46,13 @@ inline std::string begin_array(bool bulk) {
         return "array[";
 }
 
+inline std::string end_array(bool bulk, const std::string& type) {
+    if (bulk)
+        return "}";
+    else
+        return "]::" + type + "[]";
+}
+
 inline std::string end_array(bool bulk, pqxx::work& t, const std::string& schema, const std::string& type) {
     if (bulk)
         return "}";

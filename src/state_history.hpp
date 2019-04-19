@@ -231,9 +231,9 @@ struct partial_transaction_v0 {
     abieos::varuint32                 max_net_usage_words    = {};
     uint8_t                           max_cpu_usage_ms       = {};
     abieos::varuint32                 delay_sec              = {};
-    std::vector<extension>            transaction_extensions = {}; // todo: fill-pg
-    std::vector<abieos::signature>    signatures             = {}; // todo: fill-pg
-    std::vector<abieos::input_buffer> context_free_data      = {}; // todo: fill-pg
+    std::vector<extension>            transaction_extensions = {};
+    std::vector<abieos::signature>    signatures             = {};
+    std::vector<abieos::input_buffer> context_free_data      = {};
 };
 
 template <typename F>

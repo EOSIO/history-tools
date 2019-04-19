@@ -178,8 +178,12 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     }
 
     template <typename T>
-    void create_table(pqxx::work& t, const std::string& name, const std::string& pk, std::string fields) {
+    void create_table( //
+        pqxx::work& t, const std::string& name, const std::string& pk, std::string fields, const char* suffix_fields = nullptr) {
+
         add_table_fields<T>(t, fields, "");
+        if (suffix_fields)
+            fields += ","s + suffix_fields;
         std::string query =
             "create table " + t.quote_name(config->schema) + "." + t.quote_name(name) + "(" + fields + ", primary key (" + pk + "))";
         t.exec(query);
@@ -250,7 +254,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         create_table<account_auth_sequence>(    t, "action_trace_auth_sequence",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<account_delta>(            t, "action_trace_ram_delta",      "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<action_trace_v0>(          t, "action_trace",                "block_num, transaction_id, action_ordinal",          "block_num bigint, transaction_id varchar(64),                                          transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_num, transaction_ordinal",                     "block_num bigint, transaction_ordinal integer, failed_dtrx_trace varchar(64)");
+        create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_num, transaction_ordinal",                     "block_num bigint, transaction_ordinal integer, failed_dtrx_trace varchar(64)", "partial_context_free_data bytea[]");
         // clang-format on
 
         for (auto& table : abi.tables) {
@@ -764,7 +768,20 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         std::string fields              = "block_num, transaction_ordinal, failed_dtrx_trace";
         std::string values =
             std::to_string(block_num) + sep(bulk) + std::to_string(transaction_ordinal) + sep(bulk) + quote(bulk, failed_id);
-        write("transaction_trace", block_num, ttrace, fields, values, bulk, t, pipeline);
+        std::string suffix_fields = ", partial_context_free_data";
+        std::string suffix_values = sep(bulk) + begin_array(bulk);
+        if (ttrace.partial) {
+            auto& partial = std::get<partial_transaction_v0>(*ttrace.partial);
+            for (auto& cfd : partial.context_free_data) {
+                if (&cfd != &partial.context_free_data[0])
+                    suffix_values += ",";
+                suffix_values += native_to_sql<abieos::input_buffer>(*sql_connection, bulk, &cfd);
+            }
+        }
+        suffix_values += end_array(bulk, "bytea");
+        write(
+            "transaction_trace", block_num, ttrace, std::move(fields), std::move(values), bulk, t, pipeline, std::move(suffix_fields),
+            std::move(suffix_values));
 
         for (auto& atrace : ttrace.action_traces)
             write_action_trace(block_num, ttrace, std::get<action_trace_v0>(atrace), bulk, t, pipeline);
@@ -855,9 +872,11 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     template <typename T>
     void write(
         const std::string& name, uint32_t block_num, T& obj, std::string fields, std::string values, bool bulk, pqxx::work& t,
-        pqxx::pipeline& pipeline) {
+        pqxx::pipeline& pipeline, std::string suffix_fields = "", std::string suffix_values = "") {
 
         write_table_fields(obj, fields, values, "", bulk, t, pipeline);
+        fields += suffix_fields;
+        values += suffix_values;
         write(block_num, t, pipeline, bulk, name, fields, values);
     } // write
 

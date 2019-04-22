@@ -7,11 +7,12 @@ size_t wcslen(const wchar_t* str) { return ::wcslen(str); }
 } // namespace std
 
 #include "../chain/chain.hpp"
+#include "legacy-server.hpp"
 
 #include <abieos.hpp>
-#include <eosio/database.hpp>
 #include <eosio/input_output.hpp>
 #include <eosio/parse_json.hpp>
+#include <eosio/to_json.hpp>
 
 eosio::datastream<const char*> get_raw_abi(eosio::name name, uint32_t max_block) {
     eosio::datastream<const char*> result = {nullptr, 0};
@@ -93,6 +94,30 @@ STRUCT_REFLECT(get_table_rows_params) {
     STRUCT_MEMBER(get_table_rows_params, encode_type);
     STRUCT_MEMBER(get_table_rows_params, reverse);
     STRUCT_MEMBER(get_table_rows_params, show_payer);
+}
+
+struct get_transaction_params {
+    eosio::shared_memory<std::string_view> id = {};
+};
+
+STRUCT_REFLECT(get_transaction_params) {
+    STRUCT_MEMBER(get_transaction_params, id);
+}
+
+struct get_block_params {
+    eosio::shared_memory<std::string_view> block_num_or_id = {};
+};
+
+STRUCT_REFLECT(get_block_params) {
+    STRUCT_MEMBER(get_block_params, block_num_or_id);
+}
+
+struct get_account_params {
+    eosio::name account_name = {};
+};
+
+STRUCT_REFLECT(get_account_params) {
+    STRUCT_MEMBER(get_account_params, account_name);
 }
 
 template <int size>
@@ -302,7 +327,6 @@ void get_table_rows_secondary(
     eosio::set_output_data(result);
 } // get_table_rows_secondary
 
-// todo: more
 void get_table_rows(std::string_view request, const eosio::database_status& status) {
     auto                   params           = eosio::parse_json<get_table_rows_params>(request);
     bool                   primary          = false;
@@ -319,6 +343,89 @@ void get_table_rows(std::string_view request, const eosio::database_status& stat
         eosio::check(false, ("unsupported key_type: " + (std::string)(*params.key_type)).c_str());
 }
 
+void get_transaction(std::string_view request, const eosio::database_status& status) {
+    auto params = eosio::parse_json<get_transaction_params>(request);
+
+    eosio::set_output_data(std::string("{}"));
+}
+
+void get_block(std::string_view request, const eosio::database_status& status) {
+    auto params = eosio::parse_json<get_block_params>(request);
+    std::string error;
+    uint32_t    block_num_or_id;
+
+    if (!abieos::decimal_to_binary(block_num_or_id, error, *params.block_num_or_id))
+        return;
+
+    auto s = query_database(eosio::query_block_info_range_index{
+        .first = block_num_or_id,
+        .last = block_num_or_id,
+        .max_results = 1,
+    });
+
+    std::string result;
+    eosio::for_each_query_result<eosio::block_info>(s, [&](eosio::block_info& r) {
+        result += to_json(r).sv();
+        return true;
+    });
+    eosio::set_output_data(result);
+}
+
+void get_account(std::string_view request, const eosio::database_status& /*status*/ ) {
+    auto params = eosio::parse_json<get_account_params>(request);
+
+    auto s = query_database(eosio::query_account_range_name{
+        .max_block = std::numeric_limits<uint32_t>::max(),
+        .first = params.account_name,
+        .last = params.account_name,
+        .max_results = 1,
+    });
+
+    std::string result;
+    eosio::for_each_query_result<eosio::account>(s, [&](eosio::account& r) {
+        result += to_json(r).sv();
+        return true;
+    });
+    eosio::set_output_data(result);
+}
+
+void get_code(std::string_view request, const eosio::database_status& /*status*/) {
+    auto params = eosio::parse_json<get_account_params>(request);
+
+    auto s = query_database(eosio::query_account_range_name{
+        .max_block = std::numeric_limits<uint32_t>::max(),
+        .first = params.account_name,
+        .last = params.account_name,
+        .max_results = 1,
+    });
+
+    std::string result;
+    eosio::for_each_query_result<eosio::account>(s, [&](eosio::account& r) {
+        get_code_result gcr(r);
+        result += eosio::to_json(gcr).sv();
+        return true;
+    });
+    eosio::set_output_data(result);
+}
+
+void get_abi(std::string_view request, const eosio::database_status& /*status*/) {
+    auto params = eosio::parse_json<get_account_params>(request);
+
+    auto s = query_database(eosio::query_account_range_name{
+        .max_block = std::numeric_limits<uint32_t>::max(),
+        .first = params.account_name,
+        .last = params.account_name,
+        .max_results = 1,
+    });
+
+    std::string result;
+    eosio::for_each_query_result<eosio::account>(s, [&](eosio::account& r) {
+        get_abi_result gar(r);
+        result += eosio::to_json(gar).sv();
+        return true;
+    });
+    eosio::set_output_data(result);
+}
 struct request_data {
     eosio::shared_memory<std::string_view> target  = {};
     eosio::shared_memory<std::string_view> request = {};
@@ -331,6 +438,16 @@ extern "C" void run_query() {
     auto status  = eosio::get_database_status();
     if (*request.target == "/v1/chain/get_table_rows")
         get_table_rows(*request.request, status);
+    else if (*request.target == "/v1/history/get_transaction")
+        get_transaction(*request.request, status);
+    else if (*request.target == "/v1/chain/get_block")
+        get_block(*request.request, status);
+    else if (*request.target == "/v1/chain/get_account")
+        get_account(*request.request, status);
+    else if (*request.target == "/v1/chain/get_code")
+        get_code(*request.request, status);
+    else if (*request.target == "/v1/chain/get_abi")
+        get_abi(*request.request, status);
     else
         eosio::check(false, "not found");
 }

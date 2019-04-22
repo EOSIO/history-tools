@@ -18,7 +18,11 @@ Sample Usage:
 include(FindPackageHandleStandardArgs)
 
 set(PostgreSQL_TYPE_INCLUDE_DIR /usr/include/postgresql)
-FIND_PACKAGE( PostgreSQL REQUIRED )
+if(PQXX_FIND_REQUIRED)
+  find_package( PostgreSQL REQUIRED )
+else()
+  find_package( PostgreSQL )
+endif()
 if ( PostgreSQL_FOUND )
   file( TO_CMAKE_PATH "$ENV{PQXX_DIR}" _PQXX_DIR )
 

@@ -22,3 +22,18 @@ void for_each_member(get_code_result*, F f) {
     STRUCT_MEMBER(get_code_result, wasm)
     STRUCT_MEMBER(get_code_result, abi)
 }
+
+struct get_abi_result {
+    get_abi_result(eosio::account a)
+    : account_name(a.name)
+    , abi(a.abi)
+    {}
+    eosio::name account_name;
+    eosio::shared_memory<eosio::datastream<const char*>> abi;
+};
+
+template <typename F>
+void for_each_member(get_abi_result*, F f) {
+    STRUCT_MEMBER(get_abi_result, account_name)
+    STRUCT_MEMBER(get_abi_result, abi)
+}

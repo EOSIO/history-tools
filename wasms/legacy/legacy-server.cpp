@@ -408,6 +408,24 @@ void get_code(std::string_view request, const eosio::database_status& /*status*/
     eosio::set_output_data(result);
 }
 
+void get_abi(std::string_view request, const eosio::database_status& /*status*/) {
+    auto params = eosio::parse_json<get_account_params>(request);
+
+    auto s = query_database(eosio::query_account_range_name{
+        .max_block = std::numeric_limits<uint32_t>::max(),
+        .first = params.account_name,
+        .last = params.account_name,
+        .max_results = 1,
+    });
+
+    std::string result;
+    eosio::for_each_query_result<eosio::account>(s, [&](eosio::account& r) {
+        get_abi_result gar(r);
+        result += eosio::to_json(gar).sv();
+        return true;
+    });
+    eosio::set_output_data(result);
+}
 struct request_data {
     eosio::shared_memory<std::string_view> target  = {};
     eosio::shared_memory<std::string_view> request = {};
@@ -428,6 +446,8 @@ extern "C" void run_query() {
         get_account(*request.request, status);
     else if (*request.target == "/v1/chain/get_code")
         get_code(*request.request, status);
+    else if (*request.target == "/v1/chain/get_abi")
+        get_abi(*request.request, status);
     else
         eosio::check(false, "not found");
 }

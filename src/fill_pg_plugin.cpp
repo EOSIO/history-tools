@@ -254,7 +254,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         create_table<account_auth_sequence>(    t, "action_trace_auth_sequence",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<account_delta>(            t, "action_trace_ram_delta",      "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<action_trace_v0>(          t, "action_trace",                "block_num, transaction_id, action_ordinal",          "block_num bigint, transaction_id varchar(64),                                          transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_num, transaction_ordinal",                     "block_num bigint, transaction_ordinal integer, failed_dtrx_trace varchar(64)", "partial_context_free_data bytea[]");
+        create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_num, transaction_ordinal",                     "block_num bigint, transaction_ordinal integer, failed_dtrx_trace varchar(64)", "partial_signatures varchar[], partial_context_free_data bytea[]");
         // clang-format on
 
         for (auto& table : abi.tables) {
@@ -774,8 +774,17 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         std::string fields              = "block_num, transaction_ordinal, failed_dtrx_trace";
         std::string values =
             std::to_string(block_num) + sep(bulk) + std::to_string(transaction_ordinal) + sep(bulk) + quote(bulk, failed_id);
-        std::string suffix_fields = ", partial_context_free_data";
+        std::string suffix_fields = ", partial_signatures, partial_context_free_data";
         std::string suffix_values = sep(bulk) + begin_array(bulk);
+        if (ttrace.partial) {
+            auto& partial = std::get<partial_transaction_v0>(*ttrace.partial);
+            for (auto& sig : partial.signatures) {
+                if (&sig != &partial.signatures[0])
+                    suffix_values += ",";
+                suffix_values += native_to_sql<abieos::signature>(*sql_connection, bulk, &sig);
+            }
+        }
+        suffix_values += end_array(bulk, "varchar") + sep(bulk) + begin_array(bulk);
         if (ttrace.partial) {
             auto& partial = std::get<partial_transaction_v0>(*ttrace.partial);
             for (auto& cfd : partial.context_free_data) {

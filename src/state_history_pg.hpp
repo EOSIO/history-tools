@@ -156,6 +156,7 @@ inline std::string sql_str(bool bulk, abieos::time_point_sec v)                 
 inline std::string sql_str(bool bulk, abieos::block_timestamp v)                        { return v.slot ?  quote(bulk, std::string(v)) : null_value(bulk); }
 inline std::string sql_str(bool bulk, const abieos::checksum256& v)                     { return quote(bulk, v.value == abieos::checksum256{}.value ? "" : std::string(v)); }
 inline std::string sql_str(bool bulk, const abieos::public_key& v)                      { return quote(bulk, public_key_to_string(v)); }
+inline std::string sql_str(bool bulk, const abieos::signature& v)                       { return quote(bulk, signature_to_string(v)); }
 inline std::string sql_str(bool bulk, const abieos::bytes&)                             { throw std::runtime_error("sql_str(bytes): not implemented"); }
 inline std::string sql_str(bool bulk, transaction_status v)                             { return quote(bulk, to_string(v)); }
 
@@ -171,6 +172,7 @@ inline std::string sql_str(pqxx::connection&, bool bulk, abieos::time_point_sec 
 inline std::string sql_str(pqxx::connection&, bool bulk, abieos::block_timestamp v)     { return sql_str(bulk, v); }
 inline std::string sql_str(pqxx::connection&, bool bulk, abieos::checksum256 v)         { return sql_str(bulk, v); }
 inline std::string sql_str(pqxx::connection&, bool bulk, const abieos::public_key& v)   { return sql_str(bulk, v); }
+inline std::string sql_str(pqxx::connection&, bool bulk, const abieos::signature& v)    { return sql_str(bulk, v); }
 inline std::string sql_str(pqxx::connection&, bool bulk, transaction_status v)          { return sql_str(bulk, v); }
 // clang-format on
 
@@ -314,6 +316,7 @@ template <> inline void sql_to_bin<abieos::time_point_sec>     (std::vector<char
 template <> inline void sql_to_bin<abieos::block_timestamp>    (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_to_block_timestamp(f.c_str())); }
 template <> inline void sql_to_bin<abieos::checksum256>        (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_to_checksum256(f.c_str())); }
 template <> inline void sql_to_bin<abieos::public_key>         (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<public_key> not implemented"); }
+template <> inline void sql_to_bin<abieos::signature>          (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<signature> not implemented"); }
 template <> inline void sql_to_bin<abieos::bytes>              (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_to_bytes(f.c_str())); }
 template <> inline void sql_to_bin<std::string>                (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, std::string{f.c_str()}); } // todo: unescape
 template <> inline void sql_to_bin<abieos::input_buffer>       (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<input_buffer> not implemented"); }
@@ -368,6 +371,7 @@ template<> inline constexpr type type_for<abieos::time_point>       = make_type_
 template<> inline constexpr type type_for<abieos::time_point_sec>   = make_type_for<abieos::time_point_sec>(    "timestamp"                 );
 template<> inline constexpr type type_for<abieos::block_timestamp>  = make_type_for<abieos::block_timestamp>(   "timestamp"                 );
 template<> inline constexpr type type_for<abieos::public_key>       = make_type_for<abieos::public_key>(        "varchar"                   );
+template<> inline constexpr type type_for<abieos::signature>        = make_type_for<abieos::signature>(         "varchar"                   );
 template<> inline constexpr type type_for<abieos::bytes>            = make_type_for<abieos::bytes>(             "bytea"                     );
 template<> inline constexpr type type_for<abieos::input_buffer>     = make_type_for<abieos::input_buffer>(      "bytea"                     );
 template<> inline constexpr type type_for<transaction_status>       = make_type_for<transaction_status>(        "transaction_status_type"   );
@@ -408,6 +412,7 @@ inline const std::map<std::string_view, type> abi_type_to_sql_type = {
     {"time_point_sec",          type_for<abieos::time_point_sec>},
     {"block_timestamp_type",    type_for<abieos::block_timestamp>},
     {"public_key",              type_for<abieos::public_key>},
+    {"signature",               type_for<abieos::signature>},
     {"bytes",                   type_for<abieos::bytes>},
     {"transaction_status",      type_for<transaction_status>},
 };

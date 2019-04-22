@@ -1,4 +1,4 @@
-add_server(legacy-server legacy-server.cpp)
+add_server(legacy-server legacy-server.cpp legacy-server.hpp)
 
 target_include_directories(legacy-server
     PUBLIC

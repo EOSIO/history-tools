@@ -7,9 +7,9 @@ size_t wcslen(const wchar_t* str) { return ::wcslen(str); }
 } // namespace std
 
 #include "../chain/chain.hpp"
+#include "legacy-server.hpp"
 
 #include <abieos.hpp>
-#include <eosio/database.hpp>
 #include <eosio/input_output.hpp>
 #include <eosio/parse_json.hpp>
 #include <eosio/to_json.hpp>
@@ -371,7 +371,7 @@ void get_block(std::string_view request, const eosio::database_status& status) {
     eosio::set_output_data(result);
 }
 
-void get_account(std::string_view request, const eosio::database_status& status) {
+void get_account(std::string_view request, const eosio::database_status& /*status*/ ) {
     auto params = eosio::parse_json<get_account_params>(request);
 
     auto s = query_database(eosio::query_account_range_name{
@@ -384,6 +384,25 @@ void get_account(std::string_view request, const eosio::database_status& status)
     std::string result;
     eosio::for_each_query_result<eosio::account>(s, [&](eosio::account& r) {
         result += to_json(r).sv();
+        return true;
+    });
+    eosio::set_output_data(result);
+}
+
+void get_code(std::string_view request, const eosio::database_status& /*status*/) {
+    auto params = eosio::parse_json<get_account_params>(request);
+
+    auto s = query_database(eosio::query_account_range_name{
+        .max_block = std::numeric_limits<uint32_t>::max(),
+        .first = params.account_name,
+        .last = params.account_name,
+        .max_results = 1,
+    });
+
+    std::string result;
+    eosio::for_each_query_result<eosio::account>(s, [&](eosio::account& r) {
+        get_code_result gcr(r);
+        result += eosio::to_json(gcr).sv();
         return true;
     });
     eosio::set_output_data(result);
@@ -407,6 +426,8 @@ extern "C" void run_query() {
         get_block(*request.request, status);
     else if (*request.target == "/v1/chain/get_account")
         get_account(*request.request, status);
+    else if (*request.target == "/v1/chain/get_code")
+        get_code(*request.request, status);
     else
         eosio::check(false, "not found");
 }

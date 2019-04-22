@@ -313,13 +313,15 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         }
 
         std::string query = R"(
-            drop function if exists chain.trim_history;
+            drop function if exists )" +
+                            t.quote_name(config->schema) + R"(.trim_history;
         )";
         // std::cout << query << "\n";
         t.exec(query);
 
         query = R"(
-            create function chain.trim_history(
+            create function )" +
+                t.quote_name(config->schema) + R"(.trim_history(
                 prev_block_num bigint,
                 irrev_block_num bigint
             ) returns void
@@ -347,6 +349,32 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                         and block_num < irrev_block_num;
                     )";
         }
+
+        auto add_trim = [&](const std::string& table, const std::string& keys, const std::string& search_keys) {
+            query += R"(
+                    for key_search in
+                        select
+                            distinct on()" +
+                     keys + R"()
+                            )" +
+                     keys + R"(, block_num
+                        from
+                            )" +
+                     t.quote_name(config->schema) + "." + t.quote_name(table) + R"(
+                        where
+                            block_num > prev_block_num and block_num <= irrev_block_num
+                        order by )" +
+                     keys + R"(, block_num desc, present desc
+                    loop
+                        delete from )" +
+                     t.quote_name(config->schema) + "." + t.quote_name(table) + R"(
+                        where
+                            ()" +
+                     keys + R"() = ()" + search_keys + R"()
+                            and block_num < key_search.block_num;
+                    end loop;
+                    )";
+        };
 
         for (auto& table : abi.tables) {
             if (table.key_names.empty()) {
@@ -378,29 +406,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                     keys += t.quote_name(k);
                     search_keys += "key_search." + t.quote_name(k);
                 }
-                query += R"(
-                    for key_search in
-                        select
-                            distinct on()" +
-                         keys + R"()
-                            )" +
-                         keys + R"(, block_num
-                        from
-                            )" +
-                         t.quote_name(config->schema) + "." + t.quote_name(table.type) + R"(
-                        where
-                            block_num > prev_block_num and block_num <= irrev_block_num
-                        order by )" +
-                         keys + R"(, block_num desc, present desc
-                    loop
-                        delete from )" +
-                         t.quote_name(config->schema) + "." + t.quote_name(table.type) + R"(
-                        where
-                            ()" +
-                         keys + R"() = ()" + search_keys + R"()
-                            and block_num < key_search.block_num;
-                    end loop;
-                    )";
+                add_trim(table.type, keys, search_keys);
             };
         }
         query += R"(
@@ -889,7 +895,9 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         create_trim();
         pqxx::work t(*sql_connection);
         ilog("trim  ${b} - ${e}", ("b", first)("e", end_trim));
-        t.exec("select * from chain.trim_history(" + std::to_string(first) + ", " + std::to_string(end_trim) + ")");
+        t.exec(
+            "select * from " + t.quote_name(config->schema) + ".trim_history(" + std::to_string(first) + ", " + std::to_string(end_trim) +
+            ")");
         t.commit();
         ilog("      done");
         first = end_trim;
@@ -909,12 +917,14 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                            }}}});
     }
 
-    const abi_type& get_type(const std::string& name) {
+    const abi_type& get_type(const std::map<std::string, abi_type>& abi_types, const std::string& name) {
         auto it = abi_types.find(name);
         if (it == abi_types.end())
             throw std::runtime_error("unknown type "s + name);
         return it->second;
     }
+
+    const abi_type& get_type(const std::string& name) { return get_type(abi_types, name); }
 
     void send(const jvalue& value) {
         auto bin = std::make_shared<std::vector<char>>();

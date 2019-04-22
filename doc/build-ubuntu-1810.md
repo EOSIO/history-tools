@@ -3,7 +3,7 @@
 ```
 sudo apt update
 sudo apt upgrade
-sudo apt install build-essential cmake libboost-all-dev git libpq-dev libpqxx-dev autoconf2.13 rustc cargo clang-7 nodejs npm ninja-build libgmp-dev liblmdb-dev
+sudo apt install build-essential cmake libboost-all-dev git libssl-dev libpq-dev libpqxx-dev autoconf2.13 rustc cargo clang-7 nodejs npm ninja-build libgmp-dev liblmdb-dev
 ```
 
 # Build SpiderMonkey 64.0

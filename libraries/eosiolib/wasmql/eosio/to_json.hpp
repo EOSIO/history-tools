@@ -10,6 +10,7 @@
 #include <eosio/tagged_variant.hpp>
 #include <eosio/temp_placeholders.hpp>
 #include <eosio/time.hpp>
+#include <eosio/varint.hpp>
 #include <limits>
 #include <type_traits>
 #include <vector>
@@ -148,6 +149,9 @@ __attribute__((noinline)) inline rope to_json(uint32_t value) { return int_to_js
 __attribute__((noinline)) inline rope to_json(uint64_t value) { return int_to_json(value); }
 
 /// \group to_json_explicit
+__attribute__((noinline)) inline rope to_json(unsigned_int value) { return int_to_json(value.value); }
+
+/// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(int8_t value) { return int_to_json(value); }
 
 /// \group to_json_explicit
@@ -158,6 +162,9 @@ __attribute__((noinline)) inline rope to_json(int32_t value) { return int_to_jso
 
 /// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(int64_t value) { return int_to_json(value); }
+
+/// \group to_json_explicit
+__attribute__((noinline)) inline rope to_json(signed_int value) { return int_to_json(value.value); }
 
 /// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(name value) {

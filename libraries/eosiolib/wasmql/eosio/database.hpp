@@ -4,12 +4,16 @@
 // todo: results vs. response vs. rows vs. records
 
 #pragma once
+#include <eosio/crypto.hpp>
 #include <eosio/fixed_bytes.hpp>
 #include <eosio/name.hpp>
 #include <eosio/shared_memory.hpp>
 #include <eosio/struct_reflection.hpp>
 #include <eosio/temp_placeholders.hpp>
 #include <eosio/time.hpp>
+#include <eosio/to_json.hpp>
+
+#include <type_traits>
 
 namespace eosio {
 
@@ -50,31 +54,31 @@ enum class transaction_status : uint8_t {
     expired = 4,
 };
 
+/// \group to_json_explicit
+__attribute__((noinline)) inline eosio::rope to_json(transaction_status value) { return eosio::int_to_json(std::underlying_type_t<transaction_status>(value)); }
+
 /// Information extracted from a block
 struct block_info {
-    uint32_t        block_num             = {};
-    checksum256     block_id              = {};
-    block_timestamp timestamp             = block_timestamp{};
-    name            producer              = {};
-    uint16_t        confirmed             = {};
-    checksum256     previous              = {};
-    checksum256     transaction_mroot     = {};
-    checksum256     action_mroot          = {};
-    uint32_t        schedule_version      = {};
-    uint32_t        new_producers_version = {};
+    uint32_t         block_num             = {};
+    checksum256      block_id              = {};
+    block_timestamp  timestamp             = block_timestamp{};
+    name             producer              = {};
+//    eosio::signature producer_signature    = {};
+    uint16_t         confirmed             = {};
+    checksum256      previous              = {};
+    checksum256      transaction_mroot     = {};
+    checksum256      action_mroot          = {};
+    uint32_t         schedule_version      = {};
+    uint32_t         new_producers_version = {};
     //std::vector<producer_key> new_producers         = {}; // todo
 };
 
-/// \exclude
-inline std::string_view schema_type_name(block_info*) { return "eosio::block_info"; }
-
-/// \exclude
-template <typename F>
-void for_each_member(block_info*, F f) {
+STRUCT_REFLECT(block_info) {
     STRUCT_MEMBER(block_info, block_num)
     STRUCT_MEMBER(block_info, block_id)
     STRUCT_MEMBER(block_info, timestamp)
     STRUCT_MEMBER(block_info, producer)
+//    STRUCT_MEMBER(block_info, producer_signature)
     STRUCT_MEMBER(block_info, confirmed)
     STRUCT_MEMBER(block_info, previous)
     STRUCT_MEMBER(block_info, transaction_mroot)
@@ -108,8 +112,24 @@ struct action_trace {
                           account)(name)(data)(context_free)(elapsed))
 };
 
-/// \exclude
-inline std::string_view schema_type_name(action_trace*) { return "eosio::action_trace"; }
+STRUCT_REFLECT(action_trace) {
+    STRUCT_MEMBER(action_trace, block_index)
+    STRUCT_MEMBER(action_trace, transaction_id)
+    STRUCT_MEMBER(action_trace, action_index)
+    STRUCT_MEMBER(action_trace, parent_action_index)
+    STRUCT_MEMBER(action_trace, transaction_status)
+    STRUCT_MEMBER(action_trace, receipt_receiver)
+    STRUCT_MEMBER(action_trace, receipt_act_digest)
+    STRUCT_MEMBER(action_trace, receipt_global_sequence)
+    STRUCT_MEMBER(action_trace, receipt_recv_sequence)
+    STRUCT_MEMBER(action_trace, receipt_code_sequence)
+    STRUCT_MEMBER(action_trace, receipt_abi_sequence)
+    STRUCT_MEMBER(action_trace, account)
+    STRUCT_MEMBER(action_trace, name)
+    STRUCT_MEMBER(action_trace, data)
+    STRUCT_MEMBER(action_trace, context_free)
+    STRUCT_MEMBER(action_trace, elapsed)
+}
 
 /// Details about an account
 struct account {
@@ -129,12 +149,7 @@ struct account {
         account, (block_index)(present)(name)(vm_type)(vm_version)(privileged)(last_code_update)(code_version)(creation_date)(code)(abi))
 };
 
-/// \exclude
-inline std::string_view schema_type_name(account*) { return "eosio::account"; }
-
-/// \exclude
-template <typename F>
-void for_each_member(account*, F f) {
+STRUCT_REFLECT(account) {
     STRUCT_MEMBER(account, block_index)
     STRUCT_MEMBER(account, present)
     STRUCT_MEMBER(account, name)

@@ -15,8 +15,8 @@ struct get_code_result {
     eosio::shared_memory<eosio::datastream<const char*>> abi;
 };
 
-template <typename F>
-void for_each_member(get_code_result*, F f) {
+/// \exclude
+STRUCT_REFLECT(get_code_result) {
     STRUCT_MEMBER(get_code_result, account_name)
     STRUCT_MEMBER(get_code_result, code_hash)
     STRUCT_MEMBER(get_code_result, wasm)
@@ -32,8 +32,32 @@ struct get_abi_result {
     eosio::shared_memory<eosio::datastream<const char*>> abi;
 };
 
-template <typename F>
-void for_each_member(get_abi_result*, F f) {
+/// \exclude
+STRUCT_REFLECT(get_abi_result) {
     STRUCT_MEMBER(get_abi_result, account_name)
     STRUCT_MEMBER(get_abi_result, abi)
 }
+
+/*
+struct producer_key {
+    eosio::name         producer_name;
+    eosio::public_key   block_signing_key;
+};
+
+/// \exclude
+STRUCT_REFLECT(producer_key) {
+    STRUCT_MEMBER(producer_key, producer_name)
+    STRUCT_MEMBER(producer_key, block_signing_key)
+}
+
+struct get_producer_schedule_result {
+    uint32_t version;
+    std::vector<producer_key> producers;
+};
+
+/// \exclude
+STRUCT_REFLECT(get_producer_schedule_result) {
+    STRUCT_MEMBER(get_producer_schedule_result, version)
+    STRUCT_MEMBER(get_producer_schedule_result, producers)
+}
+*/

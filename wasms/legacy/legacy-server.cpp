@@ -12,6 +12,7 @@ size_t wcslen(const wchar_t* str) { return ::wcslen(str); }
 #include <abieos.hpp>
 #include <eosio/input_output.hpp>
 #include <eosio/parse_json.hpp>
+#include <eosio/producer_schedule.hpp>
 
 eosio::datastream<const char*> get_raw_abi(eosio::name name, uint32_t max_block) {
     eosio::datastream<const char*> result = {nullptr, 0};
@@ -117,6 +118,18 @@ struct get_account_params {
 
 STRUCT_REFLECT(get_account_params) {
     STRUCT_MEMBER(get_account_params, account_name);
+}
+
+struct get_currency_balance_params {
+    eosio::name account = {};
+    eosio::name code = {};
+    eosio::symbol_code symbol = {};
+};
+
+STRUCT_REFLECT(get_currency_balance_params) {
+    STRUCT_MEMBER(get_currency_balance_params, account);
+    STRUCT_MEMBER(get_currency_balance_params, code);
+    STRUCT_MEMBER(get_currency_balance_params, symbol);
 }
 
 template <int size>
@@ -342,23 +355,133 @@ void get_table_rows(std::string_view request, const eosio::database_status& stat
         eosio::check(false, ("unsupported key_type: " + (std::string)(*params.key_type)).c_str());
 }
 
+void get_producer_schedule(std::string_view request, const eosio::database_status& status) {
+    get_table_rows_params params {
+        .code = eosio::name("eosio.system"),
+        .table = eosio::name("producers"),
+        .key_type = "i64",
+    };
+    bool primary = false;
+    auto table_with_index = get_table_index_name(params, primary);
+    auto scope            = guess_uint64(*params.scope, "scope");
+
+    if(!primary)
+        eosio::check(false, ("producers table missing or missing primary index"));
+
+    auto lower_bound = convert_key(*params.key_type, *params.lower_bound, (uint64_t)0);
+    auto upper_bound = convert_key(*params.key_type, *params.upper_bound, (uint64_t)0xffff'ffff'ffff'ffff);
+
+    auto s = query_database(eosio::query_contract_row_range_code_table_scope_pk{
+        .max_block = status.head,
+        .first =
+            {
+                .code        = params.code,
+                .table       = params.table,
+                .scope       = scope,
+                .primary_key = lower_bound,
+            },
+        .last =
+            {
+                .code        = params.code,
+                .table       = params.table,
+                .scope       = scope,
+                .primary_key = upper_bound,
+            },
+        .max_results = std::min((uint32_t)100, params.limit),
+    });
+
+    eosio::producer_schedule schedule;
+    std::string result;
+    eosio::for_each_query_result<eosio::contract_row>(s, [&](eosio::contract_row& r) {
+        schedule.producers.push_back(eosio::producer_key {
+                                         .producer_name = {}, //r.something,
+                                         .block_signing_key = {}, //r.something,
+                                     });
+        return true;
+    });
+    //result += eosio::to_json(schedule).sv();
+    eosio::set_output_data(result);
+}
+
+void get_currency_balance(std::string_view request, const eosio::database_status& status) {
+    auto user_params = eosio::parse_json<get_currency_balance_params>(request);
+    get_table_rows_params params {
+        .code = user_params.code,
+        .table = "accounts"_n,
+        .key_type = "i64",
+        .json = true,
+    };
+    bool primary = false;
+    auto                   table_with_index = get_table_index_name(params, primary);
+    std::unique_ptr<::abi> abi              = params.json ? get_abi(params.code, status.head) : nullptr;
+    auto                   table_type       = get_table_type(abi.get(), abieos::name{params.table.value});
+
+    if(!primary)
+        eosio::check(false, ("accounts table missing or missing primary index"));
+
+    auto lower_bound = convert_key(*params.key_type, *params.lower_bound, (uint64_t)0);
+    auto upper_bound = convert_key(*params.key_type, *params.upper_bound, (uint64_t)0xffff'ffff'ffff'ffff);
+
+    auto s = query_database(eosio::query_contract_row_range_code_table_scope_pk{
+        .max_block = status.head,
+        .first =
+            {
+                .code = params.code,
+                .table = params.table,
+                .scope = user_params.account.value,
+                .primary_key = user_params.symbol.raw(),
+            },
+        .last =
+            {
+                .code = params.code,
+                .table = params.table,
+                .scope = user_params.account.value,
+                .primary_key = user_params.symbol.raw(),
+            },
+        .max_results = std::min((uint32_t)100, params.limit),
+    });
+
+    std::vector<std::string> balances;
+    std::string result;
+    eosio::for_each_query_result<eosio::contract_row>(s, [&](eosio::contract_row& r) {
+        if (table_type) {
+            eosio::print("Table type not null");
+            abieos::input_buffer bin{r.value->pos(), r.value->pos() + r.value->remaining()};
+            std::string          error;
+            std::string          json_row;
+            if (bin_to_json(bin, error, table_type, json_row)) {
+                balances.push_back(json_row);
+            }
+        }
+        return true;
+    });
+    result += eosio::to_json(balances).sv();
+    eosio::set_output_data(result);
+}
+
 void get_transaction(std::string_view request, const eosio::database_status& /*status*/) {
     auto params = eosio::parse_json<get_transaction_params>(request);
 
     auto s = query_database(eosio::query_action_trace_executed_range_name_receiver_account_block_trans_action{
         .max_block = std::numeric_limits<uint32_t>::max(),
-        .first.name = eosio::name(),
-        .first.receipt_receiver = eosio::name(),
-        .first.account = eosio::name(),
-        .first.block_index = std::numeric_limits<uint32_t>::min(),
-        .first.transaction_id = params.id,
-        .first.action_index = std::numeric_limits<uint32_t>::min(),
-        .last.name = eosio::name(eosio::name::raw(std::numeric_limits<std::underlying_type_t<eosio::name::raw>>::max())),
-        .last.receipt_receiver = eosio::name(eosio::name::raw(std::numeric_limits<std::underlying_type_t<eosio::name::raw>>::max())),
-        .last.account = eosio::name(eosio::name::raw(std::numeric_limits<std::underlying_type_t<eosio::name::raw>>::max())),
-        .last.block_index = std::numeric_limits<uint32_t>::max(),
-        .last.transaction_id = params.id,
-        .last.action_index = std::numeric_limits<uint32_t>::max(),
+        .first =
+            {
+                .name = eosio::name(),
+                .receipt_receiver = eosio::name(),
+                .account = eosio::name(),
+                .block_index = std::numeric_limits<uint32_t>::min(),
+                .transaction_id = params.id,
+                .action_index = std::numeric_limits<uint32_t>::min(),
+            },
+        .last =
+            {
+                .name = eosio::name(eosio::name::raw(std::numeric_limits<std::underlying_type_t<eosio::name::raw>>::max())),
+                .receipt_receiver = eosio::name(eosio::name::raw(std::numeric_limits<std::underlying_type_t<eosio::name::raw>>::max())),
+                .account = eosio::name(eosio::name::raw(std::numeric_limits<std::underlying_type_t<eosio::name::raw>>::max())),
+                .block_index = std::numeric_limits<uint32_t>::max(),
+                .transaction_id = params.id,
+                .action_index = std::numeric_limits<uint32_t>::max(),
+            },
         .max_results = 1,
     });
 
@@ -469,6 +592,10 @@ extern "C" void run_query() {
         get_code(*request.request, status);
     else if (*request.target == "/v1/chain/get_abi")
         get_abi(*request.request, status);
+    else if (*request.target == "/v1/chain/get_producer_schedule")
+        get_producer_schedule(*request.request, status);
+    else if (*request.target == "/v1/chain/get_currency_balance")
+        get_currency_balance(*request.request, status);
     else
         eosio::check(false, "not found");
 }

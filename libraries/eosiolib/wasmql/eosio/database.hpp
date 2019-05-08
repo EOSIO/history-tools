@@ -535,11 +535,7 @@ struct database_status {
 };
 
 /// \exclude
-inline std::string_view schema_type_name(database_status*) { return "eosio::database_status"; }
-
-/// \exclude
-template <typename F>
-void for_each_member(database_status*, F f) {
+STRUCT_REFLECT(database_status) {
     STRUCT_MEMBER(database_status, head)
     STRUCT_MEMBER(database_status, head_id)
     STRUCT_MEMBER(database_status, irreversible)

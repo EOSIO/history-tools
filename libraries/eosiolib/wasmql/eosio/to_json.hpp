@@ -86,6 +86,12 @@ __attribute__((noinline)) inline rope to_json(std::string_view sv) {
 }
 
 /// \group to_json_explicit
+__attribute__((noinline)) inline rope to_json(std::string s) {
+    std::string_view sv(s.c_str(), s.size());
+    return to_json(sv);
+}
+
+/// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(shared_memory<std::string_view> sv) { return to_json(*sv); }
 
 /// \group to_json_explicit

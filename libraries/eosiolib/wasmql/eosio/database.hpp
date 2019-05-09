@@ -130,20 +130,13 @@ inline std::string_view schema_type_name(action_trace*) { return "eosio::action_
 
 /// Details about an account
 struct account {
-    uint32_t                               block_num        = {};
-    bool                                   present          = {};
-    eosio::name                            name             = {};
-    uint8_t                                vm_type          = {};
-    uint8_t                                vm_version       = {};
-    bool                                   privileged       = {};
-    time_point                             last_code_update = time_point{};
-    checksum256                            code_version     = {};
-    block_timestamp_type                   creation_date    = block_timestamp_type{};
-    shared_memory<datastream<const char*>> code             = {};
-    shared_memory<datastream<const char*>> abi              = {};
+    uint32_t                               block_num     = {};
+    bool                                   present       = {};
+    eosio::name                            name          = {};
+    block_timestamp_type                   creation_date = block_timestamp_type{};
+    shared_memory<datastream<const char*>> abi           = {};
 
-    EOSLIB_SERIALIZE(
-        account, (block_num)(present)(name)(vm_type)(vm_version)(privileged)(last_code_update)(code_version)(creation_date)(code)(abi))
+    EOSLIB_SERIALIZE(account, (block_num)(present)(name)(creation_date)(abi))
 };
 
 /// \exclude
@@ -155,13 +148,7 @@ void for_each_member(account*, F f) {
     STRUCT_MEMBER(account, block_num)
     STRUCT_MEMBER(account, present)
     STRUCT_MEMBER(account, name)
-    STRUCT_MEMBER(account, vm_type)
-    STRUCT_MEMBER(account, vm_version)
-    STRUCT_MEMBER(account, privileged)
-    STRUCT_MEMBER(account, last_code_update)
-    STRUCT_MEMBER(account, code_version)
     STRUCT_MEMBER(account, creation_date)
-    STRUCT_MEMBER(account, code)
     STRUCT_MEMBER(account, abi)
 }
 

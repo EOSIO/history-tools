@@ -165,32 +165,8 @@
                     "type": "name"
                 },
                 {
-                    "name": "vm_type",
-                    "type": "uint8"
-                },
-                {
-                    "name": "vm_version",
-                    "type": "uint8"
-                },
-                {
-                    "name": "privileged",
-                    "type": "bool"
-                },
-                {
-                    "name": "last_code_update",
-                    "type": "time_point"
-                },
-                {
-                    "name": "code_version",
-                    "type": "checksum256"
-                },
-                {
                     "name": "creation_date",
                     "type": "block_timestamp_type"
-                },
-                {
-                    "name": "code",
-                    "type": "bytes"
                 },
                 {
                     "name": "abi",

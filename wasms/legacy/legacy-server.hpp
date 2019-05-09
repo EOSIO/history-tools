@@ -5,8 +5,8 @@
 struct get_code_result {
     get_code_result(eosio::account a)
     : account_name(a.name)
-    , code_hash(a.code_version)
-    , wasm(a.code)
+    // , code_hash(a.code_version) TODO
+    // , wasm(a.code)
     , abi(a.abi)
     {}
     eosio::name account_name;

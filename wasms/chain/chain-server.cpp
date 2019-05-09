@@ -54,8 +54,8 @@ void process(account_request& req, const eosio::database_status& status) {
         if (a.present) {
             if (!req.include_abi)
                 a.abi = {};
-            if (!req.include_code)
-                a.code = {};
+            // if (!req.include_code) TODO
+            //     a.code = {};
             response.accounts.push_back(a);
         }
         return true;

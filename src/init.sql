@@ -155,7 +155,7 @@
             first_name varchar(13),
             last_name varchar(13),
             max_results integer
-        ) returns table("block_num" bigint, "present" bool, "name" varchar(13), "vm_type" smallint, "vm_version" smallint, "privileged" bool, "last_code_update" timestamp, "code_version" varchar(64), "creation_date" timestamp, "code" bytea, "abi" bytea)
+        ) returns table("block_num" bigint, "present" bool, "name" varchar(13), "creation_date" timestamp, "abi" bytea)
         as $$
             declare
                 key_search record;
@@ -208,13 +208,7 @@
                             "block_num" = block_search."block_num";
                             "present" = block_search."present";
                             "name" = block_search."name";
-                            "vm_type" = block_search."vm_type";
-                            "vm_version" = block_search."vm_version";
-                            "privileged" = block_search."privileged";
-                            "last_code_update" = block_search."last_code_update";
-                            "code_version" = block_search."code_version";
                             "creation_date" = block_search."creation_date";
-                            "code" = block_search."code";
                             "abi" = block_search."abi";
                             return next;
     
@@ -222,13 +216,7 @@
                             "block_num" = block_search."block_num";
                             "present" = false;
                             "name" = key_search."name";
-                            "vm_type" = 0::smallint;
-                            "vm_version" = 0::smallint;
-                            "privileged" = false::bool;
-                            "last_code_update" = null::timestamp;
-                            "code_version" = ''::varchar(64);
                             "creation_date" = null::timestamp;
-                            "code" = ''::bytea;
                             "abi" = ''::bytea;
                             
                             return next;
@@ -240,13 +228,7 @@
                         "block_num" = 0;
                         "present" = false;
                         "name" = key_search."name";
-                        "vm_type" = 0::smallint;
-                        "vm_version" = 0::smallint;
-                        "privileged" = false::bool;
-                        "last_code_update" = null::timestamp;
-                        "code_version" = ''::varchar(64);
                         "creation_date" = null::timestamp;
-                        "code" = ''::bytea;
                         "abi" = ''::bytea;
                         
                         return next;
@@ -296,13 +278,7 @@
                                 "block_num" = block_search."block_num";
                                 "present" = block_search."present";
                                 "name" = block_search."name";
-                                "vm_type" = block_search."vm_type";
-                                "vm_version" = block_search."vm_version";
-                                "privileged" = block_search."privileged";
-                                "last_code_update" = block_search."last_code_update";
-                                "code_version" = block_search."code_version";
                                 "creation_date" = block_search."creation_date";
-                                "code" = block_search."code";
                                 "abi" = block_search."abi";
                                 return next;
     
@@ -310,13 +286,7 @@
                                 "block_num" = block_search."block_num";
                                 "present" = false;
                                 "name" = key_search."name";
-                                "vm_type" = 0::smallint;
-                                "vm_version" = 0::smallint;
-                                "privileged" = false::bool;
-                                "last_code_update" = null::timestamp;
-                                "code_version" = ''::varchar(64);
                                 "creation_date" = null::timestamp;
-                                "code" = ''::bytea;
                                 "abi" = ''::bytea;
                                 
                                 return next;
@@ -328,13 +298,7 @@
                             "block_num" = 0;
                             "present" = false;
                             "name" = key_search."name";
-                            "vm_type" = 0::smallint;
-                            "vm_version" = 0::smallint;
-                            "privileged" = false::bool;
-                            "last_code_update" = null::timestamp;
-                            "code_version" = ''::varchar(64);
                             "creation_date" = null::timestamp;
-                            "code" = ''::bytea;
                             "abi" = ''::bytea;
                             
                             return next;

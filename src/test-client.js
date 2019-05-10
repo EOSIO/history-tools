@@ -218,7 +218,6 @@ async function dump_accounts(clientWasm, max_block, first, last) {
             first: first,
             last: last,
             max_results: 100,
-            include_code: false,
             include_abi: false,
         }]);
         console.log(JSON.stringify(reply, null, 4));

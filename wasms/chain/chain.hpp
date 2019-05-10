@@ -58,14 +58,13 @@ STRUCT_REFLECT(tapos_response) {
 }
 
 struct account_request {
-    eosio::block_select max_block    = {};
-    eosio::name         first        = {};
-    eosio::name         last         = {};
-    uint32_t            max_results  = {};
-    bool                include_abi  = {};
-    bool                include_code = {};
+    eosio::block_select max_block   = {};
+    eosio::name         first       = {};
+    eosio::name         last        = {};
+    uint32_t            max_results = {};
+    bool                include_abi = {};
 
-    EOSLIB_SERIALIZE(account_request, (max_block)(first)(last)(max_results)(include_abi)(include_code))
+    EOSLIB_SERIALIZE(account_request, (max_block)(first)(last)(max_results)(include_abi))
 };
 
 STRUCT_REFLECT(account_request) {
@@ -74,14 +73,14 @@ STRUCT_REFLECT(account_request) {
     STRUCT_MEMBER(account_request, last)
     STRUCT_MEMBER(account_request, max_results)
     STRUCT_MEMBER(account_request, include_abi)
-    STRUCT_MEMBER(account_request, include_code)
 }
 
 // todo: versioning issues
 // todo: vector<extendable<...>>
+// todo: switch from account_metadata_joined to custom type
 struct account_response {
-    std::vector<eosio::account> accounts = {};
-    std::optional<eosio::name>  more     = {};
+    std::vector<eosio::account_metadata_joined> accounts = {};
+    std::optional<eosio::name>                  more     = {};
 
     EOSLIB_SERIALIZE(account_response, (accounts)(more))
 };

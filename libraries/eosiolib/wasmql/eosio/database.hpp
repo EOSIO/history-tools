@@ -152,6 +152,63 @@ void for_each_member(account*, F f) {
     STRUCT_MEMBER(account, abi)
 }
 
+/// Key for looking up code
+struct code_key {
+    uint8_t     vm_type    = {};
+    uint8_t     vm_version = {};
+    checksum256 hash       = {};
+
+    EOSLIB_SERIALIZE(code_key, (vm_type)(vm_version)(hash))
+};
+
+/// \exclude
+inline std::string_view schema_type_name(code_key*) { return "eosio::code_key"; }
+
+/// \exclude
+template <typename F>
+void for_each_member(code_key*, F f) {
+    STRUCT_MEMBER(code_key, vm_type);
+    STRUCT_MEMBER(code_key, vm_version);
+    STRUCT_MEMBER(code_key, hash);
+}
+
+// todo: reverse direction of join
+/// account and account_metadata joined
+struct account_metadata_joined {
+    uint32_t                               block_num             = {};
+    bool                                   present               = {};
+    name                                   name                  = {};
+    bool                                   privileged            = {};
+    time_point                             last_code_update      = time_point{};
+    std::optional<code_key>                code                  = {};
+    uint32_t                               account_block_num     = {};
+    bool                                   account_present       = {};
+    block_timestamp_type                   account_creation_date = block_timestamp_type{};
+    shared_memory<datastream<const char*>> account_abi           = {};
+
+    EOSLIB_SERIALIZE(
+        account_metadata_joined, (block_num)(present)(name)(privileged)(last_code_update)(code)(account_block_num)(account_present)(
+                                     account_creation_date)(account_abi))
+};
+
+/// \exclude
+inline std::string_view schema_type_name(account_metadata_joined*) { return "eosio::account_metadata_joined"; }
+
+/// \exclude
+template <typename F>
+void for_each_member(account_metadata_joined*, F f) {
+    STRUCT_MEMBER(account_metadata_joined, block_num);
+    STRUCT_MEMBER(account_metadata_joined, present);
+    STRUCT_MEMBER(account_metadata_joined, name);
+    STRUCT_MEMBER(account_metadata_joined, privileged);
+    STRUCT_MEMBER(account_metadata_joined, last_code_update);
+    STRUCT_MEMBER(account_metadata_joined, code);
+    STRUCT_MEMBER(account_metadata_joined, account_block_num);
+    STRUCT_MEMBER(account_metadata_joined, account_present);
+    STRUCT_MEMBER(account_metadata_joined, account_creation_date);
+    STRUCT_MEMBER(account_metadata_joined, account_abi);
+}
+
 /// A row in a contract's table
 struct contract_row {
     uint32_t                               block_num   = {};
@@ -271,6 +328,26 @@ inline bool increment_key(query_action_trace_executed_range_name_receiver_accoun
 struct query_account_range_name {
     /// Identifies query type. Do not modify this field.
     name query_name = "account"_n;
+
+    /// Look at this point of time in history
+    uint32_t max_block = {};
+
+    /// Query records with `name` in the range [`first`, `last`].
+    name first = {};
+
+    /// Query records with `name` in the range [`first`, `last`].
+    name last = {};
+
+    /// Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.
+    uint32_t max_results = {};
+};
+
+// todo: reverse direction of join
+/// Pass this to `query_database` to get `account_metadata_joined` for a range of names.
+/// The query results are sorted by `name`. Every record has a different name.
+struct query_acctmeta_range_name {
+    /// Identifies query type. Do not modify this field.
+    name query_name = "acctmeta.jn"_n;
 
     /// Look at this point of time in history
     uint32_t max_block = {};

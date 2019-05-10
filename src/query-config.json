@@ -70,7 +70,8 @@
                 },
                 {
                     "name": "receipt_present",
-                    "type": "bool"
+                    "type": "bool",
+                    "begin_optional": true
                 },
                 {
                     "name": "receipt_receiver",
@@ -94,7 +95,8 @@
                 },
                 {
                     "name": "receipt_abi_sequence",
-                    "type": "varuint32"
+                    "type": "varuint32",
+                    "end_optional": true
                 },
                 {
                     "name": "receiver",
@@ -170,6 +172,114 @@
                 },
                 {
                     "name": "abi",
+                    "type": "bytes"
+                }
+            ]
+        },
+        {
+            "name": "account_metadata",
+            "history_keys": [
+                {
+                    "name": "block_num",
+                    "desc": true
+                },
+                {
+                    "name": "present",
+                    "desc": true
+                }
+            ],
+            "keys": [
+                {
+                    "name": "name"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "name",
+                    "type": "name"
+                },
+                {
+                    "name": "privileged",
+                    "type": "bool"
+                },
+                {
+                    "name": "last_code_update",
+                    "type": "time_point"
+                },
+                {
+                    "name": "code_present",
+                    "type": "bool",
+                    "begin_optional": true
+                },
+                {
+                    "name": "code_vm_type",
+                    "type": "uint8"
+                },
+                {
+                    "name": "code_vm_version",
+                    "type": "uint8"
+                },
+                {
+                    "name": "code_code_hash",
+                    "type": "checksum256",
+                    "end_optional": true
+                }
+            ]
+        },
+        {
+            "name": "code",
+            "history_keys": [
+                {
+                    "name": "block_num",
+                    "desc": true
+                },
+                {
+                    "name": "present",
+                    "desc": true
+                }
+            ],
+            "keys": [
+                {
+                    "name": "vm_type"
+                },
+                {
+                    "name": "vm_version"
+                },
+                {
+                    "name": "code_hash"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "vm_type",
+                    "type": "uint8"
+                },
+                {
+                    "name": "vm_version",
+                    "type": "uint8"
+                },
+                {
+                    "name": "code_hash",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "code",
                     "type": "bytes"
                 }
             ]
@@ -354,6 +464,66 @@
             "sort_keys": [
                 {
                     "name": "name"
+                }
+            ]
+        },
+        {
+            "wasm_name": "acctmeta.jn",
+            "index": "acctmeta_joined_name_block_present_idx",
+            "function": "acctmeta_joined_range_name",
+            "table": "account_metadata",
+            "max_results": 100,
+            "is_state": true,
+            "limit_block_num": true,
+            "sort_keys": [
+                {
+                    "name": "name"
+                }
+            ],
+            "join": "account",
+            "join_query_wasm_name": "account",
+            "join_key_values": [
+                {
+                    "name": "name",
+                    "expression": "${table}.\"name\""
+                }
+            ],
+            "fields_from_join": [
+                {
+                    "name": "block_num",
+                    "new_name": "account_block_num"
+                },
+                {
+                    "name": "present",
+                    "new_name": "account_present"
+                },
+                {
+                    "name": "creation_date",
+                    "new_name": "account_creation_date"
+                },
+                {
+                    "name": "abi",
+                    "new_name": "account_abi"
+                }
+            ]
+        },
+        {
+            "wasm_name": "code",
+            "index": "code_type_ver_hash_block_present_idx",
+            "function": "code_range_type_ver_hash",
+            "table": "code",
+            "max_results": 100,
+            "is_state": true,
+            "limit_block_num": true,
+            "sort_keys": [
+                {
+                    "name": "vm_type"
+                },
+                {
+                    "name": "vm_version"
+                },
+                {
+                    "name": "code_hash"
                 }
             ]
         },

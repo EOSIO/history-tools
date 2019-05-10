@@ -89,8 +89,18 @@ struct pg_query_session : query_session {
         for (const auto& r : exec_result) {
             row_bin.clear();
             int i = 0;
-            for (auto& type : query.result_types)
-                type.sql_to_bin(row_bin, r[i++]);
+            for (size_t field_index = 0; field_index < query.result_fields.size();) {
+                auto& field = query.result_fields[field_index++];
+                field.type_obj->sql_to_bin(row_bin, r[i++]);
+                if (field.begin_optional && !r[i - 1].as<bool>()) {
+                    while (field_index < query.result_fields.size()) {
+                        ++field_index;
+                        ++i;
+                        if (query.result_fields[field_index - 1].end_optional)
+                            break;
+                    }
+                }
+            }
             if ((uint32_t)row_bin.size() != row_bin.size())
                 throw std::runtime_error("query_database: row is too big");
             abieos::push_varuint32(result, row_bin.size());

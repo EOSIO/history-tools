@@ -41,7 +41,7 @@ void process(tapos_request& req, const eosio::database_status& status) {
 }
 
 void process(account_request& req, const eosio::database_status& status) {
-    auto s = query_database(eosio::query_account_range_name{
+    auto s = query_database(eosio::query_acctmeta_range_name{
         .max_block   = get_block_num(req.max_block, status),
         .first       = req.first,
         .last        = req.last,
@@ -49,13 +49,11 @@ void process(account_request& req, const eosio::database_status& status) {
     });
 
     account_response response;
-    eosio::for_each_query_result<eosio::account>(s, [&](eosio::account& a) {
+    eosio::for_each_query_result<eosio::account_metadata_joined>(s, [&](eosio::account_metadata_joined& a) {
         response.more = eosio::name{a.name.value + 1};
         if (a.present) {
             if (!req.include_abi)
-                a.abi = {};
-            // if (!req.include_code) TODO
-            //     a.code = {};
+                a.account_abi = {};
             response.accounts.push_back(a);
         }
         return true;

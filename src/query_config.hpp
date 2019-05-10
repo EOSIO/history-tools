@@ -8,10 +8,12 @@ namespace query_config {
 
 template <typename Defs>
 struct field {
-    std::string                name       = {};
-    std::string                short_name = {};
-    std::string                type       = {};
-    const typename Defs::type* type_obj   = {};
+    std::string                name           = {};
+    std::string                short_name     = {};
+    std::string                type           = {};
+    bool                       begin_optional = {};
+    bool                       end_optional   = {};
+    const typename Defs::type* type_obj       = {};
 };
 
 template <typename Defs, typename F>
@@ -19,6 +21,8 @@ constexpr void for_each_field(field<Defs>*, F f) {
     f("name", abieos::member_ptr<&field<Defs>::name>{});
     f("short_name", abieos::member_ptr<&field<Defs>::short_name>{});
     f("type", abieos::member_ptr<&field<Defs>::type>{});
+    f("begin_optional", abieos::member_ptr<&field<Defs>::begin_optional>{});
+    f("end_optional", abieos::member_ptr<&field<Defs>::end_optional>{});
 };
 
 template <typename Defs>
@@ -46,7 +50,6 @@ template <typename Defs>
 struct table {
     std::string                                  name         = {};
     std::vector<typename Defs::field>            fields       = {};
-    std::vector<typename Defs::type>             types        = {};
     std::vector<typename Defs::key>              history_keys = {};
     std::vector<typename Defs::key>              keys         = {};
     std::map<std::string, typename Defs::field*> field_map    = {};
@@ -62,26 +65,26 @@ constexpr void for_each_field(table<Defs>*, F f) {
 
 template <typename Defs>
 struct query {
-    abieos::name                     wasm_name            = {};
-    std::string                      index                = {};
-    std::string                      function             = {};
-    std::string                      table                = {};
-    bool                             is_state             = {};
-    bool                             limit_block_num      = {};
-    uint32_t                         max_results          = {};
-    std::string                      join                 = {};
-    abieos::name                     join_query_wasm_name = {};
-    std::vector<typename Defs::key>  args                 = {};
-    std::vector<typename Defs::key>  sort_keys            = {};
-    std::vector<typename Defs::key>  join_key_values      = {};
-    std::vector<typename Defs::key>  fields_from_join     = {};
-    std::vector<std::string>         conditions           = {};
-    std::vector<typename Defs::type> arg_types            = {};
-    std::vector<typename Defs::type> range_types          = {};
-    std::vector<typename Defs::type> result_types         = {};
-    typename Defs::table*            table_obj            = {};
-    typename Defs::table*            join_table           = {};
-    query*                           join_query           = {};
+    abieos::name                      wasm_name            = {};
+    std::string                       index                = {};
+    std::string                       function             = {};
+    std::string                       table                = {};
+    bool                              is_state             = {};
+    bool                              limit_block_num      = {};
+    uint32_t                          max_results          = {};
+    std::string                       join                 = {};
+    abieos::name                      join_query_wasm_name = {};
+    std::vector<typename Defs::key>   args                 = {};
+    std::vector<typename Defs::key>   sort_keys            = {};
+    std::vector<typename Defs::key>   join_key_values      = {};
+    std::vector<typename Defs::key>   fields_from_join     = {};
+    std::vector<std::string>          conditions           = {};
+    std::vector<typename Defs::type>  arg_types            = {};
+    std::vector<typename Defs::type>  range_types          = {};
+    std::vector<typename Defs::field> result_fields        = {};
+    typename Defs::table*             table_obj            = {};
+    typename Defs::table*             join_table           = {};
+    query*                            join_query           = {};
 };
 
 template <typename Defs, typename F>
@@ -129,7 +132,6 @@ struct config {
                 if (it == type_map.end())
                     throw std::runtime_error("table " + table.name + " field " + field.name + ": unknown type: " + field.type);
                 field.type_obj = &it->second;
-                table.types.push_back(it->second);
             }
             set_key_fields(table, table.history_keys);
             set_key_fields(table, table.keys);
@@ -168,14 +170,15 @@ struct config {
             };
             add_types(query.range_types, query.sort_keys, query.table_obj);
 
-            query.result_types = query.table_obj->types;
+            query.result_fields = query.table_obj->fields;
             if (!query.join.empty()) {
                 auto it = table_map.find(query.join);
                 if (it == table_map.end())
                     throw std::runtime_error("query " + (std::string)query.wasm_name + ": unknown table: " + query.join);
                 query.join_table = it->second;
-                add_types(query.result_types, query.fields_from_join, query.join_table);
                 set_key_fields(*query.join_table, query.fields_from_join);
+                for (auto& key : query.fields_from_join)
+                    query.result_fields.push_back(*key.field);
 
                 auto it2 = query_map.find(query.join_query_wasm_name);
                 if (it2 == query_map.end())

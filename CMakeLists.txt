@@ -19,8 +19,9 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 set(EOSIO_WASM_OLD_BEHAVIOR "Off")
-find_package(eosio.cdt)
+set(Boost_USE_STATIC_LIBS ON)
 
+find_package(eosio.cdt)
 find_package(PQXX 6.2)
 find_library(LMDB_LIB NAMES lmdb)
 find_package(Boost 1.66 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)

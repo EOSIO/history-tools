@@ -1,0 +1,11 @@
+.dockerignore
+Dockerfile
+.vscode
+build*
+.DS_Store
+node_modules
+package-lock.json
+*.lmdb
+*.wasm
+_book
+*.o

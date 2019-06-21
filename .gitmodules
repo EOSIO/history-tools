@@ -7,3 +7,6 @@
 [submodule "external/appbase"]
 	path = external/appbase
 	url = https://github.com/EOSIO/appbase.git
+[submodule "external/eos-vm"]
+	path = external/eos-vm
+	url = https://github.com/EOSIO/eos-vm.git

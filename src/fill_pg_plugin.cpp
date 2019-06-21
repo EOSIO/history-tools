@@ -85,7 +85,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         ilog("connect to postgresql");
         sql_connection.emplace();
         stream.binary(true);
-        stream.read_message_max(10 * 1024 * 1024 * 1024);
+        stream.read_message_max(10ull * 1024 * 1024 * 1024);
     }
 
     void start() {

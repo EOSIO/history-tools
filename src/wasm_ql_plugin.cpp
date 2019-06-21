@@ -18,120 +18,104 @@
 
 #include "wasm_ql_plugin.hpp"
 #include "util.hpp"
-#include "wasm_interface.hpp"
+
+#include <fc/crypto/hex.hpp>
+#include <fc/exception/exception.hpp>
+#include <fc/io/datastream.hpp>
+#include <fc/scoped_exit.hpp>
 
 #include <boost/beast/core.hpp>
 #include <boost/beast/http/vector_body.hpp>
 #include <boost/beast/websocket.hpp>
 #include <boost/signals2/connection.hpp>
-#include <fc/exception/exception.hpp>
-#include <fc/io/datastream.hpp>
-#include <fc/scoped_exit.hpp>
+#include <eosio/vm/backend.hpp>
 #include <fstream>
 
 using namespace abieos;
 using namespace appbase;
 using namespace std::literals;
-using namespace wasm;
 namespace asio  = boost::asio;
 namespace beast = boost::beast;
 namespace http  = beast::http;
 namespace ws    = boost::beast::websocket;
 using tcp       = asio::ip::tcp;
+using eosio::vm::wasm_allocator;
 
-struct state : wasm_state {
-    std::string                         allow_origin  = {};
-    std::string                         wasm_dir      = {};
-    std::shared_ptr<database_interface> db_iface      = {};
-    std::unique_ptr<::query_session>    query_session = {};
-    state_history::fill_status          fill_status   = {};
+struct callbacks;
+using backend_t = eosio::vm::backend<callbacks>;
+using rhf_t     = eosio::vm::registered_host_functions<callbacks>;
 
-    static state& from_context(JSContext* cx) { return *reinterpret_cast<state*>(JS_GetContextPrivate(cx)); }
+struct state {
+    wasm_allocator                      wa;
+    bool                                console         = {};
+    std::vector<char>                   database_status = {};
+    abieos::input_buffer                request         = {}; // todo: rename
+    std::vector<char>                   reply           = {}; // todo: rename
+    std::string                         allow_origin    = {};
+    std::string                         wasm_dir        = {};
+    std::shared_ptr<database_interface> db_iface        = {};
+    std::unique_ptr<::query_session>    query_session   = {};
+    state_history::fill_status          fill_status     = {};
 };
 
-// args: wasm_name
-static bool get_wasm(JSContext* cx, unsigned argc, JS::Value* vp) {
-    auto&        state = ::state::from_context(cx);
-    JS::CallArgs args  = CallArgsFromVp(argc, vp);
-    if (!args.requireAtLeast(cx, "get_wasm", 1))
-        return false;
-    std::string wasm_name;
-    if (!js_assert(args[0].isString() && convert_str(cx, args[0].toString(), wasm_name), cx, "get_wasm: invalid args"))
-        return false;
+struct callbacks {
+    ::state&        state;
+    wasm_allocator& allocator;
+    backend_t&      backend;
 
-    // todo: sanitize wasm_name
-    wasm_name = state.wasm_dir + "/" + wasm_name + "-server.wasm";
-
-    try {
-        std::fstream file(wasm_name, std::ios_base::in | std::ios_base::binary);
-        file.seekg(0, std::ios_base::end);
-        auto len = file.tellg();
-        if (len <= 0)
-            return js_assert(false, cx, ("can not read " + wasm_name).c_str());
-        file.seekg(0, std::ios_base::beg);
-        auto data = malloc(len);
-        if (!data)
-            return js_assert(false, cx, ("out of memory reading " + wasm_name).c_str());
-        file.read(reinterpret_cast<char*>(data), len);
-        JS::CallArgs args = CallArgsFromVp(argc, vp);
-        args.rval().setObjectOrNull(JS_NewArrayBufferWithContents(cx, len, data));
-        return true;
-    } catch (...) {
-        return js_assert(false, cx, ("error reading " + wasm_name).c_str());
+    void check_bounds(const char* begin, const char* end) {
+        if (begin > end)
+            throw std::runtime_error("bad memory");
+        // todo: check bounds
     }
-}
 
-// args: ArrayBuffer, row_request_begin, row_request_end, callback
-static bool query_database(JSContext* cx, unsigned argc, JS::Value* vp) {
-    auto&        state = ::state::from_context(cx);
-    JS::CallArgs args  = CallArgsFromVp(argc, vp);
-    if (!args.requireAtLeast(cx, "query_database", 4))
-        return false;
-    std::vector<char> args_bin;
-    bool              ok = true;
-    {
-        JS::AutoCheckCannotGC checkGC;
-        auto                  b = get_input_buffer(args, 0, 1, 2, checkGC);
-        if (b.pos) {
-            try {
-                args_bin.assign(b.pos, b.end);
-            } catch (...) {
-                ok = false;
-            }
-        }
+    char* alloc(uint32_t cb_alloc_data, uint32_t cb_alloc, uint32_t size) {
+        // todo: verify cb_alloc isn't in imports
+        auto result = backend.get_context().execute_func_table(
+            this, eosio::vm::interpret_visitor(backend.get_context()), cb_alloc, cb_alloc_data, size);
+        if (!result || !std::holds_alternative<eosio::vm::i32_const_t>(*result))
+            throw std::runtime_error("cb_alloc returned incorrect type");
+        char* begin = allocator.get_base_ptr<char>() + std::get<eosio::vm::i32_const_t>(*result).data.ui;
+        check_bounds(begin, begin + size);
+        return begin;
     }
-    if (!ok)
-        return js_assert(false, cx, "query_database: invalid args");
 
-    try {
-        auto result = state.query_session->query_database({args_bin.data(), args_bin.data() + args_bin.size()}, state.fill_status.head);
-        auto data   = get_mem_from_callback(cx, args, 3, result.size());
-        if (!js_assert(data, cx, "query_database: failed to fetch buffer from callback"))
-            return false;
+    void abort() { throw std::runtime_error("called abort"); }
+
+    void eosio_assert_message(bool test, const char* msg, size_t msg_len) {
+        // todo: pass assert message through RPC API
+        if (!test)
+            throw std::runtime_error("assert failed");
+    }
+
+    void get_database_status(uint32_t cb_alloc_data, uint32_t cb_alloc) {
+        auto data = alloc(cb_alloc_data, cb_alloc, state.database_status.size());
+        memcpy(data, state.database_status.data(), state.database_status.size());
+    }
+
+    void get_input_data(uint32_t cb_alloc_data, uint32_t cb_alloc) {
+        auto data = alloc(cb_alloc_data, cb_alloc, state.request.end - state.request.pos);
+        memcpy(data, state.request.pos, state.request.end - state.request.pos);
+    }
+
+    void set_output_data(const char* begin, const char* end) {
+        check_bounds(begin, end);
+        state.reply.assign(begin, end);
+    }
+
+    void query_database(const char* req_begin, const char* req_end, uint32_t cb_alloc_data, uint32_t cb_alloc) {
+        check_bounds(req_begin, req_end);
+        auto result = state.query_session->query_database({req_begin, req_end}, state.fill_status.head);
+        auto data   = alloc(cb_alloc_data, cb_alloc, result.size());
         memcpy(data, result.data(), result.size());
-        return true;
-    } catch (const std::exception& e) {
-        return js_assert(false, cx, ("query_database: "s + e.what()).c_str());
-    } catch (...) {
-        return js_assert(false, cx, "query_database error");
     }
-} // query_database
 
-static const JSFunctionSpec functions[] = {
-    JS_FN("get_database_status", get_database_status, 0, 0), //
-    JS_FN("get_input_data", get_input_data, 0, 0),           //
-    JS_FN("get_wasm", get_wasm, 0, 0),                       //
-    JS_FN("print_js_str", print_js_str, 0, 0),               //
-    JS_FN("print_wasm_str", print_wasm_str, 0, 0),           //
-    JS_FN("query_database", query_database, 0, 0),           //
-    JS_FN("set_output_data", set_output_data, 0, 0),         //
-    JS_FS_END                                                //
-};
-
-static void init_glue(::state& state) {
-    create_global(state, functions);
-    execute(state, "glue.js", read_string("../src/glue.js"));
-}
+    void print_range(const char* begin, const char* end) {
+        check_bounds(begin, end);
+        if (state.console)
+            std::cerr.write(begin, end - begin);
+    }
+}; // callbacks
 
 static void fill_context_data(::state& state) {
     state.database_status.clear();
@@ -174,6 +158,19 @@ static void retry_loop(::state& state, F f) {
     }
 }
 
+static void run_query(::state& state, abieos::name wasm_name) {
+    auto      code = backend_t::read_wasm((string)wasm_name + "-server.wasm");
+    backend_t backend(code);
+    callbacks cb{state, state.wa, backend};
+
+    state.wa.reset();
+    backend.set_wasm_allocator(&state.wa);
+
+    rhf_t::resolve(backend.get_module());
+    backend(&cb, "env", "initialize");
+    backend(&cb, "env", "run_query");
+}
+
 static std::vector<char> query(::state& state, const std::vector<char>& request) {
     std::vector<char> result;
     retry_loop(state, [&]() {
@@ -188,19 +185,11 @@ static std::vector<char> query(::state& state, const std::vector<char>& request)
                 throw std::runtime_error("unknown namespace: " + (std::string)ns_name);
             auto wasm_name = bin_to_native<name>(state.request);
 
-            JSAutoRealm           realm(state.context.cx, state.global);
-            JS::RootedValue       rval(state.context.cx);
-            JS::AutoValueArray<1> args(state.context.cx);
-            args[0].set(JS::StringValue(JS_NewStringCopyZ(state.context.cx, ((std::string)wasm_name).c_str())));
-            if (!JS_CallFunctionName(state.context.cx, state.global, "run_query", args, &rval)) {
-                // todo: detect assert
-                JS_ClearPendingException(state.context.cx);
-                throw std::runtime_error("JS_CallFunctionName failed");
-            }
-
+            run_query(state, wasm_name);
             if (did_fork(state))
                 return false;
 
+            // elog("result: ${s} ${x}", ("s", state.reply.size())("x", fc::to_hex(state.reply)));
             push_varuint32(result, state.reply.size());
             result.insert(result.end(), state.reply.begin(), state.reply.end());
         }
@@ -215,15 +204,7 @@ static const std::vector<char>& legacy_query(::state& state, const std::string& 
     abieos::native_to_bin(req, request);
     state.request = input_buffer{req.data(), req.data() + req.size()};
     retry_loop(state, [&]() {
-        JSAutoRealm           realm(state.context.cx, state.global);
-        JS::RootedValue       rval(state.context.cx);
-        JS::AutoValueArray<1> args(state.context.cx);
-        args[0].set(JS::StringValue(JS_NewStringCopyZ(state.context.cx, "legacy")));
-        if (!JS_CallFunctionName(state.context.cx, state.global, "run_query", args, &rval)) {
-            // todo: detect assert
-            JS_ClearPendingException(state.context.cx);
-            throw std::runtime_error("JS_CallFunctionName failed");
-        }
+        run_query(state, "legacy"_n);
         return !did_fork(state);
     });
     return state.reply;
@@ -377,7 +358,6 @@ void wasm_ql_plugin::set_program_options(options_description& cli, options_descr
 
 void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
     try {
-        JS_Init();
         auto ip_port            = options.at("wql-listen").as<std::string>();
         my->state               = std::make_unique<::state>();
         my->state->console      = options.count("wql-console");
@@ -385,7 +365,15 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
         my->endpoint_address    = ip_port.substr(0, ip_port.find(':'));
         my->state->allow_origin = options.at("wql-allow-origin").as<std::string>();
         my->state->wasm_dir     = options.at("wql-wasm-dir").as<std::string>();
-        init_glue(*my->state);
+        // init_glue(*my->state);
+
+        rhf_t::add<callbacks, &callbacks::abort, wasm_allocator>("env", "abort");
+        rhf_t::add<callbacks, &callbacks::eosio_assert_message, wasm_allocator>("env", "eosio_assert_message");
+        rhf_t::add<callbacks, &callbacks::get_database_status, wasm_allocator>("env", "get_database_status");
+        rhf_t::add<callbacks, &callbacks::get_input_data, wasm_allocator>("env", "get_input_data");
+        rhf_t::add<callbacks, &callbacks::set_output_data, wasm_allocator>("env", "set_output_data");
+        rhf_t::add<callbacks, &callbacks::query_database, wasm_allocator>("env", "query_database");
+        rhf_t::add<callbacks, &callbacks::print_range, wasm_allocator>("env", "print_range");
     }
     FC_LOG_AND_RETHROW()
 }

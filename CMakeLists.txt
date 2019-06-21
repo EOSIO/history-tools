@@ -6,6 +6,10 @@ include(ExternalProject)
 cmake_minimum_required (VERSION 3.10)
 project(wasm-ql VERSION 0.1 LANGUAGES CXX)
 
+cmake_policy(SET CMP0077 NEW)
+set(ENABLE_TESTS OFF)
+add_subdirectory(external/eos-vm)
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
 set(default_build_type "Release")
@@ -19,13 +23,15 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 set(EOSIO_WASM_OLD_BEHAVIOR "Off")
-find_package(eosio.cdt)
+set(Boost_USE_STATIC_LIBS ON)
 
+add_definitions(-DBOOST_ASIO_DISABLE_STD_EXPERIMENTAL_STRING_VIEW)
+
+find_package(eosio.cdt)
 find_package(PQXX 6.2)
 find_library(LMDB_LIB NAMES lmdb)
 find_package(Boost 1.66 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(JS mozjs-64)
 
 if (LMDB_LIB)
     set(FOUND_LMDB TRUE)
@@ -96,12 +102,13 @@ function(add_app APP FLAGS LIBS)
             external/abieos/external/date/include
             external/abieos/external/rapidjson/include
             external/appbase/include
+            external/eos-vm/include
+            external/eos-vm/external/softfloat/source/include
             external/fc/include
             ${Boost_INCLUDE_DIR}
-            ${JS_INCLUDE_DIRS}
     )
-    target_link_libraries(${APP} appbase fc ${Boost_LIBRARIES} ${LIBS} -lpthread)
-    target_compile_options(${APP} PUBLIC -DAPP_NAME="${APP}" ${JS_CFLAGS_OTHER} ${FLAGS})
+    target_link_libraries(${APP} appbase fc eos-vm ${Boost_LIBRARIES} ${LIBS} -lpthread)
+    target_compile_options(${APP} PUBLIC -DAPP_NAME="${APP}" ${FLAGS})
 
     string(TOLOWER ${CMAKE_BUILD_TYPE} LOWERCASE_CMAKE_BUILD_TYPE)
     if (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
@@ -116,7 +123,7 @@ function(add_app APP FLAGS LIBS)
     endif()
 endfunction(add_app)
 
-add_app(history-tools "-DDEFAULT_PLUGINS=" "${PQXX_LIBRARIES};${JS_LIBRARIES};${LMDB_LIB}")
+add_app(history-tools "-DDEFAULT_PLUGINS=" "${PQXX_LIBRARIES};${LMDB_LIB}")
 
 message(STATUS "----------------------------------------------------")
 message(STATUS "Checked libraries:")
@@ -136,7 +143,6 @@ endfunction(show_found)
 
 show_found("    pq and pqxx:" "${PQXX_FOUND}" "not found; will not build pg plugins" ${PQXX_VERSION})
 show_found("    lmdb:       " "${FOUND_LMDB}" "not found; will not build lmdb plugins")
-show_found("    mozjs:      " "${JS_FOUND}" "not found; will not build wasm plugins")
 
 message(STATUS "Enabled plugins:")
 
@@ -145,12 +151,10 @@ if (PQXX_FOUND)
     add_app(fill-pg "-DDEFAULT_PLUGINS=fill_pg_plugin;-DINCLUDE_FILL_PG_PLUGIN" "${PQXX_LIBRARIES}")
     target_sources(history-tools PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp)
     target_sources(fill-pg PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp)
-    if (JS_FOUND)
-        message(STATUS "    wasm_ql_pg_plugin")
-        add_app(wasm-ql-pg "-DDEFAULT_PLUGINS=wasm_ql_pg_plugin;-DINCLUDE_WASM_QL_PG_PLUGIN" "${PQXX_LIBRARIES};${JS_LIBRARIES}")
-        target_sources(history-tools PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp)
-        target_sources(wasm-ql-pg PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
-    endif ()
+    message(STATUS "    wasm_ql_pg_plugin")
+    add_app(wasm-ql-pg "-DDEFAULT_PLUGINS=wasm_ql_pg_plugin;-DINCLUDE_WASM_QL_PG_PLUGIN" "${PQXX_LIBRARIES}")
+    target_sources(history-tools PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp)
+    target_sources(wasm-ql-pg PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp src/wasm_ql_plugin.cpp)
 endif ()
 
 if (FOUND_LMDB)
@@ -158,20 +162,16 @@ if (FOUND_LMDB)
     add_app(fill-lmdb "-DDEFAULT_PLUGINS=fill_lmdb_plugin;-DINCLUDE_FILL_LMDB_PLUGIN" "${LMDB_LIB}")
     target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/lmdb_plugin.cpp src/fill_plugin.cpp src/fill_lmdb_plugin.cpp)
     target_sources(fill-lmdb PRIVATE src/query_config_plugin.cpp src/lmdb_plugin.cpp src/fill_plugin.cpp src/fill_lmdb_plugin.cpp)
-    if (JS_FOUND)
-        message(STATUS "    wasm_ql_lmdb_plugin")
-        add_app(wasm-ql-lmdb "-DDEFAULT_PLUGINS=wasm_ql_lmdb_plugin;-DINCLUDE_WASM_QL_LMDB_PLUGIN" "${LMDB_LIB};${JS_LIBRARIES}")
-        add_app(combo-lmdb "-DDEFAULT_PLUGINS=fill_lmdb_plugin,wasm_ql_lmdb_plugin;-DINCLUDE_FILL_LMDB_PLUGIN;-DINCLUDE_WASM_QL_LMDB_PLUGIN" "${LMDB_LIB};${JS_LIBRARIES}")
-        target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/lmdb_plugin.cpp src/wasm_ql_lmdb_plugin.cpp)
-        target_sources(wasm-ql-lmdb PRIVATE src/query_config_plugin.cpp src/lmdb_plugin.cpp src/wasm_ql_lmdb_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
-        target_sources(combo-lmdb PRIVATE src/query_config_plugin.cpp src/lmdb_plugin.cpp src/wasm_ql_lmdb_plugin.cpp src/fill_plugin.cpp src/fill_lmdb_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
-    endif ()
+    message(STATUS "    wasm_ql_lmdb_plugin")
+    add_app(wasm-ql-lmdb "-DDEFAULT_PLUGINS=wasm_ql_lmdb_plugin;-DINCLUDE_WASM_QL_LMDB_PLUGIN" "${LMDB_LIB}")
+    add_app(combo-lmdb "-DDEFAULT_PLUGINS=fill_lmdb_plugin,wasm_ql_lmdb_plugin;-DINCLUDE_FILL_LMDB_PLUGIN;-DINCLUDE_WASM_QL_LMDB_PLUGIN" "${LMDB_LIB}")
+    target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/lmdb_plugin.cpp src/wasm_ql_lmdb_plugin.cpp)
+    target_sources(wasm-ql-lmdb PRIVATE src/query_config_plugin.cpp src/lmdb_plugin.cpp src/wasm_ql_lmdb_plugin.cpp src/wasm_ql_plugin.cpp)
+    target_sources(combo-lmdb PRIVATE src/query_config_plugin.cpp src/lmdb_plugin.cpp src/wasm_ql_lmdb_plugin.cpp src/fill_plugin.cpp src/fill_lmdb_plugin.cpp src/wasm_ql_plugin.cpp)
 endif()
 
-if (JS_FOUND)
-    message(STATUS "    wasm_ql_plugin")
-    target_sources(history-tools PRIVATE src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
-endif()
+message(STATUS "    wasm_ql_plugin")
+target_sources(history-tools PRIVATE src/wasm_ql_plugin.cpp)
 
 message(STATUS "Enabled apps:")
 foreach(APP ${APPS})

@@ -46,7 +46,30 @@
             ]
         },
         {
+            "name": "public_key_history",
+            "fields": [
+                {
+                    "name": "public_key",
+                    "type": "public_key"
+                },
+                {
+                    "name": "name",
+                    "type": "name"
+                },
+                {
+                    "name": "permission",
+                    "type": "name"
+                }
+            ]
+        },
+        {
             "name": "action_trace",
+            "history_keys": [
+                {
+                    "name": "receipt_receiver",
+                    "desc": true
+                }
+            ],
             "fields": [
                 {
                     "name": "block_index",
@@ -317,6 +340,17 @@
             ]
         },
         {
+            "wasm_name": "key.history",
+            "function": "key_history_index",
+            "table": "public_key_history",
+            "max_results": 100,
+            "sort_keys": [
+                {
+                    "name": "public_key"
+                }
+            ]
+        },
+        {
             "wasm_name": "at.e.nra",
             "index": "at_executed_range_name_receiver_account_block_trans_action_idx",
             "function": "at_executed_range_name_receiver_account_block_trans_action",
@@ -338,6 +372,53 @@
                 },
                 {
                     "name": "transaction_id"
+                },
+                {
+                    "name": "action_index"
+                }
+            ],
+            "conditions": [
+                "transaction_status = 'executed'"
+            ]
+        },
+        {
+            "wasm_name": "receipt.rcvr",
+            "index": "executed_receipt_receiver_idx",
+            "function": "executed_receipt_receiver",
+            "table": "action_trace",
+            "max_results": 100,
+            "limit_block_index": true,
+            "sort_keys": [
+                {
+                    "name": "receipt_receiver"
+                },
+                {
+                    "name": "block_index"
+                },
+                {
+                    "name": "transaction_id"
+                },
+                {
+                    "name": "action_index"
+                }
+            ],
+            "conditions": [
+                "transaction_status = 'executed'"
+            ]
+        },
+        {
+            "wasm_name": "transaction",
+            "index": "executed_transaction_idx",
+            "function": "executed_transaction",
+            "table": "action_trace",
+            "max_results": 100,
+            "limit_block_index": true,
+            "sort_keys": [
+                {
+                    "name": "transaction_id"
+                },
+                {
+                    "name": "block_index"
                 },
                 {
                     "name": "action_index"

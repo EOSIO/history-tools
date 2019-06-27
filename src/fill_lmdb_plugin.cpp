@@ -77,6 +77,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     std::map<std::string, lmdb_table>         tables             = {};
     lmdb_table*                               block_info_table   = {};
     lmdb_table*                               action_trace_table = {};
+    lmdb_table*                               key_history_table  = {};
     std::optional<state_history::fill_status> current_db_status  = {};
     uint32_t                                  head               = 0;
     abieos::checksum256                       head_id            = {};
@@ -311,6 +312,16 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         action_trace_trim.fields.push_back(action_trace_table->field_map["block_index"]);
         action_trace_trim.fields.push_back(action_trace_table->field_map["transaction_id"]);
         action_trace_trim.fields.push_back(action_trace_table->field_map["action_index"]);
+
+        key_history_table = &tables["public_key_history"];
+        key_history_table->name = "public_key_history";
+        key_history_table->short_name = "key.history"_n;
+        fill_fields(*key_history_table, "", abieos::abi_field{"public_key", &get_type("public_key")});
+        fill_fields(*key_history_table, "", abieos::abi_field{"name", &get_type("name")});
+        fill_fields(*key_history_table, "", abieos::abi_field{"permission", &get_type("name")});
+        auto& key_history_trim = key_history_table->indexes["trim"_n];
+        key_history_trim.name = "trim"_n;
+        key_history_trim.fields.push_back(key_history_table->field_map["public_key"]);
     } // init_tables
 
     void init_indexes() {
@@ -700,6 +711,17 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
 
         for (auto& child : atrace.inline_traces)
             write_action_trace(t, block_num, ttrace, child, action_index, prev_action_index, key, value, index_key);
+
+        if(atrace.receipt_receiver == abieos::name("eosio"))  { // chain config system_account_name
+            for (auto& [_, index] : key_history_table->indexes) {
+                index_key.clear();
+                lmdb::append_table_index_key(index_key, key_history_table->short_name, index.name);
+                fill_key(index_key, index);
+                lmdb::put(t, lmdb_inst->db, index_key, key);
+                lmdb::put(t, lmdb_inst->db, lmdb::make_table_index_ref_key(block_num, key, index_key), index_key);
+            }
+        }
+
     }
 
     template <typename F>

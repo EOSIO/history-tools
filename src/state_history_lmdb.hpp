@@ -15,6 +15,7 @@ using namespace abieos::literals;
 // clang-format off
 inline const std::map<std::string, abieos::name> table_names = {
     {"block_info",                  "block.info"_n},
+    {"public_key_history",          "key.history"_n},
     {"transaction_trace",           "ttrace"_n},
     {"action_trace",                "atrace"_n},
 
@@ -55,7 +56,7 @@ template <typename T, typename F>
 void fixup_key(std::vector<char>& bin, F f) {
     if constexpr (
         std::is_unsigned_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
-        std::is_same_v<std::decay_t<T>, abieos::checksum256>)
+        std::is_same_v<std::decay_t<T>, abieos::checksum256> || std::is_same_v<std::decay_t<T>, abieos::public_key> )
         reverse_bin(bin, f);
     else
         throw std::runtime_error("unsupported key type");

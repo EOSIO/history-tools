@@ -159,7 +159,7 @@ static void retry_loop(::state& state, F f) {
 }
 
 static void run_query(::state& state, abieos::name wasm_name) {
-    auto      code = backend_t::read_wasm((string)wasm_name + "-server.wasm");
+    auto      code = backend_t::read_wasm(state.wasm_dir + "/" + (string)wasm_name + "-server.wasm");
     backend_t backend(code);
     callbacks cb{state, state.wa, backend};
 
@@ -365,7 +365,6 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
         my->endpoint_address    = ip_port.substr(0, ip_port.find(':'));
         my->state->allow_origin = options.at("wql-allow-origin").as<std::string>();
         my->state->wasm_dir     = options.at("wql-wasm-dir").as<std::string>();
-        // init_glue(*my->state);
 
         rhf_t::add<callbacks, &callbacks::abort, wasm_allocator>("env", "abort");
         rhf_t::add<callbacks, &callbacks::eosio_assert_message, wasm_allocator>("env", "eosio_assert_message");

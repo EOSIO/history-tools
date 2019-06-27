@@ -14,6 +14,8 @@
 #include <boost/beast/websocket.hpp>
 #include <fc/exception/exception.hpp>
 
+#include <pqxx/tablewriter>
+
 using namespace abieos;
 using namespace appbase;
 using namespace state_history;

@@ -4,7 +4,6 @@
 // todo: timeout sql
 // todo: what should memory size limit be?
 // todo: check callbacks for recursion to limit stack size
-// todo: make sure spidermonkey limits stack size
 // todo: reformulate get_input_data and set_output_data for reentrancy
 // todo: wasms get whether a query is present
 // todo: indexes on authorized, ram usage, notify
@@ -162,11 +161,11 @@ static void run_query(::state& state, abieos::name wasm_name) {
     auto      code = backend_t::read_wasm(state.wasm_dir + "/" + (string)wasm_name + "-server.wasm");
     backend_t backend(code);
     callbacks cb{state, state.wa, backend};
-
-    state.wa.reset();
     backend.set_wasm_allocator(&state.wa);
 
     rhf_t::resolve(backend.get_module());
+    backend.reset();
+    // todo: wasm start function. Not created by CDT, but may be created by other tooling.
     backend(&cb, "env", "initialize");
     backend(&cb, "env", "run_query");
 }

@@ -19,6 +19,8 @@ inline const std::map<std::string, abieos::name> table_names = {
     {"action_trace",                "atrace"_n},
 
     {"account",                     "account"_n},
+    {"account_metadata",            "account.meta"_n},
+    {"code",                        "code"_n},
     {"contract_table",              "c.table"_n},
     {"contract_row",                "c.row"_n},
     {"contract_index64",            "c.index64"_n},
@@ -28,6 +30,7 @@ inline const std::map<std::string, abieos::name> table_names = {
     {"contract_index_long_double",  "c.index.ld"_n},
     {"global_property",             "glob.prop"_n},
     {"generated_transaction",       "gen.tx"_n},
+    {"protocol_state",              "protocol.st"_n},
     {"permission",                  "permission"_n},
     {"permission_link",             "perm.link"_n},
     {"resource_limits",             "res.lim"_n},

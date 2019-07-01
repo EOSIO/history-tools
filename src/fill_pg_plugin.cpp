@@ -85,7 +85,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         ilog("connect to postgresql");
         sql_connection.emplace();
         stream.binary(true);
-        stream.read_message_max(1024 * 1024 * 1024);
+        stream.read_message_max(10 * 1024 * 1024 * 1024);
     }
 
     void start() {
@@ -718,10 +718,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         write(block_num, t, pipeline, bulk, "block_info", fields, values);
     } // receive_block
 
-    void receive_deltas(uint32_t block_num, input_buffer buf, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
-        auto         data = zlib_decompress(buf);
-        input_buffer bin{data.data(), data.data() + data.size()};
-
+    void receive_deltas(uint32_t block_num, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
         auto     num     = read_varuint32(bin);
         unsigned numRows = 0;
         for (uint32_t i = 0; i < num; ++i) {
@@ -752,11 +749,9 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         }
     } // receive_deltas
 
-    void receive_traces(uint32_t block_num, input_buffer buf, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
-        auto         data         = zlib_decompress(buf);
-        input_buffer bin          = {data.data(), data.data() + data.size()};
-        auto         num          = read_varuint32(bin);
-        uint32_t     num_ordinals = 0;
+    void receive_traces(uint32_t block_num, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        auto     num          = read_varuint32(bin);
+        uint32_t num_ordinals = 0;
         for (uint32_t i = 0; i < num; ++i) {
             transaction_trace trace;
             bin_to_native(trace, bin);

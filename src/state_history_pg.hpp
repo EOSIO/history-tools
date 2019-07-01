@@ -373,6 +373,7 @@ inline const std::map<std::string_view, type> abi_type_to_sql_type = {
     {"public_key",              type_for<abieos::public_key>},
     {"bytes",                   type_for<abieos::bytes>},
     {"transaction_status",      type_for<transaction_status>},
+    {"symbol",                  type_for<abieos::symbol>},
 };
 
 // clang-format on

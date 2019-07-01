@@ -21,6 +21,8 @@ endif()
 set(EOSIO_WASM_OLD_BEHAVIOR "Off")
 set(Boost_USE_STATIC_LIBS ON)
 
+add_definitions(-DBOOST_ASIO_DISABLE_STD_EXPERIMENTAL_STRING_VIEW)
+
 find_package(eosio.cdt)
 find_package(PQXX 6.2)
 find_library(LMDB_LIB NAMES lmdb)

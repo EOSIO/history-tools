@@ -378,7 +378,7 @@ template<> inline constexpr type type_for<abieos::signature>        = make_type_
 template<> inline constexpr type type_for<abieos::bytes>            = make_type_for<abieos::bytes>(             "bytea"                     );
 template<> inline constexpr type type_for<abieos::input_buffer>     = make_type_for<abieos::input_buffer>(      "bytea"                     );
 template<> inline constexpr type type_for<transaction_status>       = make_type_for<transaction_status>(        "transaction_status_type"   );
-template<> inline constexpr type type_for<abieos::symbol>           = make_type_for<abieos::symbol>(            "varchar(7)"                );
+template<> inline constexpr type type_for<abieos::symbol>           = make_type_for<abieos::symbol>(            "varchar(10)"               );
 // clang-format on
 
 template <typename T>

@@ -210,22 +210,6 @@ struct query_block_info_range_index {
     uint32_t max_results = {};
 };
 
-/// Pass this to `query_database` to get `public_key_history` for a public key.
-/// The query results are sorted by `name`.
-struct query_public_key_history {
-    /// Identifies query type. Do not modify this field.
-    name query_name = "key.history"_n;
-
-    /// Query records with `public_key` in the range [`first`, `last`].
-    public_key first = {};
-
-    /// Query records with `public_key` in the range [`first`, `last`].
-    public_key last = {};
-
-    /// Maximum results t return.  The wasm-ql server may cap the number of results to a smaller number.
-    uint32_t max_results = {};
-};
-
 /// Pass this to `query_database` to get `action_trace` for a range of keys. Only includes actions
 /// in executed transactions.
 ///

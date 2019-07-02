@@ -77,7 +77,6 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     std::map<std::string, lmdb_table>         tables             = {};
     lmdb_table*                               block_info_table   = {};
     lmdb_table*                               action_trace_table = {};
-    lmdb_table*                               key_history_table  = {};
     std::optional<state_history::fill_status> current_db_status  = {};
     uint32_t                                  head               = 0;
     abieos::checksum256                       head_id            = {};

@@ -55,7 +55,7 @@ template <typename T, typename F>
 void fixup_key(std::vector<char>& bin, F f) {
     if constexpr (
         std::is_unsigned_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
-        std::is_same_v<std::decay_t<T>, abieos::checksum256> )
+        std::is_same_v<std::decay_t<T>, abieos::checksum256>)
         reverse_bin(bin, f);
     else
         throw std::runtime_error("unsupported key type");

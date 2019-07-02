@@ -630,16 +630,6 @@ void get_actions(std::string_view request, const eosio::database_status& /*statu
     eosio::set_output_data(result);
 }
 
-void get_key_accounts(std::string_view request, const eosio::database_status& /*status*/) {
-    std::string result;
-    eosio::set_output_data(result);
-}
-
-void get_controlled_accounts(std::string_view request, const eosio::database_status& /*status*/) {
-    std::string result;
-    eosio::set_output_data(result);
-}
-
 void get_block(std::string_view request, const eosio::database_status& /*status*/) {
     auto params = eosio::parse_json<get_block_params>(request);
     std::string error;
@@ -733,10 +723,6 @@ extern "C" void run_query() {
         get_transaction(*request.request, status);
     else if (*request.target == "/v1/history/get_actions")
         get_actions(*request.request, status);
-    else if (*request.target == "/v1/history/get_key_accounts")
-        get_key_accounts(*request.request, status);
-    else if (*request.target == "/v1/history/get_controlled_accounts")
-        get_controlled_accounts(*request.request, status);
     else if (*request.target == "/v1/chain/get_block")
         get_block(*request.request, status);
     else if (*request.target == "/v1/chain/get_account")

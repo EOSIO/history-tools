@@ -85,19 +85,6 @@ STRUCT_REFLECT(block_info) {
     STRUCT_MEMBER(block_info, new_producers_version)
 }
 
-/// Information about key activity
-struct public_key_history {
-    public_key  public_key = {};
-    eosio::name name       = {};
-    eosio::name permission = {};
-};
-
-STRUCT_REFLECT(public_key_history) {
-    STRUCT_MEMBER(public_key_history, public_key)
-    STRUCT_MEMBER(public_key_history, name)
-    STRUCT_MEMBER(public_key_history, permission)
-}
-
 /// Details about action execution
 struct action_trace {
     uint32_t                               block_index             = {};

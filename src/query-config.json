@@ -46,23 +46,6 @@
             ]
         },
         {
-            "name": "public_key_history",
-            "fields": [
-                {
-                    "name": "public_key",
-                    "type": "public_key"
-                },
-                {
-                    "name": "name",
-                    "type": "name"
-                },
-                {
-                    "name": "permission",
-                    "type": "name"
-                }
-            ]
-        },
-        {
             "name": "action_trace",
             "history_keys": [
                 {
@@ -336,17 +319,6 @@
             "sort_keys": [
                 {
                     "name": "block_index"
-                }
-            ]
-        },
-        {
-            "wasm_name": "key.history",
-            "function": "key_history_index",
-            "table": "public_key_history",
-            "max_results": 100,
-            "sort_keys": [
-                {
-                    "name": "public_key"
                 }
             ]
         },

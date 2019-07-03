@@ -42,6 +42,7 @@ using tcp       = asio::ip::tcp;
 struct state : wasm_state {
     std::string                         allow_origin  = {};
     std::string                         wasm_dir      = {};
+    std::string                         js_dir        = {};
     std::shared_ptr<database_interface> db_iface      = {};
     std::unique_ptr<::query_session>    query_session = {};
     state_history::fill_status          fill_status   = {};
@@ -130,7 +131,8 @@ static const JSFunctionSpec functions[] = {
 
 static void init_glue(::state& state) {
     create_global(state, functions);
-    execute(state, "glue.js", read_string("../src/glue.js"));
+    std::string js_name{state.js_dir + "/" + "glue.js"};
+    execute(state, "glue.js", read_string(js_name.c_str()));
 }
 
 static void fill_context_data(::state& state) {
@@ -372,6 +374,7 @@ void wasm_ql_plugin::set_program_options(options_description& cli, options_descr
     op("wql-listen", bpo::value<std::string>()->default_value("localhost:8880"), "Endpoint to listen on");
     op("wql-allow-origin", bpo::value<std::string>()->default_value(""), "Access-Control-Allow-Origin header. Use \"*\" to allow any.");
     op("wql-wasm-dir", bpo::value<std::string>()->default_value("."), "Directory to fetch WASMs from");
+    op("wql-js-dir", bpo::value<std::string>()->default_value("../src"), "Directory to fetch JSs from");
     op("wql-console", "Show console output");
 }
 
@@ -385,6 +388,7 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
         my->endpoint_address    = ip_port.substr(0, ip_port.find(':'));
         my->state->allow_origin = options.at("wql-allow-origin").as<std::string>();
         my->state->wasm_dir     = options.at("wql-wasm-dir").as<std::string>();
+        my->state->js_dir       = options.at("wql-js-dir").as<std::string>();
         init_glue(*my->state);
     }
     FC_LOG_AND_RETHROW()

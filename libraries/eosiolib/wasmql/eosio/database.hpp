@@ -4,12 +4,16 @@
 // todo: results vs. response vs. rows vs. records
 
 #pragma once
+#include <eosio/crypto.hpp>
 #include <eosio/fixed_bytes.hpp>
 #include <eosio/name.hpp>
 #include <eosio/shared_memory.hpp>
 #include <eosio/struct_reflection.hpp>
 #include <eosio/temp_placeholders.hpp>
 #include <eosio/time.hpp>
+#include <eosio/to_json.hpp>
+
+#include <type_traits>
 
 namespace eosio {
 
@@ -50,6 +54,11 @@ enum class transaction_status : uint8_t {
     expired = 4,
 };
 
+/// \group to_json_explicit
+__attribute__((noinline)) inline eosio::rope to_json(transaction_status value) {
+    return eosio::int_to_json(std::underlying_type_t<transaction_status>(value));
+}
+
 /// Information extracted from a block
 struct block_info {
     uint32_t        block_num             = {};
@@ -65,12 +74,7 @@ struct block_info {
     //std::vector<producer_key> new_producers         = {}; // todo
 };
 
-/// \exclude
-inline std::string_view schema_type_name(block_info*) { return "eosio::block_info"; }
-
-/// \exclude
-template <typename F>
-void for_each_member(block_info*, F f) {
+STRUCT_REFLECT(block_info) {
     STRUCT_MEMBER(block_info, block_num)
     STRUCT_MEMBER(block_info, block_id)
     STRUCT_MEMBER(block_info, timestamp)
@@ -95,6 +99,15 @@ struct receipt {
     EOSLIB_SERIALIZE(receipt, (receiver)(act_digest)(global_sequence)(recv_sequence)(code_sequence)(abi_sequence))
 };
 
+STRUCT_REFLECT(receipt) {
+    STRUCT_MEMBER(receipt, receiver);
+    STRUCT_MEMBER(receipt, act_digest);
+    STRUCT_MEMBER(receipt, global_sequence);
+    STRUCT_MEMBER(receipt, recv_sequence);
+    STRUCT_MEMBER(receipt, code_sequence);
+    STRUCT_MEMBER(receipt, abi_sequence);
+}
+
 /// Details about action execution
 struct action {
     eosio::name                            account = {};
@@ -103,6 +116,12 @@ struct action {
 
     EOSLIB_SERIALIZE(action, (account)(name)(data))
 };
+
+STRUCT_REFLECT(action) {
+    STRUCT_MEMBER(action, account)
+    STRUCT_MEMBER(action, name)
+    STRUCT_MEMBER(action, data)
+}
 
 /// Details about action execution
 struct action_trace {
@@ -125,8 +144,21 @@ struct action_trace {
                           context_free)(elapsed)(console)(except)(error_code))
 };
 
-/// \exclude
-inline std::string_view schema_type_name(action_trace*) { return "eosio::action_trace"; }
+STRUCT_REFLECT(action_trace) {
+    STRUCT_MEMBER(action_trace, block_num)
+    STRUCT_MEMBER(action_trace, transaction_id)
+    STRUCT_MEMBER(action_trace, transaction_status)
+    STRUCT_MEMBER(action_trace, action_ordinal)
+    STRUCT_MEMBER(action_trace, creator_action_ordinal)
+    STRUCT_MEMBER(action_trace, receipt)
+    STRUCT_MEMBER(action_trace, receiver)
+    STRUCT_MEMBER(action_trace, action)
+    STRUCT_MEMBER(action_trace, context_free)
+    STRUCT_MEMBER(action_trace, elapsed)
+    STRUCT_MEMBER(action_trace, console)
+    STRUCT_MEMBER(action_trace, except)
+    STRUCT_MEMBER(action_trace, error_code)
+}
 
 /// Details about an account
 struct account {
@@ -139,12 +171,7 @@ struct account {
     EOSLIB_SERIALIZE(account, (block_num)(present)(name)(creation_date)(abi))
 };
 
-/// \exclude
-inline std::string_view schema_type_name(account*) { return "eosio::account"; }
-
-/// \exclude
-template <typename F>
-void for_each_member(account*, F f) {
+STRUCT_REFLECT(account) {
     STRUCT_MEMBER(account, block_num)
     STRUCT_MEMBER(account, present)
     STRUCT_MEMBER(account, name)
@@ -321,6 +348,112 @@ inline bool increment_key(query_action_trace_executed_range_name_receiver_accoun
            increment_key(key.account) &&        //
            increment_key(key.receiver) &&       //
            increment_key(key.name);
+}
+
+/// Pass this to `query_database` to get `action_trace` for a range of `receipt_receiver` names.
+/// The query results are sorted by `key`.  Every record has a unique key.
+/// ```c++
+/// struct key {
+///     eosio::name     receipt_receiver = {};
+///     uint32_t        block_num        = {};
+///     checksum256     transaction_id   = {};
+///     uint32_t        action_ordinal   = {};
+///
+///     // Construct the key from `data`
+///     static key from_data(const action_trace& data);
+/// };
+/// ```
+struct query_action_trace_receipt_receiver {
+    struct key {
+        eosio::name receipt_receiver = {};
+        uint32_t    block_num        = {};
+        checksum256 transaction_id   = {};
+        uint32_t    action_ordinal   = {};
+
+        // Extract the key from `data`
+        static key from_data(const action_trace& data) {
+            return {
+                .receipt_receiver = data.receiver,
+                .block_num        = data.block_num,
+                .transaction_id   = data.transaction_id,
+                .action_ordinal   = data.action_ordinal,
+            };
+        }
+    };
+
+    /// Identifies query type. Do not modify this field.
+    name query_name = "receipt.rcvr"_n;
+
+    /// Look at this point of time in history
+    uint32_t max_block = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key first = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key last = {};
+
+    /// Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.
+    uint32_t max_results = {};
+};
+
+/// \group increment_key
+inline bool increment_key(query_action_trace_receipt_receiver::key& key) {
+    return increment_key(key.action_ordinal) && //
+           increment_key(key.transaction_id) && //
+           increment_key(key.block_num) &&      //
+           increment_key(key.receipt_receiver);
+}
+
+/// Pass this to `query_database` to get a transaction receipt for a transaction id.
+/// The query results are sorted by `key`.  Every record has a unique key.
+/// ```c++
+/// struct key {
+///     checksum256 transaction_id = {};
+///     uint32_t block_num = {};
+///     uint32_t action_ordinal = {};
+///
+///     // Construct the key from `data`
+///     static key from_data(const action_trace& data);
+/// };
+/// ```
+struct query_transaction_receipt {
+    struct key {
+        checksum256 transaction_id = {};
+        uint32_t    block_num      = {};
+        uint32_t    action_ordinal = {};
+
+        // Extract the key from `data`
+        static key from_data(const action_trace& data) {
+            return {
+                .transaction_id = data.transaction_id,
+                .block_num      = data.block_num,
+                .action_ordinal = data.action_ordinal,
+            };
+        }
+    };
+
+    /// Identifies query type.  Do not modify this field.
+    name query_name = "transaction"_n;
+
+    /// Look at this point of time in history
+    uint32_t max_block = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key first = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key last = {};
+
+    /// Maximum results to return.  The wasm-ql server may cap the number of results to a smaller number.
+    uint32_t max_results = {};
+};
+
+/// \group increment_key
+inline bool increment_key(query_transaction_receipt::key& key) {
+    return increment_key(key.action_ordinal) && //
+           increment_key(key.block_num) &&      //
+           increment_key(key.transaction_id);
 }
 
 /// Pass this to `query_database` to get `account` for a range of names.
@@ -601,11 +734,7 @@ struct database_status {
 };
 
 /// \exclude
-inline std::string_view schema_type_name(database_status*) { return "eosio::database_status"; }
-
-/// \exclude
-template <typename F>
-void for_each_member(database_status*, F f) {
+STRUCT_REFLECT(database_status) {
     STRUCT_MEMBER(database_status, head)
     STRUCT_MEMBER(database_status, head_id)
     STRUCT_MEMBER(database_status, irreversible)

@@ -47,6 +47,12 @@
         },
         {
             "name": "action_trace",
+            "history_keys": [
+                {
+                    "name": "receipt_receiver",
+                    "desc": true
+                }
+            ],
             "fields": [
                 {
                     "name": "block_num",
@@ -447,6 +453,53 @@
                 },
                 {
                     "name": "action_ordinal"
+                }
+            ],
+            "conditions": [
+                "transaction_status = 'executed'"
+            ]
+        },
+        {
+            "wasm_name": "receipt.rcvr",
+            "index": "executed_receipt_receiver_idx",
+            "function": "executed_receipt_receiver",
+            "table": "action_trace",
+            "max_results": 100,
+            "limit_block_index": true,
+            "sort_keys": [
+                {
+                    "name": "receipt_receiver"
+                },
+                {
+                    "name": "block_num"
+                },
+                {
+                    "name": "transaction_id"
+                },
+                {
+                    "name": "action_index"
+                }
+            ],
+            "conditions": [
+                "transaction_status = 'executed'"
+            ]
+        },
+        {
+            "wasm_name": "transaction",
+            "index": "executed_transaction_idx",
+            "function": "executed_transaction",
+            "table": "action_trace",
+            "max_results": 100,
+            "limit_block_index": true,
+            "sort_keys": [
+                {
+                    "name": "transaction_id"
+                },
+                {
+                    "name": "block_num"
+                },
+                {
+                    "name": "action_index"
                 }
             ],
             "conditions": [

@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "fpconv.c"
+
 #include <date/date.h>
 #include <eosio/asset.hpp>
 #include <eosio/fixed_bytes.hpp>
@@ -10,6 +12,7 @@
 #include <eosio/tagged_variant.hpp>
 #include <eosio/temp_placeholders.hpp>
 #include <eosio/time.hpp>
+#include <eosio/varint.hpp>
 #include <limits>
 #include <type_traits>
 #include <vector>
@@ -85,6 +88,12 @@ __attribute__((noinline)) inline rope to_json(std::string_view sv) {
 }
 
 /// \group to_json_explicit
+__attribute__((noinline)) inline rope to_json(std::string s) {
+    std::string_view sv(s.c_str(), s.size());
+    return to_json(sv);
+}
+
+/// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(shared_memory<std::string_view> sv) { return to_json(*sv); }
 
 /// \group to_json_explicit
@@ -120,6 +129,32 @@ __attribute__((noinline)) inline rope int_to_json(T value) {
 
 /// \exclude
 template <typename T>
+__attribute__((noinline)) inline rope fp_to_json(T value) {
+    using namespace internal_use_do_not_use;
+    rope_buffer b(std::numeric_limits<T>::digits10 + 2);
+    if(sizeof(T) > 4)
+        *b.pos++ = '"';
+    // todo: Switch to built in snprintf when available
+    //int n = ::snprintf(b.pos, std::numeric_limits<T>::digits10 + 2, "%10.17f", value);
+    int n = fpconv_dtoa(value, b.pos);
+    if(n < 0)
+    {
+        *b.pos++ = 'N'; *b.pos++ = 'a'; *b.pos++ = 'N';
+    }
+    else if(n == 0)
+    {
+        ::strcpy(b.pos, "ZERO");
+        b.pos += sizeof("ZERO") - 1;
+    }
+    else if(n > 0)
+        b.pos += n;
+    if(sizeof(T) > 4)
+        *b.pos++ = '"';
+    return b;
+}
+
+/// \exclude
+template <typename T>
 __attribute__((noinline)) inline rope uint_to_json_fixed_size(T value, unsigned digits) {
     using namespace internal_use_do_not_use;
     rope_buffer b(digits + 2);
@@ -148,6 +183,9 @@ __attribute__((noinline)) inline rope to_json(uint32_t value) { return int_to_js
 __attribute__((noinline)) inline rope to_json(uint64_t value) { return int_to_json(value); }
 
 /// \group to_json_explicit
+__attribute__((noinline)) inline rope to_json(unsigned_int value) { return int_to_json(value.value); }
+
+/// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(int8_t value) { return int_to_json(value); }
 
 /// \group to_json_explicit
@@ -158,6 +196,15 @@ __attribute__((noinline)) inline rope to_json(int32_t value) { return int_to_jso
 
 /// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(int64_t value) { return int_to_json(value); }
+
+/// \group to_json_explicit
+__attribute__((noinline)) inline rope to_json(signed_int value) { return int_to_json(value.value); }
+
+/// \group to_json_explicit
+__attribute__((noinline)) inline rope to_json(double value) { return fp_to_json(value); }
+
+/// \group to_json_explicit
+__attribute__((noinline)) inline rope to_json(float value) { return fp_to_json(value); }
 
 /// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(name value) {
@@ -181,6 +228,7 @@ __attribute__((noinline)) inline rope to_json(symbol_code value) {
 
 /// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(asset value) {
+#if 0
     return rope{"{\"symbol\":"} +              //
            to_json(value.symbol.code()) +      //
            ",\"precision\":" +                 //
@@ -188,6 +236,8 @@ __attribute__((noinline)) inline rope to_json(asset value) {
            ",\"amount\":" +                    //
            to_json(value.amount) +             //
            "}";
+#endif
+    return rope{"\"" + value.to_string() + "\""};
 }
 
 /// \group to_json_explicit

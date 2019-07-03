@@ -63,7 +63,6 @@ struct block_info {
     checksum256      block_id              = {};
     block_timestamp  timestamp             = block_timestamp{};
     name             producer              = {};
-//    eosio::signature producer_signature    = {};
     uint16_t         confirmed             = {};
     checksum256      previous              = {};
     checksum256      transaction_mroot     = {};
@@ -78,7 +77,6 @@ STRUCT_REFLECT(block_info) {
     STRUCT_MEMBER(block_info, block_id)
     STRUCT_MEMBER(block_info, timestamp)
     STRUCT_MEMBER(block_info, producer)
-//    STRUCT_MEMBER(block_info, producer_signature)
     STRUCT_MEMBER(block_info, confirmed)
     STRUCT_MEMBER(block_info, previous)
     STRUCT_MEMBER(block_info, transaction_mroot)
@@ -276,6 +274,115 @@ inline bool increment_key(query_action_trace_executed_range_name_receiver_accoun
            increment_key(key.receipt_receiver) && //
            increment_key(key.name);
 }
+
+
+/// Pass this to `query_database` to get `action_trace` for a range of `receipt_receiver` names.
+/// The query results are sorted by `key`.  Every record has a unique key.
+/// ```c++
+/// struct key {
+///     eosio::name     receipt_receiver = {};
+///     uint32_t        block_index      = {};
+///     checksum256     transaction_id   = {};
+///     uint32_t        action_index     = {};
+///
+///     // Construct the key from `data`
+///     static key from_data(const action_trace& data);
+/// };
+/// ```
+struct query_action_trace_receipt_receiver {
+    struct key {
+        eosio::name receipt_receiver = {};
+        uint32_t block_index         = {};
+        checksum256 transaction_id   = {};
+        uint32_t action_index        = {};
+
+        // Extract the key from `data`
+        static key from_data(const action_trace& data) {
+            return {
+                .receipt_receiver = data.receipt_receiver,
+                .block_index      = data.block_index,
+                .transaction_id   = data.transaction_id,
+                .action_index     = data.action_index,
+            };
+        }
+    };
+
+    /// Identifies query type. Do not modify this field.
+    name query_name = "receipt.rcvr"_n;
+
+    /// Look at this point of time in history
+    uint32_t max_block = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key first = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key last = {};
+
+    /// Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.
+    uint32_t max_results = {};
+};
+
+/// \group increment_key
+inline bool increment_key(query_action_trace_receipt_receiver::key& key) {
+    return increment_key(key.action_index) &&   //
+           increment_key(key.transaction_id) && //
+           increment_key(key.block_index) &&    //
+           increment_key(key.receipt_receiver);
+}
+
+
+/// Pass this to `query_database` to get a transaction receipt for a transaction id.
+/// The query results are sorted by `key`.  Every record has a unique key.
+/// ```c++
+/// struct key {
+///     checksum256 transaction_id = {};
+///     uint32_t block_index = {};
+///     uint32_t action_index = {};
+///
+///     // Construct the key from `data`
+///     static key from_data(const action_trace& data);
+/// };
+/// ```
+struct query_transaction_receipt {
+    struct key {
+        checksum256 transaction_id = {};
+        uint32_t block_index       = {};
+        uint32_t action_index      = {};
+
+        // Extract the key from `data`
+        static key from_data(const action_trace& data) {
+            return {
+                .transaction_id = data.transaction_id,
+                .block_index = data.block_index,
+                .action_index = data.action_index,
+            };
+        }
+    };
+
+    /// Identifies query type.  Do not modify this field.
+    name query_name = "transaction"_n;
+
+    /// Look at this point of time in history
+    uint32_t max_block = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key first = {};
+
+    /// Query records with keys in the range [`first`, `last`].
+    key last = {};
+
+    /// Maximum results to return.  The wasm-ql server may cap the number of results to a smaller number.
+    uint32_t max_results = {};
+};
+
+/// \group increment_key
+inline bool increment_key(query_transaction_receipt::key& key) {
+    return increment_key(key.action_index) && //
+           increment_key(key.block_index) &&  //
+           increment_key(key.transaction_id);
+}
+
 
 /// Pass this to `query_database` to get `account` for a range of names.
 /// The query results are sorted by `name`. Every record has a different name.

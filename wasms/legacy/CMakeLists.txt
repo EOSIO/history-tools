@@ -1,4 +1,4 @@
-add_server(legacy-server legacy-server.cpp legacy-server.hpp)
+add_server(legacy-server legacy-server.cpp legacy-server.hpp fpconv.c fpconv.h powers.h)
 
 target_include_directories(legacy-server
     PUBLIC

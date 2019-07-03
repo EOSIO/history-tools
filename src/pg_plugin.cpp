@@ -14,7 +14,7 @@ pg_plugin::pg_plugin() {}
 pg_plugin::~pg_plugin() {}
 
 void pg_plugin::set_program_options(options_description& cli, options_description& cfg) {
-    auto op   = cfg.add_options();
+    auto op = cfg.add_options();
     op("pg-schema", bpo::value<std::string>()->default_value("chain"), "Database schema");
 }
 

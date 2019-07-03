@@ -132,23 +132,21 @@ template <typename T>
 __attribute__((noinline)) inline rope fp_to_json(T value) {
     using namespace internal_use_do_not_use;
     rope_buffer b(std::numeric_limits<T>::digits10 + 2);
-    if(sizeof(T) > 4)
+    if (sizeof(T) > 4)
         *b.pos++ = '"';
     // todo: Switch to built in snprintf when available
     //int n = ::snprintf(b.pos, std::numeric_limits<T>::digits10 + 2, "%10.17f", value);
     int n = fpconv_dtoa(value, b.pos);
-    if(n < 0)
-    {
-        *b.pos++ = 'N'; *b.pos++ = 'a'; *b.pos++ = 'N';
-    }
-    else if(n == 0)
-    {
+    if (n < 0) {
+        *b.pos++ = 'N';
+        *b.pos++ = 'a';
+        *b.pos++ = 'N';
+    } else if (n == 0) {
         ::strcpy(b.pos, "ZERO");
         b.pos += sizeof("ZERO") - 1;
-    }
-    else if(n > 0)
+    } else if (n > 0)
         b.pos += n;
-    if(sizeof(T) > 4)
+    if (sizeof(T) > 4)
         *b.pos++ = '"';
     return b;
 }

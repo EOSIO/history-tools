@@ -1,6 +1,10 @@
 #ifndef FPCONV_H
 #define FPCONV_H
 
+/// From https://github.com/night-shift/fpconv
+/// Boost Software License 1.0
+/// See accompanying license file
+
 /* Fast and accurate double to string conversion based on Florian Loitsch's
  * Grisu-algorithm[1].
  *

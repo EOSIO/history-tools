@@ -1,3 +1,7 @@
+/// From https://github.com/night-shift/fpconv
+/// Boost Software License 1.0
+/// See accompanying license file
+
 #pragma once
 
 #include <stdint.h>

@@ -11,24 +11,25 @@ deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main\n\
 deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main\n' >>/etc/apt/sources.list
 
 run apt-get update && apt-get install -y \
-    autoconf2.13        \
-    build-essential     \
-    bzip2               \
-    cargo               \
-    clang-8             \
-    git                 \
-    libgmp-dev          \
-    liblmdb-dev         \
-    libpq-dev           \
-    lld-8               \
-    lldb-8              \
-    ninja-build         \
-    nodejs              \
-    npm                 \
-    pkg-config          \
-    python2.7-dev       \
-    python3-dev         \
-    rustc               \
+    autoconf2.13                \
+    build-essential             \
+    bzip2                       \
+    cargo                       \
+    clang-8                     \
+    git                         \
+    libgmp-dev                  \
+    liblmdb-dev                 \
+    libpq-dev                   \
+    lld-8                       \
+    lldb-8                      \
+    ninja-build                 \
+    nodejs                      \
+    npm                         \
+    pkg-config                  \
+    postgresql-server-dev-all   \
+    python2.7-dev               \
+    python3-dev                 \
+    rustc                       \
     zlib1g-dev
 
 run update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 100

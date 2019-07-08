@@ -7,3 +7,6 @@
 [submodule "external/appbase"]
 	path = external/appbase
 	url = https://github.com/EOSIO/appbase.git
+[submodule "external/libpqxx"]
+	path = external/libpqxx
+	url = https://github.com/jtv/libpqxx.git

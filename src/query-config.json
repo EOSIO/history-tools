@@ -465,7 +465,7 @@
             "function": "executed_receipt_receiver",
             "table": "action_trace",
             "max_results": 100,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "receipt_receiver"
@@ -477,7 +477,7 @@
                     "name": "transaction_id"
                 },
                 {
-                    "name": "action_index"
+                    "name": "action_ordinal"
                 }
             ],
             "conditions": [
@@ -490,7 +490,7 @@
             "function": "executed_transaction",
             "table": "action_trace",
             "max_results": 100,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "transaction_id"
@@ -499,7 +499,7 @@
                     "name": "block_num"
                 },
                 {
-                    "name": "action_index"
+                    "name": "action_ordinal"
                 }
             ],
             "conditions": [

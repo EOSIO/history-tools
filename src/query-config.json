@@ -47,12 +47,6 @@
         },
         {
             "name": "action_trace",
-            "history_keys": [
-                {
-                    "name": "receipt_receiver",
-                    "desc": true
-                }
-            ],
             "fields": [
                 {
                     "name": "block_num",
@@ -468,7 +462,7 @@
             "limit_block_num": true,
             "sort_keys": [
                 {
-                    "name": "receipt_receiver"
+                    "name": "receiver"
                 },
                 {
                     "name": "block_num"

@@ -11,6 +11,23 @@
         where
             transaction_status = 'executed';
 
+        create index if not exists executed_receipt_receiver_idx on chain.action_trace(
+            "receiver",
+            "block_num",
+            "transaction_id",
+            "action_ordinal"
+        )
+        where
+            transaction_status = 'executed';
+
+        create index if not exists executed_transaction_idx on chain.action_trace(
+            "transaction_id",
+            "block_num",
+            "action_ordinal"
+        )
+        where
+            transaction_status = 'executed';
+
         create index if not exists account_name_block_present_idx on chain.account(
             "name",
             "block_num" desc,
@@ -154,6 +171,100 @@
                     limit max_results
                 loop
                     if (search."act_name",search."receiver",search."act_account",search."block_num",search."transaction_id",search."action_ordinal") > ("arg_last_act_name", "arg_last_receiver", "arg_last_act_account", "arg_last_block_num", "arg_last_transaction_id", "arg_last_action_ordinal") then
+                        return;
+                    end if;
+                    return next search;
+                end loop;
+    
+            end 
+        $$ language plpgsql;
+    
+        drop function if exists chain.executed_receipt_receiver;
+        create function chain.executed_receipt_receiver(
+            max_block_num bigint,
+            first_receiver varchar(13),
+            first_block_num bigint,
+            first_transaction_id varchar(64),
+            first_action_ordinal bigint,
+            last_receiver varchar(13),
+            last_block_num bigint,
+            last_transaction_id varchar(64),
+            last_action_ordinal bigint,
+            max_results integer
+        ) returns setof chain.action_trace
+        as $$
+            declare
+                arg_first_receiver varchar(13) = "first_receiver";
+                arg_first_block_num bigint = "first_block_num";
+                arg_first_transaction_id varchar(64) = "first_transaction_id";
+                arg_first_action_ordinal bigint = "first_action_ordinal";
+                arg_last_receiver varchar(13) = "last_receiver";
+                arg_last_block_num bigint = "last_block_num";
+                arg_last_transaction_id varchar(64) = "last_transaction_id";
+                arg_last_action_ordinal bigint = "last_action_ordinal";
+                search record;
+            begin
+                
+                for search in
+                    select
+                        *
+                    from
+                        chain.action_trace
+                    where
+                        ("receiver","block_num","transaction_id","action_ordinal") >= ("arg_first_receiver", "arg_first_block_num", "arg_first_transaction_id", "arg_first_action_ordinal")
+                        and transaction_status = 'executed'
+                        
+                        and action_trace.block_num <= max_block_num
+                    order by
+                        "receiver","block_num","transaction_id","action_ordinal"
+                    limit max_results
+                loop
+                    if (search."receiver",search."block_num",search."transaction_id",search."action_ordinal") > ("arg_last_receiver", "arg_last_block_num", "arg_last_transaction_id", "arg_last_action_ordinal") then
+                        return;
+                    end if;
+                    return next search;
+                end loop;
+    
+            end 
+        $$ language plpgsql;
+    
+        drop function if exists chain.executed_transaction;
+        create function chain.executed_transaction(
+            max_block_num bigint,
+            first_transaction_id varchar(64),
+            first_block_num bigint,
+            first_action_ordinal bigint,
+            last_transaction_id varchar(64),
+            last_block_num bigint,
+            last_action_ordinal bigint,
+            max_results integer
+        ) returns setof chain.action_trace
+        as $$
+            declare
+                arg_first_transaction_id varchar(64) = "first_transaction_id";
+                arg_first_block_num bigint = "first_block_num";
+                arg_first_action_ordinal bigint = "first_action_ordinal";
+                arg_last_transaction_id varchar(64) = "last_transaction_id";
+                arg_last_block_num bigint = "last_block_num";
+                arg_last_action_ordinal bigint = "last_action_ordinal";
+                search record;
+            begin
+                
+                for search in
+                    select
+                        *
+                    from
+                        chain.action_trace
+                    where
+                        ("transaction_id","block_num","action_ordinal") >= ("arg_first_transaction_id", "arg_first_block_num", "arg_first_action_ordinal")
+                        and transaction_status = 'executed'
+                        
+                        and action_trace.block_num <= max_block_num
+                    order by
+                        "transaction_id","block_num","action_ordinal"
+                    limit max_results
+                loop
+                    if (search."transaction_id",search."block_num",search."action_ordinal") > ("arg_last_transaction_id", "arg_last_block_num", "arg_last_action_ordinal") then
                         return;
                     end if;
                     return next search;

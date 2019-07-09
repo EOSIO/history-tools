@@ -17,12 +17,16 @@ namespace eosio {
 eosio::rope to_json(const eosio::public_key& value) {
     std::string e, s;
     (void)abieos::key_to_string(s, e, value, "", "EOS");
+    s.insert(0, 1, '"');
+    s.append(1, '"');
     return s.c_str();
 }
 
 eosio::rope to_json(const eosio::signature& value) {
     std::string e, s;
     (void)abieos::signature_to_string(s, e, reinterpret_cast<const abieos::signature&>(value));
+    s.insert(0, 1, '"');
+    s.append(1, '"');
     return s.c_str();
 }
 
@@ -477,12 +481,9 @@ void get_producer_schedule(std::string_view /*request*/, const eosio::database_s
         .scope = "eosio",
         .key_type = "i64",
         .json = true,
-        .limit = 10,
+        .limit = 21,
     };
     auto scope            = guess_uint64(*params.scope, "scope");
-
-    auto lower_bound = convert_key(*params.key_type, *params.lower_bound, (uint64_t)0);
-    auto upper_bound = convert_key(*params.key_type, *params.upper_bound, (uint64_t)0xffff'ffff'ffff'ffff);
 
     auto s = query_database(eosio::query_contract_row_range_code_table_scope_pk{
         .max_block = status.head,
@@ -491,7 +492,6 @@ void get_producer_schedule(std::string_view /*request*/, const eosio::database_s
                 .code        = params.code,
                 .table       = params.table,
                 .scope       = scope,
-                //.primary_key = lower_bound,
                 .primary_key = 0,
             },
         .last =
@@ -499,24 +499,24 @@ void get_producer_schedule(std::string_view /*request*/, const eosio::database_s
                 .code        = params.code,
                 .table       = params.table,
                 .scope       = scope,
-                //.primary_key = upper_bound,
                 .primary_key = 0xffff'ffff'ffff'ffff,
             },
         .max_results = std::min((uint32_t)100, params.limit),
     });
 
-    size_t count = 0;
     get_producer_schedule_result producers;
     std::string result;
     eosio::for_each_contract_row<producer_info>(s, [&](eosio::contract_row& r, producer_info* p) {
-        if(++count > params.limit)
-            return true;
         producers.rows.push_back(*p);
         producers.total_producer_weight += p->total_votes;
         return true;
     });
+    std::sort(producers.rows.begin(), producers.rows.end(),
+              [](const producer_info& lhs, const producer_info& rhs)->bool {
+                  return lhs.total_votes > rhs.total_votes;
+              });
+    producers.rows.resize(producers.rows.size() > 21 ? 21 : producers.rows.size());
     result += eosio::to_json(producers).sv();
-    eosio::print(result);
     eosio::set_output_data(result);
 }
 
@@ -599,7 +599,6 @@ void get_transaction(std::string_view request, const eosio::database_status& /*s
 
 void get_actions(std::string_view request, const eosio::database_status& /*status*/) {
     auto params = eosio::parse_json<get_actions_params>(request);
-    eosio::print(params.account_name);
     auto s = query_database(eosio::query_action_trace_receipt_receiver {
         .max_block = std::numeric_limits<uint32_t>::max(),
         .first =
@@ -626,7 +625,6 @@ void get_actions(std::string_view request, const eosio::database_status& /*statu
         return true;
     });
     result += eosio::to_json(actions).sv();
-    eosio::print(result);
     eosio::set_output_data(result);
 }
 

@@ -209,7 +209,7 @@ struct account_metadata_joined {
     time_point                             last_code_update      = time_point{};
     std::optional<code_key>                code                  = {};
     uint32_t                               account_block_num     = {};
-    bool                                   account_present       = {};
+    bool                                   account_present       = {}; // todo: switch to optional?
     block_timestamp_type                   account_creation_date = block_timestamp_type{};
     shared_memory<datastream<const char*>> account_abi           = {};
 
@@ -234,6 +234,47 @@ void for_each_member(account_metadata_joined*, F f) {
     STRUCT_MEMBER(account_metadata_joined, account_present);
     STRUCT_MEMBER(account_metadata_joined, account_creation_date);
     STRUCT_MEMBER(account_metadata_joined, account_abi);
+}
+
+/// account_metadata and code joined
+struct metadata_code_joined {
+    uint32_t                               block_num        = {};
+    bool                                   present          = {};
+    name                                   name             = {};
+    bool                                   privileged       = {};
+    time_point                             last_code_update = time_point{};
+    std::optional<code_key>                code             = {};
+    uint32_t                               join_block_num   = {};
+    bool                                   join_present     = {}; // todo: switch to optional?
+    uint8_t                                join_vm_type     = {};
+    uint8_t                                join_vm_version  = {};
+    checksum256                            join_code_hash   = {};
+    shared_memory<datastream<const char*>> join_code        = {};
+
+    EOSLIB_SERIALIZE(
+        metadata_code_joined,                                                                        //
+        (block_num)(present)(name)(privileged)(last_code_update)(code)(join_block_num)(join_present) //
+        (join_vm_type)(join_vm_version)(join_code_hash)(join_code))
+};
+
+/// \exclude
+inline std::string_view schema_type_name(metadata_code_joined*) { return "eosio::metadata_code_joined"; }
+
+/// \exclude
+template <typename F>
+void for_each_member(metadata_code_joined*, F f) {
+    STRUCT_MEMBER(metadata_code_joined, block_num);
+    STRUCT_MEMBER(metadata_code_joined, present);
+    STRUCT_MEMBER(metadata_code_joined, name);
+    STRUCT_MEMBER(metadata_code_joined, privileged);
+    STRUCT_MEMBER(metadata_code_joined, last_code_update);
+    STRUCT_MEMBER(metadata_code_joined, code);
+    STRUCT_MEMBER(metadata_code_joined, join_block_num);
+    STRUCT_MEMBER(metadata_code_joined, join_present);
+    STRUCT_MEMBER(metadata_code_joined, join_vm_type);
+    STRUCT_MEMBER(metadata_code_joined, join_vm_version);
+    STRUCT_MEMBER(metadata_code_joined, join_code_hash);
+    STRUCT_MEMBER(metadata_code_joined, join_code);
 }
 
 /// A row in a contract's table
@@ -263,7 +304,7 @@ struct contract_secondary_index_with_row {
     name                                   payer         = {};
     T                                      secondary_key = {};
     uint32_t                               row_block_num = {};
-    bool                                   row_present   = {};
+    bool                                   row_present   = {}; // todo: switch to optional?
     name                                   row_payer     = {};
     shared_memory<datastream<const char*>> row_value     = {};
 };
@@ -481,6 +522,25 @@ struct query_account_range_name {
 struct query_acctmeta_range_name {
     /// Identifies query type. Do not modify this field.
     name query_name = "acctmeta.jn"_n;
+
+    /// Look at this point of time in history
+    uint32_t max_block = {};
+
+    /// Query records with `name` in the range [`first`, `last`].
+    name first = {};
+
+    /// Query records with `name` in the range [`first`, `last`].
+    name last = {};
+
+    /// Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.
+    uint32_t max_results = {};
+};
+
+/// Pass this to `query_database` to get `metadata_code_joined` for a range of names.
+/// The query results are sorted by `name`. Every record has a different name.
+struct query_code_range_name {
+    /// Identifies query type. Do not modify this field.
+    name query_name = "meta.jn.code"_n;
 
     /// Look at this point of time in history
     uint32_t max_block = {};

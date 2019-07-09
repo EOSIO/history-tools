@@ -110,7 +110,7 @@ void set_key_fields(const table<Defs>& tab, std::vector<Key>& keys) {
     for (auto& k : keys) {
         auto it = tab.field_map.find(k.name);
         if (it == tab.field_map.end())
-            throw std::runtime_error("key references unknown field " + k.name + " in table " + k.name);
+            throw std::runtime_error("key references unknown field " + k.name + " in table " + tab.name);
         k.field = it->second;
     }
 }
@@ -145,7 +145,7 @@ struct config {
             query.table_obj = it->second;
             set_key_fields(*query.table_obj, query.args);
             set_key_fields(*query.table_obj, query.sort_keys);
-            set_key_fields(*query.table_obj, query.join_key_values);
+            // set_key_fields(*query.table_obj, query.join_key_values); // todo: fix
             for (auto& arg : query.args) {
                 auto type_it = type_map.find(arg.type);
                 if (type_it == type_map.end())

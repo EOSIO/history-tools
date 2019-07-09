@@ -575,6 +575,61 @@
             ]
         },
         {
+            "wasm_name": "meta.jn.code",
+            "function": "acctmeta_joincode_range_name",
+            "table": "account_metadata",
+            "max_results": 100,
+            "is_state": true,
+            "limit_block_num": true,
+            "sort_keys": [
+                {
+                    "name": "name"
+                }
+            ],
+            "join": "code",
+            "join_query_wasm_name": "account",
+            "join_key_values": [
+                {
+                    "name": "vm_type",
+                    "expression": "${table}.\"code_vm_type\""
+                },
+                {
+                    "name": "vm_version",
+                    "expression": "${table}.\"code_vm_version\""
+                },
+                {
+                    "name": "code_hash",
+                    "expression": "${table}.\"code_code_hash\""
+                }
+            ],
+            "fields_from_join": [
+                {
+                    "name": "block_num",
+                    "new_name": "join_block_num"
+                },
+                {
+                    "name": "present",
+                    "new_name": "join_present"
+                },
+                {
+                    "name": "vm_type",
+                    "new_name": "join_vm_type"
+                },
+                {
+                    "name": "vm_version",
+                    "new_name": "join_vm_version"
+                },
+                {
+                    "name": "code_hash",
+                    "new_name": "join_code_hash"
+                },
+                {
+                    "name": "code",
+                    "new_name": "join_code"
+                }
+            ]
+        },
+        {
             "wasm_name": "cr.ctps",
             "index": "contract_row_code_table_primary_key_scope_block_num_prese_idx",
             "function": "contract_row_range_code_table_pk_scope",

@@ -905,6 +905,316 @@
             end 
         $$ language plpgsql;
     
+        drop function if exists chain.acctmeta_joincode_range_name;
+        create function chain.acctmeta_joincode_range_name(
+            max_block_num bigint,
+            
+            first_name varchar(13),
+            last_name varchar(13),
+            max_results integer
+        ) returns table("block_num" bigint, "present" bool, "name" varchar(13), "privileged" bool, "last_code_update" timestamp, "code_present" bool, "code_vm_type" smallint, "code_vm_version" smallint, "code_code_hash" varchar(64), "join_block_num" bigint, "join_present" bool, "join_vm_type" smallint, "join_vm_version" smallint, "join_code_hash" varchar(64), "join_code" bytea)
+        as $$
+            declare
+                key_search record;
+                block_search record;
+                join_block_search record;
+                num_results integer = 0;
+                found_key bool = false;
+                found_block bool = false;
+                found_join_block bool = false;
+            begin
+                if max_results <= 0 then
+                    return;
+                end if;
+                
+                for key_search in
+                    select
+                        account_metadata."name"
+                    from
+                        chain.account_metadata
+                    where
+                        (account_metadata."name") >= ("first_name")
+                    order by
+                        account_metadata."name",
+                        account_metadata."block_num" desc,
+                        account_metadata."present" desc
+                    limit 1
+                loop
+                    if (key_search."name") > (last_name) then
+                        return;
+                    end if;
+                    found_key = true;
+                    found_block = false;
+                    first_name = key_search."name";
+                    for block_search in
+                        select
+                            *
+                        from
+                            chain.account_metadata
+                        where
+                            account_metadata."name" = key_search."name"
+                            and account_metadata.block_num <= max_block_num
+                        order by
+                            account_metadata."name",
+                            account_metadata."block_num" desc,
+                            account_metadata."present" desc
+                        limit 1
+                    loop
+                        if block_search.present then
+                            
+                            found_join_block = false;
+                            for join_block_search in
+                                select
+                                    code."block_num",
+                                    code."present",
+                                    code."vm_type",
+                                    code."vm_version",
+                                    code."code_hash",
+                                    code."code"
+                                from
+                                    chain.code
+                                where
+                                    code."vm_type" = block_search."code_vm_type"
+                                    and code."vm_version" = block_search."code_vm_version"
+                                    and code."code_hash" = block_search."code_code_hash"
+                                    and code.block_num <= max_block_num
+                                order by
+                                    code."vm_type",
+                                    code."vm_version",
+                                    code."code_hash",
+                                    code."block_num" desc,
+                                    code."present" desc
+                                limit 1
+                            loop
+                                if join_block_search.present then
+                                    found_join_block = true;
+                                    "block_num" = block_search."block_num";
+                                    "present" = block_search."present";
+                                    "name" = block_search."name";
+                                    "privileged" = block_search."privileged";
+                                    "last_code_update" = block_search."last_code_update";
+                                    "code_present" = block_search."code_present";
+                                    "code_vm_type" = block_search."code_vm_type";
+                                    "code_vm_version" = block_search."code_vm_version";
+                                    "code_code_hash" = block_search."code_code_hash";
+                                    "join_block_num" = join_block_search."block_num";
+                                    "join_present" = join_block_search."present";
+                                    "join_vm_type" = join_block_search."vm_type";
+                                    "join_vm_version" = join_block_search."vm_version";
+                                    "join_code_hash" = join_block_search."code_hash";
+                                    "join_code" = join_block_search."code";
+                                    return next;
+                                end if;
+                            end loop;
+                            if not found_join_block then
+                                "block_num" = block_search."block_num";
+                                "present" = block_search."present";
+                                "name" = block_search."name";
+                                "privileged" = block_search."privileged";
+                                "last_code_update" = block_search."last_code_update";
+                                "code_present" = block_search."code_present";
+                                "code_vm_type" = block_search."code_vm_type";
+                                "code_vm_version" = block_search."code_vm_version";
+                                "code_code_hash" = block_search."code_code_hash";
+                                "join_block_num" = 0::bigint;
+                                "join_present" = false::bool;
+                                "join_vm_type" = 0::smallint;
+                                "join_vm_version" = 0::smallint;
+                                "join_code_hash" = ''::varchar(64);
+                                "join_code" = ''::bytea;
+                                return next;
+                            end if;
+    
+                        else
+                            "block_num" = block_search."block_num";
+                            "present" = false;
+                            "name" = key_search."name";
+                            "privileged" = false::bool;
+                            "last_code_update" = null::timestamp;
+                            "code_present" = false::bool;
+                            "code_vm_type" = 0::smallint;
+                            "code_vm_version" = 0::smallint;
+                            "code_code_hash" = ''::varchar(64);
+                            "join_block_num" = 0::bigint;
+                            "join_present" = false::bool;
+                            "join_vm_type" = 0::smallint;
+                            "join_vm_version" = 0::smallint;
+                            "join_code_hash" = ''::varchar(64);
+                            "join_code" = ''::bytea;
+                            return next;
+                        end if;
+                        num_results = num_results + 1;
+                        found_block = true;
+                    end loop;
+                    if not found_block then
+                        "block_num" = 0;
+                        "present" = false;
+                        "name" = key_search."name";
+                        "privileged" = false::bool;
+                        "last_code_update" = null::timestamp;
+                        "code_present" = false::bool;
+                        "code_vm_type" = 0::smallint;
+                        "code_vm_version" = 0::smallint;
+                        "code_code_hash" = ''::varchar(64);
+                        "join_block_num" = 0::bigint;
+                        "join_present" = false::bool;
+                        "join_vm_type" = 0::smallint;
+                        "join_vm_version" = 0::smallint;
+                        "join_code_hash" = ''::varchar(64);
+                        "join_code" = ''::bytea;
+                        return next;
+                        num_results = num_results + 1;
+                    end if;
+                end loop;
+    
+                loop
+                    exit when not found_key or num_results >= max_results;
+                    found_key = false;
+                    
+                    for key_search in
+                        select
+                            account_metadata."name"
+                        from
+                            chain.account_metadata
+                        where
+                            (account_metadata."name") > ("first_name")
+                        order by
+                            account_metadata."name",
+                            account_metadata."block_num" desc,
+                            account_metadata."present" desc
+                        limit 1
+                    loop
+                        if (key_search."name") > (last_name) then
+                            return;
+                        end if;
+                        found_key = true;
+                        found_block = false;
+                        first_name = key_search."name";
+                        for block_search in
+                            select
+                                *
+                            from
+                                chain.account_metadata
+                            where
+                                account_metadata."name" = key_search."name"
+                                and account_metadata.block_num <= max_block_num
+                            order by
+                                account_metadata."name",
+                                account_metadata."block_num" desc,
+                                account_metadata."present" desc
+                            limit 1
+                        loop
+                            if block_search.present then
+                                
+                                found_join_block = false;
+                                for join_block_search in
+                                    select
+                                        code."block_num",
+                                        code."present",
+                                        code."vm_type",
+                                        code."vm_version",
+                                        code."code_hash",
+                                        code."code"
+                                    from
+                                        chain.code
+                                    where
+                                        code."vm_type" = block_search."code_vm_type"
+                                        and code."vm_version" = block_search."code_vm_version"
+                                        and code."code_hash" = block_search."code_code_hash"
+                                        and code.block_num <= max_block_num
+                                    order by
+                                        code."vm_type",
+                                        code."vm_version",
+                                        code."code_hash",
+                                        code."block_num" desc,
+                                        code."present" desc
+                                    limit 1
+                                loop
+                                    if join_block_search.present then
+                                        found_join_block = true;
+                                        "block_num" = block_search."block_num";
+                                        "present" = block_search."present";
+                                        "name" = block_search."name";
+                                        "privileged" = block_search."privileged";
+                                        "last_code_update" = block_search."last_code_update";
+                                        "code_present" = block_search."code_present";
+                                        "code_vm_type" = block_search."code_vm_type";
+                                        "code_vm_version" = block_search."code_vm_version";
+                                        "code_code_hash" = block_search."code_code_hash";
+                                        "join_block_num" = join_block_search."block_num";
+                                        "join_present" = join_block_search."present";
+                                        "join_vm_type" = join_block_search."vm_type";
+                                        "join_vm_version" = join_block_search."vm_version";
+                                        "join_code_hash" = join_block_search."code_hash";
+                                        "join_code" = join_block_search."code";
+                                        return next;
+                                    end if;
+                                end loop;
+                                if not found_join_block then
+                                    "block_num" = block_search."block_num";
+                                    "present" = block_search."present";
+                                    "name" = block_search."name";
+                                    "privileged" = block_search."privileged";
+                                    "last_code_update" = block_search."last_code_update";
+                                    "code_present" = block_search."code_present";
+                                    "code_vm_type" = block_search."code_vm_type";
+                                    "code_vm_version" = block_search."code_vm_version";
+                                    "code_code_hash" = block_search."code_code_hash";
+                                    "join_block_num" = 0::bigint;
+                                    "join_present" = false::bool;
+                                    "join_vm_type" = 0::smallint;
+                                    "join_vm_version" = 0::smallint;
+                                    "join_code_hash" = ''::varchar(64);
+                                    "join_code" = ''::bytea;
+                                    return next;
+                                end if;
+    
+                            else
+                                "block_num" = block_search."block_num";
+                                "present" = false;
+                                "name" = key_search."name";
+                                "privileged" = false::bool;
+                                "last_code_update" = null::timestamp;
+                                "code_present" = false::bool;
+                                "code_vm_type" = 0::smallint;
+                                "code_vm_version" = 0::smallint;
+                                "code_code_hash" = ''::varchar(64);
+                                "join_block_num" = 0::bigint;
+                                "join_present" = false::bool;
+                                "join_vm_type" = 0::smallint;
+                                "join_vm_version" = 0::smallint;
+                                "join_code_hash" = ''::varchar(64);
+                                "join_code" = ''::bytea;
+                                return next;
+                            end if;
+                            num_results = num_results + 1;
+                            found_block = true;
+                        end loop;
+                        if not found_block then
+                            "block_num" = 0;
+                            "present" = false;
+                            "name" = key_search."name";
+                            "privileged" = false::bool;
+                            "last_code_update" = null::timestamp;
+                            "code_present" = false::bool;
+                            "code_vm_type" = 0::smallint;
+                            "code_vm_version" = 0::smallint;
+                            "code_code_hash" = ''::varchar(64);
+                            "join_block_num" = 0::bigint;
+                            "join_present" = false::bool;
+                            "join_vm_type" = 0::smallint;
+                            "join_vm_version" = 0::smallint;
+                            "join_code_hash" = ''::varchar(64);
+                            "join_code" = ''::bytea;
+                            return next;
+                            num_results = num_results + 1;
+                        end if;
+                    end loop;
+    
+                end loop;
+            end 
+        $$ language plpgsql;
+    
         drop function if exists chain.contract_row_range_code_table_pk_scope;
         create function chain.contract_row_range_code_table_pk_scope(
             max_block_num bigint,

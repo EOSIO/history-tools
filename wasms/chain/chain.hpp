@@ -90,16 +90,16 @@ STRUCT_REFLECT(account_response) {
     STRUCT_MEMBER(account_response, more)
 }
 
-struct abis_request {
+struct abi_request {
     eosio::block_select      max_block = {};
     std::vector<eosio::name> names     = {};
 
-    EOSLIB_SERIALIZE(abis_request, (max_block)(names))
+    EOSLIB_SERIALIZE(abi_request, (max_block)(names))
 };
 
-STRUCT_REFLECT(abis_request) {
-    STRUCT_MEMBER(abis_request, max_block)
-    STRUCT_MEMBER(abis_request, names)
+STRUCT_REFLECT(abi_request) {
+    STRUCT_MEMBER(abi_request, max_block)
+    STRUCT_MEMBER(abi_request, names)
 }
 
 struct name_abi {
@@ -116,14 +116,50 @@ STRUCT_REFLECT(name_abi) {
     STRUCT_MEMBER(name_abi, abi)
 }
 
-struct abis_response {
+struct abi_response {
     std::vector<name_abi> abis = {};
 
-    EOSLIB_SERIALIZE(abis_response, (abis))
+    EOSLIB_SERIALIZE(abi_response, (abis))
 };
 
-STRUCT_REFLECT(abis_response) { //
-    STRUCT_MEMBER(abis_response, abis)
+STRUCT_REFLECT(abi_response) { //
+    STRUCT_MEMBER(abi_response, abis)
+}
+
+struct code_request {
+    eosio::block_select      max_block = {};
+    std::vector<eosio::name> names     = {};
+
+    EOSLIB_SERIALIZE(code_request, (max_block)(names))
+};
+
+STRUCT_REFLECT(code_request) {
+    STRUCT_MEMBER(code_request, max_block)
+    STRUCT_MEMBER(code_request, names)
+}
+
+struct name_code {
+    eosio::name                                          name           = {};
+    bool                                                 account_exists = {};
+    eosio::shared_memory<eosio::datastream<const char*>> code           = {};
+
+    EOSLIB_SERIALIZE(name_code, (name)(account_exists)(code))
+};
+
+STRUCT_REFLECT(name_code) {
+    STRUCT_MEMBER(name_code, name)
+    STRUCT_MEMBER(name_code, account_exists)
+    STRUCT_MEMBER(name_code, code)
+}
+
+struct code_response {
+    std::vector<name_code> code = {};
+
+    EOSLIB_SERIALIZE(code_response, (code))
+};
+
+STRUCT_REFLECT(code_response) { //
+    STRUCT_MEMBER(code_response, code)
 }
 
 using chain_query_request = eosio::tagged_variant<          //
@@ -131,11 +167,13 @@ using chain_query_request = eosio::tagged_variant<          //
     eosio::tagged_type<"block.info"_n, block_info_request>, //
     eosio::tagged_type<"tapos"_n, tapos_request>,           //
     eosio::tagged_type<"account"_n, account_request>,       //
-    eosio::tagged_type<"abis"_n, abis_request>>;            //
+    eosio::tagged_type<"abi"_n, abi_request>,               //
+    eosio::tagged_type<"code"_n, code_request>>;            //
 
 using chain_query_response = eosio::tagged_variant<          //
     eosio::serialize_tag_as_name,                            //
     eosio::tagged_type<"block.info"_n, block_info_response>, //
     eosio::tagged_type<"tapos"_n, tapos_response>,           //
     eosio::tagged_type<"account"_n, account_response>,       //
-    eosio::tagged_type<"abis"_n, abis_response>>;            //
+    eosio::tagged_type<"abi"_n, abi_response>,               //
+    eosio::tagged_type<"code"_n, code_response>>;            //

@@ -28,6 +28,7 @@ constexpr void for_each_field(field<Defs>*, F f) {
 template <typename Defs>
 struct key {
     std::string           name           = {};
+    std::string           src_name       = {};
     std::string           new_name       = {};
     std::string           type           = {};
     std::string           expression     = {};
@@ -39,6 +40,7 @@ struct key {
 template <typename Defs, typename F>
 constexpr void for_each_field(key<Defs>*, F f) {
     f("name", abieos::member_ptr<&key<Defs>::name>{});
+    f("src_name", abieos::member_ptr<&key<Defs>::src_name>{});
     f("new_name", abieos::member_ptr<&key<Defs>::new_name>{});
     f("type", abieos::member_ptr<&key<Defs>::type>{});
     f("expression", abieos::member_ptr<&key<Defs>::expression>{});
@@ -115,6 +117,16 @@ void set_key_fields(const table<Defs>& tab, std::vector<Key>& keys) {
     }
 }
 
+template <typename Defs, typename Key>
+void set_join_key_fields(const table<Defs>& tab, std::vector<Key>& keys) {
+    for (auto& k : keys) {
+        auto it = tab.field_map.find(k.src_name);
+        if (it == tab.field_map.end())
+            throw std::runtime_error("key references unknown field " + k.src_name + " in table " + tab.name);
+        k.field = it->second;
+    }
+}
+
 template <typename Defs>
 struct config {
     std::vector<typename Defs::table>             tables    = {};
@@ -145,7 +157,7 @@ struct config {
             query.table_obj = it->second;
             set_key_fields(*query.table_obj, query.args);
             set_key_fields(*query.table_obj, query.sort_keys);
-            // set_key_fields(*query.table_obj, query.join_key_values); // todo: fix
+            set_join_key_fields(*query.table_obj, query.join_key_values);
             for (auto& arg : query.args) {
                 auto type_it = type_map.find(arg.type);
                 if (type_it == type_map.end())

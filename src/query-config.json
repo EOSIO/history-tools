@@ -532,6 +532,7 @@
             "join_key_values": [
                 {
                     "name": "name",
+                    "src_name": "name",
                     "expression": "${table}.\"name\""
                 }
             ],
@@ -587,18 +588,21 @@
                 }
             ],
             "join": "code",
-            "join_query_wasm_name": "account",
+            "join_query_wasm_name": "code",
             "join_key_values": [
                 {
                     "name": "vm_type",
+                    "src_name": "code_vm_type",
                     "expression": "${table}.\"code_vm_type\""
                 },
                 {
                     "name": "vm_version",
+                    "src_name": "code_vm_version",
                     "expression": "${table}.\"code_vm_version\""
                 },
                 {
                     "name": "code_hash",
+                    "src_name": "code_code_hash",
                     "expression": "${table}.\"code_code_hash\""
                 }
             ],
@@ -728,18 +732,22 @@
             "join_key_values": [
                 {
                     "name": "code",
+                    "src_name": "code",
                     "expression": "${table}.\"code\""
                 },
                 {
                     "name": "table",
+                    "src_name": "table",
                     "expression": "substring(${table}.\"table\" for 12)"
                 },
                 {
                     "name": "scope",
+                    "src_name": "scope",
                     "expression": "${table}.\"scope\""
                 },
                 {
                     "name": "primary_key",
+                    "src_name": "primary_key",
                     "expression": "${table}.\"primary_key\""
                 }
             ],

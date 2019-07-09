@@ -946,7 +946,10 @@ void fill_lmdb_plugin::set_program_options(options_description& cli, options_des
 
 void fill_lmdb_plugin::plugin_initialize(const variables_map& options) {
     try {
-        auto endpoint            = options.at("fill-connect-to").as<std::string>();
+        auto endpoint = options.at("fill-connect-to").as<std::string>();
+        if (endpoint.find(':') == std::string::npos)
+            throw std::runtime_error("invalid endpoint: " + endpoint);
+
         auto port                = endpoint.substr(endpoint.find(':') + 1, endpoint.size());
         auto host                = endpoint.substr(0, endpoint.find(':'));
         my->config->host         = host;

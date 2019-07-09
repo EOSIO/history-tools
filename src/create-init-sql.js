@@ -97,8 +97,8 @@ function generate_index({ table, index, sort_keys, history_keys, conditions }) {
 }
 
 // todo: This likely needs reoptimization.
-// todo: perf problem with low max_block_index
-function generate_nonstate({ table, index, limit_block_index, sort_keys, conditions, ...rest }) {
+// todo: perf problem with low max_block_num
+function generate_nonstate({ table, index, limit_block_num, sort_keys, conditions, ...rest }) {
     generate_index({ table, index, sort_keys, conditions, ...rest });
     conditions = conditions || [];
 
@@ -116,7 +116,7 @@ function generate_nonstate({ table, index, limit_block_index, sort_keys, conditi
         ${indent}    where
         ${indent}        (${sort_keys_tuple_expr('')}) >= (${sort_keys_tuple('"arg_first_', '"', ', ')})
         ${indent}        ${conditions.map(x => `and ${x}\n        ${indent}        `).join('')}
-        ${indent}        ${limit_block_index ? `and ${table}.block_index <= max_block_index` : ``}
+        ${indent}        ${limit_block_num ? `and ${table}.block_num <= max_block_num` : ``}
         ${indent}    order by
         ${indent}        ${sort_keys_tuple_expr('')}
         ${indent}    limit max_results
@@ -131,7 +131,7 @@ function generate_nonstate({ table, index, limit_block_index, sort_keys, conditi
     functions += `
         drop function if exists ${fn_name};
         create function ${fn_name}(
-            ${limit_block_index ? `max_block_index bigint,` : ``}
+            ${limit_block_num ? `max_block_num bigint,` : ``}
             ${fn_args('first_')}
             ${fn_args('last_')}
             max_results integer
@@ -148,7 +148,7 @@ function generate_nonstate({ table, index, limit_block_index, sort_keys, conditi
     `;
 } // generate
 
-function generate_state({ table, index, limit_block_index, args, keys, sort_keys, history_keys, ordered_fields, join, join_key_values, fields_from_join, ...rest }) {
+function generate_state({ table, index, limit_block_num, args, keys, sort_keys, history_keys, ordered_fields, join, join_key_values, fields_from_join, ...rest }) {
     generate_index({ table, index, sort_keys, history_keys, ordered_fields, ...rest });
 
     const fn_name = schema + '.' + rest['function'];
@@ -176,7 +176,7 @@ function generate_state({ table, index, limit_block_index, args, keys, sort_keys
         ${indent}                    ${schema}.${join}
         ${indent}                where
         ${indent}                    ${join_key_values.map(x => `${join}."${x.name}" = ${x.expression.replace('${table}', 'block_search')}`).join('\n                            ' + indent + 'and ')}
-        ${indent}                    ${limit_block_index ? `and ${join}.block_index <= max_block_index` : ``}
+        ${indent}                    ${limit_block_num ? `and ${join}.block_num <= max_block_num` : ``}
         ${indent}                order by
         ${indent}                    ${join_key_values.map(x => `${join}."${x.name}"`).join(',\n                            ' + indent)},
         ${indent}                    ${history_keys.map(x => `${join}."${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                            ' + indent)}
@@ -222,7 +222,7 @@ function generate_state({ table, index, limit_block_index, args, keys, sort_keys
         ${indent}            ${schema}.${table}
         ${indent}        where
         ${indent}            ${sort_keys.map(x => `${table}."${x.name}" = key_search."${x.name}"`).join('\n                    ' + indent + 'and ')}
-        ${indent}            ${limit_block_index ? `and ${table}.block_index <= max_block_index` : ``}
+        ${indent}            ${limit_block_num ? `and ${table}.block_num <= max_block_num` : ``}
         ${indent}        order by
         ${indent}            ${sort_keys_tuple(`${table}."`, '"', ',\n                    ' + indent)},
         ${indent}            ${history_keys.map(x => `${table}."${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                    ' + indent)}
@@ -231,7 +231,7 @@ function generate_state({ table, index, limit_block_index, args, keys, sort_keys
         ${indent}        if block_search.present then
         ${indent}            ${join ? joined(compare, indent) : non_joined(compare, indent)}
         ${indent}        else
-        ${indent}            "block_index" = block_search."block_index";
+        ${indent}            "block_num" = block_search."block_num";
         ${indent}            "present" = false;
         ${indent}            ${keys.map(f => `"${f.name}" = key_search."${f.name}";`).join('\n                    ' + indent)}
         ${indent}            ${data_fields.map(f => `"${f.name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                    ' + indent)}
@@ -242,7 +242,7 @@ function generate_state({ table, index, limit_block_index, args, keys, sort_keys
         ${indent}        found_block = true;
         ${indent}    end loop;
         ${indent}    if not found_block then
-        ${indent}        "block_index" = 0;
+        ${indent}        "block_num" = 0;
         ${indent}        "present" = false;
         ${indent}        ${keys.map(f => `"${f.name}" = key_search."${f.name}";`).join('\n                ' + indent)}
         ${indent}        ${data_fields.map(f => `"${f.name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                ' + indent)}
@@ -256,7 +256,7 @@ function generate_state({ table, index, limit_block_index, args, keys, sort_keys
     functions += `
         drop function if exists ${fn_name};
         create function ${fn_name}(
-            ${limit_block_index ? `max_block_index bigint,` : ``}
+            ${limit_block_num ? `max_block_num bigint,` : ``}
             ${args.map(x => `"${x.name}" ${x.type},`).join('\n            ')}
             ${fn_args('first_')}
             ${fn_args('last_')}

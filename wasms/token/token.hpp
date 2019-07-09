@@ -5,21 +5,21 @@
 #include <eosio/block_select.hpp>
 
 struct token_transfer_key {
-    eosio::name         receipt_receiver = {};
-    eosio::name         account          = {};
-    eosio::block_select block            = {};
-    eosio::checksum256  transaction_id   = {};
-    uint32_t            action_index     = {};
+    eosio::name         receiver       = {};
+    eosio::name         account        = {};
+    eosio::block_select block          = {};
+    eosio::checksum256  transaction_id = {};
+    uint32_t            action_ordinal = {};
 
-    EOSLIB_SERIALIZE(token_transfer_key, (receipt_receiver)(account)(block)(transaction_id)(action_index))
+    EOSLIB_SERIALIZE(token_transfer_key, (receiver)(account)(block)(transaction_id)(action_ordinal))
 };
 
 STRUCT_REFLECT(token_transfer_key) {
-    STRUCT_MEMBER(token_transfer_key, receipt_receiver)
+    STRUCT_MEMBER(token_transfer_key, receiver)
     STRUCT_MEMBER(token_transfer_key, account)
     STRUCT_MEMBER(token_transfer_key, block)
     STRUCT_MEMBER(token_transfer_key, transaction_id)
-    STRUCT_MEMBER(token_transfer_key, action_index)
+    STRUCT_MEMBER(token_transfer_key, action_ordinal)
 }
 
 struct token_transfer {

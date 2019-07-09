@@ -1,6 +1,5 @@
 // copyright defined in LICENSE.txt
 
-// todo: transaction order within blocks. affects wasm-ql
 // todo: trim: n behind head
 // todo: trim: remove last !present
 
@@ -14,6 +13,8 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <fc/exception/exception.hpp>
+
+#include <pqxx/tablewriter>
 
 using namespace abieos;
 using namespace appbase;
@@ -86,7 +87,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         ilog("connect to postgresql");
         sql_connection.emplace();
         stream.binary(true);
-        stream.read_message_max(1024 * 1024 * 1024);
+        stream.read_message_max(10ull * 1024 * 1024 * 1024);
     }
 
     void start() {
@@ -154,18 +155,37 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     }
 
     template <typename T>
-    void create_table(pqxx::work& t, const std::string& name, const std::string& pk, std::string fields) {
-        for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
-            using type              = typename decltype(member_ptr)::member_type;
-            constexpr auto sql_type = type_for<type>;
-            if constexpr (is_known_type(sql_type)) {
-                std::string type = sql_type.name;
-                if (type == "transaction_status_type")
-                    type = t.quote_name(config->schema) + "." + type;
-                fields += ", "s + t.quote_name(field_name) + " " + type;
-            }
-        });
+    void add_table_field(pqxx::work& t, std::string& fields, const std::string& field_name) {
+        if constexpr (is_known_type(type_for<T>)) {
+            std::string type_name = type_for<T>.name;
+            if (type_name == "transaction_status_type")
+                type_name = t.quote_name(config->schema) + "." + type_name;
+            fields += ", "s + t.quote_name(field_name) + " " + type_name;
+        } else if constexpr (abieos::is_optional_v<T>) {
+            fields += ", "s + t.quote_name(field_name + "_present") + " boolean";
+            add_table_field<typename T::value_type>(t, fields, field_name);
+        } else if constexpr (abieos::is_variant_v<T>) {
+            add_table_fields<std::variant_alternative_t<0, T>>(t, fields, field_name + "_");
+        } else if constexpr (abieos::is_vector_v<T>) {
+        } else {
+            add_table_fields<T>(t, fields, field_name + "_");
+        }
+    }
 
+    template <typename T>
+    void add_table_fields(pqxx::work& t, std::string& fields, const std::string& prefix) {
+        for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
+            add_table_field<typename decltype(member_ptr)::member_type>(t, fields, prefix + field_name);
+        });
+    }
+
+    template <typename T>
+    void create_table( //
+        pqxx::work& t, const std::string& name, const std::string& pk, std::string fields, const char* suffix_fields = nullptr) {
+
+        add_table_fields<T>(t, fields, "");
+        if (suffix_fields)
+            fields += ","s + suffix_fields;
         std::string query =
             "create table " + t.quote_name(config->schema) + "." + t.quote_name(name) + "(" + fields + ", primary key (" + pk + "))";
         t.exec(query);
@@ -174,6 +194,10 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     void fill_field(pqxx::work& t, const std::string& base_name, std::string& fields, const abi_field& field) {
         if (field.type->filled_struct) {
             for (auto& f : field.type->fields)
+                fill_field(t, base_name + field.name + "_", fields, f);
+        } else if (field.type->optional_of && field.type->optional_of->filled_struct) {
+            fields += ", "s + t.quote_name(base_name + field.name + "_present") + " boolean";
+            for (auto& f : field.type->optional_of->fields)
                 fill_field(t, base_name + field.name + "_", fields, f);
         } else if (field.type->filled_variant && field.type->fields.size() == 1 && field.type->fields[0].type->filled_struct) {
             for (auto& f : field.type->fields[0].type->fields)
@@ -187,6 +211,15 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             t.exec(query);
             fields += ", " + t.quote_name(base_name + field.name) + " " + t.quote_name(config->schema) + "." +
                       t.quote_name(field.type->array_of->name) + "[]";
+        } else if (field.type->array_of && field.type->array_of->filled_variant && field.type->array_of->fields[0].type->filled_struct) {
+            auto*       s = field.type->array_of->fields[0].type;
+            std::string sub_fields;
+            for (auto& f : s->fields)
+                fill_field(t, "", sub_fields, f);
+            std::string query =
+                "create type " + t.quote_name(config->schema) + "." + t.quote_name(s->name) + " as (" + sub_fields.substr(2) + ")";
+            t.exec(query);
+            fields += ", " + t.quote_name(base_name + field.name) + " " + t.quote_name(config->schema) + "." + t.quote_name(s->name) + "[]";
         } else {
             auto abi_type = field.type->name;
             if (abi_type.size() >= 1 && abi_type.back() == '?')
@@ -211,7 +244,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             ".transaction_status_type as enum('executed', 'soft_fail', 'hard_fail', 'delayed', 'expired')");
         t.exec(
             "create table " + t.quote_name(config->schema) +
-            R"(.received_block ("block_index" bigint, "block_id" varchar(64), primary key("block_index")))");
+            R"(.received_block ("block_num" bigint, "block_id" varchar(64), primary key("block_num")))");
         t.exec(
             "create table " + t.quote_name(config->schema) +
             R"(.fill_status ("head" bigint, "head_id" varchar(64), "irreversible" bigint, "irreversible_id" varchar(64), "first" bigint))");
@@ -219,11 +252,11 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         t.exec("insert into " + t.quote_name(config->schema) + R"(.fill_status values (0, '', 0, '', 0))");
 
         // clang-format off
-        create_table<action_trace_authorization>(   t, "action_trace_authorization",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<action_trace_auth_sequence>(   t, "action_trace_auth_sequence",  "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<action_trace_ram_delta>(       t, "action_trace_ram_delta",      "block_index, transaction_id, action_index, index",     "block_index bigint, transaction_id varchar(64), action_index integer, index integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<action_trace>(                 t, "action_trace",                "block_index, transaction_id, action_index",            "block_index bigint, transaction_id varchar(64), action_index integer, parent_action_index integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<transaction_trace>(            t, "transaction_trace",           "block_index, transaction_id",                          "block_index bigint, failed_dtrx_trace varchar(64)");
+        create_table<permission_level>(         t, "action_trace_authorization",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+        create_table<account_auth_sequence>(    t, "action_trace_auth_sequence",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+        create_table<account_delta>(            t, "action_trace_ram_delta",      "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+        create_table<action_trace_v0>(          t, "action_trace",                "block_num, transaction_id, action_ordinal",          "block_num bigint, transaction_id varchar(64),                                          transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+        create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_num, transaction_ordinal",                     "block_num bigint, transaction_ordinal integer, failed_dtrx_trace varchar(64)", "partial_signatures varchar[], partial_context_free_data bytea[]");
         // clang-format on
 
         for (auto& table : abi.tables) {
@@ -231,10 +264,10 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
                 throw std::runtime_error("don't know how to proccess " + variant_type.name);
             auto&       type   = *variant_type.fields[0].type;
-            std::string fields = "block_index bigint, present bool";
+            std::string fields = "block_num bigint, present bool";
             for (auto& field : type.fields)
                 fill_field(t, "", fields, field);
-            std::string keys = "block_index, present";
+            std::string keys = "block_num, present";
             for (auto& key : table.key_names)
                 keys += ", " + t.quote_name(key);
             std::string query =
@@ -245,7 +278,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         t.exec(
             "create table " + t.quote_name(config->schema) +
             R"(.block_info(                   
-                "block_index" bigint,
+                "block_num" bigint,
                 "block_id" varchar(64),
                 "timestamp" timestamp,
                 "producer" varchar(13),
@@ -257,7 +290,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                 "new_producers_version" bigint,
                 "new_producers" )" +
             t.quote_name(config->schema) + R"(.producer_key[],
-                primary key("block_index")))");
+                primary key("block_num")))");
 
         t.commit();
     } // create_tables()
@@ -276,21 +309,23 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             query += "_block_present_idx on " + t.quote_name(config->schema) + "." + t.quote_name(table.type) + "(\n";
             for (auto& k : table.key_names)
                 query += "    " + t.quote_name(k) + ",\n";
-            query += "    \"block_index\" desc,\n    \"present\" desc\n)";
+            query += "    \"block_num\" desc,\n    \"present\" desc\n)";
             // std::cout << query << ";\n\n";
             t.exec(query);
         }
 
         std::string query = R"(
-            drop function if exists chain.trim_history;
+            drop function if exists )" +
+                            t.quote_name(config->schema) + R"(.trim_history;
         )";
         // std::cout << query << "\n";
         t.exec(query);
 
         query = R"(
-            create function chain.trim_history(
-                prev_block_index bigint,
-                irrev_block_index bigint
+            create function )" +
+                t.quote_name(config->schema) + R"(.trim_history(
+                prev_block_num bigint,
+                irrev_block_num bigint
             ) returns void
             as $$
                 declare
@@ -312,29 +347,55 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                     delete from )" +
                      t.quote_name(config->schema) + "." + t.quote_name(table) + R"(
                     where
-                        block_index >= prev_block_index
-                        and block_index < irrev_block_index;
+                        block_num >= prev_block_num
+                        and block_num < irrev_block_num;
                     )";
         }
+
+        auto add_trim = [&](const std::string& table, const std::string& keys, const std::string& search_keys) {
+            query += R"(
+                    for key_search in
+                        select
+                            distinct on()" +
+                     keys + R"()
+                            )" +
+                     keys + R"(, block_num
+                        from
+                            )" +
+                     t.quote_name(config->schema) + "." + t.quote_name(table) + R"(
+                        where
+                            block_num > prev_block_num and block_num <= irrev_block_num
+                        order by )" +
+                     keys + R"(, block_num desc, present desc
+                    loop
+                        delete from )" +
+                     t.quote_name(config->schema) + "." + t.quote_name(table) + R"(
+                        where
+                            ()" +
+                     keys + R"() = ()" + search_keys + R"()
+                            and block_num < key_search.block_num;
+                    end loop;
+                    )";
+        };
 
         for (auto& table : abi.tables) {
             if (table.key_names.empty()) {
                 query += R"(
                     for key_search in
                         select
-                            block_index
+                            block_num
                         from
                             )" +
                          t.quote_name(config->schema) + "." + t.quote_name(table.type) + R"(
                         where
-                            block_index > prev_block_index and block_index <= irrev_block_index
-                        order by block_index desc, present desc
+                            block_num > prev_block_num and block_num <= irrev_block_num
+                        order by block_num desc, present desc
                         limit 1
                     loop
                         delete from )" +
                          t.quote_name(config->schema) + "." + t.quote_name(table.type) + R"(
                         where
-                            block_index < key_search.block_index;
+                            block_num < key_search.block_num;
                     end loop;
                     )";
             } else {
@@ -347,29 +408,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                     keys += t.quote_name(k);
                     search_keys += "key_search." + t.quote_name(k);
                 }
-                query += R"(
-                    for key_search in
-                        select
-                            distinct on()" +
-                         keys + R"()
-                            )" +
-                         keys + R"(, block_index
-                        from
-                            )" +
-                         t.quote_name(config->schema) + "." + t.quote_name(table.type) + R"(
-                        where
-                            block_index > prev_block_index and block_index <= irrev_block_index
-                        order by )" +
-                         keys + R"(, block_index desc, present desc
-                    loop
-                        delete from )" +
-                         t.quote_name(config->schema) + "." + t.quote_name(table.type) + R"(
-                        where
-                            ()" +
-                         keys + R"() = ()" + search_keys + R"()
-                            and block_index < key_search.block_index;
-                    end loop;
-                    )";
+                add_trim(table.type, keys, search_keys);
             };
         }
         query += R"(
@@ -396,8 +435,8 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     jarray get_positions(pqxx::work& t) {
         jarray result;
         auto   rows = t.exec(
-            "select block_index, block_id from " + t.quote_name(config->schema) + ".received_block where block_index >= " +
-            std::to_string(irreversible) + " and block_index <= " + std::to_string(head) + " order by block_index");
+            "select block_num, block_id from " + t.quote_name(config->schema) + ".received_block where block_num >= " +
+            std::to_string(irreversible) + " and block_num <= " + std::to_string(head) + " order by block_num");
         for (auto row : rows) {
             result.push_back(jvalue{jobject{
                 {{"block_num"s}, {row[0].as<std::string>()}},
@@ -421,8 +460,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     void truncate(pqxx::work& t, pqxx::pipeline& pipeline, uint32_t block) {
         auto trunc = [&](const std::string& name) {
             pipeline.insert(
-                "delete from " + t.quote_name(config->schema) + "." + t.quote_name(name) +
-                " where block_index >= " + std::to_string(block));
+                "delete from " + t.quote_name(config->schema) + "." + t.quote_name(name) + " where block_num >= " + std::to_string(block));
         };
         trunc("received_block");
         trunc("action_trace_authorization");
@@ -435,7 +473,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             trunc(table.type);
 
         auto result = pipeline.retrieve(pipeline.insert(
-            "select block_id from " + t.quote_name(config->schema) + ".received_block where block_index=" + std::to_string(block - 1)));
+            "select block_id from " + t.quote_name(config->schema) + ".received_block where block_num=" + std::to_string(block - 1)));
         if (result.empty()) {
             head    = 0;
             head_id = "";
@@ -506,7 +544,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         if (!bulk)
             write_fill_status(t, pipeline);
         pipeline.insert(
-            "insert into " + t.quote_name(config->schema) + ".received_block (block_index, block_id) values (" +
+            "insert into " + t.quote_name(config->schema) + ".received_block (block_num, block_id) values (" +
             std::to_string(result.this_block->block_num) + ", " + quote(std::string(result.this_block->block_id)) + ")");
 
         pipeline.complete();
@@ -551,6 +589,24 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         if (field.type->filled_struct) {
             for (auto& f : field.type->fields)
                 fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
+        } else if (field.type->optional_of && field.type->optional_of->filled_struct) {
+            auto present = read_raw<bool>(bin);
+            fields += ", " + t.quote_name(base_name + field.name + "_present");
+            values += sep(bulk) + sql_str(bulk, present);
+            if (present) {
+                for (auto& f : field.type->optional_of->fields)
+                    fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
+            } else {
+                for (auto& f : field.type->optional_of->fields) {
+                    auto it = abi_type_to_sql_type.find(f.type->name);
+                    if (it == abi_type_to_sql_type.end())
+                        throw std::runtime_error("don't know sql type for abi type: " + f.type->name);
+                    if (!it->second.empty_to_sql)
+                        throw std::runtime_error("don't know how to process empty " + field.type->name);
+                    fields += ", " + t.quote_name(base_name + field.name + "_" + f.name);
+                    values += sep(bulk) + it->second.empty_to_sql(*sql_connection, bulk);
+                }
+            }
         } else if (field.type->filled_variant && field.type->fields.size() == 1 && field.type->fields[0].type->filled_struct) {
             auto v = read_varuint32(bin);
             if (v)
@@ -576,6 +632,28 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                 values += end_object_in_array(bulk);
             }
             values += end_array(bulk, t, config->schema, field.type->array_of->name);
+        } else if (field.type->array_of && field.type->array_of->filled_variant && field.type->array_of->fields[0].type->filled_struct) {
+            auto* s = field.type->array_of->fields[0].type;
+            fields += ", " + t.quote_name(base_name + field.name);
+            values += sep(bulk) + begin_array(bulk);
+            uint32_t n = read_varuint32(bin);
+            for (uint32_t i = 0; i < n; ++i) {
+                if (read_varuint32(bin) != 0)
+                    throw std::runtime_error("expected 0 variant index");
+                if (i)
+                    values += ",";
+                values += begin_object_in_array(bulk);
+                std::string struct_fields;
+                std::string struct_values;
+                for (auto& f : s->fields)
+                    fill_value(bulk, true, t, "", struct_fields, struct_values, bin, f);
+                if (bulk)
+                    values += struct_values.substr(1);
+                else
+                    values += struct_values.substr(2);
+                values += end_object_in_array(bulk);
+            }
+            values += end_array(bulk, t, config->schema, s->name);
         } else {
             auto abi_type    = field.type->name;
             bool is_optional = false;
@@ -609,13 +687,13 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     } // fill_value
 
     void
-    receive_block(uint32_t block_index, const checksum256& block_id, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+    receive_block(uint32_t block_num, const checksum256& block_id, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
         signed_block block;
         bin_to_native(block, bin);
 
-        std::string fields = "block_index, block_id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, "
+        std::string fields = "block_num, block_id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, "
                              "schedule_version, new_producers_version, new_producers";
-        std::string values = sql_str(bulk, block_index) + sep(bulk) +                               //
+        std::string values = sql_str(bulk, block_num) + sep(bulk) +                                 //
                              sql_str(bulk, block_id) + sep(bulk) +                                  //
                              sql_str(bulk, block.timestamp) + sep(bulk) +                           //
                              sql_str(bulk, block.producer) + sep(bulk) +                            //
@@ -639,13 +717,10 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             values += sep(bulk) + null_value(bulk);
         }
 
-        write(block_index, t, pipeline, bulk, "block_info", fields, values);
+        write(block_num, t, pipeline, bulk, "block_info", fields, values);
     } // receive_block
 
-    void receive_deltas(uint32_t block_num, input_buffer buf, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
-        auto         data = zlib_decompress(buf);
-        input_buffer bin{data.data(), data.data() + data.size()};
-
+    void receive_deltas(uint32_t block_num, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
         auto     num     = read_varuint32(bin);
         unsigned numRows = 0;
         for (uint32_t i = 0; i < num; ++i) {
@@ -665,7 +740,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                         "block ${b} ${t} ${n} of ${r} bulk=${bulk}",
                         ("b", block_num)("t", table_delta.name)("n", num_processed)("r", table_delta.rows.size())("bulk", bulk));
                 check_variant(row.data, variant_type, 0u);
-                std::string fields = "block_index, present";
+                std::string fields = "block_num, present";
                 std::string values = std::to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);
                 for (auto& field : type.fields)
                     fill_value(bulk, false, t, "", fields, values, row.data, field);
@@ -676,72 +751,90 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         }
     } // receive_deltas
 
-    void receive_traces(uint32_t block_num, input_buffer buf, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
-        auto         data = zlib_decompress(buf);
-        input_buffer bin{data.data(), data.data() + data.size()};
-        auto         num = read_varuint32(bin);
+    void receive_traces(uint32_t block_num, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        auto     num          = read_varuint32(bin);
+        uint32_t num_ordinals = 0;
         for (uint32_t i = 0; i < num; ++i) {
             transaction_trace trace;
             bin_to_native(trace, bin);
-            write_transaction_trace(block_num, trace, bulk, t, pipeline);
+            write_transaction_trace(block_num, num_ordinals, std::get<transaction_trace_v0>(trace), bulk, t, pipeline);
         }
     }
 
-    void write_transaction_trace(uint32_t block_num, transaction_trace& ttrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
-        std::string id     = ttrace.failed_dtrx_trace.empty() ? "" : std::string(ttrace.failed_dtrx_trace[0].id);
-        std::string fields = "block_index, failed_dtrx_trace";
-        std::string values = std::to_string(block_num) + sep(bulk) + quote(bulk, id);
-        write("transaction_trace", block_num, ttrace, fields, values, bulk, t, pipeline);
-
-        int32_t num_actions = 0;
-        for (auto& atrace : ttrace.action_traces)
-            write_action_trace(block_num, ttrace, num_actions, 0, atrace, bulk, t, pipeline);
-        if (!ttrace.failed_dtrx_trace.empty()) {
-            auto& child = ttrace.failed_dtrx_trace[0];
-            write_transaction_trace(block_num, child, bulk, t, pipeline);
+    void write_transaction_trace(
+        uint32_t block_num, uint32_t& num_ordinals, transaction_trace_v0& ttrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        auto* failed = !ttrace.failed_dtrx_trace.empty() ? &std::get<transaction_trace_v0>(ttrace.failed_dtrx_trace[0].recurse) : nullptr;
+        if (failed)
+            write_transaction_trace(block_num, num_ordinals, *failed, bulk, t, pipeline);
+        auto        transaction_ordinal = ++num_ordinals;
+        std::string failed_id           = failed ? std::string(failed->id) : "";
+        std::string fields              = "block_num, transaction_ordinal, failed_dtrx_trace";
+        std::string values =
+            std::to_string(block_num) + sep(bulk) + std::to_string(transaction_ordinal) + sep(bulk) + quote(bulk, failed_id);
+        std::string suffix_fields = ", partial_signatures, partial_context_free_data";
+        std::string suffix_values = sep(bulk) + begin_array(bulk);
+        if (ttrace.partial) {
+            auto& partial = std::get<partial_transaction_v0>(*ttrace.partial);
+            for (auto& sig : partial.signatures) {
+                if (&sig != &partial.signatures[0])
+                    suffix_values += ",";
+                suffix_values += native_to_sql<abieos::signature>(*sql_connection, bulk, &sig);
+            }
         }
+        suffix_values += end_array(bulk, "varchar") + sep(bulk) + begin_array(bulk);
+        if (ttrace.partial) {
+            auto& partial = std::get<partial_transaction_v0>(*ttrace.partial);
+            for (auto& cfd : partial.context_free_data) {
+                if (&cfd != &partial.context_free_data[0])
+                    suffix_values += ",";
+                suffix_values += native_to_sql<abieos::input_buffer>(*sql_connection, bulk, &cfd);
+            }
+        }
+        suffix_values += end_array(bulk, "bytea");
+        write(
+            "transaction_trace", block_num, ttrace, std::move(fields), std::move(values), bulk, t, pipeline, std::move(suffix_fields),
+            std::move(suffix_values));
+
+        for (auto& atrace : ttrace.action_traces)
+            write_action_trace(block_num, ttrace, std::get<action_trace_v0>(atrace), bulk, t, pipeline);
     } // write_transaction_trace
 
     void write_action_trace(
-        uint32_t block_num, transaction_trace& ttrace, int32_t& num_actions, int32_t parent_action_index, action_trace& atrace, bool bulk,
-        pqxx::work& t, pqxx::pipeline& pipeline) {
+        uint32_t block_num, transaction_trace_v0& ttrace, action_trace_v0& atrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
 
-        const auto action_index = ++num_actions;
-
-        std::string fields = "block_index, transaction_id, action_index, parent_action_index, transaction_status";
-        std::string values = std::to_string(block_num) + sep(bulk) + quote(bulk, (std::string)ttrace.id) + sep(bulk) +
-                             std::to_string(action_index) + sep(bulk) + std::to_string(parent_action_index) + sep(bulk) +
-                             quote(bulk, to_string(ttrace.status));
+        std::string fields = "block_num, transaction_id, transaction_status";
+        std::string values =
+            std::to_string(block_num) + sep(bulk) + quote(bulk, (std::string)ttrace.id) + sep(bulk) + quote(bulk, to_string(ttrace.status));
 
         write("action_trace", block_num, atrace, fields, values, bulk, t, pipeline);
-        for (auto& child : atrace.inline_traces)
-            write_action_trace(block_num, ttrace, num_actions, action_index, child, bulk, t, pipeline);
-
-        write_action_trace_subtable("action_trace_authorization", block_num, ttrace, action_index, atrace.authorization, bulk, t, pipeline);
         write_action_trace_subtable(
-            "action_trace_auth_sequence", block_num, ttrace, action_index, atrace.receipt_auth_sequence, bulk, t, pipeline);
+            "action_trace_authorization", block_num, ttrace, atrace.action_ordinal.value, atrace.act.authorization, bulk, t, pipeline);
+        if (atrace.receipt)
+            write_action_trace_subtable(
+                "action_trace_auth_sequence", block_num, ttrace, atrace.action_ordinal.value,
+                std::get<action_receipt_v0>(*atrace.receipt).auth_sequence, bulk, t, pipeline);
         write_action_trace_subtable(
-            "action_trace_ram_delta", block_num, ttrace, action_index, atrace.account_ram_deltas, bulk, t, pipeline);
+            "action_trace_ram_delta", block_num, ttrace, atrace.action_ordinal.value, atrace.account_ram_deltas, bulk, t, pipeline);
     } // write_action_trace
 
     template <typename T>
     void write_action_trace_subtable(
-        const std::string& name, uint32_t block_num, transaction_trace& ttrace, int32_t action_index, T& objects, bool bulk, pqxx::work& t,
-        pqxx::pipeline& pipeline) {
+        const std::string& name, uint32_t block_num, transaction_trace_v0& ttrace, int32_t action_ordinal, T& objects, bool bulk,
+        pqxx::work& t, pqxx::pipeline& pipeline) {
 
         int32_t num = 0;
         for (auto& obj : objects)
-            write_action_trace_subtable(name, block_num, ttrace, action_index, num, obj, bulk, t, pipeline);
+            write_action_trace_subtable(name, block_num, ttrace, action_ordinal, num, obj, bulk, t, pipeline);
     }
 
     template <typename T>
     void write_action_trace_subtable(
-        const std::string& name, uint32_t block_num, transaction_trace& ttrace, int32_t action_index, int32_t& num, T& obj, bool bulk,
+        const std::string& name, uint32_t block_num, transaction_trace_v0& ttrace, int32_t action_ordinal, int32_t& num, T& obj, bool bulk,
         pqxx::work& t, pqxx::pipeline& pipeline) {
         ++num;
-        std::string fields = "block_index, transaction_id, action_index, index, transaction_status";
+        std::string fields = "block_num, transaction_id, action_ordinal, ordinal, transaction_status";
         std::string values = std::to_string(block_num) + sep(bulk) + quote(bulk, (std::string)ttrace.id) + sep(bulk) +
-                             std::to_string(action_index) + sep(bulk) + std::to_string(num) + sep(bulk) +
+                             std::to_string(action_ordinal) + sep(bulk) + std::to_string(num) + sep(bulk) +
                              quote(bulk, to_string(ttrace.status));
 
         write(name, block_num, obj, fields, values, bulk, t, pipeline);
@@ -760,18 +853,42 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     }
 
     template <typename T>
+    void write_table_field(
+        const T& obj, std::string& fields, std::string& values, const std::string& field_name, bool bulk, pqxx::work& t,
+        pqxx::pipeline& pipeline) {
+        if constexpr (is_known_type(type_for<T>)) {
+            fields += ", " + t.quote_name(field_name);
+            values += sep(bulk) + type_for<T>.native_to_sql(*sql_connection, bulk, &obj);
+        } else if constexpr (abieos::is_optional_v<T>) {
+            fields += ", "s + t.quote_name(field_name + "_present");
+            bool hv = obj.has_value();
+            values += sep(bulk) + type_for<bool>.native_to_sql(*sql_connection, bulk, &hv);
+            write_table_field(obj ? *obj : typename T::value_type{}, fields, values, field_name, bulk, t, pipeline);
+        } else if constexpr (abieos::is_variant_v<T>) {
+            write_table_fields(std::get<0>(obj), fields, values, field_name + "_", bulk, t, pipeline);
+        } else if constexpr (abieos::is_vector_v<T>) {
+        } else {
+            write_table_fields<T>(obj, fields, values, field_name + "_", bulk, t, pipeline);
+        }
+    }
+
+    template <typename T>
+    void write_table_fields(
+        const T& obj, std::string& fields, std::string& values, const std::string& prefix, bool bulk, pqxx::work& t,
+        pqxx::pipeline& pipeline) {
+        for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
+            write_table_field(member_from_void(member_ptr, &obj), fields, values, prefix + field_name, bulk, t, pipeline);
+        });
+    }
+
+    template <typename T>
     void write(
         const std::string& name, uint32_t block_num, T& obj, std::string fields, std::string values, bool bulk, pqxx::work& t,
-        pqxx::pipeline& pipeline) {
+        pqxx::pipeline& pipeline, std::string suffix_fields = "", std::string suffix_values = "") {
 
-        for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
-            using type              = typename decltype(member_ptr)::member_type;
-            constexpr auto sql_type = type_for<type>;
-            if constexpr (is_known_type(sql_type)) {
-                fields += ", " + t.quote_name(field_name);
-                values += sep(bulk) + sql_type.native_to_sql(*sql_connection, bulk, &member_from_void(member_ptr, &obj));
-            }
-        });
+        write_table_fields(obj, fields, values, "", bulk, t, pipeline);
+        fields += suffix_fields;
+        values += suffix_values;
         write(block_num, t, pipeline, bulk, name, fields, values);
     } // write
 
@@ -784,7 +901,9 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         create_trim();
         pqxx::work t(*sql_connection);
         ilog("trim  ${b} - ${e}", ("b", first)("e", end_trim));
-        t.exec("select * from chain.trim_history(" + std::to_string(first) + ", " + std::to_string(end_trim) + ")");
+        t.exec(
+            "select * from " + t.quote_name(config->schema) + ".trim_history(" + std::to_string(first) + ", " + std::to_string(end_trim) +
+            ")");
         t.commit();
         ilog("      done");
         first = end_trim;
@@ -804,12 +923,14 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                            }}}});
     }
 
-    const abi_type& get_type(const std::string& name) {
+    const abi_type& get_type(const std::map<std::string, abi_type>& abi_types, const std::string& name) {
         auto it = abi_types.find(name);
         if (it == abi_types.end())
             throw std::runtime_error("unknown type "s + name);
         return it->second;
     }
+
+    const abi_type& get_type(const std::string& name) { return get_type(abi_types, name); }
 
     void send(const jvalue& value) {
         auto bin = std::make_shared<std::vector<char>>();
@@ -896,7 +1017,10 @@ void fill_pg_plugin::set_program_options(options_description& cli, options_descr
 
 void fill_pg_plugin::plugin_initialize(const variables_map& options) {
     try {
-        auto endpoint             = options.at("fill-connect-to").as<std::string>();
+        auto endpoint = options.at("fill-connect-to").as<std::string>();
+        if (endpoint.find(':') == std::string::npos)
+            throw std::runtime_error("invalid endpoint: " + endpoint);
+
         auto port                 = endpoint.substr(endpoint.find(':') + 1, endpoint.size());
         auto host                 = endpoint.substr(0, endpoint.find(':'));
         my->config->host          = host;

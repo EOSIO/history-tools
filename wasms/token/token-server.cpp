@@ -18,21 +18,21 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
         .max_block = get_block_num(req.max_block, status),
         .first =
             {
-                .name             = "transfer"_n,
-                .receipt_receiver = req.first_key.receipt_receiver,
-                .account          = req.first_key.account,
-                .block_index      = get_block_num(req.first_key.block, status),
-                .transaction_id   = req.first_key.transaction_id,
-                .action_index     = req.first_key.action_index,
+                .name           = "transfer"_n,
+                .receiver       = req.first_key.receiver,
+                .account        = req.first_key.account,
+                .block_num      = get_block_num(req.first_key.block, status),
+                .transaction_id = req.first_key.transaction_id,
+                .action_ordinal = req.first_key.action_ordinal,
             },
         .last =
             {
-                .name             = "transfer"_n,
-                .receipt_receiver = req.last_key.receipt_receiver,
-                .account          = req.last_key.account,
-                .block_index      = get_block_num(req.last_key.block, status),
-                .transaction_id   = req.last_key.transaction_id,
-                .action_index     = req.last_key.action_index,
+                .name           = "transfer"_n,
+                .receiver       = req.last_key.receiver,
+                .account        = req.last_key.account,
+                .block_num      = get_block_num(req.last_key.block, status),
+                .transaction_id = req.last_key.transaction_id,
+                .action_ordinal = req.last_key.action_ordinal,
             },
         .max_results = req.max_results,
     });
@@ -43,25 +43,25 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
         last_key = query_type::key::from_data(at);
 
         // todo: handle bad unpack
-        auto unpacked = eosio::unpack<transfer>(at.data->pos(), at.data->remaining());
+        auto unpacked = eosio::unpack<transfer>(at.action.data->pos(), at.action.data->remaining());
 
-        bool is_notify = at.receipt_receiver != at.account;
-        if ((req.include_notify_incoming && is_notify && at.receipt_receiver == unpacked.to) ||
-            (req.include_notify_outgoing && is_notify && at.receipt_receiver == unpacked.from) || //
+        bool is_notify = at.receiver != at.action.account;
+        if ((req.include_notify_incoming && is_notify && at.receiver == unpacked.to) ||
+            (req.include_notify_outgoing && is_notify && at.receiver == unpacked.from) || //
             (req.include_nonnotify && !is_notify)) {
 
             response.transfers.push_back(token_transfer{
                 .key =
                     {
-                        .receipt_receiver = at.receipt_receiver,
-                        .account          = at.account,
-                        .block            = eosio::make_absolute_block(at.block_index),
-                        .transaction_id   = at.transaction_id,
-                        .action_index     = at.action_index,
+                        .receiver       = at.receiver,
+                        .account        = at.action.account,
+                        .block          = eosio::make_absolute_block(at.block_num),
+                        .transaction_id = at.transaction_id,
+                        .action_ordinal = at.action_ordinal,
                     },
                 .from     = unpacked.from,
                 .to       = unpacked.to,
-                .quantity = eosio::extended_asset{unpacked.quantity, at.account},
+                .quantity = eosio::extended_asset{unpacked.quantity, at.action.account},
                 .memo     = unpacked.memo,
             });
         }
@@ -70,11 +70,11 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
     if (last_key) {
         increment_key(*last_key);
         response.more = token_transfer_key{
-            .receipt_receiver = last_key->receipt_receiver,
-            .account          = last_key->account,
-            .block            = eosio::make_absolute_block(last_key->block_index),
-            .transaction_id   = last_key->transaction_id,
-            .action_index     = last_key->action_index,
+            .receiver       = last_key->receiver,
+            .account        = last_key->account,
+            .block          = eosio::make_absolute_block(last_key->block_num),
+            .transaction_id = last_key->transaction_id,
+            .action_ordinal = last_key->action_ordinal,
         };
     }
     eosio::set_output_data(pack(token_query_response{std::move(response)}));
@@ -88,21 +88,21 @@ void process(balances_for_multiple_accounts_request& req, const eosio::database_
                 .code        = req.code,
                 .table       = "accounts"_n,
                 .primary_key = req.sym.raw(),
-                .scope       = req.first_account.value,
+                .scope       = req.first_account,
             },
         .last =
             {
                 .code        = req.code,
                 .table       = "accounts"_n,
                 .primary_key = req.sym.raw(),
-                .scope       = req.last_account.value,
+                .scope       = req.last_account,
             },
         .max_results = req.max_results,
     });
 
     balances_for_multiple_accounts_response response;
     eosio::for_each_contract_row<eosio::asset>(s, [&](eosio::contract_row& r, eosio::asset* a) {
-        response.more = eosio::name{r.scope + 1};
+        response.more = eosio::name{r.scope.value + 1};
         if (r.present && a)
             response.balances.push_back({.account = eosio::name{r.scope}, .amount = eosio::extended_asset{*a, req.code}});
         return true;
@@ -115,14 +115,14 @@ void process(balances_for_multiple_tokens_request& req, const eosio::database_st
         .max_block = get_block_num(req.max_block, status),
         .first =
             {
-                .scope       = req.account.value,
+                .scope       = req.account,
                 .table       = "accounts"_n,
                 .primary_key = req.first_key.sym.raw(),
                 .code        = req.first_key.code,
             },
         .last =
             {
-                .scope       = req.account.value,
+                .scope       = req.account,
                 .table       = "accounts"_n,
                 .primary_key = req.last_key.sym.raw(),
                 .code        = req.last_key.code,

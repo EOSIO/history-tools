@@ -36,8 +36,8 @@ struct lmdb_query_session : query_session {
 
     virtual state_history::fill_status get_fill_status() override { return fill_status; }
 
-    virtual std::optional<abieos::checksum256> get_block_id(uint32_t block_index) override {
-        auto rb = lmdb::get<lmdb::received_block>(tx, db_iface->lmdb_inst->db, lmdb::make_received_block_key(block_index), false);
+    virtual std::optional<abieos::checksum256> get_block_id(uint32_t block_num) override {
+        auto rb = lmdb::get<lmdb::received_block>(tx, db_iface->lmdb_inst->db, lmdb::make_received_block_key(block_num), false);
         if (rb)
             return rb->block_id;
         return {};
@@ -46,7 +46,7 @@ struct lmdb_query_session : query_session {
     void append_fields(std::vector<char>& dest, abieos::input_buffer src, const std::vector<lmdb::key>& keys, bool xform_key) {
         for (auto& key : keys) {
             if (!key.field->byte_position)
-                throw std::runtime_error("key has unknown position");
+                throw std::runtime_error("key " + key.name + " has unknown position");
             if (*key.field->byte_position > src.end - src.pos)
                 throw std::runtime_error("key position is out of range");
             abieos::input_buffer key_pos{src.pos + *key.field->byte_position, src.end};
@@ -69,16 +69,18 @@ struct lmdb_query_session : query_session {
         if (!query.arg_types.empty())
             throw std::runtime_error("query_database: query: " + (std::string)query_name + " not implemented");
 
-        uint32_t max_block_index = 0;
-        if (query.limit_block_index)
-            max_block_index = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
+        uint32_t max_block_num = 0;
+        if (query.limit_block_num)
+            max_block_num = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
 
         auto first = lmdb::make_table_index_key(query.table_obj->short_name, query_name);
         auto last  = first;
 
         auto add_fields = [&](auto& dest, auto& types) {
-            for (auto& type : types)
-                type.bin_to_bin_key(dest, query_bin);
+            for (auto& type : types) {
+                auto p = query_bin.pos;
+                type.query_to_bin_key(dest, query_bin);
+            }
         };
         add_fields(first, query.range_types);
         add_fields(last, query.range_types);
@@ -90,8 +92,8 @@ struct lmdb_query_session : query_session {
         for_each_subkey(tx, db_iface->lmdb_inst->db, first, last, [&](const auto& index_key, auto, auto) {
             std::vector index_key_limit_block = index_key;
             if (query.is_state)
-                lmdb::append_table_index_state_suffix(index_key_limit_block, max_block_index);
-            // todo: unify lmdb's and pg's handling of negative result because of max_block_index
+                lmdb::append_table_index_state_suffix(index_key_limit_block, max_block_num);
+            // todo: unify lmdb's and pg's handling of negative result because of max_block_num
             for_each(tx, db_iface->lmdb_inst->db, index_key_limit_block, index_key, [&](auto, auto delta_key) {
                 auto delta_value = lmdb::get_raw(tx, db_iface->lmdb_inst->db, delta_key);
                 rows.emplace_back(delta_value.pos, delta_value.end);
@@ -100,7 +102,7 @@ struct lmdb_query_session : query_session {
                     append_fields(join_key, delta_value, query.join_key_values, true);
                     auto join_key_limit_block = join_key;
                     if (query.join_query->is_state)
-                        lmdb::append_table_index_state_suffix(join_key_limit_block, max_block_index);
+                        lmdb::append_table_index_state_suffix(join_key_limit_block, max_block_num);
 
                     auto& row        = rows.back();
                     bool  found_join = false;
@@ -111,7 +113,8 @@ struct lmdb_query_session : query_session {
                         return false;
                     });
 
-                    // todo: !found_join
+                    if (!found_join)
+                        rows.pop_back(); // todo: fill in empty instead?
                 }
                 return false;
             });

@@ -218,7 +218,6 @@ async function dump_accounts(clientWasm, max_block, first, last) {
             first: first,
             last: last,
             max_results: 100,
-            include_code: false,
             include_abi: false,
         }]);
         console.log(JSON.stringify(reply, null, 4));
@@ -226,8 +225,16 @@ async function dump_accounts(clientWasm, max_block, first, last) {
     } while (first);
 }
 
-async function get_abis(clientWasm, names) {
-    const reply = await clientWasm.round_trip(['abis', {
+async function get_abi(clientWasm, names) {
+    const reply = await clientWasm.round_trip(['abi', {
+        max_block: ["irreversible", 0],
+        names,
+    }]);
+    console.log(JSON.stringify(reply, null, 4));
+}
+
+async function get_code(clientWasm, names) {
+    const reply = await clientWasm.round_trip(['code', {
         max_block: ["irreversible", 0],
         names,
     }]);
@@ -267,18 +274,18 @@ async function dump_tokens(clientWasm, account, max_block, first_key, last_key) 
 
 async function dump_transfers(clientWasm) {
     let first_key = {
-        receipt_receiver: 'eosio.bpay',
+        receiver: 'eosio.bpay',
         account: 'eosio.token',
         block: ['absolute', 0],
         transaction_id: '0000000000000000000000000000000000000000000000000000000000000000',
-        action_index: 0,
+        action_ordinal: 0,
     };
     let last_key = {
-        receipt_receiver: 'eosio.bpay',
+        receiver: 'eosio.bpay',
         account: 'eosio.token',
         block: ['irreversible', 0],
         transaction_id: 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
-        action_index: 0xffffffff,
+        action_ordinal: 0xffffffff,
     };
 
     let i = 0;
@@ -319,7 +326,9 @@ async function dump_transfers(clientWasm) {
         console.log();
         await dump_accounts(chainWasm, ["irreversible", 0], 'eosio', 'eosio.bpay')
         console.log();
-        await get_abis(chainWasm, ['eosio', 'eosio.token', 'eosio.null', 'eosio.nope']);
+        await get_abi(chainWasm, ['eosio', 'eosio.token', 'eosio.null', 'eosio.nope']);
+        console.log();
+        await get_code(chainWasm, ['eosio', 'eosio.token', 'eosio.null', 'eosio.nope']);
         console.log();
         await dump_eos_balances(["head", 0], tokenWasm, 'eosio', 'eosio.zzzzzzj');
         console.log();

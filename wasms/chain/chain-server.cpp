@@ -41,7 +41,7 @@ void process(tapos_request& req, const eosio::database_status& status) {
 }
 
 void process(account_request& req, const eosio::database_status& status) {
-    auto s = query_database(eosio::query_account_range_name{
+    auto s = query_database(eosio::query_acctmeta_range_name{
         .max_block   = get_block_num(req.max_block, status),
         .first       = req.first,
         .last        = req.last,
@@ -49,13 +49,11 @@ void process(account_request& req, const eosio::database_status& status) {
     });
 
     account_response response;
-    eosio::for_each_query_result<eosio::account>(s, [&](eosio::account& a) {
+    eosio::for_each_query_result<eosio::account_metadata_joined>(s, [&](eosio::account_metadata_joined& a) {
         response.more = eosio::name{a.name.value + 1};
         if (a.present) {
             if (!req.include_abi)
-                a.abi = {};
-            if (!req.include_code)
-                a.code = {};
+                a.account_abi = {};
             response.accounts.push_back(a);
         }
         return true;
@@ -63,8 +61,8 @@ void process(account_request& req, const eosio::database_status& status) {
     eosio::set_output_data(pack(chain_query_response{std::move(response)}));
 }
 
-void process(abis_request& req, const eosio::database_status& status) {
-    abis_response response;
+void process(abi_request& req, const eosio::database_status& status) {
+    abi_response response;
     for (auto name : req.names) {
         auto s     = query_database(eosio::query_account_range_name{
             .max_block   = get_block_num(req.max_block, status),
@@ -82,6 +80,29 @@ void process(abis_request& req, const eosio::database_status& status) {
         });
         if (!found)
             response.abis.push_back(name_abi{name, false, {}});
+    }
+    eosio::set_output_data(pack(chain_query_response{std::move(response)}));
+}
+
+void process(code_request& req, const eosio::database_status& status) {
+    code_response response;
+    for (auto name : req.names) {
+        auto s     = query_database(eosio::query_code_range_name{
+            .max_block   = get_block_num(req.max_block, status),
+            .first       = name,
+            .last        = name,
+            .max_results = 1,
+        });
+        bool found = false;
+        eosio::for_each_query_result<eosio::metadata_code_joined>(s, [&](eosio::metadata_code_joined& a) {
+            if (a.present) {
+                found = true;
+                response.code.push_back(name_code{a.name, true, a.join_code});
+            }
+            return true;
+        });
+        if (!found)
+            response.code.push_back(name_code{name, false, {}});
     }
     eosio::set_output_data(pack(chain_query_response{std::move(response)}));
 }

@@ -28,11 +28,12 @@ struct flm_session;
 struct lmdb_table;
 
 struct lmdb_field {
-    std::string                 name      = {};
-    const abieos::abi_field*    abi_field = {};
-    const lmdb::type*           type      = {};
-    std::unique_ptr<lmdb_table> array_of  = {};
-    abieos::input_buffer        pos       = {}; // temporary filled by fill()
+    std::string                 name        = {};
+    const abieos::abi_field*    abi_field   = {};
+    const lmdb::type*           type        = {};
+    std::unique_ptr<lmdb_table> array_of    = {};
+    std::unique_ptr<lmdb_table> optional_of = {};
+    abieos::input_buffer        pos         = {}; // temporary filled by fill()
 };
 
 struct lmdb_index {
@@ -95,7 +96,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
 
         ilog("connect to lmdb");
         stream.binary(true);
-        stream.read_message_max(1024 * 1024 * 1024);
+        stream.read_message_max(10ull * 1024 * 1024 * 1024);
     }
 
     void check() {
@@ -114,19 +115,19 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             auto orig_k = k;
             if (lmdb::bin_to_key_tag(k) != lmdb::key_tag::block)
                 throw std::runtime_error("This shouldn't happen (1)");
-            auto block_index = lmdb::bin_to_native_key<uint32_t>(k);
-            auto tag         = lmdb::bin_to_key_tag(k);
-            if (tag == lmdb::key_tag::table_row && (block_index < first || block_index > head))
+            auto block_num = lmdb::bin_to_native_key<uint32_t>(k);
+            auto tag       = lmdb::bin_to_key_tag(k);
+            if (tag == lmdb::key_tag::table_row && (block_num < first || block_num > head))
                 throw std::runtime_error(
-                    "Saw row for block_index " + std::to_string(block_index) +
+                    "Saw row for block_num " + std::to_string(block_num) +
                     ", which is out of range [first, head]. key: " + lmdb::key_to_string(orig_k));
             if (tag != lmdb::key_tag::received_block)
                 return true;
-            if (block_index == first || block_index == head || !(block_index % 10'000))
-                ilog("Found records for block ${b}", ("b", block_index));
-            if (block_index != expected)
+            if (block_num == first || block_num == head || !(block_num % 10'000))
+                ilog("Found records for block ${b}", ("b", block_num));
+            if (block_num != expected)
                 throw std::runtime_error(
-                    "Saw received_block record " + std::to_string(block_index) + " but expected " + std::to_string(expected));
+                    "Saw received_block record " + std::to_string(block_num) + " but expected " + std::to_string(expected));
             ++expected;
             return true;
         });
@@ -201,8 +202,11 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             for (auto& f : abi_field.type->fields[0].type->fields)
                 fill_fields(table, base_name + abi_field.name + "_", f);
         } else {
-            bool array_of_struct = abi_field.type->array_of && abi_field.type->array_of->filled_struct;
-            auto field_name      = base_name + abi_field.name;
+            bool array_of_struct  = abi_field.type->array_of && abi_field.type->array_of->filled_struct;
+            bool array_of_variant = abi_field.type->array_of && abi_field.type->array_of->filled_variant &&
+                                    abi_field.type->array_of->fields.size() == 1 && abi_field.type->array_of->fields[0].type->filled_struct;
+            bool optional_of_struct = abi_field.type->optional_of && abi_field.type->optional_of->filled_struct;
+            auto field_name         = base_name + abi_field.name;
             if (table.field_map.find(field_name) != table.field_map.end())
                 throw std::runtime_error("duplicate field " + field_name + " in table " + table.name);
 
@@ -212,7 +216,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             if (raw_type->array_of)
                 raw_type = raw_type->array_of;
             auto type_it = lmdb::abi_type_to_lmdb_type.find(raw_type->name);
-            if (type_it == lmdb::abi_type_to_lmdb_type.end() && !array_of_struct)
+            if (type_it == lmdb::abi_type_to_lmdb_type.end() && !array_of_struct && !array_of_variant && !optional_of_struct)
                 throw std::runtime_error("don't know lmdb type for abi type: " + raw_type->name);
 
             table.fields.push_back(std::make_unique<lmdb_field>());
@@ -220,12 +224,21 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             table.field_map[field_name] = f;
             f->name                     = field_name;
             f->abi_field                = &abi_field;
-            f->type                     = array_of_struct ? nullptr : &type_it->second;
+            f->type                     = (array_of_struct | array_of_variant | optional_of_struct) ? nullptr : &type_it->second;
 
             if (array_of_struct) {
                 f->array_of = std::make_unique<lmdb_table>(lmdb_table{.name = field_name, .abi_type = abi_field.type->array_of});
                 for (auto& g : abi_field.type->array_of->fields)
                     fill_fields(*f->array_of, base_name, g);
+            } else if (array_of_variant) {
+                f->array_of =
+                    std::make_unique<lmdb_table>(lmdb_table{.name = field_name, .abi_type = abi_field.type->array_of->fields[0].type});
+                for (auto& g : abi_field.type->array_of->fields[0].type->fields)
+                    fill_fields(*f->array_of, base_name, g);
+            } else if (optional_of_struct) {
+                f->optional_of = std::make_unique<lmdb_table>(lmdb_table{.name = field_name, .abi_type = abi_field.type->optional_of});
+                for (auto& g : abi_field.type->optional_of->fields)
+                    fill_fields(*f->optional_of, base_name, g);
             }
         }
     }
@@ -274,7 +287,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         block_info_table             = &tables["block_info"];
         block_info_table->name       = "block_info";
         block_info_table->short_name = "block.info"_n;
-        fill_fields(*block_info_table, "", abieos::abi_field{"block_index", &get_type("uint32")});
+        fill_fields(*block_info_table, "", abieos::abi_field{"block_num", &get_type("uint32")});
         fill_fields(*block_info_table, "", abieos::abi_field{"block_id", &get_type("checksum256")});
         fill_fields(*block_info_table, "", abieos::abi_field{"timestamp", &get_type("block_timestamp_type")});
         fill_fields(*block_info_table, "", abieos::abi_field{"producer", &get_type("name")});
@@ -285,32 +298,30 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         fill_fields(*block_info_table, "", abieos::abi_field{"schedule_version", &get_type("uint32")});
         auto& block_info_trim = block_info_table->indexes["trim"_n];
         block_info_trim.name  = "trim"_n;
-        block_info_trim.fields.push_back(block_info_table->field_map["block_index"]);
+        block_info_trim.fields.push_back(block_info_table->field_map["block_num"]);
 
         action_trace_table             = &tables["action_trace"];
         action_trace_table->name       = "action_trace";
         action_trace_table->short_name = "atrace"_n;
-        fill_fields(*action_trace_table, "", abieos::abi_field{"block_index", &get_type("uint32")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"block_num", &get_type("uint32")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"transaction_id", &get_type("checksum256")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"action_index", &get_type("uint32")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"parent_action_index", &get_type("uint32")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"transaction_status", &get_type("uint8")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_receiver", &get_type("name")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_act_digest", &get_type("checksum256")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_global_sequence", &get_type("uint64")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_recv_sequence", &get_type("uint64")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_code_sequence", &get_type("varuint32")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"receipt_abi_sequence", &get_type("varuint32")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"account", &get_type("name")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"name", &get_type("name")});
-        fill_fields(*action_trace_table, "", abieos::abi_field{"data", &get_type("bytes")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"action_ordinal", &get_type("varuint32")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"creator_action_ordinal", &get_type("varuint32")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"receiver", &get_type("name")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"act_account", &get_type("name")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"act_name", &get_type("name")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"act_data", &get_type("bytes")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"context_free", &get_type("bool")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"elapsed", &get_type("int64")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"console", &get_type("string")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"except", &get_type("string")});
+        fill_fields(*action_trace_table, "", abieos::abi_field{"error_code", &get_type("uint64")});
         auto& action_trace_trim = action_trace_table->indexes["trim"_n];
         action_trace_trim.name  = "trim"_n;
-        action_trace_trim.fields.push_back(action_trace_table->field_map["block_index"]);
+        action_trace_trim.fields.push_back(action_trace_table->field_map["block_num"]);
         action_trace_trim.fields.push_back(action_trace_table->field_map["transaction_id"]);
-        action_trace_trim.fields.push_back(action_trace_table->field_map["action_index"]);
+        action_trace_trim.fields.push_back(action_trace_table->field_map["action_ordinal"]);
     } // init_tables
 
     void init_indexes() {
@@ -379,7 +390,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             for (uint32_t i = irreversible; i <= head; ++i) {
                 auto rb = lmdb::get<lmdb::received_block>(t, lmdb_inst->db, lmdb::make_received_block_key(i));
                 result.push_back(jvalue{jobject{
-                    {{"block_num"s}, jvalue{std::to_string(rb->block_index)}},
+                    {{"block_num"s}, jvalue{std::to_string(rb->block_num)}},
                     {{"block_id"s}, jvalue{(std::string)rb->block_id}},
                 }});
             }
@@ -496,6 +507,13 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             if (v)
                 throw std::runtime_error("invalid variant in " + field.abi_field->type->name);
             abieos::push_varuint32(dest, v);
+        } else if (field.optional_of) {
+            bool b = read_raw<bool>(src);
+            abieos::push_raw(dest, b);
+            if (b) {
+                for (auto& f : field.optional_of->fields)
+                    fill(dest, src, *f);
+            }
         } else if (field.array_of) {
             uint32_t n = read_varuint32(src);
             abieos::push_varuint32(dest, n);
@@ -523,10 +541,10 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         }
     }
 
-    void receive_block(uint32_t block_index, const checksum256& block_id, input_buffer bin, lmdb::transaction& t) {
+    void receive_block(uint32_t block_num, const checksum256& block_id, input_buffer bin, lmdb::transaction& t) {
         state_history::signed_block block;
         bin_to_native(block, bin);
-        auto              key = lmdb::make_block_info_key(block_index);
+        auto              key = lmdb::make_block_info_key(block_num);
         std::vector<char> value;
 
         std::vector<uint32_t> positions;
@@ -535,7 +553,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             abieos::native_to_bin(value, x);
         };
 
-        f(block_index);
+        f(block_num);
         f(block_id);
         f(block.timestamp);
         f(block.producer);
@@ -556,13 +574,11 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             lmdb::append_table_index_key(index_key, block_info_table->short_name, index.name);
             fill_key(index_key, index);
             lmdb::put(t, lmdb_inst->db, index_key, key);
-            lmdb::put(t, lmdb_inst->db, lmdb::make_table_index_ref_key(block_index, key, index_key), index_key);
+            lmdb::put(t, lmdb_inst->db, lmdb::make_table_index_ref_key(block_num, key, index_key), index_key);
         }
     } // receive_block
 
-    void receive_deltas(lmdb::transaction& t, uint32_t block_num, input_buffer buf) {
-        auto              data = zlib_decompress(buf);
-        input_buffer      bin{data.data(), data.data() + data.size()};
+    void receive_deltas(lmdb::transaction& t, uint32_t block_num, input_buffer bin) {
         auto&             table_delta_type = get_type("table_delta");
         std::vector<char> delta_key;
         std::vector<char> value;
@@ -609,24 +625,32 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         }
     } // receive_deltas
 
-    void receive_traces(lmdb::transaction& t, uint32_t block_num, input_buffer buf) {
-        auto         data = zlib_decompress(buf);
-        input_buffer bin{data.data(), data.data() + data.size()};
-        auto         num = read_varuint32(bin);
+    void receive_traces(lmdb::transaction& t, uint32_t block_num, input_buffer bin) {
+        auto     num          = read_varuint32(bin);
+        uint32_t num_ordinals = 0;
         for (uint32_t i = 0; i < num; ++i) {
             state_history::transaction_trace trace;
             bin_to_native(trace, bin);
-            write_transaction_trace(t, block_num, trace);
+            write_transaction_trace(t, block_num, num_ordinals, std::get<state_history::transaction_trace_v0>(trace));
         }
     }
 
-    void write_transaction_trace(lmdb::transaction& t, uint32_t block_num, const state_history::transaction_trace& ttrace) {
+    void write_transaction_trace(
+        lmdb::transaction& t, uint32_t block_num, uint32_t& num_ordinals, const state_history::transaction_trace_v0& ttrace) {
+        auto* failed = !ttrace.failed_dtrx_trace.empty()
+                           ? &std::get<state_history::transaction_trace_v0>(ttrace.failed_dtrx_trace[0].recurse)
+                           : nullptr;
+        if (failed)
+            write_transaction_trace(t, block_num, num_ordinals, *failed);
+        uint32_t transaction_ordinal = ++num_ordinals;
+
         std::vector<char> key;
         lmdb::append_transaction_trace_key(key, block_num, ttrace.id);
 
         std::vector<char> value;
         abieos::native_to_bin(value, block_num);
-        abieos::native_to_bin(value, ttrace.failed_dtrx_trace.empty() ? abieos::checksum256{} : ttrace.failed_dtrx_trace[0].id);
+        abieos::native_to_bin(value, transaction_ordinal);
+        abieos::native_to_bin(value, failed ? failed->id : abieos::checksum256{});
         abieos::native_to_bin(value, ttrace.id);
         abieos::native_to_bin(value, (uint8_t)ttrace.status);
         abieos::native_to_bin(value, ttrace.cpu_usage_us);
@@ -634,26 +658,27 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         abieos::native_to_bin(value, ttrace.elapsed);
         abieos::native_to_bin(value, ttrace.net_usage);
         abieos::native_to_bin(value, ttrace.scheduled);
+        abieos::native_to_bin(value, ttrace.account_ram_delta.has_value());
+        if (ttrace.account_ram_delta) {
+            abieos::native_to_bin(value, ttrace.account_ram_delta->account);
+            abieos::native_to_bin(value, ttrace.account_ram_delta->delta);
+        }
         abieos::native_to_bin(value, ttrace.except ? *ttrace.except : "");
+        abieos::native_to_bin(value, ttrace.error_code ? *ttrace.error_code : 0);
 
         // lmdb::put(t, lmdb_inst->db, key, value); // todo: indexes, including trim
 
-        uint32_t          prev_action_index = 0;
         std::vector<char> index_key;
         for (auto& atrace : ttrace.action_traces)
-            write_action_trace(t, block_num, ttrace, atrace, 0, prev_action_index, key, value, index_key);
+            write_action_trace(t, block_num, ttrace, std::get<state_history::action_trace_v0>(atrace), key, value, index_key);
     }
 
     void write_action_trace(
-        lmdb::transaction& t, uint32_t block_num, const state_history::transaction_trace& ttrace, const state_history::action_trace& atrace,
-        uint32_t parent_action_index, uint32_t& prev_action_index, std::vector<char>& key, std::vector<char>& value,
-        std::vector<char>& index_key) {
-
-        auto action_index = ++prev_action_index;
+        lmdb::transaction& t, uint32_t block_num, const state_history::transaction_trace_v0& ttrace,
+        const state_history::action_trace_v0& atrace, std::vector<char>& key, std::vector<char>& value, std::vector<char>& index_key) {
 
         key.clear();
-        lmdb::append_action_trace_key(key, block_num, ttrace.id, action_index);
-
+        lmdb::append_action_trace_key(key, block_num, ttrace.id, atrace.action_ordinal.value);
         value.clear();
 
         std::vector<uint32_t> positions;
@@ -664,20 +689,28 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
 
         f(block_num);
         f(ttrace.id);
-        f(action_index);
-        f(parent_action_index);
         f((uint8_t)ttrace.status);
-        f(atrace.receipt_receiver);
-        f(atrace.receipt_act_digest);
-        f(atrace.receipt_global_sequence);
-        f(atrace.receipt_recv_sequence);
-        f(atrace.receipt_code_sequence);
-        f(atrace.receipt_abi_sequence);
-        f(atrace.account);
-        f(atrace.name);
-        f(atrace.data);
+        f(atrace.action_ordinal);
+        f(atrace.creator_action_ordinal);
+        abieos::native_to_bin(value, atrace.receipt.has_value());
+        if (atrace.receipt) {
+            auto& receipt = std::get<state_history::action_receipt_v0>(*atrace.receipt);
+            abieos::native_to_bin(value, receipt.receiver);
+            abieos::native_to_bin(value, receipt.act_digest);
+            abieos::native_to_bin(value, receipt.global_sequence);
+            abieos::native_to_bin(value, receipt.recv_sequence);
+            abieos::native_to_bin(value, receipt.code_sequence);
+            abieos::native_to_bin(value, receipt.abi_sequence);
+        }
+        f(atrace.receiver);
+        f(atrace.act.account);
+        f(atrace.act.name);
+        f(atrace.act.data);
         f(atrace.context_free);
         f(atrace.elapsed);
+        f(atrace.console);
+        f(atrace.except ? *atrace.except : "");
+        f(atrace.error_code ? *atrace.error_code : 0);
 
         abieos::native_to_bin(value, atrace.console);
         abieos::native_to_bin(value, atrace.except ? *atrace.except : std::string());
@@ -697,14 +730,11 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         // todo: receipt_auth_sequence
         // todo: authorization
         // todo: account_ram_deltas
-
-        for (auto& child : atrace.inline_traces)
-            write_action_trace(t, block_num, ttrace, child, action_index, prev_action_index, key, value, index_key);
     }
 
     template <typename F>
-    void for_each_row_in_block(lmdb::transaction& t, uint32_t block_index, F f) {
-        auto row_bound = lmdb::make_table_row_key(block_index);
+    void for_each_row_in_block(lmdb::transaction& t, uint32_t block_num, F f) {
+        auto row_bound = lmdb::make_table_row_key(block_num);
         lmdb::for_each(t, lmdb_inst->db, row_bound, row_bound, [&](auto k, auto row_content) {
             k.pos += row_bound.size();
             auto table_name = lmdb::bin_to_native_key<abieos::name>(k);
@@ -714,9 +744,9 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     }
 
     template <typename F>
-    void for_each_delta_in_block(lmdb::transaction& t, uint32_t block_index, F f) {
+    void for_each_delta_in_block(lmdb::transaction& t, uint32_t block_num, F f) {
         std::vector<char> delta_bound;
-        lmdb::append_delta_key(delta_bound, block_index);
+        lmdb::append_delta_key(delta_bound, block_num);
         lmdb::for_each(t, lmdb_inst->db, delta_bound, delta_bound, [&](auto k, auto row_content) {
             k.pos += delta_bound.size();
             auto table_name = lmdb::bin_to_native_key<abieos::name>(k);
@@ -727,31 +757,31 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     }
 
     template <typename F>
-    void for_each_row_trim(lmdb::transaction& t, abieos::name table_name, abieos::input_buffer pk, uint32_t block_index, F f) {
+    void for_each_row_trim(lmdb::transaction& t, abieos::name table_name, abieos::input_buffer pk, uint32_t block_num, F f) {
         std::vector<char> trim_bound;
         lmdb::append_table_index_key(trim_bound, table_name, "trim"_n);
-        lmdb::native_to_bin_key<uint32_t>(trim_bound, block_index);
+        lmdb::native_to_bin_key<uint32_t>(trim_bound, block_num);
         lmdb::for_each(t, lmdb_inst->db, trim_bound, trim_bound, [&](auto k, auto v) { return f(v); });
     }
 
     template <typename F>
-    void for_each_delta_trim(lmdb::transaction& t, abieos::name table_name, abieos::input_buffer pk, uint32_t max_block_index, F f) {
+    void for_each_delta_trim(lmdb::transaction& t, abieos::name table_name, abieos::input_buffer pk, uint32_t max_block_num, F f) {
         std::vector<char> trim_bound;
         lmdb::append_table_index_key(trim_bound, table_name, "trim"_n);
         trim_bound.insert(trim_bound.end(), pk.pos, pk.end);
         auto trim_lower_bound = trim_bound;
-        lmdb::native_to_bin_key<uint32_t>(trim_lower_bound, ~max_block_index);
+        lmdb::native_to_bin_key<uint32_t>(trim_lower_bound, ~max_block_num);
 
         lmdb::for_each(t, lmdb_inst->db, trim_lower_bound, trim_bound, [&](auto k, auto v) {
             k.pos += trim_bound.size();
-            auto block_index = ~lmdb::bin_to_native_key<uint32_t>(k);
-            auto present     = !lmdb::bin_to_native_key<bool>(k);
-            return f(block_index, present);
+            auto block_num = ~lmdb::bin_to_native_key<uint32_t>(k);
+            auto present   = !lmdb::bin_to_native_key<bool>(k);
+            return f(block_num, present);
         });
     }
 
-    void remove_row(lmdb::transaction& t, abieos::name table_name, uint32_t block_index, std::vector<char> key) {
-        auto index_ref_bounds = lmdb::make_table_index_ref_key(block_index, key);
+    void remove_row(lmdb::transaction& t, abieos::name table_name, uint32_t block_num, std::vector<char> key) {
+        auto index_ref_bounds = lmdb::make_table_index_ref_key(block_num, key);
         lmdb::for_each(t, lmdb_inst->db, index_ref_bounds, index_ref_bounds, [&](auto k, auto v) {
             lmdb::check(mdb_del(t.tx, lmdb_inst->db.db, lmdb::addr(lmdb::to_const_val(v)), nullptr), "remove_row (1): ");
             lmdb::check(mdb_del(t.tx, lmdb_inst->db.db, lmdb::addr(lmdb::to_const_val(k)), nullptr), "remove_row (2): ");
@@ -760,11 +790,11 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         lmdb::check(mdb_del(t.tx, lmdb_inst->db.db, lmdb::addr(lmdb::to_const_val(key)), nullptr), "remove_row (3): ");
     }
 
-    void remove_delta(lmdb::transaction& t, abieos::name table_name, uint32_t block_index, bool present, abieos::input_buffer pk) {
+    void remove_delta(lmdb::transaction& t, abieos::name table_name, uint32_t block_num, bool present, abieos::input_buffer pk) {
         std::vector<char> delta_key;
-        lmdb::append_delta_key(delta_key, block_index, present, table_name);
+        lmdb::append_delta_key(delta_key, block_num, present, table_name);
         delta_key.insert(delta_key.end(), pk.pos, pk.end);
-        remove_row(t, table_name, block_index, delta_key);
+        remove_row(t, table_name, block_num, delta_key);
     }
 
     void trim(lmdb::transaction& t) {
@@ -777,33 +807,33 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
 
         uint64_t num_rows_removed   = 0;
         uint64_t num_deltas_removed = 0;
-        for (auto block_index = first; block_index < end_trim; ++block_index) {
-            if (end_trim - first >= 400 && !(block_index % 100)) {
+        for (auto block_num = first; block_num < end_trim; ++block_num) {
+            if (end_trim - first >= 400 && !(block_num % 100)) {
                 ilog("trim: removed ${r} rows and ${d} deltas so far", ("r", num_rows_removed)("d", num_deltas_removed));
-                ilog("trim ${x}", ("x", block_index));
+                ilog("trim ${x}", ("x", block_num));
             }
-            for_each_row_in_block(t, block_index, [&](auto row_table_name, auto row_pk) {
-                for_each_row_trim(t, row_table_name, row_pk, block_index, [&](auto table_key) {
-                    remove_row(t, row_table_name, block_index, {table_key.pos, table_key.end});
+            for_each_row_in_block(t, block_num, [&](auto row_table_name, auto row_pk) {
+                for_each_row_trim(t, row_table_name, row_pk, block_num, [&](auto table_key) {
+                    remove_row(t, row_table_name, block_num, {table_key.pos, table_key.end});
                     ++num_rows_removed;
                     return true;
                 });
                 return true;
             });
-            for_each_delta_in_block(t, block_index + 1, [&](auto delta_table_name, auto delta_present, auto delta_pk) {
-                for_each_delta_trim(t, delta_table_name, delta_pk, block_index + 1, [&](auto trim_block_index, auto trim_present) {
-                    if (trim_block_index == block_index + 1)
+            for_each_delta_in_block(t, block_num + 1, [&](auto delta_table_name, auto delta_present, auto delta_pk) {
+                for_each_delta_trim(t, delta_table_name, delta_pk, block_num + 1, [&](auto trim_block_num, auto trim_present) {
+                    if (trim_block_num == block_num + 1)
                         return true;
-                    if (trim_block_index > block_index + 1)
-                        throw std::runtime_error("found unexpected block in trim search: " + std::to_string(trim_block_index));
-                    remove_delta(t, delta_table_name, trim_block_index, trim_present, delta_pk);
+                    if (trim_block_num > block_num + 1)
+                        throw std::runtime_error("found unexpected block in trim search: " + std::to_string(trim_block_num));
+                    remove_delta(t, delta_table_name, trim_block_num, trim_present, delta_pk);
                     ++num_deltas_removed;
                     return true;
                 });
                 return true;
             });
             lmdb::check(
-                mdb_del(t.tx, lmdb_inst->db.db, lmdb::addr(lmdb::to_const_val(lmdb::make_received_block_key(block_index))), nullptr),
+                mdb_del(t.tx, lmdb_inst->db.db, lmdb::addr(lmdb::to_const_val(lmdb::make_received_block_key(block_num))), nullptr),
                 "trim: ");
         }
 
@@ -916,7 +946,10 @@ void fill_lmdb_plugin::set_program_options(options_description& cli, options_des
 
 void fill_lmdb_plugin::plugin_initialize(const variables_map& options) {
     try {
-        auto endpoint            = options.at("fill-connect-to").as<std::string>();
+        auto endpoint = options.at("fill-connect-to").as<std::string>();
+        if (endpoint.find(':') == std::string::npos)
+            throw std::runtime_error("invalid endpoint: " + endpoint);
+
         auto port                = endpoint.substr(endpoint.find(':') + 1, endpoint.size());
         auto host                = endpoint.substr(0, endpoint.find(':'));
         my->config->host         = host;

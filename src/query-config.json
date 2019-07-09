@@ -4,7 +4,7 @@
             "name": "block_info",
             "fields": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "type": "uint32"
                 },
                 {
@@ -47,15 +47,9 @@
         },
         {
             "name": "action_trace",
-            "history_keys": [
-                {
-                    "name": "receipt_receiver",
-                    "desc": true
-                }
-            ],
             "fields": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "type": "uint32"
                 },
                 {
@@ -63,16 +57,21 @@
                     "type": "checksum256"
                 },
                 {
-                    "name": "action_index",
-                    "type": "uint32"
-                },
-                {
-                    "name": "parent_action_index",
-                    "type": "uint32"
-                },
-                {
                     "name": "transaction_status",
                     "type": "transaction_status"
+                },
+                {
+                    "name": "action_ordinal",
+                    "type": "varuint32"
+                },
+                {
+                    "name": "creator_action_ordinal",
+                    "type": "varuint32"
+                },
+                {
+                    "name": "receipt_present",
+                    "type": "bool",
+                    "begin_optional": true
                 },
                 {
                     "name": "receipt_receiver",
@@ -96,18 +95,23 @@
                 },
                 {
                     "name": "receipt_abi_sequence",
-                    "type": "varuint32"
+                    "type": "varuint32",
+                    "end_optional": true
                 },
                 {
-                    "name": "account",
+                    "name": "receiver",
                     "type": "name"
                 },
                 {
-                    "name": "name",
+                    "name": "act_account",
                     "type": "name"
                 },
                 {
-                    "name": "data",
+                    "name": "act_name",
+                    "type": "name"
+                },
+                {
+                    "name": "act_data",
                     "type": "bytes"
                 },
                 {
@@ -117,6 +121,18 @@
                 {
                     "name": "elapsed",
                     "type": "int64"
+                },
+                {
+                    "name": "console",
+                    "type": "string"
+                },
+                {
+                    "name": "except",
+                    "type": "string"
+                },
+                {
+                    "name": "error_code",
+                    "type": "uint64"
                 }
             ]
         },
@@ -124,7 +140,7 @@
             "name": "account",
             "history_keys": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "desc": true
                 },
                 {
@@ -139,7 +155,7 @@
             ],
             "fields": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "type": "uint32"
                 },
                 {
@@ -151,12 +167,44 @@
                     "type": "name"
                 },
                 {
-                    "name": "vm_type",
-                    "type": "uint8"
+                    "name": "creation_date",
+                    "type": "block_timestamp_type"
                 },
                 {
-                    "name": "vm_version",
-                    "type": "uint8"
+                    "name": "abi",
+                    "type": "bytes"
+                }
+            ]
+        },
+        {
+            "name": "account_metadata",
+            "history_keys": [
+                {
+                    "name": "block_num",
+                    "desc": true
+                },
+                {
+                    "name": "present",
+                    "desc": true
+                }
+            ],
+            "keys": [
+                {
+                    "name": "name"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "name",
+                    "type": "name"
                 },
                 {
                     "name": "privileged",
@@ -167,19 +215,71 @@
                     "type": "time_point"
                 },
                 {
-                    "name": "code_version",
+                    "name": "code_present",
+                    "type": "bool",
+                    "begin_optional": true
+                },
+                {
+                    "name": "code_vm_type",
+                    "type": "uint8"
+                },
+                {
+                    "name": "code_vm_version",
+                    "type": "uint8"
+                },
+                {
+                    "name": "code_code_hash",
+                    "type": "checksum256",
+                    "end_optional": true
+                }
+            ]
+        },
+        {
+            "name": "code",
+            "history_keys": [
+                {
+                    "name": "block_num",
+                    "desc": true
+                },
+                {
+                    "name": "present",
+                    "desc": true
+                }
+            ],
+            "keys": [
+                {
+                    "name": "vm_type"
+                },
+                {
+                    "name": "vm_version"
+                },
+                {
+                    "name": "code_hash"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "vm_type",
+                    "type": "uint8"
+                },
+                {
+                    "name": "vm_version",
+                    "type": "uint8"
+                },
+                {
+                    "name": "code_hash",
                     "type": "checksum256"
                 },
                 {
-                    "name": "creation_date",
-                    "type": "block_timestamp_type"
-                },
-                {
                     "name": "code",
-                    "type": "bytes"
-                },
-                {
-                    "name": "abi",
                     "type": "bytes"
                 }
             ]
@@ -188,7 +288,7 @@
             "name": "contract_row",
             "history_keys": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "desc": true
                 },
                 {
@@ -212,7 +312,7 @@
             ],
             "fields": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "type": "uint32"
                 },
                 {
@@ -250,7 +350,7 @@
             "name": "contract_index64",
             "history_keys": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "desc": true
                 },
                 {
@@ -274,7 +374,7 @@
             ],
             "fields": [
                 {
-                    "name": "block_index",
+                    "name": "block_num",
                     "type": "uint32"
                 },
                 {
@@ -318,7 +418,7 @@
             "max_results": 100,
             "sort_keys": [
                 {
-                    "name": "block_index"
+                    "name": "block_num"
                 }
             ]
         },
@@ -328,25 +428,25 @@
             "function": "at_executed_range_name_receiver_account_block_trans_action",
             "table": "action_trace",
             "max_results": 100,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
-                    "name": "name"
+                    "name": "act_name"
                 },
                 {
-                    "name": "receipt_receiver"
+                    "name": "receiver"
                 },
                 {
-                    "name": "account"
+                    "name": "act_account"
                 },
                 {
-                    "name": "block_index"
+                    "name": "block_num"
                 },
                 {
                     "name": "transaction_id"
                 },
                 {
-                    "name": "action_index"
+                    "name": "action_ordinal"
                 }
             ],
             "conditions": [
@@ -359,19 +459,19 @@
             "function": "executed_receipt_receiver",
             "table": "action_trace",
             "max_results": 100,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
-                    "name": "receipt_receiver"
+                    "name": "receiver"
                 },
                 {
-                    "name": "block_index"
+                    "name": "block_num"
                 },
                 {
                     "name": "transaction_id"
                 },
                 {
-                    "name": "action_index"
+                    "name": "action_ordinal"
                 }
             ],
             "conditions": [
@@ -384,16 +484,16 @@
             "function": "executed_transaction",
             "table": "action_trace",
             "max_results": 100,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "transaction_id"
                 },
                 {
-                    "name": "block_index"
+                    "name": "block_num"
                 },
                 {
-                    "name": "action_index"
+                    "name": "action_ordinal"
                 }
             ],
             "conditions": [
@@ -407,7 +507,7 @@
             "table": "account",
             "max_results": 100,
             "is_state": true,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "name"
@@ -415,13 +515,132 @@
             ]
         },
         {
+            "wasm_name": "acctmeta.jn",
+            "index": "acctmeta_joined_name_block_present_idx",
+            "function": "acctmeta_joined_range_name",
+            "table": "account_metadata",
+            "max_results": 100,
+            "is_state": true,
+            "limit_block_num": true,
+            "sort_keys": [
+                {
+                    "name": "name"
+                }
+            ],
+            "join": "account",
+            "join_query_wasm_name": "account",
+            "join_key_values": [
+                {
+                    "name": "name",
+                    "src_name": "name",
+                    "expression": "${table}.\"name\""
+                }
+            ],
+            "fields_from_join": [
+                {
+                    "name": "block_num",
+                    "new_name": "account_block_num"
+                },
+                {
+                    "name": "present",
+                    "new_name": "account_present"
+                },
+                {
+                    "name": "creation_date",
+                    "new_name": "account_creation_date"
+                },
+                {
+                    "name": "abi",
+                    "new_name": "account_abi"
+                }
+            ]
+        },
+        {
+            "wasm_name": "code",
+            "index": "code_type_ver_hash_block_present_idx",
+            "function": "code_range_type_ver_hash",
+            "table": "code",
+            "max_results": 100,
+            "is_state": true,
+            "limit_block_num": true,
+            "sort_keys": [
+                {
+                    "name": "vm_type"
+                },
+                {
+                    "name": "vm_version"
+                },
+                {
+                    "name": "code_hash"
+                }
+            ]
+        },
+        {
+            "wasm_name": "meta.jn.code",
+            "function": "acctmeta_joincode_range_name",
+            "table": "account_metadata",
+            "max_results": 100,
+            "is_state": true,
+            "limit_block_num": true,
+            "sort_keys": [
+                {
+                    "name": "name"
+                }
+            ],
+            "join": "code",
+            "join_query_wasm_name": "code",
+            "join_key_values": [
+                {
+                    "name": "vm_type",
+                    "src_name": "code_vm_type",
+                    "expression": "${table}.\"code_vm_type\""
+                },
+                {
+                    "name": "vm_version",
+                    "src_name": "code_vm_version",
+                    "expression": "${table}.\"code_vm_version\""
+                },
+                {
+                    "name": "code_hash",
+                    "src_name": "code_code_hash",
+                    "expression": "${table}.\"code_code_hash\""
+                }
+            ],
+            "fields_from_join": [
+                {
+                    "name": "block_num",
+                    "new_name": "join_block_num"
+                },
+                {
+                    "name": "present",
+                    "new_name": "join_present"
+                },
+                {
+                    "name": "vm_type",
+                    "new_name": "join_vm_type"
+                },
+                {
+                    "name": "vm_version",
+                    "new_name": "join_vm_version"
+                },
+                {
+                    "name": "code_hash",
+                    "new_name": "join_code_hash"
+                },
+                {
+                    "name": "code",
+                    "new_name": "join_code"
+                }
+            ]
+        },
+        {
             "wasm_name": "cr.ctps",
-            "index": "contract_row_code_table_primary_key_scope_block_index_prese_idx",
+            "index": "contract_row_code_table_primary_key_scope_block_num_prese_idx",
             "function": "contract_row_range_code_table_pk_scope",
             "table": "contract_row",
             "max_results": 100,
             "is_state": true,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "code"
@@ -439,12 +658,12 @@
         },
         {
             "wasm_name": "cr.ctsp",
-            "index": "contract_row_code_table_scope_primary_key_block_index_prese_idx",
+            "index": "contract_row_code_table_scope_primary_key_block_num_prese_idx",
             "function": "contract_row_range_code_table_scope_pk",
             "table": "contract_row",
             "max_results": 100,
             "is_state": true,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "code"
@@ -462,12 +681,12 @@
         },
         {
             "wasm_name": "cr.stpc",
-            "index": "contract_row_scope_table_primary_key_code_block_index_prese_idx",
+            "index": "contract_row_scope_table_primary_key_code_block_num_prese_idx",
             "function": "contract_row_range_scope_table_pk_code",
             "table": "contract_row",
             "max_results": 100,
             "is_state": true,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "scope"
@@ -485,12 +704,12 @@
         },
         {
             "wasm_name": "ci1.cts2p",
-            "index": "contract_index64_code_table_scope_sk_pk_block_index_prese_idx",
+            "index": "contract_index64_code_table_scope_sk_pk_block_num_prese_idx",
             "function": "contract_index64_range_code_table_scope_sk_pk",
             "table": "contract_index64",
             "max_results": 100,
             "is_state": true,
-            "limit_block_index": true,
+            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "code"
@@ -513,25 +732,29 @@
             "join_key_values": [
                 {
                     "name": "code",
+                    "src_name": "code",
                     "expression": "${table}.\"code\""
                 },
                 {
                     "name": "table",
+                    "src_name": "table",
                     "expression": "substring(${table}.\"table\" for 12)"
                 },
                 {
                     "name": "scope",
+                    "src_name": "scope",
                     "expression": "${table}.\"scope\""
                 },
                 {
                     "name": "primary_key",
+                    "src_name": "primary_key",
                     "expression": "${table}.\"primary_key\""
                 }
             ],
             "fields_from_join": [
                 {
-                    "name": "block_index",
-                    "new_name": "row_block_index"
+                    "name": "block_num",
+                    "new_name": "row_block_num"
                 },
                 {
                     "name": "present",

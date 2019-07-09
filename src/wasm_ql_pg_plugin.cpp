@@ -39,10 +39,10 @@ struct pg_query_session : query_session {
         return result;
     }
 
-    virtual std::optional<abieos::checksum256> get_block_id(uint32_t block_index) override {
+    virtual std::optional<abieos::checksum256> get_block_id(uint32_t block_num) override {
         pqxx::work t(db_iface->sql_connection);
         auto       result =
-            t.exec("select block_id from \"" + db_iface->schema + "\".block_info where block_index=" + pg::sql_str(false, block_index));
+            t.exec("select block_id from \"" + db_iface->schema + "\".block_info where block_num=" + pg::sql_str(false, block_num));
         if (result.empty())
             return {};
         return pg::sql_to_checksum256(result[0][0].c_str());
@@ -57,13 +57,13 @@ struct pg_query_session : query_session {
             throw std::runtime_error("query_database: unknown query: " + (std::string)query_name);
         pg::query& query = *it->second;
 
-        uint32_t max_block_index = 0;
-        if (query.limit_block_index)
-            max_block_index = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
+        uint32_t max_block_num = 0;
+        if (query.limit_block_num)
+            max_block_num = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
         std::string query_str = "select * from \"" + db_iface->schema + "\"." + query.function + "(";
         bool        need_sep  = false;
-        if (query.limit_block_index) {
-            query_str += pg::sql_str(false, max_block_index);
+        if (query.limit_block_num) {
+            query_str += pg::sql_str(false, max_block_num);
             need_sep = true;
         }
         auto add_args = [&](auto& args) {
@@ -89,8 +89,18 @@ struct pg_query_session : query_session {
         for (const auto& r : exec_result) {
             row_bin.clear();
             int i = 0;
-            for (auto& type : query.result_types)
-                type.sql_to_bin(row_bin, r[i++]);
+            for (size_t field_index = 0; field_index < query.result_fields.size();) {
+                auto& field = query.result_fields[field_index++];
+                field.type_obj->sql_to_bin(row_bin, r[i++]);
+                if (field.begin_optional && !r[i - 1].as<bool>()) {
+                    while (field_index < query.result_fields.size()) {
+                        ++field_index;
+                        ++i;
+                        if (query.result_fields[field_index - 1].end_optional)
+                            break;
+                    }
+                }
+            }
             if ((uint32_t)row_bin.size() != row_bin.size())
                 throw std::runtime_error("query_database: row is too big");
             abieos::push_varuint32(result, row_bin.size());

@@ -4,6 +4,15 @@
 // todo: results vs. response vs. rows vs. records
 
 #pragma once
+
+#ifdef GENERATING_DOC
+#include <eosio/fixed_bytes.hpp>
+#include <eosio/shared_memory.hpp>
+#include <eosio/struct_reflection.hpp>
+#include <eosio/temp_placeholders.hpp>
+#include <type_traits>
+
+#else
 #include <eosio/crypto.hpp>
 #include <eosio/fixed_bytes.hpp>
 #include <eosio/name.hpp>
@@ -12,8 +21,8 @@
 #include <eosio/temp_placeholders.hpp>
 #include <eosio/time.hpp>
 #include <eosio/to_json.hpp>
-
 #include <type_traits>
+#endif
 
 namespace eosio {
 

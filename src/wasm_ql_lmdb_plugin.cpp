@@ -77,10 +77,8 @@ struct lmdb_query_session : query_session {
         auto last  = first;
 
         auto add_fields = [&](auto& dest, auto& types) {
-            for (auto& type : types) {
-                auto p = query_bin.pos;
+            for (auto& type : types)
                 type.query_to_bin_key(dest, query_bin);
-            }
         };
         add_fields(first, query.range_types);
         add_fields(last, query.range_types);

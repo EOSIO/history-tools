@@ -89,6 +89,7 @@ __attribute__((noinline)) inline rope to_json(std::string_view sv) {
 
 /// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(std::string s) {
+    // todo: fix dangling
     std::string_view sv(s.c_str(), s.size());
     return to_json(sv);
 }
@@ -226,6 +227,7 @@ __attribute__((noinline)) inline rope to_json(symbol_code value) {
 
 /// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(asset value) {
+    // todo: legacy vs. new apis have different needs
 #if 0
     return rope{"{\"symbol\":"} +              //
            to_json(value.symbol.code()) +      //

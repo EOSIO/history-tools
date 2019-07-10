@@ -109,12 +109,12 @@ SHELL=/bin/bash make -j
 SHELL=/bin/bash make install
 ```
 
-# Install nodeos 1.8.0
+# Install eosio 1.8.1
 
 ```
 cd ~
-wget https://github.com/EOSIO/eos/releases/download/v1.8.0/eosio_1.8.0-1-ubuntu-18.04_amd64.deb
-apt install -y ./eosio_1.8.0-1-ubuntu-18.04_amd64.deb
+wget https://github.com/EOSIO/eos/releases/download/v1.8.1/eosio_1.8.1-1-ubuntu-18.04_amd64.deb
+apt install -y ./eosio_1.8.1-1-ubuntu-18.04_amd64.deb
 ```
 
 # Install CDT 1.6.1

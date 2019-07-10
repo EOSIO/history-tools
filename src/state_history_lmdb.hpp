@@ -19,6 +19,8 @@ inline const std::map<std::string, abieos::name> table_names = {
     {"action_trace",                "atrace"_n},
 
     {"account",                     "account"_n},
+    {"account_metadata",            "account.meta"_n},
+    {"code",                        "code"_n},
     {"contract_table",              "c.table"_n},
     {"contract_row",                "c.row"_n},
     {"contract_index64",            "c.index64"_n},
@@ -28,6 +30,7 @@ inline const std::map<std::string, abieos::name> table_names = {
     {"contract_index_long_double",  "c.index.ld"_n},
     {"global_property",             "glob.prop"_n},
     {"generated_transaction",       "gen.tx"_n},
+    {"protocol_state",              "protocol.st"_n},
     {"permission",                  "permission"_n},
     {"permission_link",             "perm.link"_n},
     {"resource_limits",             "res.lim"_n},
@@ -84,11 +87,12 @@ T bin_to_native_key(abieos::input_buffer& b) {
 }
 
 struct type {
-    void (*bin_to_bin)(std::vector<char>&, abieos::input_buffer&)     = nullptr;
-    void (*bin_to_bin_key)(std::vector<char>&, abieos::input_buffer&) = nullptr;
-    void (*lower_bound_key)(std::vector<char>&)                       = nullptr;
-    void (*upper_bound_key)(std::vector<char>&)                       = nullptr;
-    uint32_t (*get_fixed_size)()                                      = nullptr;
+    void (*bin_to_bin)(std::vector<char>&, abieos::input_buffer&)       = nullptr;
+    void (*bin_to_bin_key)(std::vector<char>&, abieos::input_buffer&)   = nullptr;
+    void (*query_to_bin_key)(std::vector<char>&, abieos::input_buffer&) = nullptr;
+    void (*lower_bound_key)(std::vector<char>&)                         = nullptr;
+    void (*upper_bound_key)(std::vector<char>&)                         = nullptr;
+    uint32_t (*get_fixed_size)()                                        = nullptr;
 };
 
 template <typename T>
@@ -123,6 +127,15 @@ void bin_to_bin_key(std::vector<char>& dest, abieos::input_buffer& bin) {
 }
 
 template <typename T>
+void query_to_bin_key(std::vector<char>& dest, abieos::input_buffer& bin) {
+    if constexpr (std::is_same_v<std::decay_t<T>, abieos::varuint32>) {
+        fixup_key<uint32_t>(dest, [&] { bin_to_bin<uint32_t>(dest, bin); });
+    } else {
+        fixup_key<T>(dest, [&] { bin_to_bin<T>(dest, bin); });
+    }
+}
+
+template <typename T>
 void lower_bound_key(std::vector<char>& dest) {
     if constexpr (
         std::is_unsigned_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
@@ -146,7 +159,8 @@ template <typename T>
 uint32_t get_fixed_size() {
     if constexpr (
         std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
-        std::is_same_v<std::decay_t<T>, abieos::checksum256>)
+        std::is_same_v<std::decay_t<T>, abieos::checksum256> || std::is_same_v<std::decay_t<T>, abieos::time_point> ||
+        std::is_same_v<std::decay_t<T>, abieos::block_timestamp>)
         return sizeof(T);
     else
         return 0;
@@ -154,7 +168,7 @@ uint32_t get_fixed_size() {
 
 template <typename T>
 constexpr type make_type_for() {
-    return type{bin_to_bin<T>, bin_to_bin_key<T>, lower_bound_key<T>, upper_bound_key<T>, get_fixed_size<T>};
+    return type{bin_to_bin<T>, bin_to_bin_key<T>, query_to_bin_key<T>, lower_bound_key<T>, upper_bound_key<T>, get_fixed_size<T>};
 }
 
 // clang-format off
@@ -465,10 +479,9 @@ struct received_block {
     abieos::checksum256 block_id  = {};
 };
 
-template <typename F>
-constexpr void for_each_field(received_block*, F f) {
-    f("block_num", abieos::member_ptr<&received_block::block_num>{});
-    f("block_id", abieos::member_ptr<&received_block::block_id>{});
+ABIEOS_REFLECT(received_block) {
+    ABIEOS_MEMBER(received_block, block_num)
+    ABIEOS_MEMBER(received_block, block_id)
 }
 
 inline std::vector<char> make_received_block_key(uint32_t block) {

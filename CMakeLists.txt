@@ -28,18 +28,24 @@ set(Boost_USE_STATIC_LIBS ON)
 add_definitions(-DBOOST_ASIO_DISABLE_STD_EXPERIMENTAL_STRING_VIEW)
 
 find_package(eosio.cdt)
-find_package(PQXX 6.2)
+find_package(PostgreSQL COMPONENTS Libraries)
 find_library(LMDB_LIB NAMES lmdb)
 find_package(Boost 1.66 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
 find_package(PkgConfig REQUIRED)
+
+if (PostgreSQL_INCLUDE_DIR)
+  set(SKIP_PQXX_SHARED ON)
+  set(SKIP_BUILD_TEST ON)
+  add_subdirectory(external/libpqxx)
+  set(PQXX_LIBRARIES pqxx_static)
+else()
+  set(PQXX_LIBRARIES "")
+endif()
 
 if (LMDB_LIB)
     set(FOUND_LMDB TRUE)
 else()
     set(LMDB_LIB "")
-endif()
-if(NOT PQXX_FOUND)
-    set(PQXX_LIBRARIES "")
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -141,12 +147,12 @@ function(show_found desc found missing_msg)
     endif()
 endfunction(show_found)
 
-show_found("    pq and pqxx:" "${PQXX_FOUND}" "not found; will not build pg plugins" ${PQXX_VERSION})
+show_found("    pq:         " "${PostgreSQL_INCLUDE_DIR}" "not found; will not build pg plugins")
 show_found("    lmdb:       " "${FOUND_LMDB}" "not found; will not build lmdb plugins")
 
 message(STATUS "Enabled plugins:")
 
-if (PQXX_FOUND)
+if (PostgreSQL_INCLUDE_DIR)
     message(STATUS "    fill_pg_plugin")
     add_app(fill-pg "-DDEFAULT_PLUGINS=fill_pg_plugin;-DINCLUDE_FILL_PG_PLUGIN" "${PQXX_LIBRARIES}")
     target_sources(history-tools PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp)
@@ -180,7 +186,7 @@ endforeach()
 
 message(STATUS "----------------------------------------------------")
 
-if (NOT PQXX_FOUND AND NOT FOUND_LMDB)
+if (NOT PostgreSQL_INCLUDE_DIR AND NOT FOUND_LMDB)
     message(WARNING "No database libraries found. Only building WASM files.")
 endif()
 

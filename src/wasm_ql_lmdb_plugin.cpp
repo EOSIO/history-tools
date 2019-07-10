@@ -46,7 +46,7 @@ struct lmdb_query_session : query_session {
     void append_fields(std::vector<char>& dest, abieos::input_buffer src, const std::vector<lmdb::key>& keys, bool xform_key) {
         for (auto& key : keys) {
             if (!key.field->byte_position)
-                throw std::runtime_error("key has unknown position");
+                throw std::runtime_error("key " + key.name + " has unknown position");
             if (*key.field->byte_position > src.end - src.pos)
                 throw std::runtime_error("key position is out of range");
             abieos::input_buffer key_pos{src.pos + *key.field->byte_position, src.end};
@@ -77,8 +77,10 @@ struct lmdb_query_session : query_session {
         auto last  = first;
 
         auto add_fields = [&](auto& dest, auto& types) {
-            for (auto& type : types)
-                type.bin_to_bin_key(dest, query_bin);
+            for (auto& type : types) {
+                auto p = query_bin.pos;
+                type.query_to_bin_key(dest, query_bin);
+            }
         };
         add_fields(first, query.range_types);
         add_fields(last, query.range_types);
@@ -111,7 +113,8 @@ struct lmdb_query_session : query_session {
                         return false;
                     });
 
-                    // todo: !found_join
+                    if (!found_join)
+                        rows.pop_back(); // todo: fill in empty instead?
                 }
                 return false;
             });

@@ -4,13 +4,12 @@
 
 struct get_code_result {
     get_code_result(eosio::account a)
-    : account_name(a.name)
-    // , code_hash(a.code_version) TODO
-    // , wasm(a.code)
-    , abi(a.abi)
-    {}
-    eosio::name account_name;
-    eosio::checksum256 code_hash;
+        : account_name(a.name)
+        // , code_hash(a.code_version) TODO
+        // , wasm(a.code)
+        , abi(a.abi) {}
+    eosio::name                                          account_name;
+    eosio::checksum256                                   code_hash;
     eosio::shared_memory<eosio::datastream<const char*>> wasm;
     eosio::shared_memory<eosio::datastream<const char*>> abi;
 };
@@ -25,10 +24,9 @@ void for_each_member(get_code_result*, F f) {
 
 struct get_abi_result {
     get_abi_result(eosio::account a)
-    : account_name(a.name)
-    , abi(a.abi)
-    {}
-    eosio::name account_name;
+        : account_name(a.name)
+        , abi(a.abi) {}
+    eosio::name                                          account_name;
     eosio::shared_memory<eosio::datastream<const char*>> abi;
 };
 

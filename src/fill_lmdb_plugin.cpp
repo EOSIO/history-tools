@@ -28,11 +28,12 @@ struct flm_session;
 struct lmdb_table;
 
 struct lmdb_field {
-    std::string                 name      = {};
-    const abieos::abi_field*    abi_field = {};
-    const lmdb::type*           type      = {};
-    std::unique_ptr<lmdb_table> array_of  = {};
-    abieos::input_buffer        pos       = {}; // temporary filled by fill()
+    std::string                 name        = {};
+    const abieos::abi_field*    abi_field   = {};
+    const lmdb::type*           type        = {};
+    std::unique_ptr<lmdb_table> array_of    = {};
+    std::unique_ptr<lmdb_table> optional_of = {};
+    abieos::input_buffer        pos         = {}; // temporary filled by fill()
 };
 
 struct lmdb_index {
@@ -95,7 +96,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
 
         ilog("connect to lmdb");
         stream.binary(true);
-        stream.read_message_max(1024 * 1024 * 1024);
+        stream.read_message_max(10ull * 1024 * 1024 * 1024);
     }
 
     void check() {
@@ -201,8 +202,11 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             for (auto& f : abi_field.type->fields[0].type->fields)
                 fill_fields(table, base_name + abi_field.name + "_", f);
         } else {
-            bool array_of_struct = abi_field.type->array_of && abi_field.type->array_of->filled_struct;
-            auto field_name      = base_name + abi_field.name;
+            bool array_of_struct  = abi_field.type->array_of && abi_field.type->array_of->filled_struct;
+            bool array_of_variant = abi_field.type->array_of && abi_field.type->array_of->filled_variant &&
+                                    abi_field.type->array_of->fields.size() == 1 && abi_field.type->array_of->fields[0].type->filled_struct;
+            bool optional_of_struct = abi_field.type->optional_of && abi_field.type->optional_of->filled_struct;
+            auto field_name         = base_name + abi_field.name;
             if (table.field_map.find(field_name) != table.field_map.end())
                 throw std::runtime_error("duplicate field " + field_name + " in table " + table.name);
 
@@ -212,7 +216,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             if (raw_type->array_of)
                 raw_type = raw_type->array_of;
             auto type_it = lmdb::abi_type_to_lmdb_type.find(raw_type->name);
-            if (type_it == lmdb::abi_type_to_lmdb_type.end() && !array_of_struct)
+            if (type_it == lmdb::abi_type_to_lmdb_type.end() && !array_of_struct && !array_of_variant && !optional_of_struct)
                 throw std::runtime_error("don't know lmdb type for abi type: " + raw_type->name);
 
             table.fields.push_back(std::make_unique<lmdb_field>());
@@ -220,12 +224,21 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             table.field_map[field_name] = f;
             f->name                     = field_name;
             f->abi_field                = &abi_field;
-            f->type                     = array_of_struct ? nullptr : &type_it->second;
+            f->type                     = (array_of_struct | array_of_variant | optional_of_struct) ? nullptr : &type_it->second;
 
             if (array_of_struct) {
                 f->array_of = std::make_unique<lmdb_table>(lmdb_table{.name = field_name, .abi_type = abi_field.type->array_of});
                 for (auto& g : abi_field.type->array_of->fields)
                     fill_fields(*f->array_of, base_name, g);
+            } else if (array_of_variant) {
+                f->array_of =
+                    std::make_unique<lmdb_table>(lmdb_table{.name = field_name, .abi_type = abi_field.type->array_of->fields[0].type});
+                for (auto& g : abi_field.type->array_of->fields[0].type->fields)
+                    fill_fields(*f->array_of, base_name, g);
+            } else if (optional_of_struct) {
+                f->optional_of = std::make_unique<lmdb_table>(lmdb_table{.name = field_name, .abi_type = abi_field.type->optional_of});
+                for (auto& g : abi_field.type->optional_of->fields)
+                    fill_fields(*f->optional_of, base_name, g);
             }
         }
     }
@@ -494,6 +507,13 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             if (v)
                 throw std::runtime_error("invalid variant in " + field.abi_field->type->name);
             abieos::push_varuint32(dest, v);
+        } else if (field.optional_of) {
+            bool b = read_raw<bool>(src);
+            abieos::push_raw(dest, b);
+            if (b) {
+                for (auto& f : field.optional_of->fields)
+                    fill(dest, src, *f);
+            }
         } else if (field.array_of) {
             uint32_t n = read_varuint32(src);
             abieos::push_varuint32(dest, n);
@@ -558,9 +578,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         }
     } // receive_block
 
-    void receive_deltas(lmdb::transaction& t, uint32_t block_num, input_buffer buf) {
-        auto              data = zlib_decompress(buf);
-        input_buffer      bin{data.data(), data.data() + data.size()};
+    void receive_deltas(lmdb::transaction& t, uint32_t block_num, input_buffer bin) {
         auto&             table_delta_type = get_type("table_delta");
         std::vector<char> delta_key;
         std::vector<char> value;
@@ -607,11 +625,9 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         }
     } // receive_deltas
 
-    void receive_traces(lmdb::transaction& t, uint32_t block_num, input_buffer buf) {
-        auto         data = zlib_decompress(buf);
-        input_buffer bin{data.data(), data.data() + data.size()};
-        auto         num          = read_varuint32(bin);
-        uint32_t     num_ordinals = 0;
+    void receive_traces(lmdb::transaction& t, uint32_t block_num, input_buffer bin) {
+        auto     num          = read_varuint32(bin);
+        uint32_t num_ordinals = 0;
         for (uint32_t i = 0; i < num; ++i) {
             state_history::transaction_trace trace;
             bin_to_native(trace, bin);
@@ -930,7 +946,10 @@ void fill_lmdb_plugin::set_program_options(options_description& cli, options_des
 
 void fill_lmdb_plugin::plugin_initialize(const variables_map& options) {
     try {
-        auto endpoint            = options.at("fill-connect-to").as<std::string>();
+        auto endpoint = options.at("fill-connect-to").as<std::string>();
+        if (endpoint.find(':') == std::string::npos)
+            throw std::runtime_error("invalid endpoint: " + endpoint);
+
         auto port                = endpoint.substr(endpoint.find(':') + 1, endpoint.size());
         auto host                = endpoint.substr(0, endpoint.find(':'));
         my->config->host         = host;

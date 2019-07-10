@@ -18,16 +18,17 @@ struct field {
 
 template <typename Defs, typename F>
 constexpr void for_each_field(field<Defs>*, F f) {
-    f("name", abieos::member_ptr<&field<Defs>::name>{});
-    f("short_name", abieos::member_ptr<&field<Defs>::short_name>{});
-    f("type", abieos::member_ptr<&field<Defs>::type>{});
-    f("begin_optional", abieos::member_ptr<&field<Defs>::begin_optional>{});
-    f("end_optional", abieos::member_ptr<&field<Defs>::end_optional>{});
+    ABIEOS_MEMBER(field<Defs>, name);
+    ABIEOS_MEMBER(field<Defs>, short_name);
+    ABIEOS_MEMBER(field<Defs>, type);
+    ABIEOS_MEMBER(field<Defs>, begin_optional);
+    ABIEOS_MEMBER(field<Defs>, end_optional);
 };
 
 template <typename Defs>
 struct key {
     std::string           name           = {};
+    std::string           src_name       = {};
     std::string           new_name       = {};
     std::string           type           = {};
     std::string           expression     = {};
@@ -38,12 +39,13 @@ struct key {
 
 template <typename Defs, typename F>
 constexpr void for_each_field(key<Defs>*, F f) {
-    f("name", abieos::member_ptr<&key<Defs>::name>{});
-    f("new_name", abieos::member_ptr<&key<Defs>::new_name>{});
-    f("type", abieos::member_ptr<&key<Defs>::type>{});
-    f("expression", abieos::member_ptr<&key<Defs>::expression>{});
-    f("arg_expression", abieos::member_ptr<&key<Defs>::arg_expression>{});
-    f("desc", abieos::member_ptr<&key<Defs>::desc>{});
+    ABIEOS_MEMBER(key<Defs>, name);
+    ABIEOS_MEMBER(key<Defs>, src_name);
+    ABIEOS_MEMBER(key<Defs>, new_name);
+    ABIEOS_MEMBER(key<Defs>, type);
+    ABIEOS_MEMBER(key<Defs>, expression);
+    ABIEOS_MEMBER(key<Defs>, arg_expression);
+    ABIEOS_MEMBER(key<Defs>, desc);
 };
 
 template <typename Defs>
@@ -57,10 +59,10 @@ struct table {
 
 template <typename Defs, typename F>
 constexpr void for_each_field(table<Defs>*, F f) {
-    f("name", abieos::member_ptr<&table<Defs>::name>{});
-    f("fields", abieos::member_ptr<&table<Defs>::fields>{});
-    f("history_keys", abieos::member_ptr<&table<Defs>::history_keys>{});
-    f("keys", abieos::member_ptr<&table<Defs>::keys>{});
+    ABIEOS_MEMBER(table<Defs>, name);
+    ABIEOS_MEMBER(table<Defs>, fields);
+    ABIEOS_MEMBER(table<Defs>, history_keys);
+    ABIEOS_MEMBER(table<Defs>, keys);
 };
 
 template <typename Defs>
@@ -89,20 +91,20 @@ struct query {
 
 template <typename Defs, typename F>
 constexpr void for_each_field(query<Defs>*, F f) {
-    f("wasm_name", abieos::member_ptr<&query<Defs>::wasm_name>{});
-    f("index", abieos::member_ptr<&query<Defs>::index>{});
-    f("function", abieos::member_ptr<&query<Defs>::function>{});
-    f("table", abieos::member_ptr<&query<Defs>::table>{});
-    f("is_state", abieos::member_ptr<&query<Defs>::is_state>{});
-    f("limit_block_num", abieos::member_ptr<&query<Defs>::limit_block_num>{});
-    f("max_results", abieos::member_ptr<&query<Defs>::max_results>{});
-    f("join", abieos::member_ptr<&query<Defs>::join>{});
-    f("join_query_wasm_name", abieos::member_ptr<&query<Defs>::join_query_wasm_name>{});
-    f("args", abieos::member_ptr<&query<Defs>::args>{});
-    f("sort_keys", abieos::member_ptr<&query<Defs>::sort_keys>{});
-    f("join_key_values", abieos::member_ptr<&query<Defs>::join_key_values>{});
-    f("fields_from_join", abieos::member_ptr<&query<Defs>::fields_from_join>{});
-    f("conditions", abieos::member_ptr<&query<Defs>::conditions>{});
+    ABIEOS_MEMBER(query<Defs>, wasm_name);
+    ABIEOS_MEMBER(query<Defs>, index);
+    ABIEOS_MEMBER(query<Defs>, function);
+    ABIEOS_MEMBER(query<Defs>, table);
+    ABIEOS_MEMBER(query<Defs>, is_state);
+    ABIEOS_MEMBER(query<Defs>, limit_block_num);
+    ABIEOS_MEMBER(query<Defs>, max_results);
+    ABIEOS_MEMBER(query<Defs>, join);
+    ABIEOS_MEMBER(query<Defs>, join_query_wasm_name);
+    ABIEOS_MEMBER(query<Defs>, args);
+    ABIEOS_MEMBER(query<Defs>, sort_keys);
+    ABIEOS_MEMBER(query<Defs>, join_key_values);
+    ABIEOS_MEMBER(query<Defs>, fields_from_join);
+    ABIEOS_MEMBER(query<Defs>, conditions);
 };
 
 template <typename Defs, typename Key>
@@ -110,7 +112,17 @@ void set_key_fields(const table<Defs>& tab, std::vector<Key>& keys) {
     for (auto& k : keys) {
         auto it = tab.field_map.find(k.name);
         if (it == tab.field_map.end())
-            throw std::runtime_error("key references unknown field " + k.name + " in table " + k.name);
+            throw std::runtime_error("key references unknown field " + k.name + " in table " + tab.name);
+        k.field = it->second;
+    }
+}
+
+template <typename Defs, typename Key>
+void set_join_key_fields(const table<Defs>& tab, std::vector<Key>& keys) {
+    for (auto& k : keys) {
+        auto it = tab.field_map.find(k.src_name);
+        if (it == tab.field_map.end())
+            throw std::runtime_error("key references unknown field " + k.src_name + " in table " + tab.name);
         k.field = it->second;
     }
 }
@@ -145,7 +157,7 @@ struct config {
             query.table_obj = it->second;
             set_key_fields(*query.table_obj, query.args);
             set_key_fields(*query.table_obj, query.sort_keys);
-            set_key_fields(*query.table_obj, query.join_key_values);
+            set_join_key_fields(*query.table_obj, query.join_key_values);
             for (auto& arg : query.args) {
                 auto type_it = type_map.find(arg.type);
                 if (type_it == type_map.end())
@@ -193,8 +205,8 @@ struct config {
 
 template <typename Defs, typename F>
 constexpr void for_each_field(config<Defs>*, F f) {
-    f("tables", abieos::member_ptr<&config<Defs>::tables>{});
-    f("queries", abieos::member_ptr<&config<Defs>::queries>{});
+    ABIEOS_MEMBER(config<Defs>, tables);
+    ABIEOS_MEMBER(config<Defs>, queries);
 };
 
 } // namespace query_config

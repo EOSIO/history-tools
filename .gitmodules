@@ -10,3 +10,6 @@
 [submodule "external/eos-vm"]
 	path = external/eos-vm
 	url = https://github.com/EOSIO/eos-vm.git
+[submodule "external/libpqxx"]
+	path = external/libpqxx
+	url = https://github.com/jtv/libpqxx.git

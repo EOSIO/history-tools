@@ -226,7 +226,7 @@ static void handle_request(::state& state, tcp::socket& socket, http::request<ht
         http::response<http::vector_body<char>> res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, content_type);
-        if (!state.allow_origin.empty())
+        if (state.allow_origin != "*")
             res.set(http::field::access_control_allow_origin, state.allow_origin);
         res.keep_alive(req.keep_alive());
         res.body() = std::move(reply);
@@ -350,14 +350,17 @@ wasm_ql_plugin::~wasm_ql_plugin() { ilog("wasm_ql_plugin stopped"); }
 void wasm_ql_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op = cfg.add_options();
     op("wql-listen", bpo::value<std::string>()->default_value("localhost:8880"), "Endpoint to listen on");
-    op("wql-allow-origin", bpo::value<std::string>()->default_value(""), "Access-Control-Allow-Origin header. Use \"*\" to allow any.");
+    op("wql-allow-origin", bpo::value<std::string>()->default_value("*"), "Access-Control-Allow-Origin header. Use \"*\" to allow any.");
     op("wql-wasm-dir", bpo::value<std::string>()->default_value("."), "Directory to fetch WASMs from");
     op("wql-console", "Show console output");
 }
 
 void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
     try {
-        auto ip_port            = options.at("wql-listen").as<std::string>();
+        auto ip_port = options.at("wql-listen").as<std::string>();
+        if (ip_port.find(':') == std::string::npos)
+            throw std::runtime_error("invalid --wql-listen value: " + ip_port);
+
         my->state               = std::make_unique<::state>();
         my->state->console      = options.count("wql-console");
         my->endpoint_port       = ip_port.substr(ip_port.find(':') + 1, ip_port.size());

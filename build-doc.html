@@ -60,7 +60,7 @@
     <link rel="next" href="generated/HistoryTools_js.html" />
     
     
-    <link rel="prev" href="build-ubuntu-1810.html" />
+    <link rel="prev" href="build-ubuntu-1804.html" />
     
 
     </head>
@@ -232,12 +232,12 @@
             
         </li>
     
-        <li class="chapter " data-level="1.4.2" data-path="build-ubuntu-1810.html">
+        <li class="chapter " data-level="1.4.2" data-path="build-ubuntu-1804.html">
             
-                <a href="build-ubuntu-1810.html">
+                <a href="build-ubuntu-1804.html">
             
                     
-                    Ubuntu 18.10
+                    Ubuntu 18.04
             
                 </a>
             
@@ -458,24 +458,12 @@
                                 <section class="normal markdown-section">
                                 
                                 <h1 id="building-the-documentation">Building the documentation</h1>
-<ul>
-<li>Build and install <a href="https://github.com/foonathan/standardese" target="_blank">https://github.com/foonathan/standardese</a><ul>
-<li>Point it at the CDT&apos;s llvm while building it</li>
-</ul>
-</li>
-<li>Install these:<ul>
-<li><code>npm i -g gitbook-cli npm jsdoc-to-markdown</code></li>
-</ul>
-</li>
-<li>Run the <code>generate-doc</code> script<ul>
-<li>If there&apos;s an error similar to the following, then rerun the script<ul>
-<li><code>Error: ENOENT: no such file or directory, stat &apos;.../_book/...&apos;</code></li>
-</ul>
-</li>
-<li>Result is in the <code>_book</code> directory</li>
-</ul>
-</li>
-</ul>
+<pre><code>docker build -t history-tools-docs -f ./build-docs.dockerfile --build-arg BUILD_DATE=`date +%s` .
+docker create --name history-tools-docs-temp history-tools-docs
+docker cp history-tools-docs-temp:/root/history-tools/_book .
+docker rm history-tools-docs-temp
+</code></pre><p>The built documentation is at <code>/root/history-tools/_book</code> inside the image. This copies it to
+the local <code>_book</code> directory.</p>
 
                                 
                                 </section>
@@ -503,7 +491,7 @@
 
             
                 
-                <a href="build-ubuntu-1810.html" class="navigation navigation-prev " aria-label="Previous page: Ubuntu 18.10">
+                <a href="build-ubuntu-1804.html" class="navigation navigation-prev " aria-label="Previous page: Ubuntu 18.04">
                     <i class="fa fa-angle-left"></i>
                 </a>
                 
@@ -519,7 +507,7 @@
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"Documentation","level":"1.4.3","depth":2,"next":{"title":"HistoryTools.js","level":"1.5","depth":1,"path":"generated/HistoryTools_js.md","ref":"generated/HistoryTools_js.md","articles":[]},"previous":{"title":"Ubuntu 18.10","level":"1.4.2","depth":2,"path":"build-ubuntu-1810.md","ref":"build-ubuntu-1810.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"build-doc.md","mtime":"2019-03-12T21:24:09.752Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-20T20:37:07.311Z"},"basePath":".","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"Documentation","level":"1.4.3","depth":2,"next":{"title":"HistoryTools.js","level":"1.5","depth":1,"path":"generated/HistoryTools_js.md","ref":"generated/HistoryTools_js.md","articles":[]},"previous":{"title":"Ubuntu 18.04","level":"1.4.2","depth":2,"path":"build-ubuntu-1804.md","ref":"build-ubuntu-1804.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"build-doc.md","mtime":"2019-07-10T18:51:04.000Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-07-10T18:51:43.443Z"},"basePath":".","book":{"language":""}});
         });
     </script>
 </div>

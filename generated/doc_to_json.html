@@ -230,12 +230,12 @@
             
         </li>
     
-        <li class="chapter " data-level="1.4.2" data-path="../build-ubuntu-1810.html">
+        <li class="chapter " data-level="1.4.2" data-path="../build-ubuntu-1804.html">
             
-                <a href="../build-ubuntu-1810.html">
+                <a href="../build-ubuntu-1804.html">
             
                     
-                    Ubuntu 18.10
+                    Ubuntu 18.04
             
                 </a>
             
@@ -456,90 +456,102 @@
                                 <section class="normal markdown-section">
                                 
                                 <h1 id="header-file-tojsonhpp">Header file <code>to_json.hpp</code></h1>
-<pre><code class="lang-cpp">namespace eosio
+<pre><code class="lang-cpp"><span class="hljs-keyword">namespace</span> eosio
 {
-    //=== Convert explicit types to JSON ===//
-    eosio::rope to_json(std::string_view sv);
-    eosio::rope to_json(shared_memory&lt;std::string_view&gt; sv);
-    eosio::rope to_json(bool value);
-    eosio::rope to_json(uint8_t value);
-    eosio::rope to_json(uint16_t value);
-    eosio::rope to_json(uint32_t value);
-    eosio::rope to_json(uint64_t value);
-    eosio::rope to_json(int8_t value);
-    eosio::rope to_json(int16_t value);
-    eosio::rope to_json(int32_t value);
-    eosio::rope to_json(int64_t value);
-    eosio::rope to_json(eosio::name value);
-    eosio::rope to_json(eosio::symbol_code value);
-    eosio::rope to_json(eosio::asset value);
-    eosio::rope to_json(eosio::extended_asset value);
-    eosio::rope to_json(eosio::checksum256 const&amp; value);
-    eosio::rope to_json(eosio::time_point value);
-    eosio::rope to_json(eosio::block_timestamp value);
-    eosio::rope to_json(&apos;hidden&apos; const&amp; value);
-    template &lt;typename T&gt;
-    eosio::rope to_json(std::optional&lt;T&gt; const&amp; obj);
-    template &lt;typename T&gt;
-    eosio::rope to_json(std::vector&lt;T&gt; const&amp; obj);
-    eosio::rope to_json(std::vector&lt;char&gt; const&amp; obj);
-    template &lt;eosio::tagged_variant_options Options, typename ... NamedTypes&gt;
-    eosio::rope to_json(tagged_variant&lt;Options, NamedTypes...&gt; const&amp; v);
+    <span class="hljs-comment">//=== Convert explicit types to JSON ===//</span>
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::string_view sv)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::<span class="hljs-built_in">string</span> s)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(shared_memory&lt;<span class="hljs-built_in">std</span>::string_view&gt; sv)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-keyword">bool</span> value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(uint8_t value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(uint16_t value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(uint32_t value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(uint64_t value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::unsigned_int value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(int8_t value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(int16_t value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(int64_t value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::signed_int value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-keyword">double</span> value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-keyword">float</span> value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::name value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::symbol_code value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::asset value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::extended_asset value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::checksum256 <span class="hljs-keyword">const</span>&amp; value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::time_point value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::block_timestamp value)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(shared_memory&lt;datastream&lt;<span class="hljs-keyword">const</span> <span class="hljs-keyword">char</span> *&gt;&gt; <span class="hljs-keyword">const</span>&amp; value)</span></span>;
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::optional&lt;T&gt; <span class="hljs-keyword">const</span>&amp; obj)</span></span>;
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-keyword">int</span> <span class="hljs-keyword">const</span>&amp; obj)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-keyword">int</span> <span class="hljs-keyword">const</span>&amp; obj)</span></span>;
+    <span class="hljs-keyword">template</span> &lt;eosio::tagged_variant_options Options, <span class="hljs-keyword">typename</span> ... NamedTypes&gt;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(tagged_variant&lt;Options, NamedTypes...&gt; <span class="hljs-keyword">const</span>&amp; v)</span></span>;
 
-    //=== Convert reflected objects to JSON ===//
-    template &lt;typename T&gt;
-    eosio::rope to_json(T const&amp; obj);
+    <span class="hljs-comment">//=== Convert reflected objects to JSON ===//</span>
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(T <span class="hljs-keyword">const</span>&amp; obj)</span></span>;
 }
 </code></pre>
 <h3 id="convert-explicit-types-to-json">Convert explicit types to JSON</h3>
-<pre><code class="lang-cpp">(1) eosio::rope to_json(std::string_view sv);
+<pre><code class="lang-cpp">(<span class="hljs-number">1</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::string_view sv)</span></span>;
 
-(2) eosio::rope to_json(shared_memory&lt;std::string_view&gt; sv);
+(<span class="hljs-number">2</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::<span class="hljs-built_in">string</span> s)</span></span>;
 
-(3) eosio::rope to_json(bool value);
+(<span class="hljs-number">3</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(shared_memory&lt;<span class="hljs-built_in">std</span>::string_view&gt; sv)</span></span>;
 
-(4) eosio::rope to_json(uint8_t value);
+(<span class="hljs-number">4</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-keyword">bool</span> value)</span></span>;
 
-(5) eosio::rope to_json(uint16_t value);
+(<span class="hljs-number">5</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(uint8_t value)</span></span>;
 
-(6) eosio::rope to_json(uint32_t value);
+(<span class="hljs-number">6</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(uint16_t value)</span></span>;
 
-(7) eosio::rope to_json(uint64_t value);
+(<span class="hljs-number">7</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(uint32_t value)</span></span>;
 
-(8) eosio::rope to_json(int8_t value);
+(<span class="hljs-number">8</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(uint64_t value)</span></span>;
 
-(9) eosio::rope to_json(int16_t value);
+(<span class="hljs-number">9</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::unsigned_int value)</span></span>;
 
-(10) eosio::rope to_json(int32_t value);
+(<span class="hljs-number">10</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(int8_t value)</span></span>;
 
-(11) eosio::rope to_json(int64_t value);
+(<span class="hljs-number">11</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(int16_t value)</span></span>;
 
-(12) eosio::rope to_json(eosio::name value);
+(<span class="hljs-number">12</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(int64_t value)</span></span>;
 
-(13) eosio::rope to_json(eosio::symbol_code value);
+(<span class="hljs-number">13</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::signed_int value)</span></span>;
 
-(14) eosio::rope to_json(eosio::asset value);
+(<span class="hljs-number">14</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-keyword">double</span> value)</span></span>;
 
-(15) eosio::rope to_json(eosio::extended_asset value);
+(<span class="hljs-number">15</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-keyword">float</span> value)</span></span>;
 
-(16) eosio::rope to_json(eosio::checksum256 const&amp; value);
+(<span class="hljs-number">16</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::name value)</span></span>;
 
-(17) eosio::rope to_json(eosio::time_point value);
+(<span class="hljs-number">17</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::symbol_code value)</span></span>;
 
-(18) eosio::rope to_json(eosio::block_timestamp value);
+(<span class="hljs-number">18</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::asset value)</span></span>;
 
-(19) eosio::rope to_json(&apos;hidden&apos; const&amp; value);
+(<span class="hljs-number">19</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::extended_asset value)</span></span>;
 
-(20) template &lt;typename T&gt;
-eosio::rope to_json(std::optional&lt;T&gt; const&amp; obj);
+(<span class="hljs-number">20</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::checksum256 <span class="hljs-keyword">const</span>&amp; value)</span></span>;
 
-(21) template &lt;typename T&gt;
-eosio::rope to_json(std::vector&lt;T&gt; const&amp; obj);
+(<span class="hljs-number">21</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::time_point value)</span></span>;
 
-(22) eosio::rope to_json(std::vector&lt;char&gt; const&amp; obj);
+(<span class="hljs-number">22</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::block_timestamp value)</span></span>;
 
-(23) template &lt;eosio::tagged_variant_options Options, typename ... NamedTypes&gt;
-eosio::rope to_json(tagged_variant&lt;Options, NamedTypes...&gt; const&amp; v);
+(<span class="hljs-number">23</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(shared_memory&lt;datastream&lt;<span class="hljs-keyword">const</span> <span class="hljs-keyword">char</span> *&gt;&gt; <span class="hljs-keyword">const</span>&amp; value)</span></span>;
+
+(<span class="hljs-number">24</span>) <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::optional&lt;T&gt; <span class="hljs-keyword">const</span>&amp; obj)</span></span>;
+
+(<span class="hljs-number">25</span>) <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-keyword">int</span> <span class="hljs-keyword">const</span>&amp; obj)</span></span>;
+
+(<span class="hljs-number">26</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(<span class="hljs-keyword">int</span> <span class="hljs-keyword">const</span>&amp; obj)</span></span>;
+
+(<span class="hljs-number">27</span>) <span class="hljs-keyword">template</span> &lt;eosio::tagged_variant_options Options, <span class="hljs-keyword">typename</span> ... NamedTypes&gt;
+eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><span class="hljs-params">(tagged_variant&lt;Options, NamedTypes...&gt; <span class="hljs-keyword">const</span>&amp; v)</span></span>;
 </code></pre>
 <p>Convert objects to JSON. These overloads handle specified types.</p>
 <hr>
@@ -588,7 +600,7 @@ eosio::<span class="hljs-function">rope <span class="hljs-title">to_json</span><
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"to_json.hpp","level":"1.6.9","depth":2,"previous":{"title":"tagged_variant.hpp","level":"1.6.8","depth":2,"path":"generated/doc_tagged_variant.md","ref":"generated/doc_tagged_variant.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_to_json.md","mtime":"2019-03-20T20:37:06.427Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-20T20:37:07.311Z"},"basePath":"..","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"to_json.hpp","level":"1.6.9","depth":2,"previous":{"title":"tagged_variant.hpp","level":"1.6.8","depth":2,"path":"generated/doc_tagged_variant.md","ref":"generated/doc_tagged_variant.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_to_json.md","mtime":"2019-07-10T18:51:08.959Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-07-10T18:51:43.443Z"},"basePath":"..","book":{"language":""}});
         });
     </script>
 </div>

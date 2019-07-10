@@ -232,12 +232,12 @@
             
         </li>
     
-        <li class="chapter " data-level="1.4.2" data-path="../build-ubuntu-1810.html">
+        <li class="chapter " data-level="1.4.2" data-path="../build-ubuntu-1804.html">
             
-                <a href="../build-ubuntu-1810.html">
+                <a href="../build-ubuntu-1804.html">
             
                     
-                    Ubuntu 18.10
+                    Ubuntu 18.04
             
                 </a>
             
@@ -458,53 +458,52 @@
                                 <section class="normal markdown-section">
                                 
                                 <h1 id="header-file-schemahpp">Header file <code>schema.hpp</code></h1>
-<pre><code class="lang-cpp">namespace eosio
+<pre><code class="lang-cpp"><span class="hljs-keyword">namespace</span> eosio
 {
-    //=== Get JSON Schema type name (Default) ===//
-    template &lt;typename T&gt;
-    std::string_view schema_type_name(T*);
+    <span class="hljs-comment">//=== Get JSON Schema type name (Default) ===//</span>
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(T*)</span></span>;
 
-    //=== Get JSON Schema type name (Explicit Types) ===//
-    std::string_view schema_type_name(uint8_t*);
-    std::string_view schema_type_name(int8_t*);
-    std::string_view schema_type_name(uint16_t*);
-    std::string_view schema_type_name(int16_t*);
-    std::string_view schema_type_name(uint32_t*);
-    std::string_view schema_type_name(int32_t*);
-    std::string_view schema_type_name(uint64_t*);
-    std::string_view schema_type_name(int64_t*);
-    std::string_view schema_type_name(eosio::name*);
-    std::string_view schema_type_name(eosio::symbol_code*);
-    std::string_view schema_type_name(eosio::time_point*);
-    std::string_view schema_type_name(eosio::block_timestamp*);
-    std::string_view schema_type_name(eosio::extended_asset*);
-    std::string_view schema_type_name(eosio::checksum256*);
-    std::string_view schema_type_name(&apos;hidden&apos;*);
+    <span class="hljs-comment">//=== Get JSON Schema type name (Explicit Types) ===//</span>
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(uint8_t*)</span></span>;
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(int8_t*)</span></span>;
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(uint16_t*)</span></span>;
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(int16_t*)</span></span>;
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(uint32_t*)</span></span>;
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(uint64_t*)</span></span>;
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(int64_t*)</span></span>;
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::name*)</span></span>;
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::symbol_code*)</span></span>;
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::time_point*)</span></span>;
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::block_timestamp*)</span></span>;
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::extended_asset*)</span></span>;
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::checksum256*)</span></span>;
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(shared_memory&lt;datastream&lt;<span class="hljs-keyword">const</span> <span class="hljs-keyword">char</span> *&gt;&gt;*)</span></span>;
 
-    //=== Make JSON Schema (Explicit Types) ===//
-    eosio::rope make_json_schema(shared_memory&lt;std::string_view&gt;*);
-    eosio::rope make_json_schema(eosio::name*);
-    eosio::rope make_json_schema(eosio::symbol_code*);
-    eosio::rope make_json_schema(eosio::time_point*);
-    eosio::rope make_json_schema(eosio::block_timestamp*);
-    eosio::rope make_json_schema(eosio::extended_asset*);
-    eosio::rope make_json_schema(eosio::checksum256*);
-    eosio::rope make_json_schema(&apos;hidden&apos;*);
-    template &lt;eosio::tagged_variant_options Options, typename ... NamedTypes&gt;
-    eosio::rope make_json_schema(tagged_variant&lt;Options, NamedTypes...&gt;*);
-    eosio::rope make_json_schema(bool*);
-    template &lt;typename T&gt;
-    eosio::rope make_json_schema(std::vector&lt;T&gt;*);
-    template &lt;typename T&gt;
-    eosio::rope make_json_schema(std::optional&lt;T&gt;*);
+    <span class="hljs-comment">//=== Make JSON Schema (Explicit Types) ===//</span>
+    eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(shared_memory&lt;<span class="hljs-built_in">std</span>::string_view&gt;*)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(eosio::name*)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(eosio::symbol_code*)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(eosio::time_point*)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(eosio::block_timestamp*)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(eosio::extended_asset*)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(eosio::checksum256*)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(shared_memory&lt;datastream&lt;<span class="hljs-keyword">const</span> <span class="hljs-keyword">char</span> *&gt;&gt;*)</span></span>;
+    <span class="hljs-keyword">template</span> &lt;eosio::tagged_variant_options Options, <span class="hljs-keyword">typename</span> ... NamedTypes&gt;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(tagged_variant&lt;Options, NamedTypes...&gt;*)</span></span>;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(<span class="hljs-keyword">bool</span>*)</span></span>;
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(<span class="hljs-keyword">int</span>*)</span></span>;
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::optional&lt;T&gt;*)</span></span>;
 
-    //=== Make JSON Schema (Reflected Objects) ===//
-    template &lt;typename T&gt;
-    eosio::rope make_json_schema(T*);
+    <span class="hljs-comment">//=== Make JSON Schema (Reflected Objects) ===//</span>
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(T*)</span></span>;
 
-    //=== Make JSON Schema (Use This) ===//
-    template &lt;typename T&gt;
-    eosio::rope make_json_schema();
+    <span class="hljs-comment">//=== Make JSON Schema (Use This) ===//</span>
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+    eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">()</span></span>;
 }
 </code></pre>
 <h3 id="function-eosioschematypename">Function <code>eosio::schema_type_name</code></h3>
@@ -515,65 +514,63 @@
 <p>Returns &#x201C;&#x201D;, which prevents the type from being in the <code>definitions</code> section of the schema.</p>
 <hr>
 <h3 id="get-json-schema-type-name-explicit-types">Get JSON Schema type name (Explicit Types)</h3>
-<pre><code class="lang-cpp">(1) std::string_view schema_type_name(uint8_t*);
+<pre><code class="lang-cpp">(<span class="hljs-number">1</span>) <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(uint8_t*)</span></span>;
 
-(2) std::string_view schema_type_name(int8_t*);
+(<span class="hljs-number">2</span>) <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(int8_t*)</span></span>;
 
-(3) std::string_view schema_type_name(uint16_t*);
+(<span class="hljs-number">3</span>) <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(uint16_t*)</span></span>;
 
-(4) std::string_view schema_type_name(int16_t*);
+(<span class="hljs-number">4</span>) <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(int16_t*)</span></span>;
 
-(5) std::string_view schema_type_name(uint32_t*);
+(<span class="hljs-number">5</span>) <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(uint32_t*)</span></span>;
 
-(6) std::string_view schema_type_name(int32_t*);
+(<span class="hljs-number">6</span>) <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(uint64_t*)</span></span>;
 
-(7) std::string_view schema_type_name(uint64_t*);
+(<span class="hljs-number">7</span>) <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(int64_t*)</span></span>;
 
-(8) std::string_view schema_type_name(int64_t*);
+(<span class="hljs-number">8</span>) <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::name*)</span></span>;
 
-(9) std::string_view schema_type_name(eosio::name*);
+(<span class="hljs-number">9</span>) <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::symbol_code*)</span></span>;
 
-(10) std::string_view schema_type_name(eosio::symbol_code*);
+(<span class="hljs-number">10</span>) <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::time_point*)</span></span>;
 
-(11) std::string_view schema_type_name(eosio::time_point*);
+(<span class="hljs-number">11</span>) <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::block_timestamp*)</span></span>;
 
-(12) std::string_view schema_type_name(eosio::block_timestamp*);
+(<span class="hljs-number">12</span>) <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::extended_asset*)</span></span>;
 
-(13) std::string_view schema_type_name(eosio::extended_asset*);
+(<span class="hljs-number">13</span>) <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::checksum256*)</span></span>;
 
-(14) std::string_view schema_type_name(eosio::checksum256*);
-
-(15) std::string_view schema_type_name(&apos;hidden&apos;*);
+(<span class="hljs-number">14</span>) <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(shared_memory&lt;datastream&lt;<span class="hljs-keyword">const</span> <span class="hljs-keyword">char</span> *&gt;&gt;*)</span></span>;
 </code></pre>
 <p>Get JSON Schema type name. The argument is ignored; it may be <code>nullptr</code>.</p>
 <hr>
 <h3 id="make-json-schema-explicit-types">Make JSON Schema (Explicit Types)</h3>
-<pre><code class="lang-cpp">(1) eosio::rope make_json_schema(shared_memory&lt;std::string_view&gt;*);
+<pre><code class="lang-cpp">(<span class="hljs-number">1</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(shared_memory&lt;<span class="hljs-built_in">std</span>::string_view&gt;*)</span></span>;
 
-(2) eosio::rope make_json_schema(eosio::name*);
+(<span class="hljs-number">2</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(eosio::name*)</span></span>;
 
-(3) eosio::rope make_json_schema(eosio::symbol_code*);
+(<span class="hljs-number">3</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(eosio::symbol_code*)</span></span>;
 
-(4) eosio::rope make_json_schema(eosio::time_point*);
+(<span class="hljs-number">4</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(eosio::time_point*)</span></span>;
 
-(5) eosio::rope make_json_schema(eosio::block_timestamp*);
+(<span class="hljs-number">5</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(eosio::block_timestamp*)</span></span>;
 
-(6) eosio::rope make_json_schema(eosio::extended_asset*);
+(<span class="hljs-number">6</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(eosio::extended_asset*)</span></span>;
 
-(7) eosio::rope make_json_schema(eosio::checksum256*);
+(<span class="hljs-number">7</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(eosio::checksum256*)</span></span>;
 
-(8) eosio::rope make_json_schema(&apos;hidden&apos;*);
+(<span class="hljs-number">8</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(shared_memory&lt;datastream&lt;<span class="hljs-keyword">const</span> <span class="hljs-keyword">char</span> *&gt;&gt;*)</span></span>;
 
-(9) template &lt;eosio::tagged_variant_options Options, typename ... NamedTypes&gt;
-eosio::rope make_json_schema(tagged_variant&lt;Options, NamedTypes...&gt;*);
+(<span class="hljs-number">9</span>) <span class="hljs-keyword">template</span> &lt;eosio::tagged_variant_options Options, <span class="hljs-keyword">typename</span> ... NamedTypes&gt;
+eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(tagged_variant&lt;Options, NamedTypes...&gt;*)</span></span>;
 
-(10) eosio::rope make_json_schema(bool*);
+(<span class="hljs-number">10</span>) eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(<span class="hljs-keyword">bool</span>*)</span></span>;
 
-(11) template &lt;typename T&gt;
-eosio::rope make_json_schema(std::vector&lt;T&gt;*);
+(<span class="hljs-number">11</span>) <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(<span class="hljs-keyword">int</span>*)</span></span>;
 
-(12) template &lt;typename T&gt;
-eosio::rope make_json_schema(std::optional&lt;T&gt;*);
+(<span class="hljs-number">12</span>) <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schema</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::optional&lt;T&gt;*)</span></span>;
 </code></pre>
 <p>Convert types to JSON Schema. The argument is ignored; it may be <code>nullptr</code>. These overloads handle specified types.</p>
 <hr>
@@ -633,7 +630,7 @@ eosio::<span class="hljs-function">rope <span class="hljs-title">make_json_schem
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"schema.hpp","level":"1.6.5","depth":2,"next":{"title":"shared_memory.hpp","level":"1.6.6","depth":2,"path":"generated/doc_shared_memory.md","ref":"generated/doc_shared_memory.md","articles":[]},"previous":{"title":"parse_json.hpp","level":"1.6.4","depth":2,"path":"generated/doc_parse_json.md","ref":"generated/doc_parse_json.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_schema.md","mtime":"2019-03-20T20:37:06.427Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-20T20:37:07.311Z"},"basePath":"..","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"schema.hpp","level":"1.6.5","depth":2,"next":{"title":"shared_memory.hpp","level":"1.6.6","depth":2,"path":"generated/doc_shared_memory.md","ref":"generated/doc_shared_memory.md","articles":[]},"previous":{"title":"parse_json.hpp","level":"1.6.4","depth":2,"path":"generated/doc_parse_json.md","ref":"generated/doc_parse_json.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_schema.md","mtime":"2019-07-10T18:51:08.969Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-07-10T18:51:43.443Z"},"basePath":"..","book":{"language":""}});
         });
     </script>
 </div>

@@ -232,12 +232,12 @@
             
         </li>
     
-        <li class="chapter " data-level="1.4.2" data-path="../build-ubuntu-1810.html">
+        <li class="chapter " data-level="1.4.2" data-path="../build-ubuntu-1804.html">
             
-                <a href="../build-ubuntu-1810.html">
+                <a href="../build-ubuntu-1804.html">
             
                     
-                    Ubuntu 18.10
+                    Ubuntu 18.04
             
                 </a>
             
@@ -466,9 +466,11 @@
     <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(uint32_t&amp; key)</span></span>;
     <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(uint64_t&amp; key)</span></span>;
     <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(uint128_t&amp; key)</span></span>;
-    <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(eosio::name&amp; key)</span></span>;
+    <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(<span class="hljs-keyword">int</span>&amp; key)</span></span>;
     <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(eosio::checksum256&amp; key)</span></span>;
     <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_action_trace_executed_range_name_receiver_account_block_trans_action::key&amp; key)</span></span>;
+    <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_action_trace_receipt_receiver::key&amp; key)</span></span>;
+    <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_transaction_receipt::key&amp; key)</span></span>;
     <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_contract_row_range_code_table_pk_scope::key&amp; key)</span></span>;
     <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_contract_row_range_code_table_scope_pk::key&amp; key)</span></span>;
     <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_contract_row_range_scope_table_pk_code::key&amp; key)</span></span>;
@@ -478,11 +480,49 @@
     <span class="hljs-keyword">enum</span> <span class="hljs-keyword">class</span> transaction_status
     : <span class="hljs-keyword">uint8_t</span>;
 
+    <span class="hljs-comment">//=== to_json_explicit ===//</span>
+    <span class="hljs-function"><span class="hljs-keyword">int</span> <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::transaction_status value)</span></span>;
+
     <span class="hljs-keyword">struct</span> block_info;
+
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::block_info*)</span></span>;
+
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> F&gt;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">for_each_member</span><span class="hljs-params">(eosio::block_info*, F f)</span></span>;
+
+    <span class="hljs-keyword">struct</span> receipt;
+
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::receipt*)</span></span>;
+
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> F&gt;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">for_each_member</span><span class="hljs-params">(eosio::receipt*, F f)</span></span>;
+
+    <span class="hljs-keyword">struct</span> action;
+
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::action*)</span></span>;
+
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> F&gt;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">for_each_member</span><span class="hljs-params">(eosio::action*, F f)</span></span>;
 
     <span class="hljs-keyword">struct</span> action_trace;
 
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::action_trace*)</span></span>;
+
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> F&gt;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">for_each_member</span><span class="hljs-params">(eosio::action_trace*, F f)</span></span>;
+
     <span class="hljs-keyword">struct</span> account;
+
+    <span class="hljs-built_in">std</span>::<span class="hljs-function">string_view <span class="hljs-title">schema_type_name</span><span class="hljs-params">(eosio::account*)</span></span>;
+
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> F&gt;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">for_each_member</span><span class="hljs-params">(eosio::account*, F f)</span></span>;
+
+    <span class="hljs-keyword">struct</span> code_key;
+
+    <span class="hljs-keyword">struct</span> account_metadata_joined;
+
+    <span class="hljs-keyword">struct</span> metadata_code_joined;
 
     <span class="hljs-keyword">struct</span> contract_row;
 
@@ -494,7 +534,15 @@
 
     <span class="hljs-keyword">struct</span> query_action_trace_executed_range_name_receiver_account_block_trans_action;
 
+    <span class="hljs-keyword">struct</span> query_action_trace_receipt_receiver;
+
+    <span class="hljs-keyword">struct</span> query_transaction_receipt;
+
     <span class="hljs-keyword">struct</span> query_account_range_name;
+
+    <span class="hljs-keyword">struct</span> query_acctmeta_range_name;
+
+    <span class="hljs-keyword">struct</span> query_code_range_name;
 
     <span class="hljs-keyword">struct</span> query_contract_row_range_code_table_pk_scope;
 
@@ -507,17 +555,20 @@
     <span class="hljs-comment">//=== Database Status ===//</span>
     <span class="hljs-keyword">struct</span> database_status;
 
+    <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> F&gt;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">for_each_member</span><span class="hljs-params">(eosio::database_status*, F f)</span></span>;
+
     eosio::<span class="hljs-function">database_status <span class="hljs-title">get_database_status</span><span class="hljs-params">()</span></span>;
 
     <span class="hljs-comment">//=== Query Database ===//</span>
     <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
-    <span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;<span class="hljs-keyword">char</span>&gt; query_database(T <span class="hljs-keyword">const</span>&amp; request);
+    <span class="hljs-function"><span class="hljs-keyword">int</span> <span class="hljs-title">query_database</span><span class="hljs-params">()</span></span>;
 
     <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T, <span class="hljs-keyword">typename</span> F&gt;
-    <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">for_each_query_result</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;<span class="hljs-keyword">char</span>&gt; <span class="hljs-keyword">const</span>&amp; bytes, F f)</span></span>;
+    <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">for_each_query_result</span><span class="hljs-params">(<span class="hljs-keyword">int</span> <span class="hljs-keyword">const</span>&amp; bytes, F f)</span></span>;
 
     <span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T, <span class="hljs-keyword">typename</span> F&gt;
-    <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">for_each_contract_row</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;<span class="hljs-keyword">char</span>&gt; <span class="hljs-keyword">const</span>&amp; bytes, F f)</span></span>;
+    <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">for_each_contract_row</span><span class="hljs-params">(<span class="hljs-keyword">int</span> <span class="hljs-keyword">const</span>&amp; bytes, F f)</span></span>;
 }
 </code></pre>
 <h3 id="increment-key">Increment Key</h3>
@@ -531,19 +582,23 @@
 
 (<span class="hljs-number">5</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(uint128_t&amp; key)</span></span>;
 
-(<span class="hljs-number">6</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(eosio::name&amp; key)</span></span>;
+(<span class="hljs-number">6</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(<span class="hljs-keyword">int</span>&amp; key)</span></span>;
 
 (<span class="hljs-number">7</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(eosio::checksum256&amp; key)</span></span>;
 
 (<span class="hljs-number">8</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_action_trace_executed_range_name_receiver_account_block_trans_action::key&amp; key)</span></span>;
 
-(<span class="hljs-number">9</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_contract_row_range_code_table_pk_scope::key&amp; key)</span></span>;
+(<span class="hljs-number">9</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_action_trace_receipt_receiver::key&amp; key)</span></span>;
 
-(<span class="hljs-number">10</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_contract_row_range_code_table_scope_pk::key&amp; key)</span></span>;
+(<span class="hljs-number">10</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_transaction_receipt::key&amp; key)</span></span>;
 
-(<span class="hljs-number">11</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_contract_row_range_scope_table_pk_code::key&amp; key)</span></span>;
+(<span class="hljs-number">11</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_contract_row_range_code_table_pk_scope::key&amp; key)</span></span>;
 
-(<span class="hljs-number">12</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_contract_index64_range_code_table_scope_sk_pk::key&amp; key)</span></span>;
+(<span class="hljs-number">12</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_contract_row_range_code_table_scope_pk::key&amp; key)</span></span>;
+
+(<span class="hljs-number">13</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_contract_row_range_scope_table_pk_code::key&amp; key)</span></span>;
+
+(<span class="hljs-number">14</span>) <span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">increment_key</span><span class="hljs-params">(query_contract_index64_range_code_table_scope_sk_pk::key&amp; key)</span></span>;
 </code></pre>
 <p>Increment a database key. Return true if the result wrapped.</p>
 <hr>
@@ -568,6 +623,10 @@
 <li><code>expired</code> - transaction expired and storage space refunded to user</li>
 </ul>
 <hr>
+<h3 id="function-eosiotojson">Function <code>eosio::to_json</code></h3>
+<pre><code class="lang-cpp">(<span class="hljs-number">1</span>) <span class="hljs-function"><span class="hljs-keyword">int</span> <span class="hljs-title">to_json</span><span class="hljs-params">(eosio::transaction_status value)</span></span>;
+</code></pre>
+<hr>
 <h3 id="struct-eosioblockinfo">Struct <code>eosio::block_info</code></h3>
 <pre><code class="lang-cpp"><span class="hljs-keyword">struct</span> block_info
 {
@@ -575,9 +634,9 @@
 
     eosio::checksum256 block_id = {};
 
-    eosio::block_timestamp timestamp = block_timestamp{};
+    <span class="hljs-keyword">int</span> timestamp = block_timestamp{};
 
-    eosio::name producer = {};
+    <span class="hljs-keyword">int</span> producer = {};
 
     <span class="hljs-keyword">uint16_t</span> confirmed = {};
 
@@ -594,46 +653,70 @@
 </code></pre>
 <p>Information extracted from a block</p>
 <hr>
+<h3 id="struct-eosioreceipt">Struct <code>eosio::receipt</code></h3>
+<pre><code class="lang-cpp">struct receipt
+{
+    int receiver = {};
+
+    eosio::checksum256 act_digest = {};
+
+    uint64_t global_sequence = {};
+
+    uint64_t recv_sequence = {};
+
+    eosio::unsigned_int code_sequence = {};
+
+    eosio::unsigned_int abi_sequence = {};
+
+    int EOSLIB_SERIALIZE(eosio::receipt, int receiver(int)(int)(int)(int)(int));
+};
+</code></pre>
+<p>Details about action execution</p>
+<hr>
+<h3 id="struct-eosioaction">Struct <code>eosio::action</code></h3>
+<pre><code class="lang-cpp">struct action
+{
+    int account = {};
+
+    int name = {};
+
+    shared_memory&lt;datastream&lt;const char *&gt;&gt; data = {};
+
+    int EOSLIB_SERIALIZE(eosio::action, int account(int)(int));
+};
+</code></pre>
+<p>Details about action execution</p>
+<hr>
 <h3 id="struct-eosioactiontrace">Struct <code>eosio::action_trace</code></h3>
 <pre><code class="lang-cpp">struct action_trace
 {
-    uint32_t block_index = {};
+    uint32_t block_num = {};
 
     eosio::checksum256 transaction_id = {};
 
-    uint32_t action_index = {};
-
-    uint32_t parent_action_index = {};
-
     eosio::transaction_status transaction_status = {};
 
-    eosio::name receipt_receiver = {};
+    eosio::unsigned_int action_ordinal = {};
 
-    eosio::checksum256 receipt_act_digest = {};
+    eosio::unsigned_int creator_action_ordinal = {};
 
-    uint64_t receipt_global_sequence = {};
+    std::optional&lt;receipt&gt; receipt = {};
 
-    uint64_t receipt_recv_sequence = {};
+    int receiver = {};
 
-    eosio::unsigned_int receipt_code_sequence = {};
-
-    eosio::unsigned_int receipt_abi_sequence = {};
-
-    eosio::name account = {};
-
-    eosio::name name = {};
-
-    &apos;hidden&apos; data = {};
+    action action = {};
 
     bool context_free = {};
 
     int64_t elapsed = {};
 
-    template &lt;typename DataStream&gt;
-    friend DataStream&amp; operator&lt;&lt;(DataStream&amp; ds, eosio::action_trace const&amp; t);
+    std::string console = {};
 
-    template &lt;typename DataStream&gt;
-    friend DataStream&amp; operator&gt;&gt;(DataStream&amp; ds, eosio::action_trace&amp; t);
+    std::string except = {};
+
+    uint64_t error_code = {};
+
+    int EOSLIB_SERIALIZE(eosio::action_trace, int block_num(int)(enum transaction_status)(int)(int)(receipt)(int)(action)(int)(int)(int)(int)(int));
 };
 </code></pre>
 <p>Details about action execution</p>
@@ -641,86 +724,144 @@
 <h3 id="struct-eosioaccount">Struct <code>eosio::account</code></h3>
 <pre><code class="lang-cpp">struct account
 {
-    uint32_t block_index = {};
+    uint32_t block_num = {};
 
     bool present = {};
 
-    eosio::name name = {};
+    int name = {};
 
-    uint8_t vm_type = {};
+    int creation_date = block_timestamp_type{};
 
-    uint8_t vm_version = {};
+    shared_memory&lt;datastream&lt;const char *&gt;&gt; abi = {};
 
-    bool privileged = {};
-
-    eosio::time_point last_code_update = time_point{};
-
-    eosio::checksum256 code_version = {};
-
-    eosio::block_timestamp_type creation_date = block_timestamp_type{};
-
-    &apos;hidden&apos; code = {};
-
-    &apos;hidden&apos; abi = {};
-
-    template &lt;typename DataStream&gt;
-    friend DataStream&amp; operator&lt;&lt;(DataStream&amp; ds, eosio::account const&amp; t);
-
-    template &lt;typename DataStream&gt;
-    friend DataStream&amp; operator&gt;&gt;(DataStream&amp; ds, eosio::account&amp; t);
+    int EOSLIB_SERIALIZE(eosio::account, int block_num(int)(int)(int)(int));
 };
 </code></pre>
 <p>Details about an account</p>
 <hr>
-<h3 id="struct-eosiocontractrow">Struct <code>eosio::contract_row</code></h3>
-<pre><code class="lang-cpp">struct contract_row
+<h3 id="struct-eosiocodekey">Struct <code>eosio::code_key</code></h3>
+<pre><code class="lang-cpp">struct code_key
 {
-    uint32_t block_index = {};
+    uint8_t vm_type = {};
+
+    uint8_t vm_version = {};
+
+    eosio::checksum256 hash = {};
+
+    int EOSLIB_SERIALIZE(eosio::code_key, int vm_type(int)(int));
+};
+</code></pre>
+<p>Key for looking up code</p>
+<hr>
+<h3 id="struct-eosioaccountmetadatajoined">Struct <code>eosio::account_metadata_joined</code></h3>
+<pre><code class="lang-cpp">struct account_metadata_joined
+{
+    uint32_t block_num = {};
 
     bool present = {};
 
-    eosio::name code = {};
+    int name = {};
 
-    uint64_t scope = {};
+    bool privileged = {};
 
-    eosio::name table = {};
+    int last_code_update = time_point{};
 
-    uint64_t primary_key = {};
+    std::optional&lt;code_key&gt; code = {};
 
-    eosio::name payer = {};
+    uint32_t account_block_num = {};
 
-    &apos;hidden&apos; value = {};
+    bool account_present = {};
+
+    int account_creation_date = block_timestamp_type{};
+
+    shared_memory&lt;datastream&lt;const char *&gt;&gt; account_abi = {};
+
+    int EOSLIB_SERIALIZE(eosio::account_metadata_joined, int block_num(int)(int)(int)(int)(int)(int)(int)(int)(int));
+};
+</code></pre>
+<p>account and account_metadata joined</p>
+<hr>
+<h3 id="struct-eosiometadatacodejoined">Struct <code>eosio::metadata_code_joined</code></h3>
+<pre><code class="lang-cpp">struct metadata_code_joined
+{
+    uint32_t block_num = {};
+
+    bool present = {};
+
+    int name = {};
+
+    bool privileged = {};
+
+    int last_code_update = time_point{};
+
+    std::optional&lt;code_key&gt; code = {};
+
+    uint32_t join_block_num = {};
+
+    bool join_present = {};
+
+    uint8_t join_vm_type = {};
+
+    uint8_t join_vm_version = {};
+
+    eosio::checksum256 join_code_hash = {};
+
+    shared_memory&lt;datastream&lt;const char *&gt;&gt; join_code = {};
+
+    int EOSLIB_SERIALIZE(eosio::metadata_code_joined, int block_num(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int));
+};
+</code></pre>
+<p>account_metadata and code joined</p>
+<hr>
+<h3 id="struct-eosiocontractrow">Struct <code>eosio::contract_row</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-keyword">struct</span> contract_row
+{
+    <span class="hljs-keyword">uint32_t</span> block_num = {};
+
+    <span class="hljs-keyword">bool</span> present = {};
+
+    <span class="hljs-keyword">int</span> code = {};
+
+    <span class="hljs-keyword">int</span> scope = {};
+
+    <span class="hljs-keyword">int</span> table = {};
+
+    <span class="hljs-keyword">uint64_t</span> primary_key = {};
+
+    <span class="hljs-keyword">int</span> payer = {};
+
+    shared_memory&lt;datastream&lt;<span class="hljs-keyword">const</span> <span class="hljs-keyword">char</span> *&gt;&gt; value = {};
 };
 </code></pre>
 <p>A row in a contract&#x2019;s table</p>
 <hr>
 <h3 id="struct-eosiocontractsecondaryindexwithrow">Struct <code>eosio::contract_secondary_index_with_row</code></h3>
-<pre><code class="lang-cpp">template &lt;typename T&gt;
-struct contract_secondary_index_with_row
+<pre><code class="lang-cpp"><span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
+<span class="hljs-keyword">struct</span> contract_secondary_index_with_row
 {
-    uint32_t block_index = {};
+    <span class="hljs-keyword">uint32_t</span> block_num = {};
 
-    bool present = {};
+    <span class="hljs-keyword">bool</span> present = {};
 
-    eosio::name code = {};
+    <span class="hljs-keyword">int</span> code = {};
 
-    uint64_t scope = {};
+    <span class="hljs-keyword">int</span> scope = {};
 
-    eosio::name table = {};
+    <span class="hljs-keyword">int</span> table = {};
 
-    uint64_t primary_key = {};
+    <span class="hljs-keyword">uint64_t</span> primary_key = {};
 
-    eosio::name payer = {};
+    <span class="hljs-keyword">int</span> payer = {};
 
     T secondary_key = {};
 
-    uint32_t row_block_index = {};
+    <span class="hljs-keyword">uint32_t</span> row_block_num = {};
 
-    bool row_present = {};
+    <span class="hljs-keyword">bool</span> row_present = {};
 
-    eosio::name row_payer = {};
+    <span class="hljs-keyword">int</span> row_payer = {};
 
-    &apos;hidden&apos; row_value = {};
+    shared_memory&lt;datastream&lt;<span class="hljs-keyword">const</span> <span class="hljs-keyword">char</span> *&gt;&gt; row_value = {};
 };
 </code></pre>
 <p>A secondary index entry in a contract&#x2019;s table. Also includes fields from <code>contract_row</code>.</p>
@@ -728,7 +869,7 @@ struct contract_secondary_index_with_row
 <h3 id="struct-eosioqueryblockinforangeindex">Struct <code>eosio::query_block_info_range_index</code></h3>
 <pre><code class="lang-cpp"><span class="hljs-keyword">struct</span> query_block_info_range_index
 {
-    eosio::name query_name = <span class="hljs-string">&quot;block.info&quot;</span>_n;
+    <span class="hljs-keyword">int</span> query_name = <span class="hljs-string">&quot;block.info&quot;</span>_n;
 
     <span class="hljs-keyword">uint32_t</span> first = {};
 
@@ -752,7 +893,7 @@ struct contract_secondary_index_with_row
 {
     <span class="hljs-keyword">struct</span> key;
 
-    eosio::name query_name = <span class="hljs-string">&quot;at.e.nra&quot;</span>_n;
+    <span class="hljs-keyword">int</span> query_name = <span class="hljs-string">&quot;at.e.nra&quot;</span>_n;
 
     <span class="hljs-keyword">uint32_t</span> max_block = {};
 
@@ -767,11 +908,11 @@ struct contract_secondary_index_with_row
 <p>The query results are sorted by <code>key</code>. Every record has a different key.</p>
 <pre><code class="lang-c++"><span class="hljs-keyword">struct</span> key {
     eosio::name     name             = {};
-    eosio::name     receipt_receiver = {};
+    eosio::name     receiver         = {};
     eosio::name     account          = {};
-    <span class="hljs-keyword">uint32_t</span>        block_index      = {};
+    <span class="hljs-keyword">uint32_t</span>        block_num        = {};
     checksum256     transaction_id   = {};
-    <span class="hljs-keyword">uint32_t</span>        action_index     = {};
+    <span class="hljs-keyword">uint32_t</span>        action_ordinal   = {};
 
     <span class="hljs-comment">// Construct the key from `data`</span>
     <span class="hljs-function"><span class="hljs-keyword">static</span> key <span class="hljs-title">from_data</span><span class="hljs-params">(<span class="hljs-keyword">const</span> action_trace&amp; data)</span></span>;
@@ -786,16 +927,89 @@ struct contract_secondary_index_with_row
 <li><code>max_results</code> - Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.</li>
 </ul>
 <hr>
-<h3 id="struct-eosioqueryaccountrangename">Struct <code>eosio::query_account_range_name</code></h3>
-<pre><code class="lang-cpp"><span class="hljs-keyword">struct</span> query_account_range_name
+<h3 id="struct-eosioqueryactiontracereceiptreceiver">Struct <code>eosio::query_action_trace_receipt_receiver</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-keyword">struct</span> query_action_trace_receipt_receiver
 {
-    eosio::name query_name = <span class="hljs-string">&quot;account&quot;</span>_n;
+    <span class="hljs-keyword">struct</span> key;
+
+    <span class="hljs-keyword">int</span> query_name = <span class="hljs-string">&quot;receipt.rcvr&quot;</span>_n;
 
     <span class="hljs-keyword">uint32_t</span> max_block = {};
 
-    eosio::name first = {};
+    eosio::query_action_trace_receipt_receiver::key first = {};
 
-    eosio::name last = {};
+    eosio::query_action_trace_receipt_receiver::key last = {};
+
+    <span class="hljs-keyword">uint32_t</span> max_results = {};
+};
+</code></pre>
+<p>Pass this to <code>query_database</code> to get <code>action_trace</code> for a range of <code>receipt_receiver</code> names.</p>
+<p>The query results are sorted by <code>key</code>.  Every record has a unique key.</p>
+<pre><code class="lang-c++"><span class="hljs-keyword">struct</span> key {
+    eosio::name     receipt_receiver = {};
+    <span class="hljs-keyword">uint32_t</span>        block_num        = {};
+    checksum256     transaction_id   = {};
+    <span class="hljs-keyword">uint32_t</span>        action_ordinal   = {};
+
+    <span class="hljs-comment">// Construct the key from `data`</span>
+    <span class="hljs-function"><span class="hljs-keyword">static</span> key <span class="hljs-title">from_data</span><span class="hljs-params">(<span class="hljs-keyword">const</span> action_trace&amp; data)</span></span>;
+};
+</code></pre>
+<h4 id="member-variables">Member variables</h4>
+<ul>
+<li><code>query_name</code> - Identifies query type. Do not modify this field.</li>
+<li><code>max_block</code> - Look at this point of time in history</li>
+<li><code>first</code> - Query records with keys in the range [<code>first</code>, <code>last</code>].</li>
+<li><code>last</code> - Query records with keys in the range [<code>first</code>, <code>last</code>].</li>
+<li><code>max_results</code> - Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.</li>
+</ul>
+<hr>
+<h3 id="struct-eosioquerytransactionreceipt">Struct <code>eosio::query_transaction_receipt</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-keyword">struct</span> query_transaction_receipt
+{
+    <span class="hljs-keyword">struct</span> key;
+
+    <span class="hljs-keyword">int</span> query_name = <span class="hljs-string">&quot;transaction&quot;</span>_n;
+
+    <span class="hljs-keyword">uint32_t</span> max_block = {};
+
+    eosio::query_transaction_receipt::key first = {};
+
+    eosio::query_transaction_receipt::key last = {};
+
+    <span class="hljs-keyword">uint32_t</span> max_results = {};
+};
+</code></pre>
+<p>Pass this to <code>query_database</code> to get a transaction receipt for a transaction id.</p>
+<p>The query results are sorted by <code>key</code>.  Every record has a unique key.</p>
+<pre><code class="lang-c++"><span class="hljs-keyword">struct</span> key {
+    checksum256 transaction_id = {};
+    <span class="hljs-keyword">uint32_t</span> block_num = {};
+    <span class="hljs-keyword">uint32_t</span> action_ordinal = {};
+
+    <span class="hljs-comment">// Construct the key from `data`</span>
+    <span class="hljs-function"><span class="hljs-keyword">static</span> key <span class="hljs-title">from_data</span><span class="hljs-params">(<span class="hljs-keyword">const</span> action_trace&amp; data)</span></span>;
+};
+</code></pre>
+<h4 id="member-variables">Member variables</h4>
+<ul>
+<li><code>query_name</code> - Identifies query type.  Do not modify this field.</li>
+<li><code>max_block</code> - Look at this point of time in history</li>
+<li><code>first</code> - Query records with keys in the range [<code>first</code>, <code>last</code>].</li>
+<li><code>last</code> - Query records with keys in the range [<code>first</code>, <code>last</code>].</li>
+<li><code>max_results</code> - Maximum results to return.  The wasm-ql server may cap the number of results to a smaller number.</li>
+</ul>
+<hr>
+<h3 id="struct-eosioqueryaccountrangename">Struct <code>eosio::query_account_range_name</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-keyword">struct</span> query_account_range_name
+{
+    <span class="hljs-keyword">int</span> query_name = <span class="hljs-string">&quot;account&quot;</span>_n;
+
+    <span class="hljs-keyword">uint32_t</span> max_block = {};
+
+    <span class="hljs-keyword">int</span> first = {};
+
+    <span class="hljs-keyword">int</span> last = {};
 
     <span class="hljs-keyword">uint32_t</span> max_results = {};
 };
@@ -811,12 +1025,62 @@ struct contract_secondary_index_with_row
 <li><code>max_results</code> - Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.</li>
 </ul>
 <hr>
+<h3 id="struct-eosioqueryacctmetarangename">Struct <code>eosio::query_acctmeta_range_name</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-keyword">struct</span> query_acctmeta_range_name
+{
+    <span class="hljs-keyword">int</span> query_name = <span class="hljs-string">&quot;acctmeta.jn&quot;</span>_n;
+
+    <span class="hljs-keyword">uint32_t</span> max_block = {};
+
+    <span class="hljs-keyword">int</span> first = {};
+
+    <span class="hljs-keyword">int</span> last = {};
+
+    <span class="hljs-keyword">uint32_t</span> max_results = {};
+};
+</code></pre>
+<p>Pass this to <code>query_database</code> to get <code>account_metadata_joined</code> for a range of names.</p>
+<p>The query results are sorted by <code>name</code>. Every record has a different name.</p>
+<h4 id="member-variables">Member variables</h4>
+<ul>
+<li><code>query_name</code> - Identifies query type. Do not modify this field.</li>
+<li><code>max_block</code> - Look at this point of time in history</li>
+<li><code>first</code> - Query records with <code>name</code> in the range [<code>first</code>, <code>last</code>].</li>
+<li><code>last</code> - Query records with <code>name</code> in the range [<code>first</code>, <code>last</code>].</li>
+<li><code>max_results</code> - Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.</li>
+</ul>
+<hr>
+<h3 id="struct-eosioquerycoderangename">Struct <code>eosio::query_code_range_name</code></h3>
+<pre><code class="lang-cpp"><span class="hljs-keyword">struct</span> query_code_range_name
+{
+    <span class="hljs-keyword">int</span> query_name = <span class="hljs-string">&quot;meta.jn.code&quot;</span>_n;
+
+    <span class="hljs-keyword">uint32_t</span> max_block = {};
+
+    <span class="hljs-keyword">int</span> first = {};
+
+    <span class="hljs-keyword">int</span> last = {};
+
+    <span class="hljs-keyword">uint32_t</span> max_results = {};
+};
+</code></pre>
+<p>Pass this to <code>query_database</code> to get <code>metadata_code_joined</code> for a range of names.</p>
+<p>The query results are sorted by <code>name</code>. Every record has a different name.</p>
+<h4 id="member-variables">Member variables</h4>
+<ul>
+<li><code>query_name</code> - Identifies query type. Do not modify this field.</li>
+<li><code>max_block</code> - Look at this point of time in history</li>
+<li><code>first</code> - Query records with <code>name</code> in the range [<code>first</code>, <code>last</code>].</li>
+<li><code>last</code> - Query records with <code>name</code> in the range [<code>first</code>, <code>last</code>].</li>
+<li><code>max_results</code> - Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.</li>
+</ul>
+<hr>
 <h3 id="struct-eosioquerycontractrowrangecodetablepkscope">Struct <code>eosio::query_contract_row_range_code_table_pk_scope</code></h3>
 <pre><code class="lang-cpp"><span class="hljs-keyword">struct</span> query_contract_row_range_code_table_pk_scope
 {
     <span class="hljs-keyword">struct</span> key;
 
-    eosio::name query_name = <span class="hljs-string">&quot;cr.ctps&quot;</span>_n;
+    <span class="hljs-keyword">int</span> query_name = <span class="hljs-string">&quot;cr.ctps&quot;</span>_n;
 
     <span class="hljs-keyword">uint32_t</span> max_block = {};
 
@@ -833,7 +1097,7 @@ struct contract_secondary_index_with_row
     name     code        = {};
     name     table       = {};
     <span class="hljs-keyword">uint64_t</span> primary_key = {};
-    <span class="hljs-keyword">uint64_t</span> scope       = {};
+    name     scope       = {};
 
     <span class="hljs-comment">// Construct the key from `data`</span>
     <span class="hljs-function"><span class="hljs-keyword">static</span> key <span class="hljs-title">from_data</span><span class="hljs-params">(<span class="hljs-keyword">const</span> contract_row&amp; data)</span></span>;
@@ -853,7 +1117,7 @@ struct contract_secondary_index_with_row
 {
     <span class="hljs-keyword">struct</span> key;
 
-    eosio::name query_name = <span class="hljs-string">&quot;cr.ctsp&quot;</span>_n;
+    <span class="hljs-keyword">int</span> query_name = <span class="hljs-string">&quot;cr.ctsp&quot;</span>_n;
 
     <span class="hljs-keyword">uint32_t</span> max_block = {};
 
@@ -869,7 +1133,7 @@ struct contract_secondary_index_with_row
 <pre><code class="lang-c++"><span class="hljs-keyword">struct</span> key {
     name     code        = {};
     name     table       = {};
-    <span class="hljs-keyword">uint64_t</span> scope       = {};
+    name     scope       = {};
     <span class="hljs-keyword">uint64_t</span> primary_key = {};
 
     <span class="hljs-comment">// Construct the key from `data`</span>
@@ -890,7 +1154,7 @@ struct contract_secondary_index_with_row
 {
     <span class="hljs-keyword">struct</span> key;
 
-    eosio::name query_name = <span class="hljs-string">&quot;cr.stpc&quot;</span>_n;
+    <span class="hljs-keyword">int</span> query_name = <span class="hljs-string">&quot;cr.stpc&quot;</span>_n;
 
     <span class="hljs-keyword">uint32_t</span> max_block = {};
 
@@ -904,7 +1168,7 @@ struct contract_secondary_index_with_row
 <p>Pass this to <code>query_database</code> to get <code>contract_row</code> for a range of keys.</p>
 <p>The query results are sorted by <code>key</code>. Every record has a different key.</p>
 <pre><code class="lang-c++"><span class="hljs-keyword">struct</span> key {
-    <span class="hljs-keyword">uint64_t</span> scope       = {};
+    name     scope       = {};
     name     table       = {};
     <span class="hljs-keyword">uint64_t</span> primary_key = {};
     name     code        = {};
@@ -927,7 +1191,7 @@ struct contract_secondary_index_with_row
 {
     <span class="hljs-keyword">struct</span> key;
 
-    eosio::name query_name = <span class="hljs-string">&quot;ci1.cts2p&quot;</span>_n;
+    <span class="hljs-keyword">int</span> query_name = <span class="hljs-string">&quot;ci1.cts2p&quot;</span>_n;
 
     <span class="hljs-keyword">uint32_t</span> max_block = {};
 
@@ -943,7 +1207,7 @@ struct contract_secondary_index_with_row
 <pre><code class="lang-c++"><span class="hljs-keyword">struct</span> key {
     name     code          = {};
     name     table         = {};
-    <span class="hljs-keyword">uint64_t</span> scope         = {};
+    name     scope         = {};
     <span class="hljs-keyword">uint64_t</span> secondary_key = {};
     <span class="hljs-keyword">uint64_t</span> primary_key   = {};
 
@@ -983,7 +1247,7 @@ struct contract_secondary_index_with_row
 <hr>
 <h3 id="function-eosioquerydatabase">Function <code>eosio::query_database</code></h3>
 <pre><code class="lang-cpp"><span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T&gt;
-<span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;<span class="hljs-keyword">char</span>&gt; query_database(T <span class="hljs-keyword">const</span>&amp; request);
+<span class="hljs-function"><span class="hljs-keyword">int</span> <span class="hljs-title">query_database</span><span class="hljs-params">()</span></span>;
 </code></pre>
 <p>Query the database. <code>request</code> must be one of the <code>query_*</code> structs. Returns result in serialized form.</p>
 <p>The serialized form is the same as <code>vector&lt;vector&lt;char&gt;&gt;</code>&#x2019;s serialized form. Each inner vector contains the serialized form of a record. The record type varies with query.</p>
@@ -991,13 +1255,13 @@ struct contract_secondary_index_with_row
 <hr>
 <h3 id="function-eosioforeachqueryresult">Function <code>eosio::for_each_query_result</code></h3>
 <pre><code class="lang-cpp"><span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T, <span class="hljs-keyword">typename</span> F&gt;
-<span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">for_each_query_result</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;<span class="hljs-keyword">char</span>&gt; <span class="hljs-keyword">const</span>&amp; bytes, F f)</span></span>;
+<span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">for_each_query_result</span><span class="hljs-params">(<span class="hljs-keyword">int</span> <span class="hljs-keyword">const</span>&amp; bytes, F f)</span></span>;
 </code></pre>
 <p>Unpack each record of a query result and call <code>f(record)</code>. <code>T</code> is the record type.</p>
 <hr>
 <h3 id="function-eosioforeachcontractrow">Function <code>eosio::for_each_contract_row</code></h3>
 <pre><code class="lang-cpp"><span class="hljs-keyword">template</span> &lt;<span class="hljs-keyword">typename</span> T, <span class="hljs-keyword">typename</span> F&gt;
-<span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">for_each_contract_row</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;<span class="hljs-keyword">char</span>&gt; <span class="hljs-keyword">const</span>&amp; bytes, F f)</span></span>;
+<span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">for_each_contract_row</span><span class="hljs-params">(<span class="hljs-keyword">int</span> <span class="hljs-keyword">const</span>&amp; bytes, F f)</span></span>;
 </code></pre>
 <p>Use with <code>query_contract_row_*</code>. Unpack each row of a query result and call <code>f(row, data)</code>. <code>row</code> is an instance of <code>contract_row</code>. <code>data</code> is the unpacked contract-specific data. <code>T</code> identifies the type of <code>data</code>.</p>
 <hr>
@@ -1044,7 +1308,7 @@ struct contract_secondary_index_with_row
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"database.hpp","level":"1.6.2","depth":2,"next":{"title":"input_output.hpp","level":"1.6.3","depth":2,"path":"generated/doc_input_output.md","ref":"generated/doc_input_output.md","articles":[]},"previous":{"title":"block_select.hpp","level":"1.6.1","depth":2,"path":"generated/doc_block_select.md","ref":"generated/doc_block_select.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_database.md","mtime":"2019-03-20T20:37:06.427Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-20T20:37:07.311Z"},"basePath":"..","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"database.hpp","level":"1.6.2","depth":2,"next":{"title":"input_output.hpp","level":"1.6.3","depth":2,"path":"generated/doc_input_output.md","ref":"generated/doc_input_output.md","articles":[]},"previous":{"title":"block_select.hpp","level":"1.6.1","depth":2,"path":"generated/doc_block_select.md","ref":"generated/doc_block_select.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_database.md","mtime":"2019-07-10T18:51:08.959Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-07-10T18:51:43.443Z"},"basePath":"..","book":{"language":""}});
         });
     </script>
 </div>

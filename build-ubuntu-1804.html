@@ -4,7 +4,7 @@
     <head>
         <meta charset="UTF-8">
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
-        <title>Ubuntu 18.10 · GitBook</title>
+        <title>Ubuntu 18.04 · GitBook</title>
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="description" content="">
         <meta name="generator" content="GitBook 3.2.3">
@@ -232,12 +232,12 @@
             
         </li>
     
-        <li class="chapter active" data-level="1.4.2" data-path="build-ubuntu-1810.html">
+        <li class="chapter active" data-level="1.4.2" data-path="build-ubuntu-1804.html">
             
-                <a href="build-ubuntu-1810.html">
+                <a href="build-ubuntu-1804.html">
             
                     
-                    Ubuntu 18.10
+                    Ubuntu 18.04
             
                 </a>
             
@@ -442,7 +442,7 @@
     <!-- Title -->
     <h1>
         <i class="fa fa-circle-o-notch fa-spin"></i>
-        <a href="." >Ubuntu 18.10</a>
+        <a href="." >Ubuntu 18.04</a>
     </h1>
 </div>
 
@@ -457,54 +457,107 @@
     
                                 <section class="normal markdown-section">
                                 
-                                <h1 id="preliminaries">Preliminaries</h1>
-<pre><code>sudo apt update
-sudo apt upgrade
-sudo apt install build-essential cmake libboost-all-dev git libpq-dev libpqxx-dev autoconf2.13 rustc cargo clang-7 nodejs npm ninja-build libgmp-dev liblmdb-dev
-</code></pre><h1 id="build-spidermonkey-640">Build SpiderMonkey 64.0</h1>
+                                <h1 id="ubuntu-server-1804-instructions">Ubuntu Server 18.04 instructions</h1>
+<p>These instructions assume:</p>
+<ul>
+<li>You are using a minimal Ubuntu Server 18.04 image; other versions may not work</li>
+<li>You are using a fresh image or container. If you installed any packages before
+following these instructions, or selected any optional components (e.g. compilers,
+services, GUIs, etc.), then these instructions may fail.</li>
+</ul>
+<p>The repo also includes a Dockerfile which does these steps. The Dockerfile needs
+10 cores and plenty of RAM to build.</p>
+<h1 id="install-build-environment">Install build environment</h1>
+<p>Install clang 8 and other needed tools:</p>
+<pre><code>apt update &amp;&amp; apt install -y wget gnupg
+
+cd ~
+wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+
+cat &lt;&lt;EOT &gt;&gt;/etc/apt/sources.list
+deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic main
+deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic main
+deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main
+deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main
+EOT
+
+apt update &amp;&amp; apt install -y \
+    autoconf2.13        \
+    build-essential     \
+    bzip2               \
+    cargo               \
+    clang-8             \
+    git                 \
+    libgmp-dev          \
+    liblmdb-dev         \
+    libpq-dev           \
+    lld-8               \
+    lldb-8              \
+    ninja-build         \
+    nodejs              \
+    npm                 \
+    pkg-config          \
+    python2.7-dev       \
+    python3-dev         \
+    rustc               \
+    zlib1g-dev
+
+update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 100
+update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-8 100
+</code></pre><p>Build and install Boost 1.69. Adjust <code>-j10</code> to match your machine. Bad things will
+happen if you don&apos;t have enough RAM for the number of cores you use:</p>
+<pre><code>cd ~
+wget https://dl.bintray.com/boostorg/release/1.69.0/source/boost_1_69_0.tar.gz
+tar xf boost_1_69_0.tar.gz
+cd boost_1_69_0
+./bootstrap.sh
+./b2 toolset=clang -j10 install
+</code></pre><p>Build and install CMake 3.14.5. Adjust <code>--parallel=</code> and <code>-j</code> to match your machine.
+Bad things will happen if you don&apos;t have enough RAM for the number of cores you use:</p>
+<pre><code>cd ~
+wget https://github.com/Kitware/CMake/releases/download/v3.14.5/cmake-3.14.5.tar.gz
+tar xf cmake-3.14.5.tar.gz
+cd cmake-3.14.5
+./bootstrap --parallel=10
+make -j10
+make -j10 install
+</code></pre><h1 id="build-spidermonkey-640-optional">Build SpiderMonkey 64.0 (optional)</h1>
 <p>You can skip this if you&apos;re not building wasm-ql</p>
 <pre><code>cd ~
 wget https://archive.mozilla.org/pub/firefox/releases/64.0/source/firefox-64.0.source.tar.xz
 tar xf firefox-64.0.source.tar.xz
 cd firefox-64.0/js/src/
 autoconf2.13
-</code></pre><h2 id="spidermonkey-release-build">SpiderMonkey Release build</h2>
+</code></pre><p>Choose 1 of the following 2 options. Release runs much faster, but isn&apos;t compatible with debug builds of the history tools. Debug isn&apos;t compatible with release builds of the history tools.</p>
+<h2 id="spidermonkey-release-option">SpiderMonkey Release option</h2>
 <pre><code>mkdir build_REL.OBJ
 cd build_REL.OBJ
-../configure --disable-debug --enable-optimize --disable-jemalloc --disable-replace-malloc
-make -j
-sudo make install
-</code></pre><h2 id="spidermonkey-debug-build">SpiderMonkey Debug build</h2>
+SHELL=/bin/bash ../configure --disable-debug --enable-optimize --disable-jemalloc --disable-replace-malloc
+SHELL=/bin/bash make -j
+SHELL=/bin/bash make install
+</code></pre><h2 id="spidermonkey-debug-option">SpiderMonkey Debug option</h2>
 <pre><code>mkdir build_DBG.OBJ
 cd build_DBG.OBJ
-../configure --enable-debug --disable-optimize --disable-jemalloc --disable-replace-malloc
-make -j
-sudo make install
+SHELL=/bin/bash ../configure --enable-debug --disable-optimize --disable-jemalloc --disable-replace-malloc
+SHELL=/bin/bash make -j
+SHELL=/bin/bash make install
+</code></pre><h1 id="install-eosio-181">Install eosio 1.8.1</h1>
+<pre><code>cd ~
+wget https://github.com/EOSIO/eos/releases/download/v1.8.1/eosio_1.8.1-1-ubuntu-18.04_amd64.deb
+apt install -y ./eosio_1.8.1-1-ubuntu-18.04_amd64.deb
+</code></pre><h1 id="install-cdt-161">Install CDT 1.6.1</h1>
+<pre><code>cd ~
+wget https://github.com/EOSIO/eosio.cdt/releases/download/v1.6.1/eosio.cdt_1.6.1-1_amd64.deb
+apt install -y ./eosio.cdt_1.6.1-1_amd64.deb
 </code></pre><h1 id="build-history-tools">Build History Tools</h1>
-<h2 id="release-build">Release build</h2>
 <pre><code>cd ~
-git clone --recursive git@github.com:EOSIO/wasm-api.git
-cd wasm-api
+git clone --recursive https://github.com/EOSIO/history-tools.git
+cd history-tools
 mkdir build
 cd build
-cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release
+cmake -GNinja -DCMAKE_CXX_COMPILER=clang++-8 -DCMAKE_C_COMPILER=clang-8 ..
+bash -c &quot;cd ../src &amp;&amp; npm install node-fetch&quot;
 ninja
-../build-test
-export LD_LIBRARY_PATH=/usr/local/lib/:$LD_LIBRARY_PATH
-cd ../src
-npm install node-fetch
-</code></pre><h2 id="debug-build">Debug build</h2>
-<pre><code>cd ~
-git clone --recursive git@github.com:EOSIO/wasm-api.git
-cd wasm-api
-mkdir build
-cd build
-cmake .. -GNinja -DCMAKE_BUILD_TYPE=Debug
-ninja
-../build-test
-export LD_LIBRARY_PATH=/usr/local/lib/:$LD_LIBRARY_PATH
-cd ../src
-npm install node-fetch
 </code></pre>
                                 
                                 </section>
@@ -548,7 +601,7 @@ npm install node-fetch
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"Ubuntu 18.10","level":"1.4.2","depth":2,"next":{"title":"Documentation","level":"1.4.3","depth":2,"path":"build-doc.md","ref":"build-doc.md","articles":[]},"previous":{"title":"OSX","level":"1.4.1","depth":2,"path":"build-osx.md","ref":"build-osx.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"build-ubuntu-1810.md","mtime":"2019-02-25T16:19:49.005Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-20T20:37:07.311Z"},"basePath":".","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"Ubuntu 18.04","level":"1.4.2","depth":2,"next":{"title":"Documentation","level":"1.4.3","depth":2,"path":"build-doc.md","ref":"build-doc.md","articles":[]},"previous":{"title":"OSX","level":"1.4.1","depth":2,"path":"build-osx.md","ref":"build-osx.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"build-ubuntu-1804.md","mtime":"2019-07-10T18:17:17.000Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-07-10T18:51:43.443Z"},"basePath":".","book":{"language":""}});
         });
     </script>
 </div>

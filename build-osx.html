@@ -57,7 +57,7 @@
     <link rel="shortcut icon" href="gitbook/images/favicon.ico" type="image/x-icon">
 
     
-    <link rel="next" href="build-ubuntu-1810.html" />
+    <link rel="next" href="build-ubuntu-1804.html" />
     
     
 
@@ -230,12 +230,12 @@
             
         </li>
     
-        <li class="chapter " data-level="1.4.2" data-path="build-ubuntu-1810.html">
+        <li class="chapter " data-level="1.4.2" data-path="build-ubuntu-1804.html">
             
-                <a href="build-ubuntu-1810.html">
+                <a href="build-ubuntu-1804.html">
             
                     
-                    Ubuntu 18.10
+                    Ubuntu 18.04
             
                 </a>
             
@@ -455,54 +455,62 @@
     
                                 <section class="normal markdown-section">
                                 
-                                <h1 id="install-spidermonkey-640">Install SpiderMonkey 64.0</h1>
-<pre><code>brew install autoconf@2.13 llvm@7 rust
-cd ~
+                                <h1 id="osx-mojave-instructions">OSX Mojave instructions</h1>
+<p>These instructions assume:</p>
+<ul>
+<li>You are using OSX Mojave; prior versions won&apos;t work</li>
+<li>You installed brew</li>
+<li>You installed xcode&apos;s command-line tools and they&apos;re up to date</li>
+</ul>
+<p>There may be more brew packages needed.</p>
+<h1 id="install-build-environment">Install build environment</h1>
+<p>Install clang 8 and other needed tools:</p>
+<pre><code>brew install llvm@8 cmake ninja git boost autoconf@2.13 rust node
+</code></pre><h1 id="build-spidermonkey-640-optional">Build SpiderMonkey 64.0 (optional)</h1>
+<p>You can skip this if you&apos;re not building wasm-ql</p>
+<pre><code>cd ~
 wget https://archive.mozilla.org/pub/firefox/releases/64.0/source/firefox-64.0.source.tar.xz
 tar xf firefox-64.0.source.tar.xz
 cd firefox-64.0/js/src/
 autoconf213
-</code></pre><h2 id="spidermonkey-release-build">SpiderMonkey Release build</h2>
+</code></pre><p>Choose 1 of the following 2 options. Release runs much faster, but isn&apos;t compatible with debug builds of the history tools. Debug isn&apos;t compatible with release builds of the history tools.</p>
+<h2 id="spidermonkey-release-option">SpiderMonkey Release option</h2>
 <pre><code>mkdir build_REL.OBJ
 cd build_REL.OBJ
-export LIBCLANG_PATH=/usr/local/opt/llvm@7/lib
-../configure --disable-debug --enable-optimize
+export LIBCLANG_PATH=/usr/local/opt/llvm/lib
+../configure --disable-debug --enable-optimize --disable-jemalloc --disable-replace-malloc
 make -j
 make install
-</code></pre><h2 id="spidermonkey-debug-build">SpiderMonkey Debug build</h2>
+</code></pre><h2 id="spidermonkey-debug-option">SpiderMonkey Debug option</h2>
 <pre><code>mkdir build_DBG.OBJ
 cd build_DBG.OBJ
-export LIBCLANG_PATH=/usr/local/opt/llvm@7/lib
-../configure --enable-debug --disable-optimize
+export LIBCLANG_PATH=/usr/local/opt/llvm/lib
+../configure --enable-debug --disable-optimize --disable-jemalloc --disable-replace-malloc
 make -j
 make install
-</code></pre><h1 id="build-wasm-ql">Build wasm-ql</h1>
-<h2 id="release-build">Release build</h2>
+</code></pre><h1 id="build-history-tools">Build History Tools</h1>
+<p>Note: ignore warnings which look like this:</p>
+<pre><code>ld: warning: direct access in function ... to global weak symbol ... from file ... means the weak symbol cannot be overridden at runtime. This was likely caused by different translation units being compiled with different visibility settings.
+</code></pre><h2 id="release-build">Release build</h2>
 <pre><code>cd ~
-git clone --recursive git@github.com:EOSIO/wasm-api.git
-cd wasm-api
+git clone --recursive https://github.com/EOSIO/history-tools.git
+cd history-tools
 mkdir build
 cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
 cp ~/firefox-64.0/js/src/build_REL.OBJ/dist/bin/libmozglue.dylib .
-make -j
-../build-test
-brew install node
-cd ../src
-npm install node-fetch
+ninja
+bash -c &quot;cd ../src &amp;&amp; npm install node-fetch&quot;
 </code></pre><h2 id="debug-build">Debug build</h2>
 <pre><code>cd ~
-git clone --recursive git@github.com:EOSIO/wasm-api.git
-cd wasm-api
+git clone --recursive https://github.com/EOSIO/history-tools.git
+cd history-tools
 mkdir build
 cd build
-cmake .. -DCMAKE_BUILD_TYPE=Debug
+cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
 cp ~/firefox-64.0/js/src/build_DBG.OBJ/dist/bin/libmozglue.dylib .
-make -j
-../build-test
-brew install node
-cd ../src
-npm install node-fetch
+ninja
+bash -c &quot;cd ../src &amp;&amp; npm install node-fetch&quot;
 </code></pre>
                                 
                                 </section>
@@ -531,7 +539,7 @@ npm install node-fetch
             
                 
                 
-                <a href="build-ubuntu-1810.html" class="navigation navigation-next navigation-unique" aria-label="Next page: Ubuntu 18.10">
+                <a href="build-ubuntu-1804.html" class="navigation navigation-next navigation-unique" aria-label="Next page: Ubuntu 18.04">
                     <i class="fa fa-angle-right"></i>
                 </a>
                 
@@ -542,7 +550,7 @@ npm install node-fetch
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"OSX","level":"1.4.1","depth":2,"next":{"title":"Ubuntu 18.10","level":"1.4.2","depth":2,"path":"build-ubuntu-1810.md","ref":"build-ubuntu-1810.md","articles":[]},"previous":{"title":"Building","level":"1.4","depth":1,"ref":"","articles":[{"title":"OSX","level":"1.4.1","depth":2,"path":"build-osx.md","ref":"build-osx.md","articles":[]},{"title":"Ubuntu 18.10","level":"1.4.2","depth":2,"path":"build-ubuntu-1810.md","ref":"build-ubuntu-1810.md","articles":[]},{"title":"Documentation","level":"1.4.3","depth":2,"path":"build-doc.md","ref":"build-doc.md","articles":[]}]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"build-osx.md","mtime":"2019-03-04T19:33:40.158Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-20T20:37:07.311Z"},"basePath":".","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"OSX","level":"1.4.1","depth":2,"next":{"title":"Ubuntu 18.04","level":"1.4.2","depth":2,"path":"build-ubuntu-1804.md","ref":"build-ubuntu-1804.md","articles":[]},"previous":{"title":"Building","level":"1.4","depth":1,"ref":"","articles":[{"title":"OSX","level":"1.4.1","depth":2,"path":"build-osx.md","ref":"build-osx.md","articles":[]},{"title":"Ubuntu 18.04","level":"1.4.2","depth":2,"path":"build-ubuntu-1804.md","ref":"build-ubuntu-1804.md","articles":[]},{"title":"Documentation","level":"1.4.3","depth":2,"path":"build-doc.md","ref":"build-doc.md","articles":[]}]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"build-osx.md","mtime":"2019-07-10T18:17:17.000Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-07-10T18:51:43.443Z"},"basePath":".","book":{"language":""}});
         });
     </script>
 </div>

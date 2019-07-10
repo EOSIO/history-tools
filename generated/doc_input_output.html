@@ -232,12 +232,12 @@
             
         </li>
     
-        <li class="chapter " data-level="1.4.2" data-path="../build-ubuntu-1810.html">
+        <li class="chapter " data-level="1.4.2" data-path="../build-ubuntu-1804.html">
             
-                <a href="../build-ubuntu-1810.html">
+                <a href="../build-ubuntu-1804.html">
             
                     
-                    Ubuntu 18.10
+                    Ubuntu 18.04
             
                 </a>
             
@@ -460,19 +460,17 @@
                                 <h1 id="header-file-inputoutputhpp">Header file <code>input_output.hpp</code></h1>
 <pre><code class="lang-cpp"><span class="hljs-keyword">namespace</span> eosio
 {
-    <span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;<span class="hljs-keyword">char</span>&gt; get_input_data();
+    <span class="hljs-function"><span class="hljs-keyword">int</span> <span class="hljs-title">get_input_data</span><span class="hljs-params">()</span></span>;
 
     <span class="hljs-keyword">extern</span> <span class="hljs-string">&quot;C&quot;</span> <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">set_output_data</span><span class="hljs-params">(<span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* begin, <span class="hljs-keyword">char</span> <span class="hljs-keyword">const</span>* end)</span></span>;
 
-    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">set_output_data</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;<span class="hljs-keyword">char</span>&gt; <span class="hljs-keyword">const</span>&amp; v)</span></span>;
-
-    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">set_output_data</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::string_view <span class="hljs-keyword">const</span>&amp; v)</span></span>;
+    <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">set_output_data</span><span class="hljs-params">(<span class="hljs-keyword">int</span> <span class="hljs-keyword">const</span>&amp; v)</span></span>;
 
     <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">set_output_data</span><span class="hljs-params">(eosio::rope v)</span></span>;
 }
 </code></pre>
 <h3 id="function-eosiogetinputdata">Function <code>eosio::get_input_data</code></h3>
-<pre><code class="lang-cpp"><span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;<span class="hljs-keyword">char</span>&gt; get_input_data();
+<pre><code class="lang-cpp"><span class="hljs-function"><span class="hljs-keyword">int</span> <span class="hljs-title">get_input_data</span><span class="hljs-params">()</span></span>;
 </code></pre>
 <p>Get data provided to the wasm</p>
 <hr>
@@ -482,12 +480,7 @@
 <p>Set the wasm&#x2019;s output data</p>
 <hr>
 <h3 id="function-eosiosetoutputdata">Function <code>eosio::set_output_data</code></h3>
-<pre><code class="lang-cpp"><span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">set_output_data</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::<span class="hljs-built_in">vector</span>&lt;<span class="hljs-keyword">char</span>&gt; <span class="hljs-keyword">const</span>&amp; v)</span></span>;
-</code></pre>
-<p>Set the wasm&#x2019;s output data</p>
-<hr>
-<h3 id="function-eosiosetoutputdata">Function <code>eosio::set_output_data</code></h3>
-<pre><code class="lang-cpp"><span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">set_output_data</span><span class="hljs-params">(<span class="hljs-built_in">std</span>::string_view <span class="hljs-keyword">const</span>&amp; v)</span></span>;
+<pre><code class="lang-cpp"><span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">set_output_data</span><span class="hljs-params">(<span class="hljs-keyword">int</span> <span class="hljs-keyword">const</span>&amp; v)</span></span>;
 </code></pre>
 <p>Set the wasm&#x2019;s output data</p>
 <hr>
@@ -539,7 +532,7 @@
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"input_output.hpp","level":"1.6.3","depth":2,"next":{"title":"parse_json.hpp","level":"1.6.4","depth":2,"path":"generated/doc_parse_json.md","ref":"generated/doc_parse_json.md","articles":[]},"previous":{"title":"database.hpp","level":"1.6.2","depth":2,"path":"generated/doc_database.md","ref":"generated/doc_database.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_input_output.md","mtime":"2019-03-20T20:37:06.426Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-03-20T20:37:07.311Z"},"basePath":"..","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"input_output.hpp","level":"1.6.3","depth":2,"next":{"title":"parse_json.hpp","level":"1.6.4","depth":2,"path":"generated/doc_parse_json.md","ref":"generated/doc_parse_json.md","articles":[]},"previous":{"title":"database.hpp","level":"1.6.2","depth":2,"path":"generated/doc_database.md","ref":"generated/doc_database.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"generated/doc_input_output.md","mtime":"2019-07-10T18:51:08.959Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-07-10T18:51:43.443Z"},"basePath":"..","book":{"language":""}});
         });
     </script>
 </div>

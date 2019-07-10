@@ -26,3 +26,16 @@ Client WASMs provide these functions to js clients:
 * `decode_query_response()`: Convert a binary response from the server WASM to JSON
 * `describe_query_request()`: Describes the JSON request format to clients using JSON Schema
 * `describe_query_response()`: Describes the JSON response format to clients using JSON Schema
+
+These legacy API functions are available to clients:
+* `chain/get_abi`: Retrieves the ABI of an account, if any.
+* `chain/get_account`: Retrieves account information, including code and abi but not including
+  quotas, weights, or permissions.
+* `chain/get_block`: Retrieves block information. Does not include producer signature or transactions.
+* `chain/get_code`: Retrieves the WASM of an account, if any.
+* `chain/get_currency_balance`: Retrieves currency balance in the specified token for the given account
+  accounted for with the given token account.
+* `chain/get_producer_schedule`: Retrieves up to 21 producers sorted by most votes.
+* `chain/get_table_rows`: Retrieves rows from arbitrary tables created by contracts.
+* `history/get_transaction`: Retrieves a transaction by transaction id.
+* `history/get_actions`: Retrieves transaction actions affecting the given receipt receiver.

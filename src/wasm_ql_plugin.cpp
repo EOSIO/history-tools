@@ -381,7 +381,10 @@ void wasm_ql_plugin::set_program_options(options_description& cli, options_descr
 void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
     try {
         JS_Init();
-        auto ip_port            = options.at("wql-listen").as<std::string>();
+        auto ip_port = options.at("wql-listen").as<std::string>();
+        if (ip_port.find(':') == std::string::npos)
+            throw std::runtime_error("invalid --wql-listen value: " + ip_port);
+
         my->state               = std::make_unique<::state>();
         my->state->console      = options.count("wql-console");
         my->endpoint_port       = ip_port.substr(ip_port.find(':') + 1, ip_port.size());

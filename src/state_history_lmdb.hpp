@@ -479,10 +479,9 @@ struct received_block {
     abieos::checksum256 block_id  = {};
 };
 
-template <typename F>
-constexpr void for_each_field(received_block*, F f) {
-    f("block_num", abieos::member_ptr<&received_block::block_num>{});
-    f("block_id", abieos::member_ptr<&received_block::block_id>{});
+ABIEOS_REFLECT(received_block) {
+    ABIEOS_MEMBER(received_block, block_num)
+    ABIEOS_MEMBER(received_block, block_id)
 }
 
 inline std::vector<char> make_received_block_key(uint32_t block) {

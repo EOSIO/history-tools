@@ -10,10 +10,9 @@ struct extension {
     abieos::input_buffer data = {};
 };
 
-template <typename F>
-constexpr void for_each_field(extension*, F f) {
-    f("type", abieos::member_ptr<&extension::type>{});
-    f("data", abieos::member_ptr<&extension::data>{});
+ABIEOS_REFLECT(extension) {
+    ABIEOS_MEMBER(extension, type)
+    ABIEOS_MEMBER(extension, data)
 }
 
 struct fill_status {
@@ -24,13 +23,12 @@ struct fill_status {
     uint32_t            first           = {};
 };
 
-template <typename F>
-constexpr void for_each_field(fill_status*, F f) {
-    f("head", abieos::member_ptr<&fill_status::head>{});
-    f("head_id", abieos::member_ptr<&fill_status::head_id>{});
-    f("irreversible", abieos::member_ptr<&fill_status::irreversible>{});
-    f("irreversible_id", abieos::member_ptr<&fill_status::irreversible_id>{});
-    f("first", abieos::member_ptr<&fill_status::first>{});
+ABIEOS_REFLECT(fill_status) {
+    ABIEOS_MEMBER(fill_status, head)
+    ABIEOS_MEMBER(fill_status, head_id)
+    ABIEOS_MEMBER(fill_status, irreversible)
+    ABIEOS_MEMBER(fill_status, irreversible_id)
+    ABIEOS_MEMBER(fill_status, first)
 }
 
 inline bool operator==(const fill_status& a, fill_status& b) {
@@ -73,10 +71,9 @@ struct block_position {
     abieos::checksum256 block_id  = {};
 };
 
-template <typename F>
-constexpr void for_each_field(block_position*, F f) {
-    f("block_num", abieos::member_ptr<&block_position::block_num>{});
-    f("block_id", abieos::member_ptr<&block_position::block_id>{});
+ABIEOS_REFLECT(block_position) {
+    ABIEOS_MEMBER(block_position, block_num)
+    ABIEOS_MEMBER(block_position, block_id)
 }
 
 struct get_blocks_result_v0 {
@@ -89,15 +86,14 @@ struct get_blocks_result_v0 {
     std::optional<abieos::input_buffer> deltas            = {};
 };
 
-template <typename F>
-constexpr void for_each_field(get_blocks_result_v0*, F f) {
-    f("head", abieos::member_ptr<&get_blocks_result_v0::head>{});
-    f("last_irreversible", abieos::member_ptr<&get_blocks_result_v0::last_irreversible>{});
-    f("this_block", abieos::member_ptr<&get_blocks_result_v0::this_block>{});
-    f("prev_block", abieos::member_ptr<&get_blocks_result_v0::prev_block>{});
-    f("block", abieos::member_ptr<&get_blocks_result_v0::block>{});
-    f("traces", abieos::member_ptr<&get_blocks_result_v0::traces>{});
-    f("deltas", abieos::member_ptr<&get_blocks_result_v0::deltas>{});
+ABIEOS_REFLECT(get_blocks_result_v0) {
+    ABIEOS_MEMBER(get_blocks_result_v0, head)
+    ABIEOS_MEMBER(get_blocks_result_v0, last_irreversible)
+    ABIEOS_MEMBER(get_blocks_result_v0, this_block)
+    ABIEOS_MEMBER(get_blocks_result_v0, prev_block)
+    ABIEOS_MEMBER(get_blocks_result_v0, block)
+    ABIEOS_MEMBER(get_blocks_result_v0, traces)
+    ABIEOS_MEMBER(get_blocks_result_v0, deltas)
 }
 
 struct row {
@@ -105,10 +101,9 @@ struct row {
     abieos::input_buffer data    = {};
 };
 
-template <typename F>
-constexpr void for_each_field(row*, F f) {
-    f("present", abieos::member_ptr<&row::present>{});
-    f("data", abieos::member_ptr<&row::data>{});
+ABIEOS_REFLECT(row) {
+    ABIEOS_MEMBER(row, present)
+    ABIEOS_MEMBER(row, data)
 }
 
 struct table_delta_v0 {
@@ -116,10 +111,9 @@ struct table_delta_v0 {
     std::vector<row> rows = {};
 };
 
-template <typename F>
-constexpr void for_each_field(table_delta_v0*, F f) {
-    f("name", abieos::member_ptr<&table_delta_v0::name>{});
-    f("rows", abieos::member_ptr<&table_delta_v0::rows>{});
+ABIEOS_REFLECT(table_delta_v0) {
+    ABIEOS_MEMBER(table_delta_v0, name)
+    ABIEOS_MEMBER(table_delta_v0, rows)
 }
 
 struct permission_level {
@@ -127,10 +121,9 @@ struct permission_level {
     abieos::name permission = {};
 };
 
-template <typename F>
-constexpr void for_each_field(permission_level*, F f) {
-    f("actor", abieos::member_ptr<&permission_level::actor>{});
-    f("permission", abieos::member_ptr<&permission_level::permission>{});
+ABIEOS_REFLECT(permission_level) {
+    ABIEOS_MEMBER(permission_level, actor)
+    ABIEOS_MEMBER(permission_level, permission)
 }
 
 struct account_auth_sequence {
@@ -138,10 +131,9 @@ struct account_auth_sequence {
     uint64_t     sequence = {};
 };
 
-template <typename F>
-constexpr void for_each_field(account_auth_sequence*, F f) {
-    f("account", abieos::member_ptr<&account_auth_sequence::account>{});
-    f("sequence", abieos::member_ptr<&account_auth_sequence::sequence>{});
+ABIEOS_REFLECT(account_auth_sequence) {
+    ABIEOS_MEMBER(account_auth_sequence, account)
+    ABIEOS_MEMBER(account_auth_sequence, sequence)
 }
 
 struct account_delta {
@@ -149,10 +141,9 @@ struct account_delta {
     int64_t      delta   = {};
 };
 
-template <typename F>
-constexpr void for_each_field(account_delta*, F f) {
-    f("account", abieos::member_ptr<&account_delta::account>{});
-    f("delta", abieos::member_ptr<&account_delta::delta>{});
+ABIEOS_REFLECT(account_delta) {
+    ABIEOS_MEMBER(account_delta, account)
+    ABIEOS_MEMBER(account_delta, delta)
 }
 
 struct action_receipt_v0 {
@@ -165,15 +156,14 @@ struct action_receipt_v0 {
     abieos::varuint32                  abi_sequence    = {};
 };
 
-template <typename F>
-constexpr void for_each_field(action_receipt_v0*, F f) {
-    f("receiver", abieos::member_ptr<&action_receipt_v0::receiver>{});
-    f("act_digest", abieos::member_ptr<&action_receipt_v0::act_digest>{});
-    f("global_sequence", abieos::member_ptr<&action_receipt_v0::global_sequence>{});
-    f("recv_sequence", abieos::member_ptr<&action_receipt_v0::recv_sequence>{});
-    f("auth_sequence", abieos::member_ptr<&action_receipt_v0::auth_sequence>{});
-    f("code_sequence", abieos::member_ptr<&action_receipt_v0::code_sequence>{});
-    f("abi_sequence", abieos::member_ptr<&action_receipt_v0::abi_sequence>{});
+ABIEOS_REFLECT(action_receipt_v0) {
+    ABIEOS_MEMBER(action_receipt_v0, receiver)
+    ABIEOS_MEMBER(action_receipt_v0, act_digest)
+    ABIEOS_MEMBER(action_receipt_v0, global_sequence)
+    ABIEOS_MEMBER(action_receipt_v0, recv_sequence)
+    ABIEOS_MEMBER(action_receipt_v0, auth_sequence)
+    ABIEOS_MEMBER(action_receipt_v0, code_sequence)
+    ABIEOS_MEMBER(action_receipt_v0, abi_sequence)
 }
 
 using action_receipt = std::variant<action_receipt_v0>;
@@ -185,12 +175,11 @@ struct action {
     abieos::input_buffer          data          = {};
 };
 
-template <typename F>
-constexpr void for_each_field(action*, F f) {
-    f("account", abieos::member_ptr<&action::account>{});
-    f("name", abieos::member_ptr<&action::name>{});
-    f("authorization", abieos::member_ptr<&action::authorization>{});
-    f("data", abieos::member_ptr<&action::data>{});
+ABIEOS_REFLECT(action) {
+    ABIEOS_MEMBER(action, account)
+    ABIEOS_MEMBER(action, name)
+    ABIEOS_MEMBER(action, authorization)
+    ABIEOS_MEMBER(action, data)
 }
 
 struct action_trace_v0 {
@@ -207,19 +196,18 @@ struct action_trace_v0 {
     std::optional<uint64_t>       error_code             = {};
 };
 
-template <typename F>
-constexpr void for_each_field(action_trace_v0*, F f) {
-    f("action_ordinal", abieos::member_ptr<&action_trace_v0::action_ordinal>{});
-    f("creator_action_ordinal", abieos::member_ptr<&action_trace_v0::creator_action_ordinal>{});
-    f("receipt", abieos::member_ptr<&action_trace_v0::receipt>{});
-    f("receiver", abieos::member_ptr<&action_trace_v0::receiver>{});
-    f("act", abieos::member_ptr<&action_trace_v0::act>{});
-    f("context_free", abieos::member_ptr<&action_trace_v0::context_free>{});
-    f("elapsed", abieos::member_ptr<&action_trace_v0::elapsed>{});
-    f("console", abieos::member_ptr<&action_trace_v0::console>{});
-    f("account_ram_deltas", abieos::member_ptr<&action_trace_v0::account_ram_deltas>{});
-    f("except", abieos::member_ptr<&action_trace_v0::except>{});
-    f("error_code", abieos::member_ptr<&action_trace_v0::error_code>{});
+ABIEOS_REFLECT(action_trace_v0) {
+    ABIEOS_MEMBER(action_trace_v0, action_ordinal)
+    ABIEOS_MEMBER(action_trace_v0, creator_action_ordinal)
+    ABIEOS_MEMBER(action_trace_v0, receipt)
+    ABIEOS_MEMBER(action_trace_v0, receiver)
+    ABIEOS_MEMBER(action_trace_v0, act)
+    ABIEOS_MEMBER(action_trace_v0, context_free)
+    ABIEOS_MEMBER(action_trace_v0, elapsed)
+    ABIEOS_MEMBER(action_trace_v0, console)
+    ABIEOS_MEMBER(action_trace_v0, account_ram_deltas)
+    ABIEOS_MEMBER(action_trace_v0, except)
+    ABIEOS_MEMBER(action_trace_v0, error_code)
 }
 
 using action_trace = std::variant<action_trace_v0>;
@@ -236,17 +224,16 @@ struct partial_transaction_v0 {
     std::vector<abieos::input_buffer> context_free_data      = {};
 };
 
-template <typename F>
-constexpr void for_each_field(partial_transaction_v0*, F f) {
-    f("expiration", abieos::member_ptr<&partial_transaction_v0::expiration>{});
-    f("ref_block_num", abieos::member_ptr<&partial_transaction_v0::ref_block_num>{});
-    f("ref_block_prefix", abieos::member_ptr<&partial_transaction_v0::ref_block_prefix>{});
-    f("max_net_usage_words", abieos::member_ptr<&partial_transaction_v0::max_net_usage_words>{});
-    f("max_cpu_usage_ms", abieos::member_ptr<&partial_transaction_v0::max_cpu_usage_ms>{});
-    f("delay_sec", abieos::member_ptr<&partial_transaction_v0::delay_sec>{});
-    f("transaction_extensions", abieos::member_ptr<&partial_transaction_v0::transaction_extensions>{});
-    f("signatures", abieos::member_ptr<&partial_transaction_v0::signatures>{});
-    f("context_free_data", abieos::member_ptr<&partial_transaction_v0::context_free_data>{});
+ABIEOS_REFLECT(partial_transaction_v0) {
+    ABIEOS_MEMBER(partial_transaction_v0, expiration)
+    ABIEOS_MEMBER(partial_transaction_v0, ref_block_num)
+    ABIEOS_MEMBER(partial_transaction_v0, ref_block_prefix)
+    ABIEOS_MEMBER(partial_transaction_v0, max_net_usage_words)
+    ABIEOS_MEMBER(partial_transaction_v0, max_cpu_usage_ms)
+    ABIEOS_MEMBER(partial_transaction_v0, delay_sec)
+    ABIEOS_MEMBER(partial_transaction_v0, transaction_extensions)
+    ABIEOS_MEMBER(partial_transaction_v0, signatures)
+    ABIEOS_MEMBER(partial_transaction_v0, context_free_data)
 }
 
 using partial_transaction = std::variant<partial_transaction_v0>;
@@ -269,21 +256,20 @@ struct transaction_trace_v0 {
     std::optional<partial_transaction>     partial           = {};
 };
 
-template <typename F>
-constexpr void for_each_field(transaction_trace_v0*, F f) {
-    f("id", abieos::member_ptr<&transaction_trace_v0::id>{});
-    f("status", abieos::member_ptr<&transaction_trace_v0::status>{});
-    f("cpu_usage_us", abieos::member_ptr<&transaction_trace_v0::cpu_usage_us>{});
-    f("net_usage_words", abieos::member_ptr<&transaction_trace_v0::net_usage_words>{});
-    f("elapsed", abieos::member_ptr<&transaction_trace_v0::elapsed>{});
-    f("net_usage", abieos::member_ptr<&transaction_trace_v0::net_usage>{});
-    f("scheduled", abieos::member_ptr<&transaction_trace_v0::scheduled>{});
-    f("action_traces", abieos::member_ptr<&transaction_trace_v0::action_traces>{});
-    f("account_ram_delta", abieos::member_ptr<&transaction_trace_v0::account_ram_delta>{});
-    f("except", abieos::member_ptr<&transaction_trace_v0::except>{});
-    f("error_code", abieos::member_ptr<&transaction_trace_v0::error_code>{});
-    f("failed_dtrx_trace", abieos::member_ptr<&transaction_trace_v0::failed_dtrx_trace>{});
-    f("partial", abieos::member_ptr<&transaction_trace_v0::partial>{});
+ABIEOS_REFLECT(transaction_trace_v0) {
+    ABIEOS_MEMBER(transaction_trace_v0, id)
+    ABIEOS_MEMBER(transaction_trace_v0, status)
+    ABIEOS_MEMBER(transaction_trace_v0, cpu_usage_us)
+    ABIEOS_MEMBER(transaction_trace_v0, net_usage_words)
+    ABIEOS_MEMBER(transaction_trace_v0, elapsed)
+    ABIEOS_MEMBER(transaction_trace_v0, net_usage)
+    ABIEOS_MEMBER(transaction_trace_v0, scheduled)
+    ABIEOS_MEMBER(transaction_trace_v0, action_traces)
+    ABIEOS_MEMBER(transaction_trace_v0, account_ram_delta)
+    ABIEOS_MEMBER(transaction_trace_v0, except)
+    ABIEOS_MEMBER(transaction_trace_v0, error_code)
+    ABIEOS_MEMBER(transaction_trace_v0, failed_dtrx_trace)
+    ABIEOS_MEMBER(transaction_trace_v0, partial)
 }
 
 using transaction_trace = std::variant<transaction_trace_v0>;
@@ -305,10 +291,9 @@ struct producer_key {
     abieos::public_key block_signing_key = {};
 };
 
-template <typename F>
-constexpr void for_each_field(producer_key*, F f) {
-    f("producer_name", abieos::member_ptr<&producer_key::producer_name>{});
-    f("block_signing_key", abieos::member_ptr<&producer_key::block_signing_key>{});
+ABIEOS_REFLECT(producer_key) {
+    ABIEOS_MEMBER(producer_key, producer_name)
+    ABIEOS_MEMBER(producer_key, block_signing_key)
 }
 
 struct producer_schedule {
@@ -316,10 +301,9 @@ struct producer_schedule {
     std::vector<producer_key> producers = {};
 };
 
-template <typename F>
-constexpr void for_each_field(producer_schedule*, F f) {
-    f("version", abieos::member_ptr<&producer_schedule::version>{});
-    f("producers", abieos::member_ptr<&producer_schedule::producers>{});
+ABIEOS_REFLECT(producer_schedule) {
+    ABIEOS_MEMBER(producer_schedule, version)
+    ABIEOS_MEMBER(producer_schedule, producers)
 }
 
 struct transaction_receipt_header {
@@ -328,11 +312,10 @@ struct transaction_receipt_header {
     abieos::varuint32  net_usage_words = {};
 };
 
-template <typename F>
-constexpr void for_each_field(transaction_receipt_header*, F f) {
-    f("status", abieos::member_ptr<&transaction_receipt_header::status>{});
-    f("cpu_usage_us", abieos::member_ptr<&transaction_receipt_header::cpu_usage_us>{});
-    f("net_usage_words", abieos::member_ptr<&transaction_receipt_header::net_usage_words>{});
+ABIEOS_REFLECT(transaction_receipt_header) {
+    ABIEOS_MEMBER(transaction_receipt_header, status)
+    ABIEOS_MEMBER(transaction_receipt_header, cpu_usage_us)
+    ABIEOS_MEMBER(transaction_receipt_header, net_usage_words)
 }
 
 struct packed_transaction {
@@ -342,12 +325,11 @@ struct packed_transaction {
     abieos::input_buffer           packed_trx               = {};
 };
 
-template <typename F>
-constexpr void for_each_field(packed_transaction*, F f) {
-    f("signatures", abieos::member_ptr<&packed_transaction::signatures>{});
-    f("compression", abieos::member_ptr<&packed_transaction::compression>{});
-    f("packed_context_free_data", abieos::member_ptr<&packed_transaction::packed_context_free_data>{});
-    f("packed_trx", abieos::member_ptr<&packed_transaction::packed_trx>{});
+ABIEOS_REFLECT(packed_transaction) {
+    ABIEOS_MEMBER(packed_transaction, signatures)
+    ABIEOS_MEMBER(packed_transaction, compression)
+    ABIEOS_MEMBER(packed_transaction, packed_context_free_data)
+    ABIEOS_MEMBER(packed_transaction, packed_trx)
 }
 
 using transaction_variant = std::variant<abieos::checksum256, packed_transaction>;
@@ -356,10 +338,9 @@ struct transaction_receipt : transaction_receipt_header {
     transaction_variant trx = {};
 };
 
-template <typename F>
-constexpr void for_each_field(transaction_receipt*, F f) {
-    for_each_field((transaction_receipt_header*)nullptr, f);
-    f("trx", abieos::member_ptr<&transaction_receipt::trx>{});
+ABIEOS_REFLECT(transaction_receipt) {
+    ABIEOS_BASE(transaction_receipt_header)
+    ABIEOS_MEMBER(transaction_receipt, trx)
 }
 
 struct block_header {
@@ -374,27 +355,25 @@ struct block_header {
     std::vector<extension>           header_extensions = {};
 };
 
-template <typename F>
-constexpr void for_each_field(block_header*, F f) {
-    f("timestamp", abieos::member_ptr<&block_header::timestamp>{});
-    f("producer", abieos::member_ptr<&block_header::producer>{});
-    f("confirmed", abieos::member_ptr<&block_header::confirmed>{});
-    f("previous", abieos::member_ptr<&block_header::previous>{});
-    f("transaction_mroot", abieos::member_ptr<&block_header::transaction_mroot>{});
-    f("action_mroot", abieos::member_ptr<&block_header::action_mroot>{});
-    f("schedule_version", abieos::member_ptr<&block_header::schedule_version>{});
-    f("new_producers", abieos::member_ptr<&block_header::new_producers>{});
-    f("header_extensions", abieos::member_ptr<&block_header::header_extensions>{});
+ABIEOS_REFLECT(block_header) {
+    ABIEOS_MEMBER(block_header, timestamp)
+    ABIEOS_MEMBER(block_header, producer)
+    ABIEOS_MEMBER(block_header, confirmed)
+    ABIEOS_MEMBER(block_header, previous)
+    ABIEOS_MEMBER(block_header, transaction_mroot)
+    ABIEOS_MEMBER(block_header, action_mroot)
+    ABIEOS_MEMBER(block_header, schedule_version)
+    ABIEOS_MEMBER(block_header, new_producers)
+    ABIEOS_MEMBER(block_header, header_extensions)
 }
 
 struct signed_block_header : block_header {
     abieos::signature producer_signature = {};
 };
 
-template <typename F>
-constexpr void for_each_field(signed_block_header*, F f) {
-    for_each_field((block_header*)nullptr, f);
-    f("producer_signature", abieos::member_ptr<&signed_block_header::producer_signature>{});
+ABIEOS_REFLECT(signed_block_header) {
+    ABIEOS_BASE(block_header)
+    ABIEOS_MEMBER(signed_block_header, producer_signature)
 }
 
 struct signed_block : signed_block_header {
@@ -402,11 +381,10 @@ struct signed_block : signed_block_header {
     std::vector<extension>           block_extensions = {};
 };
 
-template <typename F>
-constexpr void for_each_field(signed_block*, F f) {
-    for_each_field((signed_block_header*)nullptr, f);
-    f("transactions", abieos::member_ptr<&signed_block::transactions>{});
-    f("block_extensions", abieos::member_ptr<&signed_block::block_extensions>{});
+ABIEOS_REFLECT(signed_block) {
+    ABIEOS_BASE(signed_block_header)
+    ABIEOS_MEMBER(signed_block, transactions)
+    ABIEOS_MEMBER(signed_block, block_extensions)
 }
 
 } // namespace state_history

@@ -916,6 +916,8 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         } catch (...) {
             elog("exception while closing");
         }
+        elog("plugin failed, closing app");
+        app().quit();
     }
 
     void close() {

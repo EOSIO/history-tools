@@ -43,7 +43,7 @@ void lmdb_plugin::plugin_startup() {
     try {
         ilog("using query config ${qc}", ("qc", my->config_path.c_str()));
         abieos::json_to_native(my->lmdb_inst->query_config, read_string(my->config_path.c_str()));
-        my->lmdb_inst->query_config.prepare(state_history::lmdb::abi_type_to_lmdb_type);
+        my->lmdb_inst->query_config.prepare(state_history::kv::abi_type_to_kv_type);
     } catch (const std::exception& e) {
         throw std::runtime_error("error processing "s + my->config_path.c_str() + ": " + e.what());
     }

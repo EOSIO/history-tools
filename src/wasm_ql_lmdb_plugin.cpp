@@ -6,6 +6,7 @@
 #include <fc/exception/exception.hpp>
 
 using namespace appbase;
+namespace kv   = state_history::kv;
 namespace lmdb = state_history::lmdb;
 
 static abstract_plugin& _wasm_ql_lmdb_plugin = app().register_plugin<wasm_ql_lmdb_plugin>();
@@ -27,7 +28,7 @@ struct lmdb_query_session : query_session {
         : db_iface(db_iface)
         , tx{db_iface->lmdb_inst->lmdb_env, false} {
 
-        auto f = lmdb::get<state_history::fill_status>(tx, db_iface->lmdb_inst->db, lmdb::make_fill_status_key(), false);
+        auto f = lmdb::get<state_history::fill_status>(tx, db_iface->lmdb_inst->db, kv::make_fill_status_key(), false);
         if (f)
             fill_status = *f;
     }
@@ -37,13 +38,13 @@ struct lmdb_query_session : query_session {
     virtual state_history::fill_status get_fill_status() override { return fill_status; }
 
     virtual std::optional<abieos::checksum256> get_block_id(uint32_t block_num) override {
-        auto rb = lmdb::get<lmdb::received_block>(tx, db_iface->lmdb_inst->db, lmdb::make_received_block_key(block_num), false);
+        auto rb = lmdb::get<kv::received_block>(tx, db_iface->lmdb_inst->db, kv::make_received_block_key(block_num), false);
         if (rb)
             return rb->block_id;
         return {};
     }
 
-    void append_fields(std::vector<char>& dest, abieos::input_buffer src, const std::vector<lmdb::key>& keys, bool xform_key) {
+    void append_fields(std::vector<char>& dest, abieos::input_buffer src, const std::vector<kv::key>& keys, bool xform_key) {
         for (auto& key : keys) {
             if (!key.field->byte_position)
                 throw std::runtime_error("key " + key.name + " has unknown position");
@@ -73,7 +74,7 @@ struct lmdb_query_session : query_session {
         if (query.limit_block_num)
             max_block_num = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
 
-        auto first = lmdb::make_table_index_key(query.table_obj->short_name, query_name);
+        auto first = kv::make_table_index_key(query.table_obj->short_name, query_name);
         auto last  = first;
 
         auto add_fields = [&](auto& dest, auto& types) {
@@ -90,17 +91,17 @@ struct lmdb_query_session : query_session {
         for_each_subkey(tx, db_iface->lmdb_inst->db, first, last, [&](const auto& index_key, auto, auto) {
             std::vector index_key_limit_block = index_key;
             if (query.is_state)
-                lmdb::append_table_index_state_suffix(index_key_limit_block, max_block_num);
+                kv::append_table_index_state_suffix(index_key_limit_block, max_block_num);
             // todo: unify lmdb's and pg's handling of negative result because of max_block_num
             for_each(tx, db_iface->lmdb_inst->db, index_key_limit_block, index_key, [&](auto, auto delta_key) {
                 auto delta_value = lmdb::get_raw(tx, db_iface->lmdb_inst->db, delta_key);
                 rows.emplace_back(delta_value.pos, delta_value.end);
                 if (query.join_table) {
-                    auto join_key = lmdb::make_table_index_key(query.join_table->short_name, query.join_query_wasm_name);
+                    auto join_key = kv::make_table_index_key(query.join_table->short_name, query.join_query_wasm_name);
                     append_fields(join_key, delta_value, query.join_key_values, true);
                     auto join_key_limit_block = join_key;
                     if (query.join_query->is_state)
-                        lmdb::append_table_index_state_suffix(join_key_limit_block, max_block_num);
+                        kv::append_table_index_state_suffix(join_key_limit_block, max_block_num);
 
                     auto& row        = rows.back();
                     bool  found_join = false;

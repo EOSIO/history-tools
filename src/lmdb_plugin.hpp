@@ -10,7 +10,7 @@ struct lmdb_inst {
     uint32_t                      db_size_gb;
     state_history::lmdb::env      lmdb_env;
     state_history::lmdb::database db;
-    state_history::lmdb::config   query_config{};
+    state_history::kv::config     query_config{};
 
     lmdb_inst(const boost::filesystem::path& db_path, uint32_t db_size_gb)
         : lmdb_env{db_path, db_size_gb}

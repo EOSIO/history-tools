@@ -77,22 +77,29 @@ endif()
 
 set(SKIP_FC_TESTS ON)
 
-execute_process(COMMAND git submodule status --recursive
-                COMMAND grep -c "^[+\-]"
-                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                OUTPUT_VARIABLE submodule_status
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
-if(submodule_status GREATER 0)
-   message(FATAL_ERROR "git submodules are not up to date.
-Please run the command 'git submodule update --init --recursive'.")
-endif()
+# execute_process(COMMAND git submodule status --recursive
+#                 COMMAND grep -c "^[+\-]"
+#                 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+#                 OUTPUT_VARIABLE submodule_status
+#                 OUTPUT_STRIP_TRAILING_WHITESPACE)
+# if(submodule_status GREATER 0)
+#    message(FATAL_ERROR "git submodules are not up to date.
+# Please run the command 'git submodule update --init --recursive'.")
+# endif()
 
 include(SetupTargetMacros)
 include(GNUInstallDirs)
 include(VersionMacros)
 
+set(WITH_TESTS OFF)
+
 add_subdirectory(external/appbase)
 add_subdirectory(external/fc)
+add_subdirectory(external/rocksdb)
+
+set(FOUND_ROCKSDB ON)
+set(ROCKSDB_LIB rocksdb)
+set(ROCKSDB_INCLUDE_DIR external/rocksdb/include)
 
 set(APPS "")
 function(add_app APP FLAGS LIBS)
@@ -108,6 +115,7 @@ function(add_app APP FLAGS LIBS)
             external/fc/include
             ${Boost_INCLUDE_DIR}
             ${JS_INCLUDE_DIRS}
+            ${ROCKSDB_INCLUDE_DIR}
     )
     target_link_libraries(${APP} appbase fc ${Boost_LIBRARIES} ${LIBS} -lpthread)
     target_compile_options(${APP} PUBLIC -DAPP_NAME="${APP}" ${JS_CFLAGS_OTHER} ${FLAGS})
@@ -125,7 +133,7 @@ function(add_app APP FLAGS LIBS)
     endif()
 endfunction(add_app)
 
-add_app(history-tools "-DDEFAULT_PLUGINS=" "${PQXX_LIBRARIES};${JS_LIBRARIES};${LMDB_LIB}")
+add_app(history-tools "-DDEFAULT_PLUGINS=" "${PQXX_LIBRARIES};${JS_LIBRARIES};${LMDB_LIB};${ROCKSDB_LIB}")
 
 message(STATUS "----------------------------------------------------")
 message(STATUS "Checked libraries:")
@@ -177,6 +185,21 @@ if (FOUND_LMDB)
     endif ()
 endif()
 
+if (FOUND_ROCKSDB)
+    message(STATUS "    fill_rocksdb_plugin")
+    add_app(fill-rocksdb "-DDEFAULT_PLUGINS=fill_rocksdb_plugin;-DINCLUDE_FILL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB}")
+    target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp)
+    target_sources(fill-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp)
+    # if (JS_FOUND)
+    #     message(STATUS "    wasm_ql_rocksdb_plugin")
+    #     add_app(wasm-ql-rocksdb "-DDEFAULT_PLUGINS=wasm_ql_rocksdb_plugin;-DINCLUDE_WASM_QL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB};${JS_LIBRARIES}")
+    #     add_app(combo-rocksdb "-DDEFAULT_PLUGINS=fill_rocksdb_plugin,wasm_ql_rocksdb_plugin;-DINCLUDE_FILL_ROCKSDB_PLUGIN;-DINCLUDE_WASM_QL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB};${JS_LIBRARIES}")
+    #     target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp)
+    #     target_sources(wasm-ql-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
+    #     target_sources(combo-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
+    # endif ()
+endif()
+
 if (JS_FOUND)
     message(STATUS "    wasm_ql_plugin")
     target_sources(history-tools PRIVATE src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
@@ -189,7 +212,7 @@ endforeach()
 
 message(STATUS "----------------------------------------------------")
 
-if (NOT PostgreSQL_INCLUDE_DIR AND NOT FOUND_LMDB)
+if (NOT PostgreSQL_INCLUDE_DIR AND NOT FOUND_LMDB AND NOT FOUND_ROCKSDB)
     message(WARNING "No database libraries found. Only building WASM files.")
 endif()
 

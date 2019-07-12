@@ -41,6 +41,7 @@ apt update && apt install -y \
     nodejs              \
     npm                 \
     pkg-config          \
+    postgresql-server-dev-all \
     python2.7-dev       \
     python3-dev         \
     rustc               \

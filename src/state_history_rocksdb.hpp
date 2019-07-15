@@ -20,12 +20,29 @@ inline void check(rocksdb::Status s, const char* prefix) {
 }
 
 struct database {
-    std::unique_ptr<rocksdb::DB> db;
+    std::shared_ptr<rocksdb::Statistics> stats;
+    std::unique_ptr<rocksdb::DB>         db;
 
     database(const boost::filesystem::path& db_path) {
         rocksdb::DB*     p;
         rocksdb::Options options;
+        // stats = options.statistics = rocksdb::CreateDBStatistics();
+        // stats->set_stats_level(rocksdb::kExceptTimeForMutex);
         options.create_if_missing = true;
+
+        options.level_compaction_dynamic_level_bytes = true;
+        options.max_background_compactions           = 4;
+        options.max_background_flushes               = 2;
+        options.bytes_per_sync                       = 1048576;
+        options.compaction_pri                       = rocksdb::kMinOverlappingRatio;
+
+        options.OptimizeLevelStyleCompaction(20ull << 30);
+        for (auto& x : options.compression_per_level) // todo: fix snappy build
+            x = rocksdb::kNoCompression;
+
+        options.memtable_factory                = std::make_shared<rocksdb::VectorRepFactory>();
+        options.allow_concurrent_memtable_write = false;
+
         check(rocksdb::DB::Open(options, db_path.c_str(), &p), "rocksdb::DB::Open: ");
         db.reset(p);
     }

@@ -85,7 +85,6 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     uint32_t                                  irreversible       = 0;
     abieos::checksum256                       irreversible_id    = {};
     uint32_t                                  first              = 0;
-    uint32_t                                  first_bulk         = 0;
     abi_def                                   abi                = {};
     std::map<std::string, abi_type>           abi_types          = {};
 
@@ -101,6 +100,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
     }
 
     void check() {
+        rocksdb_inst->database.flush(true, true);
         ilog("checking database");
         load_fill_status();
         if (!current_db_status) {
@@ -453,8 +453,8 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                 // !!! todo: fill status is out of sync because of early batch writes
             }
 
-            bool commit_now =
-                !(result.this_block->block_num % 200) || result.this_block->block_num + 4 >= result.last_irreversible.block_num;
+            bool near       = result.this_block->block_num + 4 >= result.last_irreversible.block_num;
+            bool commit_now = !(result.this_block->block_num % 200) || near;
             if (commit_now)
                 ilog("block ${b}", ("b", result.this_block->block_num));
 
@@ -487,6 +487,8 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                 write(rocksdb_inst->database, *active_batch);
                 active_batch.reset();
             }
+            if (near)
+                rocksdb_inst->database.flush(false, false);
         } catch (...) {
             active_batch.reset();
             throw;
@@ -803,6 +805,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         if (first >= end_trim)
             return;
         ilog("trim: ${b} - ${e}", ("b", first)("e", end_trim));
+        rocksdb_inst->database.flush(true, true);
 
         uint64_t num_rows_removed   = 0;
         uint64_t num_deltas_removed = 0;

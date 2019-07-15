@@ -28,6 +28,7 @@ struct database {
         rocksdb::Options options;
         // stats = options.statistics = rocksdb::CreateDBStatistics();
         // stats->set_stats_level(rocksdb::kExceptTimeForMutex);
+        // options.stats_dump_period_sec = 2;
         options.create_if_missing = true;
 
         options.level_compaction_dynamic_level_bytes = true;
@@ -36,7 +37,7 @@ struct database {
         options.bytes_per_sync                       = 1048576;
         options.compaction_pri                       = rocksdb::kMinOverlappingRatio;
 
-        options.OptimizeLevelStyleCompaction(20ull << 30);
+        options.OptimizeLevelStyleCompaction(1ull << 30);
         for (auto& x : options.compression_per_level) // todo: fix snappy build
             x = rocksdb::kNoCompression;
 
@@ -51,6 +52,13 @@ struct database {
     database(database&&)      = delete;
     database& operator=(const database&) = delete;
     database& operator=(database&&) = delete;
+
+    void flush(bool allow_write_stall, bool wait) {
+        rocksdb::FlushOptions op;
+        op.allow_write_stall = allow_write_stall;
+        op.wait              = wait;
+        db->Flush(op);
+    }
 };
 
 inline rocksdb::Slice to_slice(const std::vector<char>& v) { return {v.data(), v.size()}; }

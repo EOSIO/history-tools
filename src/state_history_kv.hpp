@@ -242,19 +242,23 @@ inline std::string key_to_string(abieos::input_buffer b) {
     auto        t0 = bin_to_key_tag(b);
     result += to_string(t0);
     if (t0 == key_tag::block) {
-        result += " " + to_string(bin_to_native_key<uint32_t>(b));
-        auto t1 = bin_to_key_tag(b);
-        result += " " + std::string{to_string(t1)};
-        if (t1 == key_tag::table_row) {
-            auto table_name = bin_to_native_key<abieos::name>(b);
-            result += " '" + (std::string)table_name + "' ";
-            abieos::hex(b.pos, b.end, std::back_inserter(result));
-        } else if (t1 == key_tag::table_delta) {
-            auto table_name = bin_to_native_key<abieos::name>(b);
-            result += " '" + (std::string)table_name + "' present: " + (bin_to_native_key<bool>(b) ? "true" : "false") + " ";
-            abieos::hex(b.pos, b.end, std::back_inserter(result));
-        } else {
-            result += " ...";
+        try {
+            result += " " + to_string(bin_to_native_key<uint32_t>(b));
+            auto t1 = bin_to_key_tag(b);
+            result += " " + std::string{to_string(t1)};
+            if (t1 == key_tag::table_row) {
+                auto table_name = bin_to_native_key<abieos::name>(b);
+                result += " '" + (std::string)table_name + "' ";
+                abieos::hex(b.pos, b.end, std::back_inserter(result));
+            } else if (t1 == key_tag::table_delta) {
+                auto table_name = bin_to_native_key<abieos::name>(b);
+                result += " '" + (std::string)table_name + "' present: " + (bin_to_native_key<bool>(b) ? "true" : "false") + " ";
+                abieos::hex(b.pos, b.end, std::back_inserter(result));
+            } else {
+                result += " ...";
+            }
+        } catch (...) {
+            return result + " (deserialize error)";
         }
     } else {
         result += " ...";

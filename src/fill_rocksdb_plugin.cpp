@@ -480,11 +480,12 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
                 kv::received_block{result.this_block->block_num, result.this_block->block_id});
 
             if (commit_now) {
+                write(rocksdb_inst->database, *active_batch);
                 if (config->enable_trim) {
                     trim(*active_batch);
                     write_fill_status(*active_batch);
+                    write(rocksdb_inst->database, *active_batch);
                 }
-                write(rocksdb_inst->database, *active_batch);
                 active_batch.reset();
             }
             if (near)

@@ -488,6 +488,20 @@
 <li><code>describe_query_request()</code>: Describes the JSON request format to clients using JSON Schema</li>
 <li><code>describe_query_response()</code>: Describes the JSON response format to clients using JSON Schema</li>
 </ul>
+<p>These legacy API functions are available to clients:</p>
+<ul>
+<li><code>chain/get_abi</code>: Retrieves the ABI of an account, if any.</li>
+<li><code>chain/get_account</code>: Retrieves account information, including code and abi but not including
+quotas, weights, or permissions.</li>
+<li><code>chain/get_block</code>: Retrieves block information. Does not include producer signature or transactions.</li>
+<li><code>chain/get_code</code>: Retrieves the WASM of an account, if any.</li>
+<li><code>chain/get_currency_balance</code>: Retrieves currency balance in the specified token for the given account
+accounted for with the given token account.</li>
+<li><code>chain/get_producer_schedule</code>: Retrieves up to 21 producers sorted by most votes.</li>
+<li><code>chain/get_table_rows</code>: Retrieves rows from arbitrary tables created by contracts.</li>
+<li><code>history/get_transaction</code>: Retrieves a transaction by transaction id.</li>
+<li><code>history/get_actions</code>: Retrieves transaction actions affecting the given receipt receiver.</li>
+</ul>
 
                                 
                                 </section>
@@ -531,7 +545,7 @@
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"wasm-ql","level":"1.3","depth":1,"next":{"title":"Running a Server","level":"1.3.1","depth":2,"path":"running-wasmql-server.md","ref":"running-wasmql-server.md","articles":[]},"previous":{"title":"nodeos State History","level":"1.2.1","depth":2,"path":"nodeos-state-history.md","ref":"nodeos-state-history.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"wasm-ql.md","mtime":"2019-07-10T18:17:17.000Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-07-10T18:51:43.443Z"},"basePath":".","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"wasm-ql","level":"1.3","depth":1,"next":{"title":"Running a Server","level":"1.3.1","depth":2,"path":"running-wasmql-server.md","ref":"running-wasmql-server.md","articles":[]},"previous":{"title":"nodeos State History","level":"1.2.1","depth":2,"path":"nodeos-state-history.md","ref":"nodeos-state-history.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"wasm-ql.md","mtime":"2019-07-16T22:21:38.000Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-07-16T22:22:16.910Z"},"basePath":".","book":{"language":""}});
         });
     </script>
 </div>

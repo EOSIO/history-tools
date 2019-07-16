@@ -37,7 +37,7 @@ struct database {
         options.bytes_per_sync                       = 1048576;
         options.compaction_pri                       = rocksdb::kMinOverlappingRatio;
 
-        options.OptimizeLevelStyleCompaction(1ull << 30);
+        options.OptimizeLevelStyleCompaction(256ull << 20);
         for (auto& x : options.compression_per_level) // todo: fix snappy build
             x = rocksdb::kNoCompression;
 

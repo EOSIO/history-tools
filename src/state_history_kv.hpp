@@ -89,7 +89,8 @@ struct type {
     void (*query_to_bin_key)(std::vector<char>&, abieos::input_buffer&) = nullptr;
     void (*lower_bound_key)(std::vector<char>&)                         = nullptr;
     void (*upper_bound_key)(std::vector<char>&)                         = nullptr;
-    uint32_t (*get_fixed_size)()                                        = nullptr;
+    bool (*skip_bin)(abieos::input_buffer&)                             = nullptr;
+    void (*fill_empty)(std::vector<char>&)                              = nullptr;
 };
 
 template <typename T>
@@ -153,19 +154,37 @@ void upper_bound_key(std::vector<char>& dest) {
 }
 
 template <typename T>
-uint32_t get_fixed_size() {
+bool skip_bin(abieos::input_buffer& bin) {
     if constexpr (
         std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
         std::is_same_v<std::decay_t<T>, abieos::checksum256> || std::is_same_v<std::decay_t<T>, abieos::time_point> ||
-        std::is_same_v<std::decay_t<T>, abieos::block_timestamp>)
-        return sizeof(T);
-    else
-        return 0;
+        std::is_same_v<std::decay_t<T>, abieos::block_timestamp>) {
+        if (size_t(bin.end - bin.pos) < sizeof(T))
+            throw std::runtime_error("skip past end");
+        bin.pos += sizeof(T);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+template <typename T>
+void fill_empty(std::vector<char>& dest) {
+    if constexpr (
+        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
+        std::is_same_v<std::decay_t<T>, abieos::checksum256> || std::is_same_v<std::decay_t<T>, abieos::time_point> ||
+        std::is_same_v<std::decay_t<T>, abieos::block_timestamp>) {
+        dest.insert(dest.end(), sizeof(T), 0);
+    } else if constexpr (std::is_same_v<std::decay_t<T>, abieos::bytes>) {
+        dest.push_back(0);
+    } else {
+        throw std::runtime_error("unsupported fill_empty type");
+    }
 }
 
 template <typename T>
 constexpr type make_type_for() {
-    return type{bin_to_bin<T>, bin_to_bin_key<T>, query_to_bin_key<T>, lower_bound_key<T>, upper_bound_key<T>, get_fixed_size<T>};
+    return type{bin_to_bin<T>, bin_to_bin_key<T>, query_to_bin_key<T>, lower_bound_key<T>, upper_bound_key<T>, skip_bin<T>, fill_empty<T>};
 }
 
 // clang-format off
@@ -434,15 +453,6 @@ struct defs {
                 if (it == table_names.end())
                     throw std::runtime_error("query_database: unknown table: " + tab.name);
                 tab.short_name = it->second;
-
-                uint32_t pos = 0;
-                for (auto& field : tab.fields) {
-                    field.byte_position = pos;
-                    auto size           = field.type_obj->get_fixed_size();
-                    if (!size)
-                        break;
-                    pos += size;
-                }
             }
         }
     };
@@ -453,6 +463,32 @@ using key    = defs::key;
 using table  = defs::table;
 using query  = defs::query;
 using config = defs::config;
+
+inline void fill_positions(abieos::input_buffer src, std::vector<field>& fields) {
+    for (auto& field : fields)
+        field.byte_position.reset();
+    auto begin   = src.pos;
+    bool present = true;
+    for (auto& field : fields) {
+        if (present)
+            field.byte_position = src.pos - begin;
+        if (field.begin_optional) {
+            present = abieos::bin_to_native<bool>(src);
+        } else {
+            if (present && !field.type_obj->skip_bin(src))
+                break;
+            if (field.end_optional)
+                present = true;
+        }
+    }
+}
+
+inline bool keys_have_positions(const std::vector<key>& keys) {
+    for (auto& key : keys)
+        if (!key.field->byte_position)
+            return false;
+    return true;
+}
 
 } // namespace kv
 } // namespace state_history

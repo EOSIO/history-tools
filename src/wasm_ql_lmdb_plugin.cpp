@@ -98,22 +98,25 @@ struct lmdb_query_session : query_session {
                 rows.emplace_back(delta_value.pos, delta_value.end);
                 if (query.join_table) {
                     auto join_key = kv::make_table_index_key(query.join_table->short_name, query.join_query_wasm_name);
-                    append_fields(join_key, delta_value, query.join_key_values, true);
-                    auto join_key_limit_block = join_key;
-                    if (query.join_query->is_state)
-                        kv::append_table_index_state_suffix(join_key_limit_block, max_block_num);
-
-                    auto& row        = rows.back();
-                    bool  found_join = false;
-                    for_each(tx, db_iface->lmdb_inst->db, join_key_limit_block, join_key, [&](auto, auto join_delta_key) {
-                        found_join            = true;
-                        auto join_delta_value = lmdb::get_raw(tx, db_iface->lmdb_inst->db, join_delta_key);
-                        append_fields(row, join_delta_value, query.fields_from_join, false);
-                        return false;
-                    });
-
+                    fill_positions(delta_value, query.table_obj->fields);
+                    bool found_join = false;
+                    if (keys_have_positions(query.join_key_values)) {
+                        append_fields(join_key, delta_value, query.join_key_values, true);
+                        auto join_key_limit_block = join_key;
+                        if (query.join_query->is_state)
+                            kv::append_table_index_state_suffix(join_key_limit_block, max_block_num);
+                        auto& row = rows.back();
+                        for_each(tx, db_iface->lmdb_inst->db, join_key_limit_block, join_key, [&](auto, auto join_delta_key) {
+                            found_join            = true;
+                            auto join_delta_value = lmdb::get_raw(tx, db_iface->lmdb_inst->db, join_delta_key);
+                            fill_positions(join_delta_value, query.join_table->fields);
+                            append_fields(row, join_delta_value, query.fields_from_join, false);
+                            return false;
+                        });
+                    }
                     if (!found_join)
-                        rows.pop_back(); // todo: fill in empty instead?
+                        for (auto& field : query.join_table->fields)
+                            field.type_obj->fill_empty(rows.back());
                 }
                 return false;
             });

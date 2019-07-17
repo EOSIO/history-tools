@@ -99,25 +99,29 @@ struct rocksdb_query_session : query_session {
                 rows.emplace_back(delta_value.data(), delta_value.data() + delta_value.size());
                 if (query.join_table) {
                     auto join_key = kv::make_table_index_key(query.join_table->short_name, query.join_query_wasm_name);
-                    append_fields(join_key, rdb::to_input_buffer(delta_value), query.join_key_values, true);
-                    auto join_key_limit_block = join_key;
-                    if (query.join_query->is_state)
-                        kv::append_table_index_state_suffix(join_key_limit_block, max_block_num);
-
-                    auto& row        = rows.back();
-                    bool  found_join = false;
-                    for_each(db_iface->rocksdb_inst->database, join_key_limit_block, join_key, [&](auto, auto join_delta_key) {
-                        found_join = true;
-                        rocksdb::PinnableSlice join_delta_value;
-                        rdb::check(
-                            db->Get(rocksdb::ReadOptions(), db->DefaultColumnFamily(), rdb::to_slice(join_delta_key), &join_delta_value),
-                            "query_database: ");
-                        append_fields(row, rdb::to_input_buffer(join_delta_value), query.fields_from_join, false);
-                        return false;
-                    });
-
+                    fill_positions(rdb::to_input_buffer(delta_value), query.table_obj->fields);
+                    bool found_join = false;
+                    if (keys_have_positions(query.join_key_values)) {
+                        append_fields(join_key, rdb::to_input_buffer(delta_value), query.join_key_values, true);
+                        auto join_key_limit_block = join_key;
+                        if (query.join_query->is_state)
+                            kv::append_table_index_state_suffix(join_key_limit_block, max_block_num);
+                        auto& row = rows.back();
+                        for_each(db_iface->rocksdb_inst->database, join_key_limit_block, join_key, [&](auto, auto join_delta_key) {
+                            found_join = true;
+                            rocksdb::PinnableSlice join_delta_value;
+                            rdb::check(
+                                db->Get(
+                                    rocksdb::ReadOptions(), db->DefaultColumnFamily(), rdb::to_slice(join_delta_key), &join_delta_value),
+                                "query_database: ");
+                            fill_positions(rdb::to_input_buffer(join_delta_value), query.join_table->fields);
+                            append_fields(row, rdb::to_input_buffer(join_delta_value), query.fields_from_join, false);
+                            return false;
+                        });
+                    }
                     if (!found_join)
-                        rows.pop_back(); // todo: fill in empty instead?
+                        for (auto& field : query.join_table->fields)
+                            field.type_obj->fill_empty(rows.back());
                 }
                 return false;
             });

@@ -43,6 +43,32 @@ struct lmdb_query_session : query_session {
         return {};
     }
 
+    void fill_positions(abieos::input_buffer src, std::vector<lmdb::field>& fields) {
+        for (auto& field : fields)
+            field.byte_position.reset();
+        auto begin   = src.pos;
+        bool present = true;
+        for (auto& field : fields) {
+            if (present)
+                field.byte_position = src.pos - begin;
+            if (field.begin_optional) {
+                present = abieos::bin_to_native<bool>(src);
+            } else {
+                if (present && !field.type_obj->skip_bin(src))
+                    break;
+                if (field.end_optional)
+                    present = true;
+            }
+        }
+    }
+
+    bool keys_have_positions(const std::vector<lmdb::key>& keys) {
+        for (auto& key : keys)
+            if (!key.field->byte_position)
+                return false;
+        return true;
+    }
+
     void append_fields(std::vector<char>& dest, abieos::input_buffer src, const std::vector<lmdb::key>& keys, bool xform_key) {
         for (auto& key : keys) {
             if (!key.field->byte_position)
@@ -97,22 +123,25 @@ struct lmdb_query_session : query_session {
                 rows.emplace_back(delta_value.pos, delta_value.end);
                 if (query.join_table) {
                     auto join_key = lmdb::make_table_index_key(query.join_table->short_name, query.join_query_wasm_name);
-                    append_fields(join_key, delta_value, query.join_key_values, true);
-                    auto join_key_limit_block = join_key;
-                    if (query.join_query->is_state)
-                        lmdb::append_table_index_state_suffix(join_key_limit_block, max_block_num);
-
-                    auto& row        = rows.back();
-                    bool  found_join = false;
-                    for_each(tx, db_iface->lmdb_inst->db, join_key_limit_block, join_key, [&](auto, auto join_delta_key) {
-                        found_join            = true;
-                        auto join_delta_value = lmdb::get_raw(tx, db_iface->lmdb_inst->db, join_delta_key);
-                        append_fields(row, join_delta_value, query.fields_from_join, false);
-                        return false;
-                    });
-
+                    fill_positions(delta_value, query.table_obj->fields);
+                    bool found_join = false;
+                    if (keys_have_positions(query.join_key_values)) {
+                        append_fields(join_key, delta_value, query.join_key_values, true);
+                        auto join_key_limit_block = join_key;
+                        if (query.join_query->is_state)
+                            lmdb::append_table_index_state_suffix(join_key_limit_block, max_block_num);
+                        auto& row = rows.back();
+                        for_each(tx, db_iface->lmdb_inst->db, join_key_limit_block, join_key, [&](auto, auto join_delta_key) {
+                            found_join            = true;
+                            auto join_delta_value = lmdb::get_raw(tx, db_iface->lmdb_inst->db, join_delta_key);
+                            fill_positions(join_delta_value, query.join_table->fields);
+                            append_fields(row, join_delta_value, query.fields_from_join, false);
+                            return false;
+                        });
+                    }
                     if (!found_join)
-                        rows.pop_back(); // todo: fill in empty instead?
+                        for (auto& field : query.join_table->fields)
+                            field.type_obj->fill_empty(rows.back());
                 }
                 return false;
             });

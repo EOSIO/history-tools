@@ -4,7 +4,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET 10.14)
 include(ExternalProject)
 
 cmake_minimum_required (VERSION 3.10)
-project(wasm-ql VERSION 0.1 LANGUAGES CXX)
+project(history-tools VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 

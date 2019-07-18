@@ -70,6 +70,7 @@ inline abieos::input_buffer to_input_buffer(rocksdb::Slice v) { return {v.data()
 inline abieos::input_buffer to_input_buffer(rocksdb::PinnableSlice& v) { return {v.data(), v.data() + v.size()}; }
 
 inline void put(rocksdb::WriteBatch& batch, const std::vector<char>& key, const std::vector<char>& value, bool overwrite = false) {
+    // !!! remove overwrite
     batch.Put(to_slice(key), to_slice(value));
 }
 

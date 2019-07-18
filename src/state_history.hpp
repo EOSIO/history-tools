@@ -387,4 +387,26 @@ ABIEOS_REFLECT(signed_block) {
     ABIEOS_MEMBER(signed_block, block_extensions)
 }
 
+inline void check_variant(abieos::input_buffer& bin, const abieos::abi_type& type, uint32_t expected) {
+    using namespace std::literals;
+    auto index = abieos::read_varuint32(bin);
+    if (!type.filled_variant)
+        throw std::runtime_error(type.name + " is not a variant"s);
+    if (index >= type.fields.size())
+        throw std::runtime_error("expected "s + type.fields[expected].name + " got " + std::to_string(index));
+    if (index != expected)
+        throw std::runtime_error("expected "s + type.fields[expected].name + " got " + type.fields[index].name);
+}
+
+inline void check_variant(abieos::input_buffer& bin, const abieos::abi_type& type, const char* expected) {
+    using namespace std::literals;
+    auto index = abieos::read_varuint32(bin);
+    if (!type.filled_variant)
+        throw std::runtime_error(type.name + " is not a variant"s);
+    if (index >= type.fields.size())
+        throw std::runtime_error("expected "s + expected + " got " + std::to_string(index));
+    if (type.fields[index].name != expected)
+        throw std::runtime_error("expected "s + expected + " got " + type.fields[index].name);
+}
+
 } // namespace state_history

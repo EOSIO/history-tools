@@ -1,6 +1,7 @@
 // copyright defined in LICENSE.txt
 
 #include "fill_lmdb_plugin.hpp"
+#include "state_history_connection.hpp"
 #include "state_history_lmdb.hpp"
 #include "util.hpp"
 
@@ -13,6 +14,7 @@
 using namespace abieos;
 using namespace appbase;
 using namespace std::literals;
+using namespace state_history;
 
 namespace asio      = boost::asio;
 namespace bpo       = boost::program_options;
@@ -52,13 +54,10 @@ struct lmdb_table {
     std::map<abieos::name, lmdb_index>       indexes     = {};
 };
 
-struct fill_lmdb_config {
-    std::string host;
-    std::string port;
-    uint32_t    skip_to      = 0;
-    uint32_t    stop_before  = 0;
-    bool        enable_trim  = false;
-    bool        enable_check = false;
+struct fill_lmdb_config : connection_config {
+    uint32_t skip_to      = 0;
+    bool     enable_trim  = false;
+    bool     enable_check = false;
 };
 
 struct fill_lmdb_plugin_impl : std::enable_shared_from_this<fill_lmdb_plugin_impl> {
@@ -68,36 +67,29 @@ struct fill_lmdb_plugin_impl : std::enable_shared_from_this<fill_lmdb_plugin_imp
     ~fill_lmdb_plugin_impl();
 };
 
-struct flm_session : std::enable_shared_from_this<flm_session> {
-    fill_lmdb_plugin_impl*                    my = nullptr;
-    std::shared_ptr<fill_lmdb_config>         config;
-    std::shared_ptr<::lmdb_inst>              lmdb_inst = app().find_plugin<lmdb_plugin>()->get_lmdb_inst();
-    std::optional<lmdb::transaction>          active_tx;
-    tcp::resolver                             resolver;
-    websocket::stream<tcp::socket>            stream;
-    bool                                      received_abi       = false;
-    std::map<std::string, lmdb_table>         tables             = {};
-    lmdb_table*                               block_info_table   = {};
-    lmdb_table*                               action_trace_table = {};
-    std::optional<state_history::fill_status> current_db_status  = {};
-    uint32_t                                  head               = 0;
-    abieos::checksum256                       head_id            = {};
-    uint32_t                                  irreversible       = 0;
-    abieos::checksum256                       irreversible_id    = {};
-    uint32_t                                  first              = 0;
-    uint32_t                                  first_bulk         = 0;
-    abi_def                                   abi                = {};
-    std::map<std::string, abi_type>           abi_types          = {};
+struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_session> {
+    fill_lmdb_plugin_impl*                     my = nullptr;
+    std::shared_ptr<fill_lmdb_config>          config;
+    std::shared_ptr<::lmdb_inst>               lmdb_inst = app().find_plugin<lmdb_plugin>()->get_lmdb_inst();
+    std::optional<lmdb::transaction>           active_tx;
+    std::shared_ptr<state_history::connection> connection;
+    std::map<std::string, lmdb_table>          tables             = {};
+    lmdb_table*                                block_info_table   = {};
+    lmdb_table*                                action_trace_table = {};
+    std::optional<state_history::fill_status>  current_db_status  = {};
+    uint32_t                                   head               = 0;
+    abieos::checksum256                        head_id            = {};
+    uint32_t                                   irreversible       = 0;
+    abieos::checksum256                        irreversible_id    = {};
+    uint32_t                                   first              = 0;
 
-    flm_session(fill_lmdb_plugin_impl* my, asio::io_context& ioc)
+    flm_session(fill_lmdb_plugin_impl* my)
         : my(my)
-        , config(my->config)
-        , resolver(ioc)
-        , stream(ioc) {
+        , config(my->config) {}
 
-        ilog("connect to lmdb");
-        stream.binary(true);
-        stream.read_message_max(10ull * 1024 * 1024 * 1024);
+    void connect(asio::io_context& ioc) {
+        connection = std::make_shared<state_history::connection>(ioc, *config, shared_from_this());
+        connection->connect();
     }
 
     void check() {
@@ -157,42 +149,6 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
             return true;
         });
         ilog("Checked ${n} table_index_ref keys", ("n", num_ti_ref_keys));
-    }
-
-    void start() {
-        ilog("connect to ${h}:${p}", ("h", config->host)("p", config->port));
-        resolver.async_resolve(
-            config->host, config->port, [self = shared_from_this(), this](error_code ec, tcp::resolver::results_type results) {
-                callback(ec, "resolve", [&] {
-                    asio::async_connect(
-                        stream.next_layer(), results.begin(), results.end(), [self = shared_from_this(), this](error_code ec, auto&) {
-                            callback(ec, "connect", [&] {
-                                stream.async_handshake(config->host, "/", [self = shared_from_this(), this](error_code ec) {
-                                    callback(ec, "handshake", [&] { //
-                                        start_read();
-                                    });
-                                });
-                            });
-                        });
-                });
-            });
-    }
-
-    void start_read() {
-        auto in_buffer = std::make_shared<flat_buffer>();
-        stream.async_read(*in_buffer, [self = shared_from_this(), this, in_buffer](error_code ec, size_t) {
-            callback(ec, "async_read", [&] {
-                if (!received_abi)
-                    receive_abi(in_buffer);
-                else {
-                    if (!receive_result(in_buffer)) {
-                        close();
-                        return;
-                    }
-                }
-                start_read();
-            });
-        });
     }
 
     void fill_fields(lmdb_table& table, const std::string& base_name, const abieos::abi_field& abi_field) {
@@ -349,14 +305,8 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         }
     }
 
-    void receive_abi(const std::shared_ptr<flat_buffer>& p) {
-        auto data = p->data();
-        json_to_native(abi, std::string_view{(const char*)data.data(), data.size()});
-        check_abi_version(abi.version);
-        abi_types    = create_contract(abi).abi_types;
-        received_abi = true;
-
-        init_tables(std::string_view{(const char*)data.data(), data.size()});
+    void received_abi(std::string_view abi) override {
+        init_tables(abi);
         init_indexes();
 
         lmdb::transaction t{lmdb_inst->lmdb_env, true};
@@ -365,7 +315,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         truncate(t, head + 1);
         t.commit();
 
-        send_request(positions);
+        connection->send_request(std::max(config->skip_to, head + 1), positions);
     }
 
     void load_fill_status(lmdb::transaction& t) {
@@ -432,17 +382,7 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         first = std::min(first, head);
     }
 
-    bool receive_result(const std::shared_ptr<flat_buffer>& p) {
-        auto         data = p->data();
-        input_buffer bin{(const char*)data.data(), (const char*)data.data() + data.size()};
-        check_variant(bin, get_type("result"), "get_blocks_result_v0");
-
-        state_history::get_blocks_result_v0 result;
-        bin_to_native(result, bin);
-
-        if (!result.this_block)
-            return true;
-
+    bool received_result(get_blocks_result_v0& result) override {
         if (config->stop_before && result.this_block->block_num >= config->stop_before) {
             ilog("block ${b}: stop requested", ("b", result.this_block->block_num));
             active_tx->commit();
@@ -841,85 +781,9 @@ struct flm_session : std::enable_shared_from_this<flm_session> {
         first = end_trim;
     }
 
-    void send_request(const jarray& positions) {
-        send(jvalue{jarray{{"get_blocks_request_v0"s},
-                           {jobject{
-                               {{"start_block_num"s}, {std::to_string(std::max(config->skip_to, head + 1))}},
-                               {{"end_block_num"s}, {"4294967295"s}},
-                               {{"max_messages_in_flight"s}, {"4294967295"s}},
-                               {{"have_positions"s}, {positions}},
-                               {{"irreversible_only"s}, {false}},
-                               {{"fetch_block"s}, {true}},
-                               {{"fetch_traces"s}, {true}},
-                               {{"fetch_deltas"s}, {true}},
-                           }}}});
-    }
+    const abi_type& get_type(const std::string& name) { return connection->get_type(name); }
 
-    const abi_type& get_type(const std::string& name) {
-        auto it = abi_types.find(name);
-        if (it == abi_types.end())
-            throw std::runtime_error("unknown type "s + name);
-        return it->second;
-    }
-
-    void send(const jvalue& value) {
-        auto bin = std::make_shared<std::vector<char>>();
-        json_to_bin(*bin, &get_type("request"), value);
-        stream.async_write(
-            asio::buffer(*bin), [self = shared_from_this(), bin, this](error_code ec, size_t) { callback(ec, "async_write", [&] {}); });
-    }
-
-    void check_variant(input_buffer& bin, const abi_type& type, uint32_t expected) {
-        auto index = read_varuint32(bin);
-        if (!type.filled_variant)
-            throw std::runtime_error(type.name + " is not a variant"s);
-        if (index >= type.fields.size())
-            throw std::runtime_error("expected "s + type.fields[expected].name + " got " + std::to_string(index));
-        if (index != expected)
-            throw std::runtime_error("expected "s + type.fields[expected].name + " got " + type.fields[index].name);
-    }
-
-    void check_variant(input_buffer& bin, const abi_type& type, const char* expected) {
-        auto index = read_varuint32(bin);
-        if (!type.filled_variant)
-            throw std::runtime_error(type.name + " is not a variant"s);
-        if (index >= type.fields.size())
-            throw std::runtime_error("expected "s + expected + " got " + std::to_string(index));
-        if (type.fields[index].name != expected)
-            throw std::runtime_error("expected "s + expected + " got " + type.fields[index].name);
-    }
-
-    template <typename F>
-    void catch_and_close(F f) {
-        try {
-            f();
-        } catch (const std::exception& e) {
-            elog("${e}", ("e", e.what()));
-            close();
-        } catch (...) {
-            elog("unknown exception");
-            close();
-        }
-    }
-
-    template <typename F>
-    void callback(error_code ec, const char* what, F f) {
-        if (ec)
-            return on_fail(ec, what);
-        catch_and_close(f);
-    }
-
-    void on_fail(error_code ec, const char* what) {
-        try {
-            elog("${w}: ${m}", ("w", what)("m", ec.message()));
-            close();
-        } catch (...) {
-            elog("exception while closing");
-        }
-    }
-
-    void close() {
-        stream.next_layer().close();
+    void closed() override {
         if (my)
             my->session.reset();
     }
@@ -963,13 +827,13 @@ void fill_lmdb_plugin::plugin_initialize(const variables_map& options) {
 }
 
 void fill_lmdb_plugin::plugin_startup() {
-    my->session = std::make_shared<flm_session>(my.get(), app().get_io_service());
+    my->session = std::make_shared<flm_session>(my.get());
     if (my->config->enable_check)
         my->session->check();
-    my->session->start();
+    my->session->connect(app().get_io_service());
 }
 
 void fill_lmdb_plugin::plugin_shutdown() {
     if (my->session)
-        my->session->close();
+        my->session->connection->close();
 }

@@ -385,17 +385,13 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         first           = r[4].as<uint32_t>();
     }
 
-    jarray get_positions(pqxx::work& t) {
-        jarray result;
-        auto   rows = t.exec(
+    std::vector<block_position> get_positions(pqxx::work& t) {
+        std::vector<block_position> result;
+        auto                        rows = t.exec(
             "select block_num, block_id from " + t.quote_name(config->schema) + ".received_block where block_num >= " +
             std::to_string(irreversible) + " and block_num <= " + std::to_string(head) + " order by block_num");
-        for (auto row : rows) {
-            result.push_back(jvalue{jobject{
-                {{"block_num"s}, {row[0].as<std::string>()}},
-                {{"block_id"s}, {row[1].as<std::string>()}},
-            }});
-        }
+        for (auto row : rows)
+            result.push_back({row[0].as<uint32_t>(), sql_to_checksum256(row[1].as<std::string>().c_str())});
         return result;
     }
 
@@ -437,7 +433,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         first = std::min(first, head);
     } // truncate
 
-    bool received_result(get_blocks_result_v0& result) override {
+    bool received(get_blocks_result_v0& result) override {
+        if (!result.this_block)
+            return true;
         bool bulk         = result.this_block->block_num + 4 < result.last_irreversible.block_num;
         bool large_deltas = false;
         if (!bulk && result.deltas && result.deltas->end - result.deltas->pos >= 10 * 1024 * 1024) {

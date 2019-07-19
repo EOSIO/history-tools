@@ -13,10 +13,11 @@
 namespace state_history {
 
 struct connection_callbacks {
-    virtual ~connection_callbacks()                            = default;
-    virtual void received_abi(std::string_view abi)            = 0;
-    virtual bool received_result(get_blocks_result_v0& result) = 0;
-    virtual void closed()                                      = 0;
+    virtual ~connection_callbacks()                 = default;
+    virtual void received_abi(std::string_view abi) = 0;
+    virtual bool received(get_status_result_v0& result) { return true; }
+    virtual bool received(get_blocks_result_v0& result) { return true; }
+    virtual void closed() = 0;
 };
 
 struct connection_config {
@@ -102,29 +103,24 @@ struct connection : std::enable_shared_from_this<connection> {
     }
 
     bool receive_result(const std::shared_ptr<flat_buffer>& p) {
-        auto         data = p->data();
-        input_buffer bin{(const char*)data.data(), (const char*)data.data() + data.size()};
-        check_variant(bin, get_type("result"), "get_blocks_result_v0");
-        get_blocks_result_v0 result;
+        auto                  data = p->data();
+        input_buffer          bin{(const char*)data.data(), (const char*)data.data() + data.size()};
+        state_history::result result;
         bin_to_native(result, bin);
-        if (!result.this_block)
-            return true;
-        return callbacks && callbacks->received_result(result);
+        return callbacks && std::visit([&](auto& r) { return callbacks->received(r); }, result);
     }
 
-    void send_request(uint32_t start_block_num, const jarray& positions) {
-        using namespace std::literals;
-        send(jvalue{jarray{{"get_blocks_request_v0"s},
-                           {jobject{
-                               {{"start_block_num"s}, {std::to_string(start_block_num)}},
-                               {{"end_block_num"s}, {"4294967295"s}},
-                               {{"max_messages_in_flight"s}, {"4294967295"s}},
-                               {{"have_positions"s}, {positions}},
-                               {{"irreversible_only"s}, {false}},
-                               {{"fetch_block"s}, {true}},
-                               {{"fetch_traces"s}, {true}},
-                               {{"fetch_deltas"s}, {true}},
-                           }}}});
+    void send_request(uint32_t start_block_num, const std::vector<block_position>& positions) {
+        get_blocks_request_v0 req;
+        req.start_block_num        = start_block_num;
+        req.end_block_num          = 0xffff'ffff;
+        req.max_messages_in_flight = 0xffff'ffff;
+        req.have_positions         = positions;
+        req.irreversible_only      = false;
+        req.fetch_block            = true;
+        req.fetch_traces           = true;
+        req.fetch_deltas           = true;
+        send(req);
     }
 
     const abi_type& get_type(const std::string& name) {
@@ -134,9 +130,9 @@ struct connection : std::enable_shared_from_this<connection> {
         return it->second;
     }
 
-    void send(const jvalue& value) {
+    void send(const request& req) {
         auto bin = std::make_shared<std::vector<char>>();
-        json_to_bin(*bin, &get_type("request"), value);
+        abieos::native_to_bin(*bin, req);
         stream.async_write(boost::asio::buffer(*bin), [self = shared_from_this(), bin, this](error_code ec, size_t) {
             enter_callback(ec, "async_write", [&] {});
         });

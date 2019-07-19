@@ -330,15 +330,12 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         first           = current_db_status->first;
     }
 
-    jarray get_positions() {
-        jarray result;
+    std::vector<block_position> get_positions() {
+        std::vector<block_position> result;
         if (head) {
             for (uint32_t i = irreversible; i <= head; ++i) {
                 auto rb = rdb::get<kv::received_block>(rocksdb_inst->database, kv::make_received_block_key(i));
-                result.push_back(jvalue{jobject{
-                    {{"block_num"s}, jvalue{std::to_string(rb->block_num)}},
-                    {{"block_id"s}, jvalue{(std::string)rb->block_id}},
-                }});
+                result.push_back({rb->block_num, rb->block_id});
             }
         }
         return result;
@@ -377,8 +374,9 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         first = std::min(first, head);
     }
 
-    bool received_result(get_blocks_result_v0& result) override {
-
+    bool received(get_blocks_result_v0& result) override {
+        if (!result.this_block)
+            return true;
         if (config->stop_before && result.this_block->block_num >= config->stop_before) {
             ilog("block ${b}: stop requested", ("b", result.this_block->block_num));
             write(rocksdb_inst->database, *active_batch);

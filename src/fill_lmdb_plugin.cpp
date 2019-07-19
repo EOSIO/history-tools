@@ -336,15 +336,12 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             throw std::runtime_error("Another process is filling this database");
     }
 
-    jarray get_positions(lmdb::transaction& t) {
-        jarray result;
+    std::vector<block_position> get_positions(lmdb::transaction& t) {
+        std::vector<block_position> result;
         if (head) {
             for (uint32_t i = irreversible; i <= head; ++i) {
                 auto rb = lmdb::get<kv::received_block>(t, lmdb_inst->db, kv::make_received_block_key(i));
-                result.push_back(jvalue{jobject{
-                    {{"block_num"s}, jvalue{std::to_string(rb->block_num)}},
-                    {{"block_id"s}, jvalue{(std::string)rb->block_id}},
-                }});
+                result.push_back({rb->block_num, rb->block_id});
             }
         }
         return result;
@@ -383,7 +380,9 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         first = std::min(first, head);
     }
 
-    bool received_result(get_blocks_result_v0& result) override {
+    bool received(get_blocks_result_v0& result) override {
+        if (!result.this_block)
+            return true;
         if (config->stop_before && result.this_block->block_num >= config->stop_before) {
             ilog("block ${b}: stop requested", ("b", result.this_block->block_num));
             active_tx->commit();

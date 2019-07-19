@@ -56,6 +56,7 @@ struct rocksdb_table {
 
 struct fill_rocksdb_config : connection_config {
     uint32_t skip_to      = 0;
+    uint32_t stop_before  = 0;
     bool     enable_trim  = false;
     bool     enable_check = false;
 };

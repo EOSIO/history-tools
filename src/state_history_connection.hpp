@@ -22,7 +22,6 @@ struct connection_callbacks {
 struct connection_config {
     std::string host;
     std::string port;
-    uint32_t    stop_before = 0;
 };
 
 struct connection : std::enable_shared_from_this<connection> {
@@ -110,10 +109,6 @@ struct connection : std::enable_shared_from_this<connection> {
         bin_to_native(result, bin);
         if (!result.this_block)
             return true;
-        if (config.stop_before && result.this_block->block_num >= config.stop_before) {
-            ilog("block ${b}: stop requested", ("b", result.this_block->block_num));
-            return false;
-        }
         return callbacks && callbacks->received_result(result);
     }
 

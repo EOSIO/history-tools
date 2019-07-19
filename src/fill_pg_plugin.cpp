@@ -45,6 +45,7 @@ struct fpg_session;
 struct fill_postgresql_config : connection_config {
     std::string schema;
     uint32_t    skip_to       = 0;
+    uint32_t    stop_before   = 0;
     bool        drop_schema   = false;
     bool        create_schema = false;
     bool        enable_trim   = false;

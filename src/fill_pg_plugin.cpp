@@ -95,7 +95,10 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     void received_abi(std::string_view abi) override {
         if (config->create_schema)
             create_tables();
+        connection->send(get_status_request_v0{});
+    }
 
+    bool received(get_status_result_v0& status) override {
         pqxx::work t(*sql_connection);
         load_fill_status(t);
         auto           positions = get_positions(t);
@@ -104,7 +107,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         pipeline.complete();
         t.commit();
 
-        connection->send_request(std::max(config->skip_to, head + 1), positions);
+        connection->request_blocks(status, std::max(config->skip_to, head + 1), positions);
+        return true;
     }
 
     template <typename T>

@@ -13,9 +13,9 @@
 namespace state_history {
 
 struct connection_callbacks {
-    virtual ~connection_callbacks()                 = default;
-    virtual void received_abi(std::string_view abi) = 0;
-    virtual bool received(get_status_result_v0& result) { return true; }
+    virtual ~connection_callbacks() = default;
+    virtual void received_abi(std::string_view abi) {}
+    virtual bool received(get_status_result_v0& status) { return true; }
     virtual bool received(get_blocks_result_v0& result) { return true; }
     virtual void closed() = 0;
 };
@@ -110,7 +110,7 @@ struct connection : std::enable_shared_from_this<connection> {
         return callbacks && std::visit([&](auto& r) { return callbacks->received(r); }, result);
     }
 
-    void send_request(uint32_t start_block_num, const std::vector<block_position>& positions) {
+    void request_blocks(uint32_t start_block_num, const std::vector<block_position>& positions) {
         get_blocks_request_v0 req;
         req.start_block_num        = start_block_num;
         req.end_block_num          = 0xffff'ffff;
@@ -121,6 +121,17 @@ struct connection : std::enable_shared_from_this<connection> {
         req.fetch_traces           = true;
         req.fetch_deltas           = true;
         send(req);
+    }
+
+    void request_blocks(const get_status_result_v0& status, uint32_t start_block_num, const std::vector<block_position>& positions) {
+        uint32_t nodeos_start = 0xffff'ffff;
+        if (status.trace_begin_block < status.trace_end_block)
+            nodeos_start = std::min(nodeos_start, status.trace_begin_block);
+        if (status.chain_state_begin_block < status.chain_state_end_block)
+            nodeos_start = std::min(nodeos_start, status.chain_state_begin_block);
+        if (nodeos_start == 0xffff'ffff)
+            nodeos_start = 0;
+        request_blocks(std::max(start_block_num, nodeos_start), positions);
     }
 
     const abi_type& get_type(const std::string& name) {

@@ -309,14 +309,18 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     void received_abi(std::string_view abi) override {
         init_tables(abi);
         init_indexes();
+        connection->send(get_status_request_v0{});
+    }
 
+    bool received(get_status_result_v0& status) override {
         lmdb::transaction t{lmdb_inst->lmdb_env, true};
         load_fill_status(t);
         auto positions = get_positions(t);
         truncate(t, head + 1);
         t.commit();
 
-        connection->send_request(std::max(config->skip_to, head + 1), positions);
+        connection->request_blocks(status, std::max(config->skip_to, head + 1), positions);
+        return true;
     }
 
     void load_fill_status(lmdb::transaction& t) {

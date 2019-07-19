@@ -316,7 +316,12 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         truncate(batch, head + 1);
         write(rocksdb_inst->database, batch);
 
-        connection->send_request(std::max(config->skip_to, head + 1), get_positions());
+        connection->send(get_status_request_v0{});
+    }
+
+    bool received(get_status_result_v0& status) override {
+        connection->request_blocks(status, std::max(config->skip_to, head + 1), get_positions());
+        return true;
     }
 
     void load_fill_status() {
@@ -617,7 +622,6 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     void write_action_trace(
         rocksdb::WriteBatch& batch, uint32_t block_num, const state_history::transaction_trace_v0& ttrace,
         const state_history::action_trace_v0& atrace, std::vector<char>& key, std::vector<char>& value, std::vector<char>& index_key) {
-
         key.clear();
         kv::append_action_trace_key(key, block_num, ttrace.id, atrace.action_ordinal.value);
         value.clear();

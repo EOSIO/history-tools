@@ -215,42 +215,49 @@ const inline std::map<std::string, type> abi_type_to_kv_type = {
 };
 // clang-format on
 
-// Description                      Notes   Data format         Key format
-// =======================================================================================================
-// fill_status                              fill_status         key_tag::fill_status
-// received_block                   1       received_block      key_tag::block,             block_num,      key_tag::received_block
-// table row (non-state tables)     1       row content         key_tag::block,             block_num,      key_tag::table_row,         table_name,         primary key fields
-// table delta (state tables)       1       row content         key_tag::block,             block_num,      key_tag::table_delta,       table_name,         present,        primary key fields
-// table index (non-state tables)           table delta's key   key_tag::table_index,       table_name,     index_name,                 index fields
-// table index (state tables)               table delta's key   key_tag::table_index,       table_name,     index_name,                 index fields,       ~block_num,     !present
-// table index reference            2       table index's key   key_tag::table_index_ref,   block_num,      table's key,                table index's key
+// Key                                                                          Value                               Notes   Description
+// =================================================================================================================================================
+// key_tag::table,  block_num, table_name, present_k, pk,               ## present_v,(fields iff present_v) ## 1,2  ## traces, deltas, reducer_outputs
+// key_tag::index,  table_name, index_name, key, ~block_num, !present_k ## (none)                           ## 1    ## indexes. key is superset of pk fields
 //
-// Notes
-//  *: Keys are serialized in lexigraphical sort order. See native_to_bin_key() and bin_to_native_key().
-//  1: Erase range lower_bound(make_block_key(n)) to upper_bound(make_block_key()) to erase blocks >= n
-//  2: Aids removing index entries
+// * Keys are serialized in a lexigraphical sort format. See native_to_bin_key() and bin_to_native_key().
+// * Erase range lower_bound(make_table_key(n)) to upper_bound(make_table_key()) to erase blocks >= n.
+//   Also remove index entries corresponding to each removed row.
+// * pk and fields may be empty
+// * block_num is 0 for tables which don't support history (e.g. fill_status)
+//
+// * present_k (present as a key)
+//   * nodeos deltas:     used
+//   * all other cases:   =1
+//
+// * present_v (present as a value)
+//   * nodeos deltas:     used
+//   * reducer outputs:   used
+//   * all other cases:   =1
 
 enum class key_tag : uint8_t {
-    fill_status     = 0x10,
-    block           = 0x20,
-    received_block  = 0x30,
-    table_row       = 0x50,
-    table_delta     = 0x60,
-    table_index     = 0x70,
-    table_index_ref = 0x80,
+    table = 0x50,
+    index = 0x60,
+
+    fill_status    = 0x10,
+    block          = 0x20,
+    received_block = 0x30,
+    table_row      = 0x51,
+    table_index    = 0x70,
 };
 
 inline key_tag bin_to_key_tag(abieos::input_buffer& b) { return (key_tag)abieos::bin_to_native<uint8_t>(b); }
 
 inline const char* to_string(key_tag t) {
     switch (t) {
+    case key_tag::table: return "table";
+    case key_tag::index: return "index";
+
     case key_tag::fill_status: return "fill_status";
     case key_tag::block: return "block";
     case key_tag::received_block: return "received_block";
     case key_tag::table_row: return "table_row";
-    case key_tag::table_delta: return "table_delta";
     case key_tag::table_index: return "table_index";
-    case key_tag::table_index_ref: return "table_index_ref";
     default: return "?";
     }
 }
@@ -265,17 +272,17 @@ inline std::string key_to_string(abieos::input_buffer b) {
             result += " " + to_string(bin_to_native_key<uint32_t>(b));
             auto t1 = bin_to_key_tag(b);
             result += " " + std::string{to_string(t1)};
-            if (t1 == key_tag::table_row) {
-                auto table_name = bin_to_native_key<abieos::name>(b);
-                result += " '" + (std::string)table_name + "' ";
-                abieos::hex(b.pos, b.end, std::back_inserter(result));
-            } else if (t1 == key_tag::table_delta) {
-                auto table_name = bin_to_native_key<abieos::name>(b);
-                result += " '" + (std::string)table_name + "' present: " + (bin_to_native_key<bool>(b) ? "true" : "false") + " ";
-                abieos::hex(b.pos, b.end, std::back_inserter(result));
-            } else {
-                result += " ...";
-            }
+            // if (t1 == key_tag::table_row) {
+            //     auto table_name = bin_to_native_key<abieos::name>(b);
+            //     result += " '" + (std::string)table_name + "' ";
+            //     abieos::hex(b.pos, b.end, std::back_inserter(result));
+            //     // } else if (t1 == key_tag::table_delta) {
+            //     //     auto table_name = bin_to_native_key<abieos::name>(b);
+            //     //     result += " '" + (std::string)table_name + "' present: " + (bin_to_native_key<bool>(b) ? "true" : "false") + " ";
+            //     //     abieos::hex(b.pos, b.end, std::back_inserter(result));
+            // } else {
+            //     result += " ...";
+            // }
         } catch (...) {
             return result + " (deserialize error)";
         }
@@ -285,24 +292,39 @@ inline std::string key_to_string(abieos::input_buffer b) {
     return result;
 }
 
-inline std::vector<char> make_block_key() {
+inline void append_table_key(std::vector<char>& dest) { native_to_bin_key(dest, (uint8_t)key_tag::table); }
+
+inline void append_table_key(std::vector<char>& dest, uint32_t block) {
+    native_to_bin_key(dest, (uint8_t)key_tag::table);
+    native_to_bin_key(dest, block);
+}
+
+inline void append_table_key(std::vector<char>& dest, uint32_t block, bool present_k, abieos::name table) {
+    native_to_bin_key(dest, (uint8_t)key_tag::table);
+    native_to_bin_key(dest, block);
+    native_to_bin_key(dest, table);
+    native_to_bin_key(dest, present_k);
+}
+
+inline std::vector<char> make_table_key() {
     std::vector<char> result;
-    native_to_bin_key(result, (uint8_t)key_tag::block);
+    append_table_key(result);
     return result;
 }
 
-inline std::vector<char> make_block_key(uint32_t block) {
+inline std::vector<char> make_table_key(uint32_t block) {
     std::vector<char> result;
-    native_to_bin_key(result, (uint8_t)key_tag::block);
-    native_to_bin_key(result, block);
+    append_table_key(result, block);
     return result;
 }
 
-inline std::vector<char> make_fill_status_key() {
+inline std::vector<char> make_table_key(uint32_t block, bool present_k, abieos::name table) {
     std::vector<char> result;
-    native_to_bin_key(result, (uint8_t)key_tag::fill_status);
+    append_table_key(result, block, present_k, table);
     return result;
 }
+
+inline std::vector<char> make_fill_status_key() { return make_table_key(0, true, "fill.status"_n); }
 
 struct received_block {
     uint32_t            block_num = {};
@@ -314,62 +336,22 @@ ABIEOS_REFLECT(received_block) {
     ABIEOS_MEMBER(received_block, block_id)
 }
 
-inline std::vector<char> make_received_block_key(uint32_t block) {
-    std::vector<char> result;
-    native_to_bin_key(result, (uint8_t)key_tag::block);
-    native_to_bin_key(result, block);
-    native_to_bin_key(result, (uint8_t)key_tag::received_block);
-    return result;
-}
-
-inline std::vector<char> make_table_row_key(uint32_t block) {
-    std::vector<char> result;
-    native_to_bin_key(result, (uint8_t)key_tag::block);
-    native_to_bin_key(result, block);
-    native_to_bin_key(result, (uint8_t)key_tag::table_row);
-    return result;
-}
-
-inline std::vector<char> make_block_info_key(uint32_t block) {
-    std::vector<char> result;
-    native_to_bin_key(result, (uint8_t)key_tag::block);
-    native_to_bin_key(result, block);
-    native_to_bin_key(result, (uint8_t)key_tag::table_row);
-    native_to_bin_key(result, "block.info"_n);
-    return result;
-}
+inline std::vector<char> make_received_block_key(uint32_t block) { return make_table_key(block, true, "fill.status"_n); }
+inline std::vector<char> make_block_info_key(uint32_t block) { return make_table_key(block, true, "block.info"_n); }
 
 inline void append_transaction_trace_key(std::vector<char>& dest, uint32_t block, const abieos::checksum256 transaction_id) {
-    native_to_bin_key(dest, (uint8_t)key_tag::block);
-    native_to_bin_key(dest, block);
-    native_to_bin_key(dest, (uint8_t)key_tag::table_row);
-    native_to_bin_key(dest, "ttrace"_n);
+    append_table_key(dest, block, true, "ttrace"_n);
     native_to_bin_key(dest, transaction_id);
 }
 
 inline void
 append_action_trace_key(std::vector<char>& dest, uint32_t block, const abieos::checksum256 transaction_id, uint32_t action_index) {
-    native_to_bin_key(dest, (uint8_t)key_tag::block);
-    native_to_bin_key(dest, block);
-    native_to_bin_key(dest, (uint8_t)key_tag::table_row);
-    native_to_bin_key(dest, "atrace"_n);
+    append_table_key(dest, block, true, "atrace"_n);
     native_to_bin_key(dest, transaction_id);
     native_to_bin_key(dest, action_index);
 }
 
-inline void append_delta_key(std::vector<char>& dest, uint32_t block) {
-    native_to_bin_key(dest, (uint8_t)key_tag::block);
-    native_to_bin_key(dest, block);
-    native_to_bin_key(dest, (uint8_t)key_tag::table_delta);
-}
-
-inline void append_delta_key(std::vector<char>& dest, uint32_t block, bool present, abieos::name table) {
-    native_to_bin_key(dest, (uint8_t)key_tag::block);
-    native_to_bin_key(dest, block);
-    native_to_bin_key(dest, (uint8_t)key_tag::table_delta);
-    native_to_bin_key(dest, table);
-    native_to_bin_key(dest, present);
-}
+////
 
 inline void append_table_index_key(std::vector<char>& dest) { native_to_bin_key(dest, (uint8_t)key_tag::table_index); }
 
@@ -396,37 +378,6 @@ inline void append_table_index_state_suffix(std::vector<char>& dest, uint32_t bl
 inline void append_table_index_state_suffix(std::vector<char>& dest, uint32_t block, bool present) {
     native_to_bin_key(dest, ~block);
     native_to_bin_key(dest, !present);
-}
-
-inline std::vector<char> make_table_index_ref_key() {
-    std::vector<char> result;
-    native_to_bin_key(result, (uint8_t)key_tag::table_index_ref);
-    return result;
-}
-
-inline std::vector<char> make_table_index_ref_key(uint32_t block) {
-    std::vector<char> result;
-    native_to_bin_key(result, (uint8_t)key_tag::table_index_ref);
-    native_to_bin_key(result, block);
-    return result;
-}
-
-inline std::vector<char> make_table_index_ref_key(uint32_t block, const std::vector<char>& table_key) {
-    std::vector<char> result;
-    native_to_bin_key(result, (uint8_t)key_tag::table_index_ref);
-    native_to_bin_key(result, block);
-    result.insert(result.end(), table_key.begin(), table_key.end());
-    return result;
-}
-
-inline std::vector<char>
-make_table_index_ref_key(uint32_t block, const std::vector<char>& table_key, const std::vector<char>& table_index_key) {
-    std::vector<char> result;
-    native_to_bin_key(result, (uint8_t)key_tag::table_index_ref);
-    native_to_bin_key(result, block);
-    result.insert(result.end(), table_key.begin(), table_key.end());
-    result.insert(result.end(), table_index_key.begin(), table_index_key.end());
-    return result;
 }
 
 struct defs {

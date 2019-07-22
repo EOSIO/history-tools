@@ -105,26 +105,26 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
         ilog("verifying expected records are present");
         uint32_t expected = first;
-        for_each_subkey(rocksdb_inst->database, kv::make_block_key(0), kv::make_block_key(0xffff'ffff), [&](auto&, auto k, auto v) {
-            auto orig_k = k;
-            if (kv::bin_to_key_tag(k) != kv::key_tag::block)
-                throw std::runtime_error("This shouldn't happen (1)");
-            auto block_num = kv::bin_to_native_key<uint32_t>(k);
-            auto tag       = kv::bin_to_key_tag(k);
-            if (tag == kv::key_tag::table_row && (block_num < first || block_num > head))
-                throw std::runtime_error(
-                    "Saw row for block_num " + std::to_string(block_num) +
-                    ", which is out of range [first, head]. key: " + kv::key_to_string(orig_k));
-            if (tag != kv::key_tag::received_block)
-                return true;
-            if (block_num == first || block_num == head || !(block_num % 10'000))
-                ilog("Found records for block ${b}", ("b", block_num));
-            if (block_num != expected)
-                throw std::runtime_error(
-                    "Saw received_block record " + std::to_string(block_num) + " but expected " + std::to_string(expected));
-            ++expected;
-            return true;
-        });
+        // for_each_subkey(rocksdb_inst->database, kv::make_block_key(0), kv::make_block_key(0xffff'ffff), [&](auto&, auto k, auto v) {
+        //     auto orig_k = k;
+        //     if (kv::bin_to_key_tag(k) != kv::key_tag::block)
+        //         throw std::runtime_error("This shouldn't happen (1)");
+        //     auto block_num = kv::bin_to_native_key<uint32_t>(k);
+        //     auto tag       = kv::bin_to_key_tag(k);
+        //     if (tag == kv::key_tag::table_row && (block_num < first || block_num > head))
+        //         throw std::runtime_error(
+        //             "Saw row for block_num " + std::to_string(block_num) +
+        //             ", which is out of range [first, head]. key: " + kv::key_to_string(orig_k));
+        //     if (tag != kv::key_tag::received_block)
+        //         return true;
+        //     if (block_num == first || block_num == head || !(block_num % 10'000))
+        //         ilog("Found records for block ${b}", ("b", block_num));
+        //     if (block_num != expected)
+        //         throw std::runtime_error(
+        //             "Saw received_block record " + std::to_string(block_num) + " but expected " + std::to_string(expected));
+        //     ++expected;
+        //     return true;
+        // });
         ilog("Found records for block ${b}", ("b", expected - 1));
         if (expected - 1 != head)
             throw std::runtime_error("Found head " + std::to_string(expected - 1) + " but fill_status.head = " + std::to_string(head));
@@ -139,17 +139,6 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             return true;
         });
         ilog("Checked ${n} table_index keys", ("n", num_ti_keys));
-
-        ilog("verifying table_index_ref keys reference existing table_index records");
-        uint32_t num_ti_ref_keys = 0;
-        for_each(rocksdb_inst->database, kv::make_table_index_ref_key(), kv::make_table_index_ref_key(), [&](auto k, auto v) {
-            if (!((++num_ti_ref_keys) % 1'000'000))
-                ilog("Checked ${n} table_index_ref keys", ("n", num_ti_ref_keys));
-            if (!rdb::exists(rocksdb_inst->database, rdb::to_slice(v)))
-                throw std::runtime_error("A table_index_ref key references a missing table_index record");
-            return true;
-        });
-        ilog("Checked ${n} table_index_ref keys", ("n", num_ti_ref_keys));
     }
 
     void fill_fields(rocksdb_table& table, const std::string& base_name, const abieos::abi_field& abi_field) {
@@ -357,16 +346,16 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     }
 
     void truncate(rocksdb::WriteBatch& batch, uint32_t block) {
-        for_each(rocksdb_inst->database, kv::make_block_key(block), kv::make_block_key(), [&](auto k, auto v) {
-            rdb::check(batch.Delete(rdb::to_slice(k)), "truncate (1): ");
-            return true;
-        });
-        for_each(rocksdb_inst->database, kv::make_table_index_ref_key(block), kv::make_table_index_ref_key(), [&](auto k, auto v) {
-            std::vector<char> k2{k.pos, k.end};
-            rdb::check(batch.Delete(rdb::to_slice(v)), "truncate (2): ");
-            rdb::check(batch.Delete(rdb::to_slice(k2)), "truncate (3): ");
-            return true;
-        });
+        // for_each(rocksdb_inst->database, kv::make_block_key(block), kv::make_block_key(), [&](auto k, auto v) {
+        //     rdb::check(batch.Delete(rdb::to_slice(k)), "truncate (1): ");
+        //     return true;
+        // });
+        // for_each(rocksdb_inst->database, kv::make_table_index_ref_key(block), kv::make_table_index_ref_key(), [&](auto k, auto v) {
+        //     std::vector<char> k2{k.pos, k.end};
+        //     rdb::check(batch.Delete(rdb::to_slice(v)), "truncate (2): ");
+        //     rdb::check(batch.Delete(rdb::to_slice(k2)), "truncate (3): ");
+        //     return true;
+        // });
 
         auto rb = rdb::get<kv::received_block>(rocksdb_inst->database, kv::make_received_block_key(block - 1), false);
         if (!rb) {
@@ -518,7 +507,6 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             kv::append_table_index_key(index_key, block_info_table->short_name, index.name);
             fill_key(index_key, index);
             rdb::put(batch, index_key, key);
-            rdb::put(batch, kv::make_table_index_ref_key(block_num, key, index_key), index_key);
         }
     } // receive_block
 
@@ -549,7 +537,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
                 }
                 check_variant(row.data, *table.abi_type, 0u);
                 delta_key.clear();
-                kv::append_delta_key(delta_key, block_num, row.present, table.short_name);
+                kv::append_table_key(delta_key, block_num, row.present, table.short_name);
                 value.clear();
                 abieos::native_to_bin(block_num, value);
                 abieos::native_to_bin(row.present, value);
@@ -564,7 +552,6 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
                     fill_key(index_key, index);
                     kv::append_table_index_state_suffix(index_key, block_num, row.present);
                     rdb::put(batch, index_key, delta_key);
-                    rdb::put(batch, kv::make_table_index_ref_key(block_num, delta_key, index_key), index_key);
                 }
                 ++num_processed;
             }
@@ -669,7 +656,6 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             kv::append_table_index_key(index_key, action_trace_table->short_name, index.name);
             fill_key(index_key, index);
             rdb::put(batch, index_key, key);
-            rdb::put(batch, kv::make_table_index_ref_key(block_num, key, index_key), index_key);
         }
 
         // todo: receipt_auth_sequence
@@ -679,19 +665,20 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
     template <typename F>
     void for_each_row_in_block(uint32_t block_num, F f) {
-        auto row_bound = kv::make_table_row_key(block_num);
+        auto row_bound = kv::make_table_key(block_num);
         rdb::for_each(rocksdb_inst->database, row_bound, row_bound, [&](auto k, auto row_content) {
             k.pos += row_bound.size();
             auto table_name = kv::bin_to_native_key<abieos::name>(k);
+            auto present_k  = kv::bin_to_native_key<bool>(k);
             auto pk         = k;
-            return f(table_name, pk);
+            return f(table_name, present_k, pk);
         });
     }
 
     template <typename F>
     void for_each_delta_in_block(uint32_t block_num, F f) {
         std::vector<char> delta_bound;
-        kv::append_delta_key(delta_bound, block_num);
+        kv::append_table_key(delta_bound, block_num);
         rdb::for_each(rocksdb_inst->database, delta_bound, delta_bound, [&](auto k, auto row_content) {
             k.pos += delta_bound.size();
             auto table_name = kv::bin_to_native_key<abieos::name>(k);
@@ -726,18 +713,18 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     }
 
     void remove_row(rocksdb::WriteBatch& batch, abieos::name table_name, uint32_t block_num, std::vector<char> key) {
-        auto index_ref_bounds = kv::make_table_index_ref_key(block_num, key);
-        rdb::for_each(rocksdb_inst->database, index_ref_bounds, index_ref_bounds, [&](auto k, auto v) {
-            rdb::check(batch.Delete(rdb::to_slice(v)), "remove_row (1): ");
-            rdb::check(batch.Delete(rdb::to_slice(k)), "remove_row (2): ");
-            return true;
-        });
-        rdb::check(batch.Delete(rdb::to_slice(key)), "remove_row (3): ");
+        // auto index_ref_bounds = kv::make_table_index_ref_key(block_num, key);
+        // rdb::for_each(rocksdb_inst->database, index_ref_bounds, index_ref_bounds, [&](auto k, auto v) {
+        //     rdb::check(batch.Delete(rdb::to_slice(v)), "remove_row (1): ");
+        //     rdb::check(batch.Delete(rdb::to_slice(k)), "remove_row (2): ");
+        //     return true;
+        // });
+        // rdb::check(batch.Delete(rdb::to_slice(key)), "remove_row (3): ");
     }
 
     void remove_delta(rocksdb::WriteBatch& batch, abieos::name table_name, uint32_t block_num, bool present, abieos::input_buffer pk) {
         std::vector<char> delta_key;
-        kv::append_delta_key(delta_key, block_num, present, table_name);
+        kv::append_table_key(delta_key, block_num, present, table_name);
         delta_key.insert(delta_key.end(), pk.pos, pk.end);
         remove_row(batch, table_name, block_num, delta_key);
     }
@@ -759,14 +746,14 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
                 ilog("trim: removed ${r} rows and ${d} deltas so far", ("r", num_rows_removed)("d", num_deltas_removed));
                 ilog("trim ${x}", ("x", block_num));
             }
-            for_each_row_in_block(block_num, [&](auto row_table_name, auto row_pk) {
-                for_each_row_trim(row_table_name, row_pk, block_num, [&](auto table_key) {
-                    remove_row(batch, row_table_name, block_num, {table_key.pos, table_key.end});
-                    ++num_rows_removed;
-                    return true;
-                });
-                return true;
-            });
+            // for_each_row_in_block(block_num, [&](auto row_table_name, auto row_pk) {
+            //     for_each_row_trim(row_table_name, row_pk, block_num, [&](auto table_key) {
+            //         remove_row(batch, row_table_name, block_num, {table_key.pos, table_key.end});
+            //         ++num_rows_removed;
+            //         return true;
+            //     });
+            //     return true;
+            // });
             for_each_delta_in_block(block_num + 1, [&](auto delta_table_name, auto delta_present, auto delta_pk) {
                 for_each_delta_trim(delta_table_name, delta_pk, block_num + 1, [&](auto trim_block_num, auto trim_present) {
                     if (trim_block_num == block_num + 1)

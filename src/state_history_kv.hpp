@@ -63,7 +63,7 @@ void fixup_key(std::vector<char>& bin, F f) {
 
 template <typename T>
 void native_to_bin_key(std::vector<char>& bin, const T& obj) {
-    fixup_key<T>(bin, [&] { abieos::native_to_bin(bin, obj); });
+    fixup_key<T>(bin, [&] { abieos::native_to_bin(obj, bin); });
 }
 
 template <typename T>
@@ -95,7 +95,7 @@ struct type {
 
 template <typename T>
 void bin_to_bin(std::vector<char>& dest, abieos::input_buffer& bin) {
-    abieos::native_to_bin(dest, abieos::bin_to_native<T>(bin));
+    abieos::native_to_bin(abieos::bin_to_native<T>(bin), dest);
 }
 
 template <>
@@ -118,7 +118,7 @@ inline void bin_to_bin<state_history::transaction_status>(std::vector<char>& des
 template <typename T>
 void bin_to_bin_key(std::vector<char>& dest, abieos::input_buffer& bin) {
     if constexpr (std::is_same_v<std::decay_t<T>, abieos::varuint32>) {
-        reverse_bin(dest, [&] { abieos::native_to_bin(dest, abieos::bin_to_native<abieos::varuint32>(bin).value); });
+        reverse_bin(dest, [&] { abieos::native_to_bin(abieos::bin_to_native<abieos::varuint32>(bin).value, dest); });
     } else {
         fixup_key<T>(dest, [&] { bin_to_bin<T>(dest, bin); });
     }

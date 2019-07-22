@@ -495,7 +495,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         std::vector<uint32_t> positions;
         auto                  f = [&](const auto& x) {
             positions.push_back(value.size());
-            abieos::native_to_bin(value, x);
+            abieos::native_to_bin(x, value);
         };
 
         f(block_num);
@@ -507,7 +507,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         f(block.transaction_mroot);
         f(block.action_mroot);
         f(block.schedule_version);
-        abieos::native_to_bin(value, block.new_producers ? *block.new_producers : state_history::producer_schedule{});
+        abieos::native_to_bin(block.new_producers ? *block.new_producers : state_history::producer_schedule{}, value);
 
         lmdb::put(t, lmdb_inst->db, key, value);
         for (size_t i = 0; i < positions.size(); ++i)
@@ -550,8 +550,8 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
                 delta_key.clear();
                 kv::append_delta_key(delta_key, block_num, row.present, table.short_name);
                 value.clear();
-                abieos::native_to_bin(value, block_num);
-                abieos::native_to_bin(value, row.present);
+                abieos::native_to_bin(block_num, value);
+                abieos::native_to_bin(row.present, value);
                 for (auto& field : table.fields)
                     fill(value, row.data, *field);
                 fill_key(delta_key, *table.delta_index);
@@ -593,23 +593,23 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         kv::append_transaction_trace_key(key, block_num, ttrace.id);
 
         std::vector<char> value;
-        abieos::native_to_bin(value, block_num);
-        abieos::native_to_bin(value, transaction_ordinal);
-        abieos::native_to_bin(value, failed ? failed->id : abieos::checksum256{});
-        abieos::native_to_bin(value, ttrace.id);
-        abieos::native_to_bin(value, (uint8_t)ttrace.status);
-        abieos::native_to_bin(value, ttrace.cpu_usage_us);
-        abieos::native_to_bin(value, ttrace.net_usage_words);
-        abieos::native_to_bin(value, ttrace.elapsed);
-        abieos::native_to_bin(value, ttrace.net_usage);
-        abieos::native_to_bin(value, ttrace.scheduled);
-        abieos::native_to_bin(value, ttrace.account_ram_delta.has_value());
+        abieos::native_to_bin(block_num, value);
+        abieos::native_to_bin(transaction_ordinal, value);
+        abieos::native_to_bin(failed ? failed->id : abieos::checksum256{}, value);
+        abieos::native_to_bin(ttrace.id, value);
+        abieos::native_to_bin((uint8_t)ttrace.status, value);
+        abieos::native_to_bin(ttrace.cpu_usage_us, value);
+        abieos::native_to_bin(ttrace.net_usage_words, value);
+        abieos::native_to_bin(ttrace.elapsed, value);
+        abieos::native_to_bin(ttrace.net_usage, value);
+        abieos::native_to_bin(ttrace.scheduled, value);
+        abieos::native_to_bin(ttrace.account_ram_delta.has_value(), value);
         if (ttrace.account_ram_delta) {
-            abieos::native_to_bin(value, ttrace.account_ram_delta->account);
-            abieos::native_to_bin(value, ttrace.account_ram_delta->delta);
+            abieos::native_to_bin(ttrace.account_ram_delta->account, value);
+            abieos::native_to_bin(ttrace.account_ram_delta->delta, value);
         }
-        abieos::native_to_bin(value, ttrace.except ? *ttrace.except : "");
-        abieos::native_to_bin(value, ttrace.error_code ? *ttrace.error_code : 0);
+        abieos::native_to_bin(ttrace.except ? *ttrace.except : "", value);
+        abieos::native_to_bin(ttrace.error_code ? *ttrace.error_code : 0, value);
 
         // lmdb::put(t, lmdb_inst->db, key, value); // todo: indexes, including trim
 
@@ -629,7 +629,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         std::vector<uint32_t> positions;
         auto                  f = [&](const auto& x) {
             positions.push_back(value.size());
-            abieos::native_to_bin(value, x);
+            abieos::native_to_bin(x, value);
         };
 
         f(block_num);
@@ -637,15 +637,15 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         f((uint8_t)ttrace.status);
         f(atrace.action_ordinal);
         f(atrace.creator_action_ordinal);
-        abieos::native_to_bin(value, atrace.receipt.has_value());
+        abieos::native_to_bin(atrace.receipt.has_value(), value);
         if (atrace.receipt) {
             auto& receipt = std::get<state_history::action_receipt_v0>(*atrace.receipt);
-            abieos::native_to_bin(value, receipt.receiver);
-            abieos::native_to_bin(value, receipt.act_digest);
-            abieos::native_to_bin(value, receipt.global_sequence);
-            abieos::native_to_bin(value, receipt.recv_sequence);
-            abieos::native_to_bin(value, receipt.code_sequence);
-            abieos::native_to_bin(value, receipt.abi_sequence);
+            abieos::native_to_bin(receipt.receiver, value);
+            abieos::native_to_bin(receipt.act_digest, value);
+            abieos::native_to_bin(receipt.global_sequence, value);
+            abieos::native_to_bin(receipt.recv_sequence, value);
+            abieos::native_to_bin(receipt.code_sequence, value);
+            abieos::native_to_bin(receipt.abi_sequence, value);
         }
         f(atrace.receiver);
         f(atrace.act.account);
@@ -657,8 +657,8 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         f(atrace.except ? *atrace.except : "");
         f(atrace.error_code ? *atrace.error_code : 0);
 
-        abieos::native_to_bin(value, atrace.console);
-        abieos::native_to_bin(value, atrace.except ? *atrace.except : std::string());
+        abieos::native_to_bin(atrace.console, value);
+        abieos::native_to_bin(atrace.except ? *atrace.except : std::string(), value);
         lmdb::put(t, lmdb_inst->db, key, value);
 
         for (size_t i = 0; i < positions.size(); ++i)

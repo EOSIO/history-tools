@@ -143,7 +143,7 @@ struct connection : std::enable_shared_from_this<connection> {
 
     void send(const request& req) {
         auto bin = std::make_shared<std::vector<char>>();
-        abieos::native_to_bin(*bin, req);
+        abieos::native_to_bin(req, *bin);
         stream.async_write(boost::asio::buffer(*bin), [self = shared_from_this(), bin, this](error_code ec, size_t) {
             enter_callback(ec, "async_write", [&] {});
         });

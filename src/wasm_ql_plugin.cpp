@@ -137,11 +137,11 @@ static void init_glue(::state& state) {
 
 static void fill_context_data(::state& state) {
     state.database_status.clear();
-    abieos::native_to_bin(state.database_status, state.fill_status.head);
-    abieos::native_to_bin(state.database_status, state.fill_status.head_id);
-    abieos::native_to_bin(state.database_status, state.fill_status.irreversible);
-    abieos::native_to_bin(state.database_status, state.fill_status.irreversible_id);
-    abieos::native_to_bin(state.database_status, state.fill_status.first);
+    abieos::native_to_bin(state.fill_status.head, state.database_status);
+    abieos::native_to_bin(state.fill_status.head_id, state.database_status);
+    abieos::native_to_bin(state.fill_status.irreversible, state.database_status);
+    abieos::native_to_bin(state.fill_status.irreversible_id, state.database_status);
+    abieos::native_to_bin(state.fill_status.first, state.database_status);
 }
 
 // todo: detect state.fill_status.first changing (history trim)
@@ -213,8 +213,8 @@ static std::vector<char> query(::state& state, const std::vector<char>& request)
 
 static const std::vector<char>& legacy_query(::state& state, const std::string& target, const std::vector<char>& request) {
     std::vector<char> req;
-    abieos::native_to_bin(req, target);
-    abieos::native_to_bin(req, request);
+    abieos::native_to_bin(target, req);
+    abieos::native_to_bin(request, req);
     state.request = input_buffer{req.data(), req.data() + req.size()};
     retry_loop(state, [&]() {
         JSAutoRealm           realm(state.context.cx, state.global);

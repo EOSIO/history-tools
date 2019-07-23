@@ -248,8 +248,7 @@ static void handle_request(::state& state, tcp::socket& socket, http::request<ht
         http::response<http::vector_body<char>> res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, content_type);
-        if (state.allow_origin != "*")
-            res.set(http::field::access_control_allow_origin, state.allow_origin);
+        res.set(http::field::access_control_allow_origin, state.allow_origin);
         res.keep_alive(req.keep_alive());
         res.body() = std::move(reply);
         res.prepare_payload();

@@ -165,7 +165,7 @@ export class ClientWasm {
         const bin = new SerialBuffer();
         bin.pushVaruint32(1);
         bin.pushBytes(requestBin);
-        const queryReply = await fetch('http://127.0.0.1:8880/wasmql/v1/query', { method: 'POST', body: bin.asUint8Array() });
+        const queryReply = await fetch('http://' + window.location.hostname + ':8880/wasmql/v1/query', { method: 'POST', body: bin.asUint8Array() });
         if (queryReply.status !== 200)
             throw new Error(queryReply.status + ': ' + queryReply.statusText + ': ' + await queryReply.text());
         const reply = new SerialBuffer({ array: new Uint8Array(await queryReply.arrayBuffer()) });

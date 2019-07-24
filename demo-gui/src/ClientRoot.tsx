@@ -93,7 +93,7 @@ class AppState {
         sym: 'EOS',
         first_account: '',
         last_account: '',
-        max_results: 100,
+        max_results: 10,
     };
     public run_tok_mul_acc() {
         this.run(this.tokenWasm, 'bal.mult.acc', { ...this.tokensMultAccArgs, last_account: this.tokensMultAccArgs.last_account || 'zzzzzzzzzzzzj' }, 'first_account', reply => {
@@ -121,7 +121,7 @@ class AppState {
         },
         include_notify_incoming: true,
         include_notify_outgoing: true,
-        max_results: 100,
+        max_results: 10,
     };
     public run_transfers() {
         this.run(this.tokenWasm, 'transfer', {
@@ -166,13 +166,11 @@ function Results({ appState }: { appState: AppState }) {
                 height={800}
             >
                 {({ index, style }) => {
-                    let content;
-                    if (index < appState.result.length) {
+                    let content = '';
+                    if (index < appState.result.length)
                         content = appState.result[index];
-                    } else {
-                        content = 'Loading...';
+                    else
                         if (appState.more) appState.more();
-                    }
                     return <pre style={style}>{content}</pre>;
                 }}
             </FSL>

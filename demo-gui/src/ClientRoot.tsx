@@ -35,7 +35,7 @@ class AppState {
         this.selection.run();
     }
 
-    public mult_tokens = {
+    public multTokensArgs = {
         max_block: 50000000,
         account: 'b1',
         first_key: { sym: '', code: '' },
@@ -43,14 +43,14 @@ class AppState {
         max_results: 1000,
     };
     public async run_mult_tokens() {
-        await this.run('bal.mult.tok', this.mult_tokens, 'first_key', reply => {
+        await this.run('bal.mult.tok', this.multTokensArgs, 'first_key', reply => {
             for (const balance of reply.balances)
                 this.result += balance.account.padEnd(13, ' ') + ql.format_extended_asset(balance.amount) + '\n';
         });
     }
-    public multipleTokens = { run: this.run_mult_tokens.bind(this), form: MultipleTokens };
+    public multipleTokens = { run: this.run_mult_tokens.bind(this), form: MultipleTokensForm };
 
-    public tok_mul_acc = {
+    public tokensMultAccArgs = {
         max_block: 50000000,
         code: 'eosio.token',
         sym: 'EOS',
@@ -59,18 +59,47 @@ class AppState {
         max_results: 1000,
     };
     public async run_tok_mul_acc() {
-        await this.run('bal.mult.acc', this.tok_mul_acc, 'first_account', reply => {
+        await this.run('bal.mult.acc', this.tokensMultAccArgs, 'first_account', reply => {
             for (const balance of reply.balances)
                 this.result += balance.account.padEnd(13, ' ') + ql.format_extended_asset(balance.amount) + '\n';
         });
     }
-    public tokensMultAcc = { run: this.run_tok_mul_acc.bind(this), form: TokensForMultipleAccounts };
+    public tokensMultAcc = { run: this.run_tok_mul_acc.bind(this), form: TokensForMultipleAccountsForm };
+
+    public transfersArgs = {
+        max_block: 50000000,
+        first_key: {
+            receiver: '',
+            account: '',
+            block: ['absolute', 0],
+            transaction_id: '0000000000000000000000000000000000000000000000000000000000000000',
+            action_ordinal: 0,
+        },
+        last_key: {
+            receiver: 'zzzzzzzzzzzzj',
+            account: 'zzzzzzzzzzzzj',
+            block: ['absolute', 999999999],
+            transaction_id: 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+            action_ordinal: 0xffffffff,
+        },
+        include_notify_incoming: true,
+        include_notify_outgoing: true,
+        max_results: 1000,
+    };
+    public async run_transfers() {
+        await this.run('transfer', this.transfersArgs, 'first_key', reply => {
+            for (const transfer of reply.transfers)
+                this.result +=
+                    transfer.from.padEnd(13, ' ') + ' -> ' + transfer.to.padEnd(13, ' ') +
+                    ql.format_extended_asset(transfer.quantity) + '     ' + transfer.memo + '\n';
+        });
+    }
+    public transfers = { run: this.run_transfers.bind(this), form: TransfersForm };
 
     public selection = this.multipleTokens;
 
     public restore(prev: AppState) {
         this.result = prev.result;
-        this.mult_tokens = prev.mult_tokens;
     }
 }
 
@@ -85,7 +114,7 @@ async function delay(ms: number): Promise<void> {
     });
 }
 
-function MultipleTokens({ appState }: { appState: AppState }) {
+function MultipleTokensForm({ appState }: { appState: AppState }) {
     return (
         <div className='balance'>
             <table>
@@ -93,32 +122,32 @@ function MultipleTokens({ appState }: { appState: AppState }) {
                     <tr>
                         <td>max_block</td>
                         <td></td>
-                        <td><input type="text" value={appState.mult_tokens.max_block} onChange={e => { appState.mult_tokens.max_block = +e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.multTokensArgs.max_block} onChange={e => { appState.multTokensArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
                         <td>account</td>
                         <td></td>
-                        <td><input type="text" value={appState.mult_tokens.account} onChange={e => { appState.mult_tokens.account = e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.multTokensArgs.account} onChange={e => { appState.multTokensArgs.account = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
                         <td>first_key</td>
                         <td>sym</td>
-                        <td><input type="text" value={appState.mult_tokens.first_key.sym} onChange={e => { appState.mult_tokens.first_key.sym = e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.multTokensArgs.first_key.sym} onChange={e => { appState.multTokensArgs.first_key.sym = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
                         <td></td>
                         <td>code</td>
-                        <td><input type="text" value={appState.mult_tokens.first_key.code} onChange={e => { appState.mult_tokens.first_key.code = e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.multTokensArgs.first_key.code} onChange={e => { appState.multTokensArgs.first_key.code = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
                         <td>last_key</td>
                         <td>sym</td>
-                        <td><input type="text" value={appState.mult_tokens.last_key.sym} onChange={e => { appState.mult_tokens.last_key.sym = e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.multTokensArgs.last_key.sym} onChange={e => { appState.multTokensArgs.last_key.sym = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
                         <td></td>
                         <td>code</td>
-                        <td><input type="text" value={appState.mult_tokens.last_key.code} onChange={e => { appState.mult_tokens.last_key.code = e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.multTokensArgs.last_key.code} onChange={e => { appState.multTokensArgs.last_key.code = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                 </tbody>
             </table>
@@ -126,7 +155,7 @@ function MultipleTokens({ appState }: { appState: AppState }) {
     );
 }
 
-function TokensForMultipleAccounts({ appState }: { appState: AppState }) {
+function TokensForMultipleAccountsForm({ appState }: { appState: AppState }) {
     return (
         <div className='balance'>
             <table>
@@ -134,27 +163,63 @@ function TokensForMultipleAccounts({ appState }: { appState: AppState }) {
                     <tr>
                         <td>max_block</td>
                         <td></td>
-                        <td><input type="text" value={appState.tok_mul_acc.max_block} onChange={e => { appState.tok_mul_acc.max_block = +e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.tokensMultAccArgs.max_block} onChange={e => { appState.tokensMultAccArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
                         <td>code</td>
                         <td></td>
-                        <td><input type="text" value={appState.tok_mul_acc.code} onChange={e => { appState.tok_mul_acc.code = e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.tokensMultAccArgs.code} onChange={e => { appState.tokensMultAccArgs.code = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
                         <td>sym</td>
                         <td></td>
-                        <td><input type="text" value={appState.tok_mul_acc.sym} onChange={e => { appState.tok_mul_acc.sym = e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.tokensMultAccArgs.sym} onChange={e => { appState.tokensMultAccArgs.sym = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
                         <td>first_account</td>
                         <td></td>
-                        <td><input type="text" value={appState.tok_mul_acc.first_account} onChange={e => { appState.tok_mul_acc.first_account = e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.tokensMultAccArgs.first_account} onChange={e => { appState.tokensMultAccArgs.first_account = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
                         <td>last_account</td>
                         <td></td>
-                        <td><input type="text" value={appState.tok_mul_acc.last_account} onChange={e => { appState.tok_mul_acc.last_account = e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.tokensMultAccArgs.last_account} onChange={e => { appState.tokensMultAccArgs.last_account = e.target.value; appState.runSelected(); }} /></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+function TransfersForm({ appState }: { appState: AppState }) {
+    return (
+        <div className='balance'>
+            <table>
+                <tbody>
+                    <tr>
+                        <td>max_block</td>
+                        <td></td>
+                        <td><input type="text" value={appState.transfersArgs.max_block} onChange={e => { appState.transfersArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
+                    </tr>
+                    <tr>
+                        <td>first_receiver</td>
+                        <td></td>
+                        <td><input type="text" value={appState.transfersArgs.first_key.receiver} onChange={e => { appState.transfersArgs.first_key.receiver = e.target.value; appState.runSelected(); }} /></td>
+                    </tr>
+                    <tr>
+                        <td>last_receiver</td>
+                        <td></td>
+                        <td><input type="text" value={appState.transfersArgs.last_key.receiver} onChange={e => { appState.transfersArgs.last_key.receiver = e.target.value; appState.runSelected(); }} /></td>
+                    </tr>
+                    <tr>
+                        <td>incoming</td>
+                        <td></td>
+                        <td><input type="checkbox" checked={appState.transfersArgs.include_notify_incoming} onChange={e => { appState.transfersArgs.include_notify_incoming = e.target.checked; appState.runSelected(); }} /></td>
+                    </tr>
+                    <tr>
+                        <td>outgoing</td>
+                        <td></td>
+                        <td><input type="checkbox" checked={appState.transfersArgs.include_notify_outgoing} onChange={e => { appState.transfersArgs.include_notify_outgoing = e.target.checked; appState.runSelected(); }} /></td>
                     </tr>
                 </tbody>
             </table>
@@ -180,6 +245,14 @@ function Controls({ appState }: { appState: AppState }) {
                     onChange={e => { appState.selection = appState.tokensMultAcc; appState.runSelected(); }}>
                 </input>
                 Tokens For Mult Acc
+            </label>
+            <label>
+                <input
+                    type="radio"
+                    checked={appState.selection === appState.transfers}
+                    onChange={e => { appState.selection = appState.transfers; appState.runSelected(); }}>
+                </input>
+                Transfers
             </label>
         </div>
     );

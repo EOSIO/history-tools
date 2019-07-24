@@ -1,5 +1,6 @@
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
+import { FixedSizeList } from 'react-window';
 import * as ql from './wasm-ql';
 
 require('./style.css');
@@ -7,31 +8,38 @@ require('./style.css');
 class AppState {
     public alive = true;
     public clientRoot: ClientRoot;
-    public result = '';
+    public result = [];
     public chainWasm = new ql.ClientWasm('./chain-client.wasm');
     public tokenWasm = new ql.ClientWasm('./token-client.wasm');
     public request = 0;
+    public more = null;
 
-    private async run(wasm, query, args, firstKeyName, handle) {
-        this.result = '';
+    private run(wasm, query, args, firstKeyName, handle) {
+        this.result = [];
         this.clientRoot.forceUpdate();
-        let thisRequest = ++this.request;
+        const thisRequest = ++this.request;
         let first_key = args[firstKeyName];
-        do {
+        let running = false;
+        this.more = async () => {
+            if (running)
+                return;
+            running = true;
             const reply = await wasm.round_trip([
                 query,
-                { ...args, max_block: ['head', args.max_block], [firstKeyName]: first_key }
+                { ...args, max_block: ['head', args.max_block], [firstKeyName]: first_key },
             ]);
             if (thisRequest !== this.request)
                 return;
+            running = false;
             handle(reply[1]);
             first_key = reply[1].more;
-            break; // todo
-        } while (first_key);
-        this.clientRoot.forceUpdate();
+            if (!first_key)
+                this.more = null;
+            this.clientRoot.forceUpdate();
+        };
     }
 
-    public async runSelected() {
+    public runSelected() {
         this.selection.run();
     }
 
@@ -40,14 +48,14 @@ class AppState {
         first: '',
         last: 'zzzzzzzzzzzzj',
         include_abi: true,
-        max_results: 1000,
+        max_results: 10,
     };
-    public async run_accounts() {
-        await this.run(this.chainWasm, 'account', this.accountsArgs, 'first', reply => {
+    public run_accounts() {
+        this.run(this.chainWasm, 'account', this.accountsArgs, 'first', reply => {
             for (let acc of reply.accounts) {
                 acc = (({ name, privileged, account_creation_date, code, last_code_update, account_abi }) =>
                     ({ name, privileged, account_creation_date, code, last_code_update, abi: account_abi }))(acc);
-                this.result += JSON.stringify(acc, (k, v) => {
+                this.result.push(...JSON.stringify(acc, (k, v) => {
                     if (k === 'abi') {
                         if (v.length <= 66)
                             return v;
@@ -55,7 +63,7 @@ class AppState {
                             return v.substr(0, 64) + '... (' + (v.length / 2) + ' bytes)';
                     } else
                         return v;
-                }, 4) + '\n';
+                }, 4).split('\n'));
             }
         });
     }
@@ -66,12 +74,12 @@ class AppState {
         account: 'b1',
         first_key: { sym: '', code: '' },
         last_key: { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' },
-        max_results: 1000,
+        max_results: 100,
     };
-    public async run_mult_tokens() {
-        await this.run(this.tokenWasm, 'bal.mult.tok', this.multTokensArgs, 'first_key', reply => {
+    public run_mult_tokens() {
+        this.run(this.tokenWasm, 'bal.mult.tok', this.multTokensArgs, 'first_key', reply => {
             for (const balance of reply.balances)
-                this.result += balance.account.padEnd(13, ' ') + ql.format_extended_asset(balance.amount) + '\n';
+                this.result.push(balance.account.padEnd(13, ' ') + ql.format_extended_asset(balance.amount));
         });
     }
     public multipleTokens = { run: this.run_mult_tokens.bind(this), form: MultipleTokensForm };
@@ -82,12 +90,12 @@ class AppState {
         sym: 'EOS',
         first_account: '',
         last_account: 'zzzzzzzzzzzzj',
-        max_results: 1000,
+        max_results: 100,
     };
-    public async run_tok_mul_acc() {
-        await this.run(this.tokenWasm, 'bal.mult.acc', this.tokensMultAccArgs, 'first_account', reply => {
+    public run_tok_mul_acc() {
+        this.run(this.tokenWasm, 'bal.mult.acc', this.tokensMultAccArgs, 'first_account', reply => {
             for (const balance of reply.balances)
-                this.result += balance.account.padEnd(13, ' ') + ql.format_extended_asset(balance.amount) + '\n';
+                this.result.push(balance.account.padEnd(13, ' ') + ql.format_extended_asset(balance.amount));
         });
     }
     public tokensMultAcc = { run: this.run_tok_mul_acc.bind(this), form: TokensForMultipleAccountsForm };
@@ -110,14 +118,14 @@ class AppState {
         },
         include_notify_incoming: true,
         include_notify_outgoing: true,
-        max_results: 1000,
+        max_results: 100,
     };
-    public async run_transfers() {
-        await this.run(this.tokenWasm, 'transfer', this.transfersArgs, 'first_key', reply => {
+    public run_transfers() {
+        this.run(this.tokenWasm, 'transfer', this.transfersArgs, 'first_key', reply => {
             for (const transfer of reply.transfers)
-                this.result +=
+                this.result.push(
                     transfer.from.padEnd(13, ' ') + ' -> ' + transfer.to.padEnd(13, ' ') +
-                    ql.format_extended_asset(transfer.quantity) + '     ' + transfer.memo + '\n';
+                    ql.format_extended_asset(transfer.quantity) + '     ' + transfer.memo);
         });
     }
     public transfers = { run: this.run_transfers.bind(this), form: TransfersForm };
@@ -134,15 +142,34 @@ class AppState {
     }
 }
 
-function appendMessage(appState: AppState, result: string) {
-    appState.result += result + '\n';
-    appState.clientRoot.forceUpdate();
-}
-
 async function delay(ms: number): Promise<void> {
     return new Promise((resolve, reject) => {
         setTimeout(resolve, ms);
     });
+}
+
+function Results({ appState }: { appState: AppState }) {
+    const FSL = FixedSizeList as any;
+    return (
+        <div className='result'>
+            <FSL
+                itemCount={appState.result.length + (appState.more ? 10 : 0)}
+                itemSize={16}
+                height={800}
+            >
+                {({ index, style }) => {
+                    let content;
+                    if (index < appState.result.length) {
+                        content = appState.result[index];
+                    } else {
+                        content = 'Loading...';
+                        if (appState.more) appState.more();
+                    }
+                    return <pre style={style}>{content}</pre>;
+                }}
+            </FSL>
+        </div>
+    );
 }
 
 function AccountsForm({ appState }: { appState: AppState }) {
@@ -334,7 +361,7 @@ class ClientRoot extends React.Component<{ appState: AppState }> {
                 </div>
                 <Controls appState={appState} />
                 {appState.selection.form({ appState })}
-                <pre className='result'>{appState.result}</pre>
+                <Results appState={appState} />
                 <div className='disclaimer'>
                     <a href="https://github.com/EOSIO/history-tools">GitHub Repo...</a>
                 </div>

@@ -44,14 +44,14 @@ class AppState {
     }
 
     public accountsArgs = {
-        max_block: 50000000,
+        max_block: 100000000,
         first: '',
-        last: 'zzzzzzzzzzzzj',
+        last: '',
         include_abi: true,
         max_results: 10,
     };
     public run_accounts() {
-        this.run(this.chainWasm, 'account', this.accountsArgs, 'first', reply => {
+        this.run(this.chainWasm, 'account', { ...this.accountsArgs, last: this.accountsArgs.last || 'zzzzzzzzzzzzj' }, 'first', reply => {
             for (let acc of reply.accounts) {
                 acc = (({ name, privileged, account_creation_date, code, last_code_update, account_abi }) =>
                     ({ name, privileged, account_creation_date, code, last_code_update, abi: account_abi }))(acc);
@@ -70,14 +70,17 @@ class AppState {
     public accounts = { run: this.run_accounts.bind(this), form: AccountsForm };
 
     public multTokensArgs = {
-        max_block: 50000000,
+        max_block: 100000000,
         account: 'b1',
         first_key: { sym: '', code: '' },
-        last_key: { sym: 'ZZZZZZZ', code: 'zzzzzzzzzzzzj' },
+        last_key: { sym: '', code: '' },
         max_results: 100,
     };
     public run_mult_tokens() {
-        this.run(this.tokenWasm, 'bal.mult.tok', this.multTokensArgs, 'first_key', reply => {
+        this.run(this.tokenWasm, 'bal.mult.tok', {
+            ...this.multTokensArgs,
+            last_key: { sym: this.multTokensArgs.last_key.sym || 'ZZZZZZZ', code: this.multTokensArgs.last_key.code || 'zzzzzzzzzzzzj' }
+        }, 'first_key', reply => {
             for (const balance of reply.balances)
                 this.result.push(balance.account.padEnd(13, ' ') + ql.format_extended_asset(balance.amount));
         });
@@ -85,15 +88,15 @@ class AppState {
     public multipleTokens = { run: this.run_mult_tokens.bind(this), form: MultipleTokensForm };
 
     public tokensMultAccArgs = {
-        max_block: 50000000,
+        max_block: 100000000,
         code: 'eosio.token',
         sym: 'EOS',
         first_account: '',
-        last_account: 'zzzzzzzzzzzzj',
+        last_account: '',
         max_results: 100,
     };
     public run_tok_mul_acc() {
-        this.run(this.tokenWasm, 'bal.mult.acc', this.tokensMultAccArgs, 'first_account', reply => {
+        this.run(this.tokenWasm, 'bal.mult.acc', { ...this.tokensMultAccArgs, last_account: this.tokensMultAccArgs.last_account || 'zzzzzzzzzzzzj' }, 'first_account', reply => {
             for (const balance of reply.balances)
                 this.result.push(balance.account.padEnd(13, ' ') + ql.format_extended_asset(balance.amount));
         });
@@ -101,7 +104,7 @@ class AppState {
     public tokensMultAcc = { run: this.run_tok_mul_acc.bind(this), form: TokensForMultipleAccountsForm };
 
     public transfersArgs = {
-        max_block: 50000000,
+        max_block: 100000000,
         first_key: {
             receiver: '',
             account: '',
@@ -110,7 +113,7 @@ class AppState {
             action_ordinal: 0,
         },
         last_key: {
-            receiver: 'zzzzzzzzzzzzj',
+            receiver: '',
             account: 'zzzzzzzzzzzzj',
             block: ['absolute', 999999999],
             transaction_id: 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
@@ -121,11 +124,16 @@ class AppState {
         max_results: 100,
     };
     public run_transfers() {
-        this.run(this.tokenWasm, 'transfer', this.transfersArgs, 'first_key', reply => {
+        this.run(this.tokenWasm, 'transfer', {
+            ...this.transfersArgs,
+            last_key: { ...this.transfersArgs.last_key, receiver: this.transfersArgs.last_key.receiver || 'zzzzzzzzzzzzj' }
+        }, 'first_key', reply => {
             for (const transfer of reply.transfers)
                 this.result.push(
                     transfer.from.padEnd(13, ' ') + ' -> ' + transfer.to.padEnd(13, ' ') +
-                    ql.format_extended_asset(transfer.quantity) + '     ' + transfer.memo);
+                    ql.format_extended_asset(transfer.quantity).padEnd(40, ' ') +
+                    (transfer.key.block[1] + '').padEnd(11, ' ') + transfer.key.transaction_id +
+                    ' ' + transfer.memo);
         });
     }
     public transfers = { run: this.run_transfers.bind(this), form: TransfersForm };
@@ -177,11 +185,11 @@ function AccountsForm({ appState }: { appState: AppState }) {
         <div className='balance'>
             <table>
                 <tbody>
-                    <tr>
+                    {/* <tr>
                         <td>max_block</td>
                         <td></td>
                         <td><input type="text" value={appState.accountsArgs.max_block} onChange={e => { appState.accountsArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
-                    </tr>
+                    </tr> */}
                     <tr>
                         <td>first</td>
                         <td></td>
@@ -203,11 +211,11 @@ function MultipleTokensForm({ appState }: { appState: AppState }) {
         <div className='balance'>
             <table>
                 <tbody>
-                    <tr>
+                    {/* <tr>
                         <td>max_block</td>
                         <td></td>
                         <td><input type="text" value={appState.multTokensArgs.max_block} onChange={e => { appState.multTokensArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
-                    </tr>
+                    </tr> */}
                     <tr>
                         <td>account</td>
                         <td></td>
@@ -244,11 +252,11 @@ function TokensForMultipleAccountsForm({ appState }: { appState: AppState }) {
         <div className='balance'>
             <table>
                 <tbody>
-                    <tr>
+                    {/* <tr>
                         <td>max_block</td>
                         <td></td>
                         <td><input type="text" value={appState.tokensMultAccArgs.max_block} onChange={e => { appState.tokensMultAccArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
-                    </tr>
+                    </tr> */}
                     <tr>
                         <td>code</td>
                         <td></td>
@@ -280,11 +288,11 @@ function TransfersForm({ appState }: { appState: AppState }) {
         <div className='balance'>
             <table>
                 <tbody>
-                    <tr>
+                    {/* <tr>
                         <td>max_block</td>
                         <td></td>
                         <td><input type="text" value={appState.transfersArgs.max_block} onChange={e => { appState.transfersArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
-                    </tr>
+                    </tr> */}
                     <tr>
                         <td>first_receiver</td>
                         <td></td>

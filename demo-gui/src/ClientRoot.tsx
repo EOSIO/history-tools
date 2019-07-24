@@ -43,7 +43,7 @@ class AppState {
         max_results: 1000,
     };
     public async run_accounts() {
-        await this.run(this.chainWasm, 'account', this.accountsArgs, 'first_key', reply => {
+        await this.run(this.chainWasm, 'account', this.accountsArgs, 'first', reply => {
             for (let acc of reply.accounts) {
                 acc = (({ name, privileged, account_creation_date, code, last_code_update, account_abi }) =>
                     ({ name, privileged, account_creation_date, code, last_code_update, abi: account_abi }))(acc);

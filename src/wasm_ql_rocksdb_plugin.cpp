@@ -72,7 +72,7 @@ struct rocksdb_query_session : query_session {
         if (query.limit_block_num)
             max_block_num = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
 
-        auto first = kv::make_table_index_key(query.table_obj->short_name, query_name);
+        auto first = kv::make_index_key(query.table_obj->short_name, query_name);
         auto last  = first;
 
         auto add_fields = [&](auto& dest, auto& types) {
@@ -98,7 +98,7 @@ struct rocksdb_query_session : query_session {
                     db->Get(rocksdb::ReadOptions(), db->DefaultColumnFamily(), rdb::to_slice(delta_key), &delta_value), "query_database: ");
                 rows.emplace_back(delta_value.data(), delta_value.data() + delta_value.size());
                 if (query.join_table) {
-                    auto join_key = kv::make_table_index_key(query.join_table->short_name, query.join_query_wasm_name);
+                    auto join_key = kv::make_index_key(query.join_table->short_name, query.join_query_wasm_name);
                     fill_positions(rdb::to_input_buffer(delta_value), query.table_obj->fields);
                     bool found_join = false;
                     if (keys_have_positions(query.join_key_values)) {

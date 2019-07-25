@@ -238,12 +238,6 @@ const inline std::map<std::string, type> abi_type_to_kv_type = {
 enum class key_tag : uint8_t {
     table = 0x50,
     index = 0x60,
-
-    fill_status    = 0x10,
-    block          = 0x20,
-    received_block = 0x30,
-    table_row      = 0x51,
-    table_index    = 0x70,
 };
 
 inline key_tag bin_to_key_tag(abieos::input_buffer& b) { return (key_tag)abieos::bin_to_native<uint8_t>(b); }
@@ -252,12 +246,6 @@ inline const char* to_string(key_tag t) {
     switch (t) {
     case key_tag::table: return "table";
     case key_tag::index: return "index";
-
-    case key_tag::fill_status: return "fill_status";
-    case key_tag::block: return "block";
-    case key_tag::received_block: return "received_block";
-    case key_tag::table_row: return "table_row";
-    case key_tag::table_index: return "table_index";
     default: return "?";
     }
 }
@@ -267,28 +255,28 @@ inline std::string key_to_string(abieos::input_buffer b) {
     std::string result;
     auto        t0 = bin_to_key_tag(b);
     result += to_string(t0);
-    if (t0 == key_tag::block) {
-        try {
-            result += " " + to_string(bin_to_native_key<uint32_t>(b));
-            auto t1 = bin_to_key_tag(b);
-            result += " " + std::string{to_string(t1)};
-            // if (t1 == key_tag::table_row) {
-            //     auto table_name = bin_to_native_key<abieos::name>(b);
-            //     result += " '" + (std::string)table_name + "' ";
-            //     abieos::hex(b.pos, b.end, std::back_inserter(result));
-            //     // } else if (t1 == key_tag::table_delta) {
-            //     //     auto table_name = bin_to_native_key<abieos::name>(b);
-            //     //     result += " '" + (std::string)table_name + "' present: " + (bin_to_native_key<bool>(b) ? "true" : "false") + " ";
-            //     //     abieos::hex(b.pos, b.end, std::back_inserter(result));
-            // } else {
-            //     result += " ...";
-            // }
-        } catch (...) {
-            return result + " (deserialize error)";
-        }
-    } else {
-        result += " ...";
-    }
+    // if (t0 == key_tag::block) {
+    //     try {
+    //         result += " " + to_string(bin_to_native_key<uint32_t>(b));
+    //         auto t1 = bin_to_key_tag(b);
+    //         result += " " + std::string{to_string(t1)};
+    //         // if (t1 == key_tag::table_row) {
+    //         //     auto table_name = bin_to_native_key<abieos::name>(b);
+    //         //     result += " '" + (std::string)table_name + "' ";
+    //         //     abieos::hex(b.pos, b.end, std::back_inserter(result));
+    //         //     // } else if (t1 == key_tag::table_delta) {
+    //         //     //     auto table_name = bin_to_native_key<abieos::name>(b);
+    //         //     //     result += " '" + (std::string)table_name + "' present: " + (bin_to_native_key<bool>(b) ? "true" : "false") + " ";
+    //         //     //     abieos::hex(b.pos, b.end, std::back_inserter(result));
+    //         // } else {
+    //         //     result += " ...";
+    //         // }
+    //     } catch (...) {
+    //         return result + " (deserialize error)";
+    //     }
+    // } else {
+    //     result += " ...";
+    // }
     return result;
 }
 
@@ -299,10 +287,10 @@ inline void append_table_key(std::vector<char>& dest, uint32_t block) {
     native_to_bin_key(dest, block);
 }
 
-inline void append_table_key(std::vector<char>& dest, uint32_t block, bool present_k, abieos::name table) {
+inline void append_table_key(std::vector<char>& dest, uint32_t block, bool present_k, abieos::name table_name) {
     native_to_bin_key(dest, (uint8_t)key_tag::table);
     native_to_bin_key(dest, block);
-    native_to_bin_key(dest, table);
+    native_to_bin_key(dest, table_name);
     native_to_bin_key(dest, present_k);
 }
 
@@ -318,10 +306,37 @@ inline std::vector<char> make_table_key(uint32_t block) {
     return result;
 }
 
-inline std::vector<char> make_table_key(uint32_t block, bool present_k, abieos::name table) {
+inline std::vector<char> make_table_key(uint32_t block, bool present_k, abieos::name table_name) {
     std::vector<char> result;
-    append_table_key(result, block, present_k, table);
+    append_table_key(result, block, present_k, table_name);
     return result;
+}
+
+inline void append_index_key(std::vector<char>& dest) { native_to_bin_key(dest, (uint8_t)key_tag::index); }
+
+inline void append_index_key(std::vector<char>& dest, abieos::name table_name, abieos::name index_name) {
+    native_to_bin_key(dest, (uint8_t)key_tag::index);
+    native_to_bin_key(dest, table_name);
+    native_to_bin_key(dest, index_name);
+}
+
+inline std::vector<char> make_index_key() {
+    std::vector<char> result;
+    append_index_key(result);
+    return result;
+}
+
+inline std::vector<char> make_index_key(abieos::name table_name, abieos::name index_name) {
+    std::vector<char> result;
+    append_index_key(result, table_name, index_name);
+    return result;
+}
+
+inline void append_table_index_state_suffix(std::vector<char>& dest, uint32_t block) { native_to_bin_key(dest, ~block); }
+
+inline void append_table_index_state_suffix(std::vector<char>& dest, uint32_t block, bool present_k) {
+    native_to_bin_key(dest, ~block);
+    native_to_bin_key(dest, !present_k);
 }
 
 inline std::vector<char> make_fill_status_key() { return make_table_key(0, true, "fill.status"_n); }
@@ -349,35 +364,6 @@ append_action_trace_key(std::vector<char>& dest, uint32_t block, const abieos::c
     append_table_key(dest, block, true, "atrace"_n);
     native_to_bin_key(dest, transaction_id);
     native_to_bin_key(dest, action_index);
-}
-
-////
-
-inline void append_table_index_key(std::vector<char>& dest) { native_to_bin_key(dest, (uint8_t)key_tag::table_index); }
-
-inline void append_table_index_key(std::vector<char>& dest, abieos::name table, abieos::name index) {
-    native_to_bin_key(dest, (uint8_t)key_tag::table_index);
-    native_to_bin_key(dest, table);
-    native_to_bin_key(dest, index);
-}
-
-inline std::vector<char> make_table_index_key() {
-    std::vector<char> result;
-    append_table_index_key(result);
-    return result;
-}
-
-inline std::vector<char> make_table_index_key(abieos::name table, abieos::name index) {
-    std::vector<char> result;
-    append_table_index_key(result, table, index);
-    return result;
-}
-
-inline void append_table_index_state_suffix(std::vector<char>& dest, uint32_t block) { native_to_bin_key(dest, ~block); }
-
-inline void append_table_index_state_suffix(std::vector<char>& dest, uint32_t block, bool present) {
-    native_to_bin_key(dest, ~block);
-    native_to_bin_key(dest, !present);
 }
 
 struct defs {

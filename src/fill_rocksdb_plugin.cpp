@@ -131,7 +131,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
         ilog("verifying table_index keys reference existing records");
         uint32_t num_ti_keys = 0;
-        for_each(rocksdb_inst->database, kv::make_table_index_key(), kv::make_table_index_key(), [&](auto k, auto v) {
+        for_each(rocksdb_inst->database, kv::make_index_key(), kv::make_index_key(), [&](auto k, auto v) {
             if (!((++num_ti_keys) % 1'000'000))
                 ilog("Checked ${n} table_index keys", ("n", num_ti_keys));
             if (!rdb::exists(rocksdb_inst->database, rdb::to_slice(v)))
@@ -504,7 +504,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         std::vector<char> index_key;
         for (auto& [_, index] : block_info_table->indexes) {
             index_key.clear();
-            kv::append_table_index_key(index_key, block_info_table->short_name, index.name);
+            kv::append_index_key(index_key, block_info_table->short_name, index.name);
             fill_key(index_key, index);
             rdb::put(batch, index_key, key);
         }
@@ -548,7 +548,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
                 for (auto& [_, index] : table.indexes) {
                     index_key.clear();
-                    kv::append_table_index_key(index_key, table.short_name, index.name);
+                    kv::append_index_key(index_key, table.short_name, index.name);
                     fill_key(index_key, index);
                     kv::append_table_index_state_suffix(index_key, block_num, row.present);
                     rdb::put(batch, index_key, delta_key);
@@ -653,7 +653,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
         for (auto& [_, index] : action_trace_table->indexes) {
             index_key.clear();
-            kv::append_table_index_key(index_key, action_trace_table->short_name, index.name);
+            kv::append_index_key(index_key, action_trace_table->short_name, index.name);
             fill_key(index_key, index);
             rdb::put(batch, index_key, key);
         }
@@ -691,7 +691,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     template <typename F>
     void for_each_row_trim(abieos::name table_name, abieos::input_buffer pk, uint32_t block_num, F f) {
         std::vector<char> trim_bound;
-        kv::append_table_index_key(trim_bound, table_name, "trim"_n);
+        kv::append_index_key(trim_bound, table_name, "trim"_n);
         kv::native_to_bin_key<uint32_t>(trim_bound, block_num);
         rdb::for_each(rocksdb_inst->database, trim_bound, trim_bound, [&](auto k, auto v) { return f(v); });
     }
@@ -699,7 +699,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     template <typename F>
     void for_each_delta_trim(abieos::name table_name, abieos::input_buffer pk, uint32_t max_block_num, F f) {
         std::vector<char> trim_bound;
-        kv::append_table_index_key(trim_bound, table_name, "trim"_n);
+        kv::append_index_key(trim_bound, table_name, "trim"_n);
         trim_bound.insert(trim_bound.end(), pk.pos, pk.end);
         auto trim_lower_bound = trim_bound;
         kv::native_to_bin_key<uint32_t>(trim_lower_bound, ~max_block_num);

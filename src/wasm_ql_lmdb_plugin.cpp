@@ -74,7 +74,7 @@ struct lmdb_query_session : query_session {
         if (query.limit_block_num)
             max_block_num = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
 
-        auto first = kv::make_table_index_key(query.table_obj->short_name, query_name);
+        auto first = kv::make_index_key(query.table_obj->short_name, query_name);
         auto last  = first;
 
         auto add_fields = [&](auto& dest, auto& types) {
@@ -97,7 +97,7 @@ struct lmdb_query_session : query_session {
                 auto delta_value = lmdb::get_raw(tx, db_iface->lmdb_inst->db, delta_key);
                 rows.emplace_back(delta_value.pos, delta_value.end);
                 if (query.join_table) {
-                    auto join_key = kv::make_table_index_key(query.join_table->short_name, query.join_query_wasm_name);
+                    auto join_key = kv::make_table_key(query.join_table->short_name, query.join_query_wasm_name);
                     fill_positions(delta_value, query.table_obj->fields);
                     bool found_join = false;
                     if (keys_have_positions(query.join_key_values)) {

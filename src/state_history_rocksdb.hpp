@@ -80,7 +80,10 @@ void put(rocksdb::WriteBatch& batch, const std::vector<char>& key, const T& valu
 }
 
 inline void write(database& db, rocksdb::WriteBatch& batch) {
-    check(db.db->Write(rocksdb::WriteOptions(), &batch), "write batch");
+    // todo: verify status write order
+    rocksdb::WriteOptions opt;
+    opt.disableWAL = true;
+    check(db.db->Write(opt, &batch), "write batch");
     batch.Clear();
 }
 

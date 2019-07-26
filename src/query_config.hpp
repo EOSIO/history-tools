@@ -73,7 +73,6 @@ struct query {
     uint32_t                          max_results          = {};
     std::string                       join                 = {};
     abieos::name                      join_query_wasm_name = {};
-    std::vector<typename Defs::key>   args                 = {};
     std::vector<typename Defs::key>   sort_keys            = {};
     std::vector<typename Defs::key>   join_key_values      = {};
     std::vector<typename Defs::key>   fields_from_join     = {};
@@ -96,7 +95,6 @@ constexpr void for_each_field(query<Defs>*, F f) {
     ABIEOS_MEMBER(query<Defs>, max_results);
     ABIEOS_MEMBER(query<Defs>, join);
     ABIEOS_MEMBER(query<Defs>, join_query_wasm_name);
-    ABIEOS_MEMBER(query<Defs>, args);
     ABIEOS_MEMBER(query<Defs>, sort_keys);
     ABIEOS_MEMBER(query<Defs>, join_key_values);
     ABIEOS_MEMBER(query<Defs>, fields_from_join);
@@ -150,15 +148,8 @@ struct config {
             if (it == table_map.end())
                 throw std::runtime_error("query " + (std::string)query.wasm_name + ": unknown table: " + query.table);
             query.table_obj = it->second;
-            set_key_fields(*query.table_obj, query.args);
             set_key_fields(*query.table_obj, query.sort_keys);
             set_join_key_fields(*query.table_obj, query.join_key_values);
-            for (auto& arg : query.args) {
-                auto type_it = type_map.find(arg.type);
-                if (type_it == type_map.end())
-                    throw std::runtime_error("query " + (std::string)query.wasm_name + " arg " + arg.name + ": unknown type: " + arg.type);
-                query.arg_types.push_back(type_it->second);
-            }
             auto add_types = [&](auto& dest, auto& fields, auto* t) {
                 for (auto& key : fields) {
                     std::string type = key.type;

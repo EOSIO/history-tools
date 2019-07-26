@@ -148,7 +148,7 @@ function generate_nonstate({ table, index, limit_block_num, sort_keys, condition
     `;
 } // generate
 
-function generate_state({ table, index, limit_block_num, args, keys, sort_keys, history_keys, ordered_fields, join, join_key_values, fields_from_join, ...rest }) {
+function generate_state({ table, index, limit_block_num, keys, sort_keys, history_keys, ordered_fields, join, join_key_values, fields_from_join, ...rest }) {
     generate_index({ table, index, sort_keys, history_keys, ordered_fields, ...rest });
 
     const fn_name = schema + '.' + rest['function'];
@@ -257,7 +257,6 @@ function generate_state({ table, index, limit_block_num, args, keys, sort_keys, 
         drop function if exists ${fn_name};
         create function ${fn_name}(
             ${limit_block_num ? `max_block_num bigint,` : ``}
-            ${args.map(x => `"${x.name}" ${x.type},`).join('\n            ')}
             ${fn_args('first_')}
             ${fn_args('last_')}
             max_results integer
@@ -312,7 +311,6 @@ function fill_types(query, fields) {
 for (let query of config.queries) {
     query = {
         ...query,
-        args: query.args || [],
         keys: tables[query.table].keys || [],
         sort_keys: query.sort_keys || [],
         history_keys: tables[query.table].is_delta ? [{
@@ -327,7 +325,6 @@ for (let query of config.queries) {
         join_key_values: (query.join_key_values || []).map(({ name, expression }) => ({ name, expression, type: tables[query.join].fields[name].type })),
         fields_from_join: (query.fields_from_join || []).map(({ name, new_name }) => ({ name, new_name, type: tables[query.join].fields[name].type })),
     };
-    fill_types(query, query.args);
     fill_types(query, query.keys);
     fill_types(query, query.sort_keys);
     fill_types(query, query.history_keys);

@@ -248,7 +248,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             R"(.received_block ("block_num" bigint, "block_id" varchar(64), primary key("block_num")))");
         t.exec(
             "create table " + t.quote_name(config->schema) +
-            R"(.received_nonempty_block ("block_num" bigint, "block_id" varchar(64), "transaction_count" integer, primary key("block_num")))");
+            R"(.received_nonempty_block ("block_num" bigint, "block_id" varchar(64), "transaction_count" integer, "timestamp" timestamp, primary key("block_num")))");
         t.exec(
             "create table " + t.quote_name(config->schema) +
             R"(.fill_status ("head" bigint, "head_id" varchar(64), "irreversible" bigint, "irreversible_id" varchar(64), "first" bigint))");
@@ -534,8 +534,10 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             truncate(t, pipeline, result.this_block->block_num);
         if (!head_id.empty() && (!result.prev_block || (std::string)result.prev_block->block_id != head_id))
             throw std::runtime_error("prev_block does not match");
+
+        signed_block block;
         if (result.block)
-            receive_block(result.this_block->block_num, result.this_block->block_id, *result.block, bulk, t, pipeline);
+            receive_block(result.this_block->block_num, result.this_block->block_id, *result.block, bulk, t, pipeline, block);
         if (result.deltas)
             receive_deltas(result.this_block->block_num, *result.deltas, bulk, t, pipeline);
 
@@ -555,12 +557,13 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             "insert into " + t.quote_name(config->schema) + ".received_block (block_num, block_id) values (" +
             std::to_string(result.this_block->block_num) + ", " + quote(std::string(result.this_block->block_id)) + ")");
 
-        if (transaction_count > 1) {
+        if (transaction_count > 1 && result.block) {
             pipeline.insert(
-                "insert into " + t.quote_name(config->schema) + ".received_nonempty_block (block_num, block_id, transaction_count) values (" +
+                "insert into " + t.quote_name(config->schema) + ".received_nonempty_block (block_num, block_id, transaction_count, timestamp) values (" +
                 std::to_string(result.this_block->block_num) + ", " + 
                 quote(std::string(result.this_block->block_id)) + ", " + 
-                std::to_string(transaction_count) + ")");            
+                std::to_string(transaction_count) + ", " +
+                quote(std::string(block.timestamp)) + ")");            
         }
 
         pipeline.complete();
@@ -703,8 +706,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     } // fill_value
 
     void
-    receive_block(uint32_t block_num, const checksum256& block_id, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
-        signed_block block;
+    receive_block(uint32_t block_num, const checksum256& block_id, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline, signed_block &block) {
         bin_to_native(block, bin);
 
         std::string fields = "block_num, block_id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, "

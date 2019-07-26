@@ -493,22 +493,22 @@ inline bool keys_have_positions(const std::vector<key>& keys) {
     return true;
 }
 
-inline std::vector<char> extract_pk_from_key(abieos::input_buffer key, kv::query& query) {
+inline std::vector<char> extract_pk_from_key(abieos::input_buffer key, kv::table& table, std::vector<kv::key>& keys) {
     auto temp = key;
     skip_key<uint8_t>(temp);      // key_tag::index
     skip_key<abieos::name>(temp); // table_name
     skip_key<abieos::name>(temp); // index_name
 
-    clear_positions(query.table_obj->fields);
-    fill_positions_rw(key.pos, temp, query.sort_keys);
+    clear_positions(table.fields);
+    fill_positions_rw(key.pos, temp, keys);
 
     uint32_t block;
     bool     present_k;
     read_index_suffix(temp, block, present_k);
 
     std::vector<char> result;
-    append_table_key(result, block, present_k, query.table_obj->short_name);
-    for (auto& k : query.table_obj->keys) {
+    append_table_key(result, block, present_k, table.short_name);
+    for (auto& k : table.keys) {
         if (!k.field->byte_position)
             throw std::runtime_error("secondary index is missing pk fields");
         abieos::input_buffer b = {key.pos + *k.field->byte_position, key.end};

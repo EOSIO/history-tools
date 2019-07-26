@@ -507,7 +507,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             kv::append_index_key(index_key, block_info_table->short_name, index.name);
             fill_key(index_key, index);
             kv::append_index_suffix(index_key, block_num, true);
-            rdb::put(batch, index_key, key);
+            batch.Put(rdb::to_slice(index_key), {});
         }
     } // receive_block
 
@@ -552,7 +552,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
                     kv::append_index_key(index_key, table.short_name, index.name);
                     fill_key(index_key, index);
                     kv::append_index_suffix(index_key, block_num, row.present);
-                    rdb::put(batch, index_key, delta_key);
+                    batch.Put(rdb::to_slice(index_key), {});
                 }
                 ++num_processed;
             }

@@ -493,14 +493,14 @@ inline bool keys_have_positions(const std::vector<key>& keys) {
     return true;
 }
 
-inline std::vector<char> extract_pk_from_key(abieos::input_buffer key, kv::table& table, std::vector<kv::key>& keys) {
-    auto temp = key;
+inline std::vector<char> extract_pk_from_index(abieos::input_buffer index, kv::table& table, std::vector<kv::key>& index_keys) {
+    auto temp = index;
     skip_key<uint8_t>(temp);      // key_tag::index
     skip_key<abieos::name>(temp); // table_name
     skip_key<abieos::name>(temp); // index_name
 
     clear_positions(table.fields);
-    fill_positions_rw(key.pos, temp, keys);
+    fill_positions_rw(index.pos, temp, index_keys);
 
     uint32_t block;
     bool     present_k;
@@ -511,7 +511,7 @@ inline std::vector<char> extract_pk_from_key(abieos::input_buffer key, kv::table
     for (auto& k : table.keys) {
         if (!k.field->byte_position)
             throw std::runtime_error("secondary index is missing pk fields");
-        abieos::input_buffer b = {key.pos + *k.field->byte_position, key.end};
+        abieos::input_buffer b = {index.pos + *k.field->byte_position, index.end};
         k.field->type_obj->key_to_key(result, b);
     }
     return result;

@@ -97,7 +97,7 @@ struct rocksdb_query_session : query_session {
                 rdb::check(
                     db->Get(
                         rocksdb::ReadOptions(), db->DefaultColumnFamily(),
-                        rdb::to_slice(extract_pk_from_key(index_value, *query.table_obj, query.sort_keys)), &delta_value),
+                        rdb::to_slice(extract_pk_from_index(index_value, *query.table_obj, query.sort_keys)), &delta_value),
                     "query_database: ");
                 rows.emplace_back(delta_value.data(), delta_value.data() + delta_value.size());
                 if (query.join_table) {
@@ -116,7 +116,7 @@ struct rocksdb_query_session : query_session {
                             rdb::check(
                                 db->Get(
                                     rocksdb::ReadOptions(), db->DefaultColumnFamily(),
-                                    rdb::to_slice(extract_pk_from_key(join_index_value, *query.join_table, query.join_table->keys)),
+                                    rdb::to_slice(extract_pk_from_index(join_index_value, *query.join_table, query.join_table->keys)),
                                     &join_delta_value),
                                 "query_database: ");
                             fill_positions(rdb::to_input_buffer(join_delta_value), query.join_table->fields);

@@ -385,7 +385,7 @@ ABIEOS_REFLECT(received_block) {
     ABIEOS_MEMBER(received_block, block_id)
 }
 
-inline std::vector<char> make_received_block_key(uint32_t block) { return make_table_key(block, true, "fill.status"_n); }
+inline std::vector<char> make_received_block_key(uint32_t block) { return make_table_key(block, true, "recvd.block"_n); }
 inline std::vector<char> make_block_info_key(uint32_t block) { return make_table_key(block, true, "block.info"_n); }
 
 inline void append_transaction_trace_key(std::vector<char>& dest, uint32_t block, const abieos::checksum256 transaction_id) {

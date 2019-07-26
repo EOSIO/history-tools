@@ -105,40 +105,43 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
         ilog("verifying expected records are present");
         uint32_t expected = first;
-        // for_each_subkey(rocksdb_inst->database, kv::make_block_key(0), kv::make_block_key(0xffff'ffff), [&](auto&, auto k, auto v) {
-        //     auto orig_k = k;
-        //     if (kv::bin_to_key_tag(k) != kv::key_tag::block)
-        //         throw std::runtime_error("This shouldn't happen (1)");
-        //     auto block_num = kv::bin_to_native_key<uint32_t>(k);
-        //     auto tag       = kv::bin_to_key_tag(k);
-        //     if (tag == kv::key_tag::table_row && (block_num < first || block_num > head))
-        //         throw std::runtime_error(
-        //             "Saw row for block_num " + std::to_string(block_num) +
-        //             ", which is out of range [first, head]. key: " + kv::key_to_string(orig_k));
-        //     if (tag != kv::key_tag::received_block)
-        //         return true;
-        //     if (block_num == first || block_num == head || !(block_num % 10'000))
-        //         ilog("Found records for block ${b}", ("b", block_num));
-        //     if (block_num != expected)
-        //         throw std::runtime_error(
-        //             "Saw received_block record " + std::to_string(block_num) + " but expected " + std::to_string(expected));
-        //     ++expected;
-        //     return true;
-        // });
-        ilog("Found records for block ${b}", ("b", expected - 1));
+
+        for_each_subkey(rocksdb_inst->database, kv::make_table_key(0), kv::make_table_key(0xffff'ffff), [&](auto&, auto k, auto) {
+            auto orig_k = k;
+            if (kv::bin_to_key_tag(k) != kv::key_tag::table)
+                throw std::runtime_error("This shouldn't happen (1)");
+            auto block_num = kv::bin_to_native_key<uint32_t>(k);
+            for_each_subkey(
+                rocksdb_inst->database, kv::make_table_key(block_num, false, "recvd.block"_n),
+                kv::make_table_key(block_num, true, "recvd.block"_n), [&](auto&, auto k, auto) {
+                    if (block_num != 0 && (block_num < first || block_num > head))
+                        throw std::runtime_error(
+                            "Saw row for block_num " + std::to_string(block_num) +
+                            ", which is out of range [first, head]. key: " + kv::key_to_string(orig_k));
+                    if (block_num == first || block_num == head || !(block_num % 10'000))
+                        ilog("Found received_block ${b}", ("b", block_num));
+                    if (block_num != expected)
+                        throw std::runtime_error(
+                            "Saw received_block record " + std::to_string(block_num) + " but expected " + std::to_string(expected));
+                    ++expected;
+                    return true;
+                });
+            return true;
+        });
+        ilog("Found received_block ${b}", ("b", expected - 1));
         if (expected - 1 != head)
             throw std::runtime_error("Found head " + std::to_string(expected - 1) + " but fill_status.head = " + std::to_string(head));
 
-        ilog("verifying table_index keys reference existing records");
-        uint32_t num_ti_keys = 0;
-        for_each(rocksdb_inst->database, kv::make_index_key(), kv::make_index_key(), [&](auto k, auto v) {
-            if (!((++num_ti_keys) % 1'000'000))
-                ilog("Checked ${n} table_index keys", ("n", num_ti_keys));
-            if (!rdb::exists(rocksdb_inst->database, rdb::to_slice(v)))
-                throw std::runtime_error("A table_index key references a missing record");
-            return true;
-        });
-        ilog("Checked ${n} table_index keys", ("n", num_ti_keys));
+        // ilog("verifying table_index keys reference existing records");
+        // uint32_t num_ti_keys = 0;
+        // for_each(rocksdb_inst->database, kv::make_index_key(), kv::make_index_key(), [&](auto k, auto v) {
+        //     if (!((++num_ti_keys) % 1'000'000))
+        //         ilog("Checked ${n} table_index keys", ("n", num_ti_keys));
+        //     if (!rdb::exists(rocksdb_inst->database, rdb::to_slice(v)))
+        //         throw std::runtime_error("A table_index key references a missing record");
+        //     return true;
+        // });
+        // ilog("Checked ${n} table_index keys", ("n", num_ti_keys));
     }
 
     void fill_fields(rocksdb_table& table, const std::string& base_name, const abieos::abi_field& abi_field) {
@@ -657,7 +660,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             kv::append_index_key(index_key, action_trace_table->short_name, index.name);
             fill_key(index_key, index);
             kv::append_index_suffix(index_key, block_num, true);
-            rdb::put(batch, index_key, key);
+            batch.Put(rdb::to_slice(index_key), {});
         }
 
         // todo: receipt_auth_sequence

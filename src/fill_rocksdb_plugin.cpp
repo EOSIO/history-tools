@@ -470,7 +470,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     void fill_key(std::vector<char>& dest, rocksdb_index& index) {
         for (auto& field : index.fields) {
             auto pos = field->pos;
-            field->type->bin_to_bin_key(dest, pos);
+            field->type->bin_to_key(dest, pos);
         }
     }
 
@@ -506,6 +506,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             index_key.clear();
             kv::append_index_key(index_key, block_info_table->short_name, index.name);
             fill_key(index_key, index);
+            kv::append_index_suffix(index_key, block_num, true);
             rdb::put(batch, index_key, key);
         }
     } // receive_block
@@ -550,7 +551,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
                     index_key.clear();
                     kv::append_index_key(index_key, table.short_name, index.name);
                     fill_key(index_key, index);
-                    kv::append_table_index_state_suffix(index_key, block_num, row.present);
+                    kv::append_index_suffix(index_key, block_num, row.present);
                     rdb::put(batch, index_key, delta_key);
                 }
                 ++num_processed;
@@ -655,6 +656,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             index_key.clear();
             kv::append_index_key(index_key, action_trace_table->short_name, index.name);
             fill_key(index_key, index);
+            kv::append_index_suffix(index_key, block_num, true);
             rdb::put(batch, index_key, key);
         }
 

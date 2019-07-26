@@ -47,6 +47,14 @@
         },
         {
             "name": "action_trace",
+            "keys": [
+                {
+                    "name": "transaction_id"
+                },
+                {
+                    "name": "action_ordinal"
+                }
+            ],
             "fields": [
                 {
                     "name": "block_num",

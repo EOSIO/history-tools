@@ -84,13 +84,15 @@ T bin_to_native_key(abieos::input_buffer& b) {
 }
 
 struct type {
-    void (*bin_to_bin)(std::vector<char>&, abieos::input_buffer&)       = nullptr;
-    void (*bin_to_bin_key)(std::vector<char>&, abieos::input_buffer&)   = nullptr;
-    void (*query_to_bin_key)(std::vector<char>&, abieos::input_buffer&) = nullptr;
-    void (*lower_bound_key)(std::vector<char>&)                         = nullptr;
-    void (*upper_bound_key)(std::vector<char>&)                         = nullptr;
-    bool (*skip_bin)(abieos::input_buffer&)                             = nullptr;
-    void (*fill_empty)(std::vector<char>&)                              = nullptr;
+    void (*bin_to_bin)(std::vector<char>&, abieos::input_buffer&)   = nullptr;
+    void (*bin_to_key)(std::vector<char>&, abieos::input_buffer&)   = nullptr;
+    void (*key_to_key)(std::vector<char>&, abieos::input_buffer&)   = nullptr;
+    void (*query_to_key)(std::vector<char>&, abieos::input_buffer&) = nullptr;
+    void (*lower_bound_key)(std::vector<char>&)                     = nullptr;
+    void (*upper_bound_key)(std::vector<char>&)                     = nullptr;
+    bool (*skip_bin)(abieos::input_buffer&)                         = nullptr;
+    bool (*skip_key)(abieos::input_buffer&)                         = nullptr;
+    void (*fill_empty)(std::vector<char>&)                          = nullptr;
 };
 
 template <typename T>
@@ -116,7 +118,7 @@ inline void bin_to_bin<state_history::transaction_status>(std::vector<char>& des
 }
 
 template <typename T>
-void bin_to_bin_key(std::vector<char>& dest, abieos::input_buffer& bin) {
+void bin_to_key(std::vector<char>& dest, abieos::input_buffer& bin) {
     if constexpr (std::is_same_v<std::decay_t<T>, abieos::varuint32>) {
         reverse_bin(dest, [&] { abieos::native_to_bin(abieos::bin_to_native<abieos::varuint32>(bin).value, dest); });
     } else {
@@ -125,7 +127,16 @@ void bin_to_bin_key(std::vector<char>& dest, abieos::input_buffer& bin) {
 }
 
 template <typename T>
-void query_to_bin_key(std::vector<char>& dest, abieos::input_buffer& bin) {
+void key_to_key(std::vector<char>& dest, abieos::input_buffer& bin) {
+    if constexpr (std::is_same_v<std::decay_t<T>, abieos::varuint32>) {
+        bin_to_bin<uint32_t>(dest, bin);
+    } else {
+        bin_to_bin<T>(dest, bin);
+    }
+}
+
+template <typename T>
+void query_to_key(std::vector<char>& dest, abieos::input_buffer& bin) {
     if constexpr (std::is_same_v<std::decay_t<T>, abieos::varuint32>) {
         fixup_key<uint32_t>(dest, [&] { bin_to_bin<uint32_t>(dest, bin); });
     } else {
@@ -169,6 +180,23 @@ bool skip_bin(abieos::input_buffer& bin) {
 }
 
 template <typename T>
+bool skip_key(abieos::input_buffer& bin) {
+    if constexpr (
+        std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
+        std::is_same_v<std::decay_t<T>, abieos::checksum256> || std::is_same_v<std::decay_t<T>, abieos::time_point> ||
+        std::is_same_v<std::decay_t<T>, abieos::block_timestamp>) {
+        if (size_t(bin.end - bin.pos) < sizeof(T))
+            throw std::runtime_error("skip past end");
+        bin.pos += sizeof(T);
+        return true;
+    } else if constexpr (std::is_same_v<std::decay_t<T>, abieos::varuint32>) {
+        return skip_key<uint32_t>(bin);
+    } else {
+        return false;
+    }
+}
+
+template <typename T>
 void fill_empty(std::vector<char>& dest) {
     if constexpr (
         std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
@@ -184,7 +212,8 @@ void fill_empty(std::vector<char>& dest) {
 
 template <typename T>
 constexpr type make_type_for() {
-    return type{bin_to_bin<T>, bin_to_bin_key<T>, query_to_bin_key<T>, lower_bound_key<T>, upper_bound_key<T>, skip_bin<T>, fill_empty<T>};
+    return type{bin_to_bin<T>,      bin_to_key<T>, key_to_key<T>, query_to_key<T>, lower_bound_key<T>,
+                upper_bound_key<T>, skip_bin<T>,   skip_key<T>,   fill_empty<T>};
 }
 
 // clang-format off
@@ -332,11 +361,16 @@ inline std::vector<char> make_index_key(abieos::name table_name, abieos::name in
     return result;
 }
 
-inline void append_table_index_state_suffix(std::vector<char>& dest, uint32_t block) { native_to_bin_key(dest, ~block); }
+inline void append_index_suffix(std::vector<char>& dest, uint32_t block) { native_to_bin_key(dest, ~block); }
 
-inline void append_table_index_state_suffix(std::vector<char>& dest, uint32_t block, bool present_k) {
+inline void append_index_suffix(std::vector<char>& dest, uint32_t block, bool present_k) {
     native_to_bin_key(dest, ~block);
     native_to_bin_key(dest, !present_k);
+}
+
+inline void read_index_suffix(abieos::input_buffer& bin, uint32_t& block, bool& present_k) {
+    block     = ~bin_to_native_key<uint32_t>(bin);
+    present_k = !bin_to_native_key<bool>(bin);
 }
 
 inline std::vector<char> make_fill_status_key() { return make_table_key(0, true, "fill.status"_n); }
@@ -401,30 +435,86 @@ using table  = defs::table;
 using query  = defs::query;
 using config = defs::config;
 
-inline void fill_positions(abieos::input_buffer src, std::vector<field>& fields) {
+inline void clear_positions(std::vector<field>& fields) {
     for (auto& field : fields)
         field.byte_position.reset();
-    auto begin   = src.pos;
+}
+
+template <typename F>
+void fill_positions_impl(const char* begin, abieos::input_buffer& src, bool is_key, F for_each_field) {
     bool present = true;
-    for (auto& field : fields) {
+    for_each_field([&](auto& field) {
         if (present)
             field.byte_position = src.pos - begin;
         if (field.begin_optional) {
             present = abieos::bin_to_native<bool>(src);
         } else {
-            if (present && !field.type_obj->skip_bin(src))
-                break;
+            if (present) {
+                if (is_key) {
+                    if (!field.type_obj->skip_key(src))
+                        return false;
+                } else {
+                    if (!field.type_obj->skip_bin(src))
+                        return false;
+                }
+            }
             if (field.end_optional)
                 present = true;
         }
-    }
+        return true;
+    });
 }
+
+inline void fill_positions_rw(const char* begin, abieos::input_buffer& src, std::vector<field>& fields) {
+    clear_positions(fields);
+    fill_positions_impl(begin, src, false, [&](auto f) {
+        for (auto& field : fields)
+            if (!f(field))
+                break;
+    });
+}
+
+inline void fill_positions(abieos::input_buffer src, std::vector<field>& fields) { fill_positions_rw(src.pos, src, fields); }
+
+inline void fill_positions_rw(const char* begin, abieos::input_buffer& src, std::vector<key>& keys) {
+    fill_positions_impl(begin, src, true, [&](auto f) {
+        for (auto& key : keys)
+            if (!f(*key.field))
+                break;
+    });
+}
+
+inline void fill_positions(abieos::input_buffer src, std::vector<key>& fields) { fill_positions_rw(src.pos, src, fields); }
 
 inline bool keys_have_positions(const std::vector<key>& keys) {
     for (auto& key : keys)
         if (!key.field->byte_position)
             return false;
     return true;
+}
+
+inline std::vector<char> extract_pk_from_key(abieos::input_buffer key, kv::query& query) {
+    auto temp = key;
+    skip_key<uint8_t>(temp);      // key_tag::index
+    skip_key<abieos::name>(temp); // table_name
+    skip_key<abieos::name>(temp); // index_name
+
+    clear_positions(query.table_obj->fields);
+    fill_positions_rw(key.pos, temp, query.sort_keys);
+
+    uint32_t block;
+    bool     present_k;
+    read_index_suffix(temp, block, present_k);
+
+    std::vector<char> result;
+    append_table_key(result, block, present_k, query.table_obj->short_name);
+    for (auto& k : query.table_obj->keys) {
+        if (!k.field->byte_position)
+            throw std::runtime_error("secondary index is missing pk fields");
+        abieos::input_buffer b = {key.pos + *k.field->byte_position, key.end};
+        k.field->type_obj->key_to_key(result, b);
+    }
+    return result;
 }
 
 } // namespace kv

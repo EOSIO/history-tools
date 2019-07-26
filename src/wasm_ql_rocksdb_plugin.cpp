@@ -50,7 +50,7 @@ struct rocksdb_query_session : query_session {
                 throw std::runtime_error("key position is out of range");
             abieos::input_buffer key_pos{src.pos + *key.field->byte_position, src.end};
             if (xform_key)
-                key.field->type_obj->bin_to_bin_key(dest, key_pos);
+                key.field->type_obj->bin_to_key(dest, key_pos);
             else
                 key.field->type_obj->bin_to_bin(dest, key_pos);
         }
@@ -77,7 +77,7 @@ struct rocksdb_query_session : query_session {
 
         auto add_fields = [&](auto& dest, auto& types) {
             for (auto& type : types)
-                type.query_to_bin_key(dest, query_bin);
+                type.query_to_key(dest, query_bin);
         };
         add_fields(first, query.range_types);
         add_fields(last, query.range_types);
@@ -90,12 +90,15 @@ struct rocksdb_query_session : query_session {
         rdb::for_each_subkey(db_iface->rocksdb_inst->database, first, last, [&](const auto& index_key, auto, auto) {
             std::vector index_key_limit_block = index_key;
             if (query.is_state)
-                kv::append_table_index_state_suffix(index_key_limit_block, max_block_num);
+                kv::append_index_suffix(index_key_limit_block, max_block_num);
             // todo: unify rdb's and pg's handling of negative result because of max_block_num
-            for_each(db_iface->rocksdb_inst->database, index_key_limit_block, index_key, [&](auto, auto delta_key) {
+            for_each(db_iface->rocksdb_inst->database, index_key_limit_block, index_key, [&](auto index_value, auto) {
                 rocksdb::PinnableSlice delta_value;
                 rdb::check(
-                    db->Get(rocksdb::ReadOptions(), db->DefaultColumnFamily(), rdb::to_slice(delta_key), &delta_value), "query_database: ");
+                    db->Get(
+                        rocksdb::ReadOptions(), db->DefaultColumnFamily(), rdb::to_slice(extract_pk_from_key(index_value, query)),
+                        &delta_value),
+                    "query_database: ");
                 rows.emplace_back(delta_value.data(), delta_value.data() + delta_value.size());
                 if (query.join_table) {
                     auto join_key = kv::make_index_key(query.join_table->short_name, query.join_query_wasm_name);
@@ -105,7 +108,7 @@ struct rocksdb_query_session : query_session {
                         append_fields(join_key, rdb::to_input_buffer(delta_value), query.join_key_values, true);
                         auto join_key_limit_block = join_key;
                         if (query.join_query->is_state)
-                            kv::append_table_index_state_suffix(join_key_limit_block, max_block_num);
+                            kv::append_index_suffix(join_key_limit_block, max_block_num);
                         auto& row = rows.back();
                         for_each(db_iface->rocksdb_inst->database, join_key_limit_block, join_key, [&](auto, auto join_delta_key) {
                             found_join = true;

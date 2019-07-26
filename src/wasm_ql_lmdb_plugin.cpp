@@ -52,7 +52,7 @@ struct lmdb_query_session : query_session {
                 throw std::runtime_error("key position is out of range");
             abieos::input_buffer key_pos{src.pos + *key.field->byte_position, src.end};
             if (xform_key)
-                key.field->type_obj->bin_to_bin_key(dest, key_pos);
+                key.field->type_obj->bin_to_key(dest, key_pos);
             else
                 key.field->type_obj->bin_to_bin(dest, key_pos);
         }
@@ -79,7 +79,7 @@ struct lmdb_query_session : query_session {
 
         auto add_fields = [&](auto& dest, auto& types) {
             for (auto& type : types)
-                type.query_to_bin_key(dest, query_bin);
+                type.query_to_key(dest, query_bin);
         };
         add_fields(first, query.range_types);
         add_fields(last, query.range_types);
@@ -91,7 +91,7 @@ struct lmdb_query_session : query_session {
         for_each_subkey(tx, db_iface->lmdb_inst->db, first, last, [&](const auto& index_key, auto, auto) {
             std::vector index_key_limit_block = index_key;
             if (query.is_state)
-                kv::append_table_index_state_suffix(index_key_limit_block, max_block_num);
+                kv::append_index_suffix(index_key_limit_block, max_block_num);
             // todo: unify lmdb's and pg's handling of negative result because of max_block_num
             for_each(tx, db_iface->lmdb_inst->db, index_key_limit_block, index_key, [&](auto, auto delta_key) {
                 auto delta_value = lmdb::get_raw(tx, db_iface->lmdb_inst->db, delta_key);
@@ -104,7 +104,7 @@ struct lmdb_query_session : query_session {
                         append_fields(join_key, delta_value, query.join_key_values, true);
                         auto join_key_limit_block = join_key;
                         if (query.join_query->is_state)
-                            kv::append_table_index_state_suffix(join_key_limit_block, max_block_num);
+                            kv::append_index_suffix(join_key_limit_block, max_block_num);
                         auto& row = rows.back();
                         for_each(tx, db_iface->lmdb_inst->db, join_key_limit_block, join_key, [&](auto, auto join_delta_key) {
                             found_join            = true;

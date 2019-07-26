@@ -33,7 +33,6 @@ struct key {
     std::string           type           = {};
     std::string           expression     = {};
     std::string           arg_expression = {};
-    bool                  desc           = {};
     typename Defs::field* field          = {};
 };
 
@@ -45,23 +44,22 @@ constexpr void for_each_field(key<Defs>*, F f) {
     ABIEOS_MEMBER(key<Defs>, type);
     ABIEOS_MEMBER(key<Defs>, expression);
     ABIEOS_MEMBER(key<Defs>, arg_expression);
-    ABIEOS_MEMBER(key<Defs>, desc);
 };
 
 template <typename Defs>
 struct table {
-    std::string                                  name         = {};
-    std::vector<typename Defs::field>            fields       = {};
-    std::vector<typename Defs::key>              history_keys = {};
-    std::vector<typename Defs::key>              keys         = {};
-    std::map<std::string, typename Defs::field*> field_map    = {};
+    std::string                                  name      = {};
+    std::vector<typename Defs::field>            fields    = {};
+    bool                                         is_delta  = {};
+    std::vector<typename Defs::key>              keys      = {};
+    std::map<std::string, typename Defs::field*> field_map = {};
 };
 
 template <typename Defs, typename F>
 constexpr void for_each_field(table<Defs>*, F f) {
     ABIEOS_MEMBER(table<Defs>, name);
     ABIEOS_MEMBER(table<Defs>, fields);
-    ABIEOS_MEMBER(table<Defs>, history_keys);
+    ABIEOS_MEMBER(table<Defs>, is_delta);
     ABIEOS_MEMBER(table<Defs>, keys);
 };
 
@@ -71,7 +69,6 @@ struct query {
     std::string                       index                = {};
     std::string                       function             = {};
     std::string                       table                = {};
-    bool                              is_state             = {};
     bool                              limit_block_num      = {};
     uint32_t                          max_results          = {};
     std::string                       join                 = {};
@@ -95,7 +92,6 @@ constexpr void for_each_field(query<Defs>*, F f) {
     ABIEOS_MEMBER(query<Defs>, index);
     ABIEOS_MEMBER(query<Defs>, function);
     ABIEOS_MEMBER(query<Defs>, table);
-    ABIEOS_MEMBER(query<Defs>, is_state);
     ABIEOS_MEMBER(query<Defs>, limit_block_num);
     ABIEOS_MEMBER(query<Defs>, max_results);
     ABIEOS_MEMBER(query<Defs>, join);
@@ -145,7 +141,6 @@ struct config {
                     throw std::runtime_error("table " + table.name + " field " + field.name + ": unknown type: " + field.type);
                 field.type_obj = &it->second;
             }
-            set_key_fields(table, table.history_keys);
             set_key_fields(table, table.keys);
         }
 

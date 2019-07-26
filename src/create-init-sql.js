@@ -292,7 +292,9 @@ for (let table of config.tables) {
     const fields = {};
     for (let field of table.fields)
         fields[field.name] = field;
-    tables[table.name] = { fields, ordered_fields: table.fields, keys: table.keys, history_keys: table.history_keys };
+    tables[table.name] = {
+        fields, ordered_fields: table.fields, keys: table.keys, is_delta: table.is_delta
+    };
 }
 
 function get_type(type) {
@@ -313,7 +315,14 @@ for (let query of config.queries) {
         args: query.args || [],
         keys: tables[query.table].keys || [],
         sort_keys: query.sort_keys || [],
-        history_keys: tables[query.table].history_keys || [],
+        history_keys: tables[query.table].is_delta ? [{
+            "name": "block_num",
+            "desc": true
+        },
+        {
+            "name": "present",
+            "desc": true
+        }] : [],
         ordered_fields: tables[query.table].ordered_fields,
         join_key_values: (query.join_key_values || []).map(({ name, expression }) => ({ name, expression, type: tables[query.join].fields[name].type })),
         fields_from_join: (query.fields_from_join || []).map(({ name, new_name }) => ({ name, new_name, type: tables[query.join].fields[name].type })),
@@ -322,7 +331,7 @@ for (let query of config.queries) {
     fill_types(query, query.keys);
     fill_types(query, query.sort_keys);
     fill_types(query, query.history_keys);
-    if (query.is_state)
+    if (tables[query.table].is_delta)
         generate_state(query);
     else
         generate_nonstate(query);

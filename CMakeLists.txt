@@ -25,7 +25,7 @@ add_definitions(-DBOOST_ASIO_DISABLE_STD_EXPERIMENTAL_STRING_VIEW)
 
 find_package(eosio.cdt)
 find_package(PostgreSQL COMPONENTS Libraries)
-find_library(LMDB_LIB NAMES lmdb)
+# find_library(LMDB_LIB NAMES lmdb)
 find_package(Boost 1.66 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(JS mozjs-64)

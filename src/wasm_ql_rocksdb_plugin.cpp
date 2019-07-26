@@ -89,7 +89,7 @@ struct rocksdb_query_session : query_session {
         auto*                          db          = db_iface->rocksdb_inst->database.db.get();
         rdb::for_each_subkey(db_iface->rocksdb_inst->database, first, last, [&](const auto& index_key, auto, auto) {
             std::vector index_key_limit_block = index_key;
-            if (query.is_state)
+            if (query.table_obj->is_delta)
                 kv::append_index_suffix(index_key_limit_block, max_block_num);
             // todo: unify rdb's and pg's handling of negative result because of max_block_num
             for_each(db_iface->rocksdb_inst->database, index_key_limit_block, index_key, [&](auto index_value, auto) {
@@ -107,7 +107,7 @@ struct rocksdb_query_session : query_session {
                     if (keys_have_positions(query.join_key_values)) {
                         append_fields(join_key, rdb::to_input_buffer(delta_value), query.join_key_values, true);
                         auto join_key_limit_block = join_key;
-                        if (query.join_query->is_state)
+                        if (query.join_query->table_obj->is_delta)
                             kv::append_index_suffix(join_key_limit_block, max_block_num);
                         auto& row = rows.back();
                         for_each(db_iface->rocksdb_inst->database, join_key_limit_block, join_key, [&](auto join_index_value, auto) {

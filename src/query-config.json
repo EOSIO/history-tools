@@ -146,16 +146,7 @@
         },
         {
             "name": "account",
-            "history_keys": [
-                {
-                    "name": "block_num",
-                    "desc": true
-                },
-                {
-                    "name": "present",
-                    "desc": true
-                }
-            ],
+            "is_delta": true,
             "keys": [
                 {
                     "name": "name"
@@ -186,16 +177,7 @@
         },
         {
             "name": "account_metadata",
-            "history_keys": [
-                {
-                    "name": "block_num",
-                    "desc": true
-                },
-                {
-                    "name": "present",
-                    "desc": true
-                }
-            ],
+            "is_delta": true,
             "keys": [
                 {
                     "name": "name"
@@ -244,16 +226,7 @@
         },
         {
             "name": "code",
-            "history_keys": [
-                {
-                    "name": "block_num",
-                    "desc": true
-                },
-                {
-                    "name": "present",
-                    "desc": true
-                }
-            ],
+            "is_delta": true,
             "keys": [
                 {
                     "name": "vm_type"
@@ -294,16 +267,7 @@
         },
         {
             "name": "contract_row",
-            "history_keys": [
-                {
-                    "name": "block_num",
-                    "desc": true
-                },
-                {
-                    "name": "present",
-                    "desc": true
-                }
-            ],
+            "is_delta": true,
             "keys": [
                 {
                     "name": "code"
@@ -356,16 +320,7 @@
         },
         {
             "name": "contract_index64",
-            "history_keys": [
-                {
-                    "name": "block_num",
-                    "desc": true
-                },
-                {
-                    "name": "present",
-                    "desc": true
-                }
-            ],
+            "is_delta": true,
             "keys": [
                 {
                     "name": "code"
@@ -514,7 +469,6 @@
             "function": "account_range_name",
             "table": "account",
             "max_results": 100,
-            "is_state": true,
             "limit_block_num": true,
             "sort_keys": [
                 {
@@ -528,7 +482,6 @@
             "function": "acctmeta_joined_range_name",
             "table": "account_metadata",
             "max_results": 100,
-            "is_state": true,
             "limit_block_num": true,
             "sort_keys": [
                 {
@@ -569,7 +522,6 @@
             "function": "code_range_type_ver_hash",
             "table": "code",
             "max_results": 100,
-            "is_state": true,
             "limit_block_num": true,
             "sort_keys": [
                 {
@@ -588,7 +540,6 @@
             "function": "acctmeta_joincode_range_name",
             "table": "account_metadata",
             "max_results": 100,
-            "is_state": true,
             "limit_block_num": true,
             "sort_keys": [
                 {
@@ -647,7 +598,6 @@
             "function": "contract_row_range_code_table_pk_scope",
             "table": "contract_row",
             "max_results": 100,
-            "is_state": true,
             "limit_block_num": true,
             "sort_keys": [
                 {
@@ -670,7 +620,6 @@
             "function": "contract_row_range_code_table_scope_pk",
             "table": "contract_row",
             "max_results": 100,
-            "is_state": true,
             "limit_block_num": true,
             "sort_keys": [
                 {
@@ -693,7 +642,6 @@
             "function": "contract_row_range_scope_table_pk_code",
             "table": "contract_row",
             "max_results": 100,
-            "is_state": true,
             "limit_block_num": true,
             "sort_keys": [
                 {
@@ -716,7 +664,6 @@
             "function": "contract_index64_range_code_table_scope_sk_pk",
             "table": "contract_index64",
             "max_results": 100,
-            "is_state": true,
             "limit_block_num": true,
             "sort_keys": [
                 {

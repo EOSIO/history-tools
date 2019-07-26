@@ -51,6 +51,7 @@ struct fill_postgresql_config {
     bool        drop_schema   = false;
     bool        create_schema = false;
     bool        enable_trim   = false;
+    bool        ignore_on_block = false;
 };
 
 struct fill_postgresql_plugin_impl : std::enable_shared_from_this<fill_postgresql_plugin_impl> {
@@ -247,6 +248,9 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             R"(.received_block ("block_num" bigint, "block_id" varchar(64), primary key("block_num")))");
         t.exec(
             "create table " + t.quote_name(config->schema) +
+            R"(.received_nonempty_block ("block_num" bigint, "block_id" varchar(64), "transaction_count" integer, primary key("block_num")))");
+        t.exec(
+            "create table " + t.quote_name(config->schema) +
             R"(.fill_status ("head" bigint, "head_id" varchar(64), "irreversible" bigint, "irreversible_id" varchar(64), "first" bigint))");
         t.exec("create unique index on " + t.quote_name(config->schema) + R"(.fill_status ((true)))");
         t.exec("insert into " + t.quote_name(config->schema) + R"(.fill_status values (0, '', 0, '', 0))");
@@ -334,6 +338,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
 
         static const char* const simple_cases[] = {
             "received_block",
+            "received_nonempty_block",
             "action_trace_authorization",
             "action_trace_auth_sequence",
             "action_trace_ram_delta",
@@ -463,6 +468,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                 "delete from " + t.quote_name(config->schema) + "." + t.quote_name(name) + " where block_num >= " + std::to_string(block));
         };
         trunc("received_block");
+        trunc("received_nonempty_block");
         trunc("action_trace_authorization");
         trunc("action_trace_auth_sequence");
         trunc("action_trace_ram_delta");
@@ -532,8 +538,10 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             receive_block(result.this_block->block_num, result.this_block->block_id, *result.block, bulk, t, pipeline);
         if (result.deltas)
             receive_deltas(result.this_block->block_num, *result.deltas, bulk, t, pipeline);
+
+        uint32_t transaction_count = 0;
         if (result.traces)
-            receive_traces(result.this_block->block_num, *result.traces, bulk, t, pipeline);
+            transaction_count = receive_traces(result.this_block->block_num, *result.traces, bulk, t, pipeline);
 
         head            = result.this_block->block_num;
         head_id         = (std::string)result.this_block->block_id;
@@ -546,6 +554,14 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         pipeline.insert(
             "insert into " + t.quote_name(config->schema) + ".received_block (block_num, block_id) values (" +
             std::to_string(result.this_block->block_num) + ", " + quote(std::string(result.this_block->block_id)) + ")");
+
+        if (transaction_count > 1) {
+            pipeline.insert(
+                "insert into " + t.quote_name(config->schema) + ".received_nonempty_block (block_num, block_id, transaction_count) values (" +
+                std::to_string(result.this_block->block_num) + ", " + 
+                quote(std::string(result.this_block->block_id)) + ", " + 
+                std::to_string(transaction_count) + ")");            
+        }
 
         pipeline.complete();
         t.commit();
@@ -751,14 +767,20 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         }
     } // receive_deltas
 
-    void receive_traces(uint32_t block_num, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
-        auto     num          = read_varuint32(bin);
+    uint32_t receive_traces(uint32_t block_num, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        uint32_t num          = read_varuint32(bin);
         uint32_t num_ordinals = 0;
         for (uint32_t i = 0; i < num; ++i) {
             transaction_trace trace;
             bin_to_native(trace, bin);
-            write_transaction_trace(block_num, num_ordinals, std::get<transaction_trace_v0>(trace), bulk, t, pipeline);
+            if (i == 0 && config->ignore_on_block) {
+               ++num_ordinals;
+               continue;
+            } else {
+               write_transaction_trace(block_num, num_ordinals, std::get<transaction_trace_v0>(trace), bulk, t, pipeline);
+            }
         }
+        return num;
     }
 
     void write_transaction_trace(
@@ -1013,6 +1035,7 @@ void fill_pg_plugin::set_program_options(options_description& cli, options_descr
     auto clop = cli.add_options();
     clop("fpg-drop", "Drop (delete) schema and tables");
     clop("fpg-create", "Create schema and tables");
+    clop("ignore-onblock", "Ignore onblock transactions");
 }
 
 void fill_pg_plugin::plugin_initialize(const variables_map& options) {
@@ -1031,6 +1054,7 @@ void fill_pg_plugin::plugin_initialize(const variables_map& options) {
         my->config->drop_schema   = options.count("fpg-drop");
         my->config->create_schema = options.count("fpg-create");
         my->config->enable_trim   = options.count("fill-trim");
+        my->config->ignore_on_block = options.count("ignore-onblock");
     }
     FC_LOG_AND_RETHROW()
 }

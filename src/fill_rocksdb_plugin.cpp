@@ -380,8 +380,10 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             return true;
         if (config->stop_before && result.this_block->block_num >= config->stop_before) {
             ilog("block ${b}: stop requested", ("b", result.this_block->block_num));
+            write_fill_status(*active_batch);
             write(rocksdb_inst->database, *active_batch);
             active_batch.reset();
+            rocksdb_inst->database.flush(false, false);
             return false;
         }
 
@@ -391,7 +393,6 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             if (result.this_block->block_num <= head) {
                 ilog("switch forks at block ${b}", ("b", result.this_block->block_num));
                 truncate(*active_batch, result.this_block->block_num);
-                // !!! todo: fill status is out of sync because of early batch writes
             }
 
             bool near       = result.this_block->block_num + 4 >= result.last_irreversible.block_num;
@@ -414,13 +415,13 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             irreversible_id = result.last_irreversible.block_id;
             if (!first)
                 first = head;
-            write_fill_status(*active_batch);
 
             rdb::put(
                 *active_batch, kv::make_received_block_key(result.this_block->block_num),
                 kv::received_block{result.this_block->block_num, result.this_block->block_id});
 
             if (commit_now) {
+                write_fill_status(*active_batch);
                 write(rocksdb_inst->database, *active_batch);
                 if (config->enable_trim) {
                     trim(*active_batch);

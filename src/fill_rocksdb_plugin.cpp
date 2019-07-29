@@ -103,7 +103,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             auto orig_k = k;
             if (kv::bin_to_key_tag(k) != kv::key_tag::table)
                 throw std::runtime_error("This shouldn't happen (1)");
-            auto block_num = kv::bin_to_native_key<uint32_t>(k);
+            auto block_num = kv::key_to_native<uint32_t>(k);
             for_each_subkey(
                 rocksdb_inst->database, kv::make_table_key(block_num, false, "recvd.block"_n),
                 kv::make_table_key(block_num, true, "recvd.block"_n), [&](auto&, auto k, auto) {
@@ -615,8 +615,8 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         auto row_bound = kv::make_table_key(block_num);
         rdb::for_each(rocksdb_inst->database, row_bound, row_bound, [&](auto k, auto row_content) {
             k.pos += row_bound.size();
-            auto table_name = kv::bin_to_native_key<abieos::name>(k);
-            auto present_k  = kv::bin_to_native_key<bool>(k);
+            auto table_name = kv::key_to_native<abieos::name>(k);
+            auto present_k  = kv::key_to_native<bool>(k);
             auto pk         = k;
             return f(table_name, present_k, pk);
         });
@@ -628,8 +628,8 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         kv::append_table_key(delta_bound, block_num);
         rdb::for_each(rocksdb_inst->database, delta_bound, delta_bound, [&](auto k, auto row_content) {
             k.pos += delta_bound.size();
-            auto table_name = kv::bin_to_native_key<abieos::name>(k);
-            auto present    = kv::bin_to_native_key<bool>(k);
+            auto table_name = kv::key_to_native<abieos::name>(k);
+            auto present    = kv::key_to_native<bool>(k);
             auto pk         = k;
             return f(table_name, present, pk);
         });
@@ -639,7 +639,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     void for_each_row_trim(abieos::name table_name, abieos::input_buffer pk, uint32_t block_num, F f) {
         std::vector<char> trim_bound;
         kv::append_index_key(trim_bound, table_name, "trim"_n);
-        kv::native_to_bin_key<uint32_t>(trim_bound, block_num);
+        kv::native_to_key<uint32_t>(trim_bound, block_num);
         rdb::for_each(rocksdb_inst->database, trim_bound, trim_bound, [&](auto k, auto v) { return f(v); });
     }
 
@@ -649,12 +649,12 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     //     kv::append_index_key(trim_bound, table_name, "trim"_n);
     //     trim_bound.insert(trim_bound.end(), pk.pos, pk.end);
     //     auto trim_lower_bound = trim_bound;
-    //     kv::native_to_bin_key<uint32_t>(trim_lower_bound, ~max_block_num);
+    //     kv::native_to_key<uint32_t>(trim_lower_bound, ~max_block_num);
 
     //     rdb::for_each(rocksdb_inst->database, trim_lower_bound, trim_bound, [&](auto k, auto v) {
     //         k.pos += trim_bound.size();
-    //         auto block_num = ~kv::bin_to_native_key<uint32_t>(k);
-    //         auto present   = !kv::bin_to_native_key<bool>(k);
+    //         auto block_num = ~kv::key_to_native<uint32_t>(k);
+    //         auto present   = !kv::key_to_native<bool>(k);
     //         return f(block_num, present);
     //     });
     // }

@@ -121,20 +121,37 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
                 });
             return true;
         });
-        ilog("Found received_block ${b}", ("b", expected - 1));
+        ilog("found received_block ${b}", ("b", expected - 1));
         if (expected - 1 != head)
             throw std::runtime_error("Found head " + std::to_string(expected - 1) + " but fill_status.head = " + std::to_string(head));
 
-        // ilog("verifying table_index keys reference existing records");
-        // uint32_t num_ti_keys = 0;
-        // for_each(rocksdb_inst->database, kv::make_index_key(), kv::make_index_key(), [&](auto k, auto v) {
-        //     if (!((++num_ti_keys) % 1'000'000))
-        //         ilog("Checked ${n} table_index keys", ("n", num_ti_keys));
-        //     if (!rdb::exists(rocksdb_inst->database, rdb::to_slice(v)))
-        //         throw std::runtime_error("A table_index key references a missing record");
-        //     return true;
-        // });
-        // ilog("Checked ${n} table_index keys", ("n", num_ti_keys));
+        ilog("verifying index keys reference existing records");
+        uint32_t num_ti_keys = 0;
+        for_each(rocksdb_inst->database, kv::make_index_key(), kv::make_index_key(), [&](auto k, auto v) {
+            if (!((++num_ti_keys) % 1'000'000))
+                ilog("Checked ${n} table_index keys", ("n", num_ti_keys));
+
+            abieos::name table, index;
+            auto         kk = k;
+            kv::key_to_native<uint8_t>(kk);
+            kv::read_index_prefix(kk, table, index);
+
+            auto& c        = rocksdb_inst->query_config;
+            auto  query_it = c.query_map.find(index);
+            if (query_it == c.query_map.end())
+                throw std::runtime_error("found unknown index '" + (std::string)index + "'");
+            auto& query = *query_it->second;
+            if (query.table_obj->short_name != table)
+                throw std::runtime_error("index '" + (std::string)index + "' is not for table '" + (std::string)table + "'");
+
+            auto pk = extract_pk_from_index(k, *query.table_obj, query.sort_keys);
+            if (!rdb::exists(rocksdb_inst->database, rdb::to_slice(pk)))
+                throw std::runtime_error(
+                    "index '" + (std::string)index + "' references a missing entry in table '" + (std::string)table + "'");
+            return true;
+        });
+        ilog("checked ${n} table_index keys", ("n", num_ti_keys));
+        ilog("database appears ok");
     }
 
     void fill_fields(rocksdb_table& table, const std::string& base_name, const abieos::abi_field& abi_field) {
@@ -287,6 +304,8 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
     void received_abi(std::string_view abi) override {
         init_tables(abi);
+        if (config->enable_check)
+            check();
 
         load_fill_status();
         rocksdb::WriteBatch batch;
@@ -767,8 +786,6 @@ void fill_rocksdb_plugin::plugin_initialize(const variables_map& options) {
 
 void fill_rocksdb_plugin::plugin_startup() {
     my->session = std::make_shared<flm_session>(my.get());
-    if (my->config->enable_check)
-        my->session->check();
     my->session->connect(app().get_io_service());
 }
 

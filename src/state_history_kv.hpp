@@ -375,6 +375,11 @@ inline void append_index_suffix(std::vector<char>& dest, uint32_t block, bool pr
     native_to_key(dest, !present_k);
 }
 
+inline void read_index_prefix(abieos::input_buffer& bin, abieos::name& table, abieos::name& index) {
+    table = key_to_native<abieos::name>(bin);
+    index = key_to_native<abieos::name>(bin);
+}
+
 inline void read_index_suffix(abieos::input_buffer& bin, uint32_t& block, bool& present_k) {
     block     = ~key_to_native<uint32_t>(bin);
     present_k = !key_to_native<bool>(bin);

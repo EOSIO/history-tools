@@ -288,6 +288,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                 "producer" varchar(13),
                 "confirmed" integer,
                 "previous" varchar(64),
+                "transaction_count" integer,
                 "transaction_mroot" varchar(64),
                 "action_mroot" varchar(64),
                 "schedule_version" bigint,
@@ -541,9 +542,8 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         if (result.deltas)
             receive_deltas(result.this_block->block_num, *result.deltas, bulk, t, pipeline);
 
-        uint32_t transaction_count = 0;
         if (result.traces)
-            transaction_count = receive_traces(result.this_block->block_num, *result.traces, bulk, t, pipeline);
+            receive_traces(result.this_block->block_num, *result.traces, bulk, t, pipeline);
 
         head            = result.this_block->block_num;
         head_id         = (std::string)result.this_block->block_id;
@@ -557,12 +557,12 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             "insert into " + t.quote_name(config->schema) + ".received_block (block_num, block_id) values (" +
             std::to_string(result.this_block->block_num) + ", " + quote(std::string(result.this_block->block_id)) + ")");
 
-        if (transaction_count > 1 && result.block) {
+        if (result.block && block.transactions.size() > 0) {
             pipeline.insert(
                 "insert into " + t.quote_name(config->schema) + ".received_nonempty_block (block_num, block_id, transaction_count, timestamp) values (" +
                 std::to_string(result.this_block->block_num) + ", " + 
                 quote(std::string(result.this_block->block_id)) + ", " + 
-                std::to_string(transaction_count) + ", " +
+                std::to_string(block.transactions.size()) + ", " +
                 quote(std::string(block.timestamp)) + ")");            
         }
 
@@ -709,7 +709,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     receive_block(uint32_t block_num, const checksum256& block_id, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline, signed_block &block) {
         bin_to_native(block, bin);
 
-        std::string fields = "block_num, block_id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, "
+        std::string fields = "block_num, block_id, timestamp, producer, confirmed, previous, transaction_count, transaction_mroot, action_mroot, "
                              "schedule_version, new_producers_version, new_producers";
         std::string values = sql_str(bulk, block_num) + sep(bulk) +                                 //
                              sql_str(bulk, block_id) + sep(bulk) +                                  //
@@ -717,6 +717,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                              sql_str(bulk, block.producer) + sep(bulk) +                            //
                              sql_str(bulk, block.confirmed) + sep(bulk) +                           //
                              sql_str(bulk, block.previous) + sep(bulk) +                            //
+                             sql_str(bulk, (uint32_t)(block.transactions.size())) + sep(bulk) +     //
                              sql_str(bulk, block.transaction_mroot) + sep(bulk) +                   //
                              sql_str(bulk, block.action_mroot) + sep(bulk) +                        //
                              sql_str(bulk, block.schedule_version) + sep(bulk) +                    //
@@ -769,7 +770,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         }
     } // receive_deltas
 
-    uint32_t receive_traces(uint32_t block_num, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+    void receive_traces(uint32_t block_num, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
         uint32_t num          = read_varuint32(bin);
         uint32_t num_ordinals = 0;
         for (uint32_t i = 0; i < num; ++i) {
@@ -782,7 +783,6 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                write_transaction_trace(block_num, num_ordinals, std::get<transaction_trace_v0>(trace), bulk, t, pipeline);
             }
         }
-        return num;
     }
 
     void write_transaction_trace(

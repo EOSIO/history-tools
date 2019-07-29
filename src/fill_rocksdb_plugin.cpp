@@ -399,6 +399,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             return false;
         }
 
+        /*
         if (result.this_block->block_num >= 40013524) {
             end_write(true);
             {
@@ -414,6 +415,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             }
             _exit(0);
         }
+        */
 
         try {
             if (result.this_block->block_num <= head) {

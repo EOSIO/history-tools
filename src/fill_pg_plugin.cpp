@@ -259,7 +259,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         create_table<permission_level>(         t, "action_trace_authorization",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<account_auth_sequence>(    t, "action_trace_auth_sequence",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<account_delta>(            t, "action_trace_ram_delta",      "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<action_trace_v0>(          t, "action_trace",                "block_num, transaction_id, action_ordinal",          "block_num bigint, transaction_id varchar(64),                                          transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+        create_table<action_trace_v0>(          t, "action_trace",                "block_num, transaction_id, action_ordinal",          "block_num bigint, \"timestamp\" timestamp, transaction_id varchar(64),                                          transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_num, transaction_ordinal",                     "block_num bigint, transaction_ordinal integer, failed_dtrx_trace varchar(64)", "partial_signatures varchar[], partial_context_free_data bytea[]");
         // clang-format on
 
@@ -543,7 +543,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             receive_deltas(result.this_block->block_num, *result.deltas, bulk, t, pipeline);
 
         if (result.traces)
-            receive_traces(result.this_block->block_num, *result.traces, bulk, t, pipeline);
+            receive_traces(result.this_block->block_num, block.timestamp, *result.traces, bulk, t, pipeline);
 
         head            = result.this_block->block_num;
         head_id         = (std::string)result.this_block->block_id;
@@ -770,7 +770,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         }
     } // receive_deltas
 
-    void receive_traces(uint32_t block_num, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+    void receive_traces(uint32_t block_num, abieos::block_timestamp timestamp, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
         uint32_t num          = read_varuint32(bin);
         uint32_t num_ordinals = 0;
         for (uint32_t i = 0; i < num; ++i) {
@@ -780,16 +780,16 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                ++num_ordinals;
                continue;
             } else {
-               write_transaction_trace(block_num, num_ordinals, std::get<transaction_trace_v0>(trace), bulk, t, pipeline);
+               write_transaction_trace(block_num, timestamp, num_ordinals, std::get<transaction_trace_v0>(trace), bulk, t, pipeline);
             }
         }
     }
 
     void write_transaction_trace(
-        uint32_t block_num, uint32_t& num_ordinals, transaction_trace_v0& ttrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        uint32_t block_num, abieos::block_timestamp timestamp, uint32_t& num_ordinals, transaction_trace_v0& ttrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
         auto* failed = !ttrace.failed_dtrx_trace.empty() ? &std::get<transaction_trace_v0>(ttrace.failed_dtrx_trace[0].recurse) : nullptr;
         if (failed)
-            write_transaction_trace(block_num, num_ordinals, *failed, bulk, t, pipeline);
+            write_transaction_trace(block_num, timestamp, num_ordinals, *failed, bulk, t, pipeline);
         auto        transaction_ordinal = ++num_ordinals;
         std::string failed_id           = failed ? std::string(failed->id) : "";
         std::string fields              = "block_num, transaction_ordinal, failed_dtrx_trace";
@@ -820,15 +820,15 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             std::move(suffix_values));
 
         for (auto& atrace : ttrace.action_traces)
-            write_action_trace(block_num, ttrace, std::get<action_trace_v0>(atrace), bulk, t, pipeline);
+            write_action_trace(block_num, timestamp, ttrace, std::get<action_trace_v0>(atrace), bulk, t, pipeline);
     } // write_transaction_trace
 
     void write_action_trace(
-        uint32_t block_num, transaction_trace_v0& ttrace, action_trace_v0& atrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        uint32_t block_num, abieos::block_timestamp timestamp, transaction_trace_v0& ttrace, action_trace_v0& atrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
 
-        std::string fields = "block_num, transaction_id, transaction_status";
+        std::string fields = "block_num, timestamp, transaction_id, transaction_status";
         std::string values =
-            std::to_string(block_num) + sep(bulk) + quote(bulk, (std::string)ttrace.id) + sep(bulk) + quote(bulk, to_string(ttrace.status));
+            std::to_string(block_num) + sep(bulk) + sql_str(bulk, timestamp) + sep(bulk) + quote(bulk, (std::string)ttrace.id) + sep(bulk) + quote(bulk, to_string(ttrace.status));
 
         write("action_trace", block_num, atrace, fields, values, bulk, t, pipeline);
         write_action_trace_subtable(

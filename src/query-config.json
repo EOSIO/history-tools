@@ -266,6 +266,39 @@
             ]
         },
         {
+            "name": "contract_table",
+            "is_delta": true,
+            "keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "code",
+                    "type": "name"
+                },
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "table",
+                    "type": "name"
+                },
+                {
+                    "name": "payer",
+                    "type": "name"
+                }
+            ]
+        },
+        {
             "name": "contract_row",
             "is_delta": true,
             "keys": [
@@ -371,6 +404,389 @@
                     "type": "uint64"
                 }
             ]
+        },
+        {
+            "name": "contract_index128",
+            "is_delta": true,
+            "keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "code",
+                    "type": "name"
+                },
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "table",
+                    "type": "name"
+                },
+                {
+                    "name": "primary_key",
+                    "short_name": "pk",
+                    "type": "uint64"
+                },
+                {
+                    "name": "payer",
+                    "type": "name"
+                },
+                {
+                    "name": "secondary_key",
+                    "short_name": "sk",
+                    "type": "uint128"
+                }
+            ]
+        },
+        {
+            "name": "contract_index256",
+            "is_delta": true,
+            "keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "code",
+                    "type": "name"
+                },
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "table",
+                    "type": "name"
+                },
+                {
+                    "name": "primary_key",
+                    "short_name": "pk",
+                    "type": "uint64"
+                },
+                {
+                    "name": "payer",
+                    "type": "name"
+                },
+                {
+                    "name": "secondary_key",
+                    "short_name": "sk",
+                    "type": "checksum256"
+                }
+            ]
+        },
+        {
+            "name": "contract_index_double",
+            "is_delta": true,
+            "keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "code",
+                    "type": "name"
+                },
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "table",
+                    "type": "name"
+                },
+                {
+                    "name": "primary_key",
+                    "short_name": "pk",
+                    "type": "uint64"
+                },
+                {
+                    "name": "payer",
+                    "type": "name"
+                },
+                {
+                    "name": "secondary_key",
+                    "short_name": "sk",
+                    "type": "float64"
+                }
+            ]
+        },
+        {
+            "name": "contract_index_long_double",
+            "is_delta": true,
+            "keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "code",
+                    "type": "name"
+                },
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "table",
+                    "type": "name"
+                },
+                {
+                    "name": "primary_key",
+                    "short_name": "pk",
+                    "type": "uint64"
+                },
+                {
+                    "name": "payer",
+                    "type": "name"
+                },
+                {
+                    "name": "secondary_key",
+                    "short_name": "sk",
+                    "type": "float128"
+                }
+            ]
+        },
+        {
+            "name": "global_property",
+            "is_delta": true,
+            "keys": [],
+            "fields": [
+                {
+                    "name": "proposed_schedule_block_num",
+                    "type": "uint32?"
+                }
+            ]
+        },
+        {
+            "name": "generated_transaction",
+            "is_delta": true,
+            "keys": [
+                {
+                    "name": "sender"
+                },
+                {
+                    "name": "sender_id"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "sender",
+                    "type": "name"
+                },
+                {
+                    "name": "sender_id",
+                    "type": "uint128"
+                },
+                {
+                    "name": "payer",
+                    "type": "name"
+                },
+                {
+                    "name": "trx_id",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "packed_trx",
+                    "type": "bytes"
+                }
+            ]
+        },
+        {
+            "name": "protocol_state",
+            "is_delta": true,
+            "keys": []
+        },
+        {
+            "name": "permission",
+            "is_delta": true,
+            "keys": [
+                {
+                    "name": "owner"
+                },
+                {
+                    "name": "name"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "owner",
+                    "type": "name"
+                },
+                {
+                    "name": "name",
+                    "type": "name"
+                },
+                {
+                    "name": "parent",
+                    "type": "name"
+                },
+                {
+                    "name": "last_updated",
+                    "type": "time_point"
+                }
+            ]
+        },
+        {
+            "name": "permission_link",
+            "is_delta": true,
+            "keys": [
+                {
+                    "name": "account"
+                },
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "message_type"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "account",
+                    "type": "name"
+                },
+                {
+                    "name": "code",
+                    "type": "name"
+                },
+                {
+                    "name": "message_type",
+                    "type": "name"
+                },
+                {
+                    "name": "required_permission",
+                    "type": "name"
+                }
+            ]
+        },
+        {
+            "name": "resource_limits",
+            "is_delta": true,
+            "keys": [
+                {
+                    "name": "owner"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "owner",
+                    "type": "name"
+                },
+                {
+                    "name": "net_weight",
+                    "type": "int64"
+                },
+                {
+                    "name": "cpu_weight",
+                    "type": "int64"
+                },
+                {
+                    "name": "ram_bytes",
+                    "type": "int64"
+                }
+            ]
+        },
+        {
+            "name": "resource_usage",
+            "is_delta": true,
+            "keys": [
+                {
+                    "name": "owner"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "owner",
+                    "type": "name"
+                }
+            ]
+        },
+        {
+            "name": "resource_limits_state",
+            "is_delta": true,
+            "keys": [],
+            "fields": []
+        },
+        {
+            "name": "resource_limits_config",
+            "is_delta": true,
+            "keys": [],
+            "fields": []
         }
     ],
     "queries": [

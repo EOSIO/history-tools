@@ -53,6 +53,7 @@ struct table {
     bool                                         is_delta  = {};
     std::vector<typename Defs::key>              keys      = {};
     std::map<std::string, typename Defs::field*> field_map = {};
+    std::vector<typename Defs::query*>           queries   = {};
 };
 
 template <typename Defs, typename F>
@@ -148,6 +149,7 @@ struct config {
             if (it == table_map.end())
                 throw std::runtime_error("query " + (std::string)query.wasm_name + ": unknown table: " + query.table);
             query.table_obj = it->second;
+            it->second->queries.push_back(&query);
             set_key_fields(*query.table_obj, query.sort_keys);
             set_join_key_fields(*query.table_obj, query.join_key_values);
             auto add_types = [&](auto& dest, auto& fields, auto* t) {

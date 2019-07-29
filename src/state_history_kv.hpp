@@ -113,8 +113,8 @@ inline void bin_to_bin<abieos::int128>(std::vector<char>& dest, abieos::input_bu
 }
 
 template <>
-inline void bin_to_bin<state_history::transaction_status>(std::vector<char>& dest, abieos::input_buffer& bin) {
-    return bin_to_bin<std::underlying_type_t<state_history::transaction_status>>(dest, bin);
+inline void bin_to_bin<transaction_status>(std::vector<char>& dest, abieos::input_buffer& bin) {
+    return bin_to_bin<std::underlying_type_t<transaction_status>>(dest, bin);
 }
 
 template <typename T>
@@ -169,10 +169,16 @@ bool skip_bin(abieos::input_buffer& bin) {
     if constexpr (
         std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
         std::is_same_v<std::decay_t<T>, abieos::checksum256> || std::is_same_v<std::decay_t<T>, abieos::time_point> ||
-        std::is_same_v<std::decay_t<T>, abieos::block_timestamp>) {
+        std::is_same_v<std::decay_t<T>, abieos::block_timestamp> || std::is_same_v<std::decay_t<T>, transaction_status>) {
         if (size_t(bin.end - bin.pos) < sizeof(T))
             throw std::runtime_error("skip past end");
         bin.pos += sizeof(T);
+        return true;
+    } else if constexpr (std::is_same_v<std::decay_t<T>, abieos::varuint32>) {
+        uint32_t    dummy;
+        std::string error;
+        if (!abieos::read_varuint32(bin, error, dummy))
+            throw std::runtime_error("skip past end");
         return true;
     } else {
         return false;
@@ -184,7 +190,7 @@ bool skip_key(abieos::input_buffer& bin) {
     if constexpr (
         std::is_integral_v<T> || std::is_same_v<std::decay_t<T>, abieos::name> || std::is_same_v<std::decay_t<T>, abieos::uint128> ||
         std::is_same_v<std::decay_t<T>, abieos::checksum256> || std::is_same_v<std::decay_t<T>, abieos::time_point> ||
-        std::is_same_v<std::decay_t<T>, abieos::block_timestamp>) {
+        std::is_same_v<std::decay_t<T>, abieos::block_timestamp> || std::is_same_v<std::decay_t<T>, transaction_status>) {
         if (size_t(bin.end - bin.pos) < sizeof(T))
             throw std::runtime_error("skip past end");
         bin.pos += sizeof(T);
@@ -223,6 +229,7 @@ const inline std::map<std::string, type> abi_type_to_kv_type = {
     {"uint8",                   make_type_for<uint8_t>()},
     {"uint16",                  make_type_for<uint16_t>()},
     {"uint32",                  make_type_for<uint32_t>()},
+    {"uint32?",                 make_type_for<std::optional<uint32_t>>()},
     {"uint64",                  make_type_for<uint64_t>()},
     {"uint128",                 make_type_for<abieos::uint128>()},
     {"int8",                    make_type_for<int8_t>()},
@@ -240,7 +247,7 @@ const inline std::map<std::string, type> abi_type_to_kv_type = {
     {"checksum256",             make_type_for<abieos::checksum256>()},
     {"public_key",              make_type_for<abieos::public_key>()},
     {"bytes",                   make_type_for<abieos::bytes>()},
-    {"transaction_status",      make_type_for<state_history::transaction_status>()},
+    {"transaction_status",      make_type_for<transaction_status>()},
 };
 // clang-format on
 
@@ -401,7 +408,8 @@ append_action_trace_key(std::vector<char>& dest, uint32_t block, const abieos::c
 }
 
 struct defs {
-    using type = kv::type;
+    using type  = kv::type;
+    using query = query_config::query<defs>;
 
     struct field : query_config::field<defs> {
         std::optional<uint32_t> byte_position = {};
@@ -412,8 +420,6 @@ struct defs {
     struct table : query_config::table<defs> {
         abieos::name short_name = {};
     };
-
-    using query = query_config::query<defs>;
 
     struct config : query_config::config<defs> {
         template <typename M>
@@ -491,6 +497,15 @@ inline bool keys_have_positions(const std::vector<key>& keys) {
         if (!key.field->byte_position)
             return false;
     return true;
+}
+
+inline void extract_keys_from_value(std::vector<char>& dest, abieos::input_buffer value, std::vector<kv::key>& keys) {
+    for (auto& k : keys) {
+        if (!k.field->byte_position)
+            throw std::runtime_error("key fields are missing");
+        abieos::input_buffer b = {value.pos + *k.field->byte_position, value.end};
+        k.field->type_obj->bin_to_key(dest, b);
+    }
 }
 
 inline std::vector<char> extract_pk_from_index(abieos::input_buffer index, kv::table& table, std::vector<kv::key>& index_keys) {

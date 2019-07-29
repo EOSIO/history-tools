@@ -400,6 +400,7 @@ inline const std::map<std::string_view, type> abi_type_to_sql_type = {
     {"uint16",                  type_for<uint16_t>},
     {"int16",                   type_for<int16_t>},
     {"uint32",                  type_for<uint32_t>},
+    {"uint32?",                 type_for<std::optional<uint32_t>>},
     {"int32",                   type_for<int32_t>},
     {"uint64",                  type_for<uint64_t>},
     {"int64",                   type_for<int64_t>},

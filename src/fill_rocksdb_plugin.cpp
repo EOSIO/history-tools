@@ -36,22 +36,15 @@ struct rocksdb_field {
     const kv::type*                type        = {};
     std::unique_ptr<rocksdb_table> array_of    = {};
     std::unique_ptr<rocksdb_table> optional_of = {};
-    abieos::input_buffer           pos         = {}; // temporary filled by fill()
-};
-
-struct rocksdb_index {
-    abieos::name                name   = {};
-    std::vector<rocksdb_field*> fields = {};
 };
 
 struct rocksdb_table {
-    std::string                                 name        = {};
-    abieos::name                                short_name  = {};
-    const abieos::abi_type*                     abi_type    = {};
-    std::vector<std::unique_ptr<rocksdb_field>> fields      = {};
-    std::map<std::string, rocksdb_field*>       field_map   = {};
-    std::unique_ptr<rocksdb_index>              delta_index = {};
-    std::map<abieos::name, rocksdb_index>       indexes     = {};
+    std::string                                 name       = {};
+    abieos::name                                short_name = {};
+    kv::table*                                  kv_table   = {};
+    const abieos::abi_type*                     abi_type   = {};
+    std::vector<std::unique_ptr<rocksdb_field>> fields     = {};
+    std::map<std::string, rocksdb_field*>       field_map  = {};
 };
 
 struct fill_rocksdb_config : connection_config {
@@ -194,15 +187,32 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         }
     }
 
+    rocksdb_table& get_table(const std::string& name) {
+        auto table_it = tables.find(name);
+        if (table_it == tables.end())
+            throw std::runtime_error("unknown table \"" + name + "\"");
+        return table_it->second;
+    }
+
+    kv::table& get_kv_table(const std::string& name) {
+        auto& c           = rocksdb_inst->query_config;
+        auto  kv_table_it = c.table_map.find(name);
+        if (kv_table_it == c.table_map.end())
+            throw std::runtime_error("table \"" + name + "\" missing in query-config");
+        return *kv_table_it->second;
+    }
+
     void add_table(const std::string& table_name, const std::string& table_type, const jarray& key_names) {
         auto table_name_it = kv::table_names.find(table_name);
         if (table_name_it == kv::table_names.end())
             throw std::runtime_error("unknown table \"" + table_name + "\"");
         if (tables.find(table_name) != tables.end())
             throw std::runtime_error("duplicate table \"" + table_name + "\"");
+
         auto& table      = tables[table_name];
         table.name       = table_name;
         table.short_name = table_name_it->second;
+        table.kv_table   = &get_kv_table(table_name);
         table.abi_type   = &get_type(table_type);
 
         if (!table.abi_type->filled_variant || table.abi_type->fields.size() != 1 || !table.abi_type->fields[0].type->filled_struct)
@@ -211,17 +221,15 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         for (auto& f : table.abi_type->fields[0].type->fields)
             fill_fields(table, "", f);
 
-        table.delta_index = std::make_unique<rocksdb_index>();
-        auto& trim_index  = table.indexes["trim"_n];
-        trim_index.name   = "trim"_n;
-        for (auto& key : key_names) {
-            auto& field_name = std::get<std::string>(key.value);
-            auto  it         = table.field_map.find(field_name);
-            if (it == table.field_map.end())
-                throw std::runtime_error("table \"" + table_name + "\" key \"" + field_name + "\" not found");
-            table.delta_index->fields.push_back(it->second);
-            trim_index.fields.push_back(it->second);
-        }
+        // auto& trim_index  = table.indexes["trim"_n];
+        // trim_index.name   = "trim"_n;
+        // for (auto& key : key_names) {
+        //     auto& field_name = std::get<std::string>(key.value);
+        //     auto  it         = table.field_map.find(field_name);
+        //     if (it == table.field_map.end())
+        //         throw std::runtime_error("table \"" + table_name + "\" key \"" + field_name + "\" not found");
+        //     trim_index.fields.push_back(it->second);
+        // }
     }
 
     void init_tables(std::string_view abi_json) {
@@ -238,6 +246,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         block_info_table             = &tables["block_info"];
         block_info_table->name       = "block_info";
         block_info_table->short_name = "block.info"_n;
+        block_info_table->kv_table   = &get_kv_table("block_info");
         fill_fields(*block_info_table, "", abieos::abi_field{"block_num", &get_type("uint32")});
         fill_fields(*block_info_table, "", abieos::abi_field{"block_id", &get_type("checksum256")});
         fill_fields(*block_info_table, "", abieos::abi_field{"timestamp", &get_type("block_timestamp_type")});
@@ -247,13 +256,14 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         fill_fields(*block_info_table, "", abieos::abi_field{"transaction_mroot", &get_type("checksum256")});
         fill_fields(*block_info_table, "", abieos::abi_field{"action_mroot", &get_type("checksum256")});
         fill_fields(*block_info_table, "", abieos::abi_field{"schedule_version", &get_type("uint32")});
-        auto& block_info_trim = block_info_table->indexes["trim"_n];
-        block_info_trim.name  = "trim"_n;
-        block_info_trim.fields.push_back(block_info_table->field_map["block_num"]);
+        // auto& block_info_trim = block_info_table->indexes["trim"_n];
+        // block_info_trim.name  = "trim"_n;
+        // block_info_trim.fields.push_back(block_info_table->field_map["block_num"]);
 
         action_trace_table             = &tables["action_trace"];
         action_trace_table->name       = "action_trace";
         action_trace_table->short_name = "atrace"_n;
+        action_trace_table->kv_table   = &get_kv_table("action_trace");
         fill_fields(*action_trace_table, "", abieos::abi_field{"block_num", &get_type("uint32")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"transaction_id", &get_type("checksum256")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"transaction_status", &get_type("uint8")});
@@ -268,40 +278,15 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         fill_fields(*action_trace_table, "", abieos::abi_field{"console", &get_type("string")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"except", &get_type("string")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"error_code", &get_type("uint64")});
-        auto& action_trace_trim = action_trace_table->indexes["trim"_n];
-        action_trace_trim.name  = "trim"_n;
-        action_trace_trim.fields.push_back(action_trace_table->field_map["block_num"]);
-        action_trace_trim.fields.push_back(action_trace_table->field_map["transaction_id"]);
-        action_trace_trim.fields.push_back(action_trace_table->field_map["action_ordinal"]);
+        // auto& action_trace_trim = action_trace_table->indexes["trim"_n];
+        // action_trace_trim.name  = "trim"_n;
+        // action_trace_trim.fields.push_back(action_trace_table->field_map["block_num"]);
+        // action_trace_trim.fields.push_back(action_trace_table->field_map["transaction_id"]);
+        // action_trace_trim.fields.push_back(action_trace_table->field_map["action_ordinal"]);
     } // init_tables
-
-    void init_indexes() {
-        // todo: verify index set in config matches index set in db
-        auto& c = rocksdb_inst->query_config;
-        for (auto& [query_name, query] : c.query_map) {
-            auto table_it = tables.find(query->table);
-            if (table_it == tables.end())
-                throw std::runtime_error("can't find table " + query->table);
-            auto& table = table_it->second;
-
-            auto index_it = table.indexes.find(query_name);
-            if (index_it != table.indexes.end())
-                throw std::runtime_error("duplicate index " + query->table + "." + (std::string)query_name);
-            auto& index = table.indexes[query_name];
-            index.name  = query_name;
-
-            for (auto& key : query->sort_keys) {
-                auto field_it = table.field_map.find(key.name);
-                if (field_it == table.field_map.end())
-                    throw std::runtime_error("can't find " + query->table + "." + key.name);
-                index.fields.push_back(field_it->second);
-            }
-        }
-    }
 
     void received_abi(std::string_view abi) override {
         init_tables(abi);
-        init_indexes();
 
         load_fill_status();
         rocksdb::WriteBatch batch;
@@ -436,7 +421,6 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     } // receive_result()
 
     void fill(std::vector<char>& dest, input_buffer& src, rocksdb_field& field) {
-        field.pos = src;
         if (field.abi_field->type->filled_variant && field.abi_field->type->fields.size() == 1 &&
             field.abi_field->type->fields[0].type->filled_struct) {
             auto v = read_varuint32(src);
@@ -470,66 +454,54 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         }
     } // fill
 
-    void fill_key(std::vector<char>& dest, rocksdb_index& index) {
-        for (auto& field : index.fields) {
-            auto pos = field->pos;
-            field->type->bin_to_key(dest, pos);
+    void add_row(rocksdb::WriteBatch& batch, rocksdb_table& table, uint32_t block_num, bool present_k, const std::vector<char>& value) {
+        kv::clear_positions(table.kv_table->fields);
+        kv::fill_positions({value.data(), value.data() + value.size()}, table.kv_table->fields);
+
+        std::vector<char> key;
+        kv::append_table_key(key, block_num, present_k, table.short_name);
+        kv::extract_keys_from_value(key, {value.data(), value.data() + value.size()}, table.kv_table->keys);
+        rdb::put(batch, key, value);
+
+        std::vector<char> index_key;
+        for (auto* query : table.kv_table->queries) {
+            index_key.clear();
+            kv::append_index_key(index_key, table.short_name, query->wasm_name);
+            kv::extract_keys_from_value(index_key, {value.data(), value.data() + value.size()}, query->sort_keys);
+            kv::append_index_suffix(index_key, block_num, present_k);
+            batch.Put(rdb::to_slice(index_key), {});
         }
     }
 
     void receive_block(uint32_t block_num, const checksum256& block_id, input_buffer bin, rocksdb::WriteBatch& batch) {
         state_history::signed_block block;
         bin_to_native(block, bin);
-        auto              key = kv::make_block_info_key(block_num);
         std::vector<char> value;
 
-        std::vector<uint32_t> positions;
-        auto                  f = [&](const auto& x) {
-            positions.push_back(value.size());
-            abieos::native_to_bin(x, value);
-        };
-
-        f(block_num);
-        f(block_id);
-        f(block.timestamp);
-        f(block.producer);
-        f(block.confirmed);
-        f(block.previous);
-        f(block.transaction_mroot);
-        f(block.action_mroot);
-        f(block.schedule_version);
+        abieos::native_to_bin(block_num, value);
+        abieos::native_to_bin(block_id, value);
+        abieos::native_to_bin(block.timestamp, value);
+        abieos::native_to_bin(block.producer, value);
+        abieos::native_to_bin(block.confirmed, value);
+        abieos::native_to_bin(block.previous, value);
+        abieos::native_to_bin(block.transaction_mroot, value);
+        abieos::native_to_bin(block.action_mroot, value);
+        abieos::native_to_bin(block.schedule_version, value);
         abieos::native_to_bin(block.new_producers ? *block.new_producers : state_history::producer_schedule{}, value);
 
-        rdb::put(batch, key, value);
-        for (size_t i = 0; i < positions.size(); ++i)
-            block_info_table->fields[i]->pos = {value.data() + positions[i], value.data() + value.size()};
-
-        std::vector<char> index_key;
-        for (auto& [_, index] : block_info_table->indexes) {
-            index_key.clear();
-            kv::append_index_key(index_key, block_info_table->short_name, index.name);
-            fill_key(index_key, index);
-            kv::append_index_suffix(index_key, block_num, true);
-            batch.Put(rdb::to_slice(index_key), {});
-        }
+        add_row(batch, get_table("block_info"), block_num, true, value);
     } // receive_block
 
     void receive_deltas(rocksdb::WriteBatch& batch, uint32_t block_num, input_buffer bin) {
         auto&             table_delta_type = get_type("table_delta");
-        std::vector<char> delta_key;
         std::vector<char> value;
-        std::vector<char> index_key;
 
         auto num = read_varuint32(bin);
         for (uint32_t i = 0; i < num; ++i) {
             check_variant(bin, table_delta_type, "table_delta_v0");
             state_history::table_delta_v0 table_delta;
             bin_to_native(table_delta, bin);
-
-            auto table_it = tables.find(table_delta.name);
-            if (table_it == tables.end())
-                throw std::runtime_error("unknown table \"" + table_delta.name + "\"");
-            auto& table = table_it->second;
+            auto& table = get_table(table_delta.name);
 
             size_t num_processed = 0;
             for (auto& row : table_delta.rows) {
@@ -540,23 +512,12 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
                     write(rocksdb_inst->database, batch);
                 }
                 check_variant(row.data, *table.abi_type, 0u);
-                delta_key.clear();
-                kv::append_table_key(delta_key, block_num, row.present, table.short_name);
                 value.clear();
                 abieos::native_to_bin(block_num, value);
                 abieos::native_to_bin(row.present, value);
                 for (auto& field : table.fields)
                     fill(value, row.data, *field);
-                fill_key(delta_key, *table.delta_index);
-                rdb::put(batch, delta_key, value);
-
-                for (auto& [_, index] : table.indexes) {
-                    index_key.clear();
-                    kv::append_index_key(index_key, table.short_name, index.name);
-                    fill_key(index_key, index);
-                    kv::append_index_suffix(index_key, block_num, row.present);
-                    batch.Put(rdb::to_slice(index_key), {});
-                }
+                add_row(batch, table, block_num, row.present, value);
                 ++num_processed;
             }
         }
@@ -605,29 +566,20 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
         // rdb::put(batch, key, value); // todo: indexes, including trim
 
-        std::vector<char> index_key;
         for (auto& atrace : ttrace.action_traces)
-            write_action_trace(batch, block_num, ttrace, std::get<state_history::action_trace_v0>(atrace), key, value, index_key);
+            write_action_trace(batch, block_num, ttrace, std::get<state_history::action_trace_v0>(atrace), value);
     }
 
     void write_action_trace(
         rocksdb::WriteBatch& batch, uint32_t block_num, const state_history::transaction_trace_v0& ttrace,
-        const state_history::action_trace_v0& atrace, std::vector<char>& key, std::vector<char>& value, std::vector<char>& index_key) {
-        key.clear();
-        kv::append_action_trace_key(key, block_num, ttrace.id, atrace.action_ordinal.value);
+        const state_history::action_trace_v0& atrace, std::vector<char>& value) {
         value.clear();
 
-        std::vector<uint32_t> positions;
-        auto                  f = [&](const auto& x) {
-            positions.push_back(value.size());
-            abieos::native_to_bin(x, value);
-        };
-
-        f(block_num);
-        f(ttrace.id);
-        f((uint8_t)ttrace.status);
-        f(atrace.action_ordinal);
-        f(atrace.creator_action_ordinal);
+        abieos::native_to_bin(block_num, value);
+        abieos::native_to_bin(ttrace.id, value);
+        abieos::native_to_bin((uint8_t)ttrace.status, value);
+        abieos::native_to_bin(atrace.action_ordinal, value);
+        abieos::native_to_bin(atrace.creator_action_ordinal, value);
         abieos::native_to_bin(atrace.receipt.has_value(), value);
         if (atrace.receipt) {
             auto& receipt = std::get<state_history::action_receipt_v0>(*atrace.receipt);
@@ -638,30 +590,20 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             abieos::native_to_bin(receipt.code_sequence, value);
             abieos::native_to_bin(receipt.abi_sequence, value);
         }
-        f(atrace.receiver);
-        f(atrace.act.account);
-        f(atrace.act.name);
-        f(atrace.act.data);
-        f(atrace.context_free);
-        f(atrace.elapsed);
-        f(atrace.console);
-        f(atrace.except ? *atrace.except : "");
-        f(atrace.error_code ? *atrace.error_code : 0);
+        abieos::native_to_bin(atrace.receiver, value);
+        abieos::native_to_bin(atrace.act.account, value);
+        abieos::native_to_bin(atrace.act.name, value);
+        abieos::native_to_bin(atrace.act.data, value);
+        abieos::native_to_bin(atrace.context_free, value);
+        abieos::native_to_bin(atrace.elapsed, value);
+        abieos::native_to_bin(atrace.console, value);
+        abieos::native_to_bin(atrace.except ? *atrace.except : "", value);
+        abieos::native_to_bin(atrace.error_code ? *atrace.error_code : 0, value);
 
         abieos::native_to_bin(atrace.console, value);
         abieos::native_to_bin(atrace.except ? *atrace.except : std::string(), value);
-        rdb::put(batch, key, value);
 
-        for (size_t i = 0; i < positions.size(); ++i)
-            action_trace_table->fields[i]->pos = {value.data() + positions[i], value.data() + value.size()};
-
-        for (auto& [_, index] : action_trace_table->indexes) {
-            index_key.clear();
-            kv::append_index_key(index_key, action_trace_table->short_name, index.name);
-            fill_key(index_key, index);
-            kv::append_index_suffix(index_key, block_num, true);
-            batch.Put(rdb::to_slice(index_key), {});
-        }
+        add_row(batch, get_table("action_trace"), block_num, true, value);
 
         // todo: receipt_auth_sequence
         // todo: authorization
@@ -701,21 +643,21 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         rdb::for_each(rocksdb_inst->database, trim_bound, trim_bound, [&](auto k, auto v) { return f(v); });
     }
 
-    template <typename F>
-    void for_each_delta_trim(abieos::name table_name, abieos::input_buffer pk, uint32_t max_block_num, F f) {
-        std::vector<char> trim_bound;
-        kv::append_index_key(trim_bound, table_name, "trim"_n);
-        trim_bound.insert(trim_bound.end(), pk.pos, pk.end);
-        auto trim_lower_bound = trim_bound;
-        kv::native_to_bin_key<uint32_t>(trim_lower_bound, ~max_block_num);
+    // template <typename F>
+    // void for_each_delta_trim(abieos::name table_name, abieos::input_buffer pk, uint32_t max_block_num, F f) {
+    //     std::vector<char> trim_bound;
+    //     kv::append_index_key(trim_bound, table_name, "trim"_n);
+    //     trim_bound.insert(trim_bound.end(), pk.pos, pk.end);
+    //     auto trim_lower_bound = trim_bound;
+    //     kv::native_to_bin_key<uint32_t>(trim_lower_bound, ~max_block_num);
 
-        rdb::for_each(rocksdb_inst->database, trim_lower_bound, trim_bound, [&](auto k, auto v) {
-            k.pos += trim_bound.size();
-            auto block_num = ~kv::bin_to_native_key<uint32_t>(k);
-            auto present   = !kv::bin_to_native_key<bool>(k);
-            return f(block_num, present);
-        });
-    }
+    //     rdb::for_each(rocksdb_inst->database, trim_lower_bound, trim_bound, [&](auto k, auto v) {
+    //         k.pos += trim_bound.size();
+    //         auto block_num = ~kv::bin_to_native_key<uint32_t>(k);
+    //         auto present   = !kv::bin_to_native_key<bool>(k);
+    //         return f(block_num, present);
+    //     });
+    // }
 
     void remove_row(rocksdb::WriteBatch& batch, abieos::name table_name, uint32_t block_num, std::vector<char> key) {
         // auto index_ref_bounds = kv::make_table_index_ref_key(block_num, key);
@@ -727,12 +669,12 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         // rdb::check(batch.Delete(rdb::to_slice(key)), "remove_row (3): ");
     }
 
-    void remove_delta(rocksdb::WriteBatch& batch, abieos::name table_name, uint32_t block_num, bool present, abieos::input_buffer pk) {
-        std::vector<char> delta_key;
-        kv::append_table_key(delta_key, block_num, present, table_name);
-        delta_key.insert(delta_key.end(), pk.pos, pk.end);
-        remove_row(batch, table_name, block_num, delta_key);
-    }
+    // void remove_delta(rocksdb::WriteBatch& batch, abieos::name table_name, uint32_t block_num, bool present, abieos::input_buffer pk) {
+    //     std::vector<char> delta_key;
+    //     kv::append_table_key(delta_key, block_num, present, table_name);
+    //     delta_key.insert(delta_key.end(), pk.pos, pk.end);
+    //     remove_row(batch, table_name, block_num, delta_key);
+    // }
 
     void trim(rocksdb::WriteBatch& batch) {
         // todo: optimize batching
@@ -759,19 +701,19 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             //     });
             //     return true;
             // });
-            for_each_delta_in_block(block_num + 1, [&](auto delta_table_name, auto delta_present, auto delta_pk) {
-                for_each_delta_trim(delta_table_name, delta_pk, block_num + 1, [&](auto trim_block_num, auto trim_present) {
-                    if (trim_block_num == block_num + 1)
-                        return true;
-                    if (trim_block_num > block_num + 1)
-                        throw std::runtime_error("found unexpected block in trim search: " + std::to_string(trim_block_num));
-                    remove_delta(batch, delta_table_name, trim_block_num, trim_present, delta_pk);
-                    ++num_deltas_removed;
-                    return true;
-                });
-                return true;
-            });
-            rdb::check(batch.Delete(rdb::to_slice(kv::make_received_block_key(block_num))), "trim: ");
+            // for_each_delta_in_block(block_num + 1, [&](auto delta_table_name, auto delta_present, auto delta_pk) {
+            //     for_each_delta_trim(delta_table_name, delta_pk, block_num + 1, [&](auto trim_block_num, auto trim_present) {
+            //         if (trim_block_num == block_num + 1)
+            //             return true;
+            //         if (trim_block_num > block_num + 1)
+            //             throw std::runtime_error("found unexpected block in trim search: " + std::to_string(trim_block_num));
+            //         remove_delta(batch, delta_table_name, trim_block_num, trim_present, delta_pk);
+            //         ++num_deltas_removed;
+            //         return true;
+            //     });
+            //     return true;
+            // });
+            // rdb::check(batch.Delete(rdb::to_slice(kv::make_received_block_key(block_num))), "trim: ");
         }
 
         ilog("trim: removed ${r} rows and ${d} deltas", ("r", num_rows_removed)("d", num_deltas_removed));

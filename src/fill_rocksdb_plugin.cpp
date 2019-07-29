@@ -65,7 +65,8 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     fill_rocksdb_plugin_impl*                  my = nullptr;
     std::shared_ptr<fill_rocksdb_config>       config;
     std::shared_ptr<::rocksdb_inst>            rocksdb_inst = app().find_plugin<rocksdb_plugin>()->get_rocksdb_inst();
-    std::optional<rocksdb::WriteBatch>         active_batch;
+    rocksdb::WriteBatch                        active_content_batch;
+    rocksdb::WriteBatch                        active_index_batch;
     std::shared_ptr<state_history::connection> connection;
     std::map<std::string, rocksdb_table>       tables             = {};
     rocksdb_table*                             block_info_table   = {};
@@ -308,9 +309,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             check();
 
         load_fill_status();
-        rocksdb::WriteBatch batch;
-        truncate(batch, head + 1);
-        write(rocksdb_inst->database, batch);
+        truncate(head + 1);
 
         connection->send(get_status_request_v0{});
     }
@@ -352,7 +351,9 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         rdb::put(batch, kv::make_fill_status_key(), *current_db_status, true);
     }
 
-    void truncate(rocksdb::WriteBatch& batch, uint32_t block) {
+    void truncate(uint32_t block) {
+        rocksdb::WriteBatch content_batch, index_batch;
+
         // for_each(rocksdb_inst->database, kv::make_block_key(block), kv::make_block_key(), [&](auto k, auto v) {
         //     rdb::check(batch.Delete(rdb::to_slice(k)), "truncate (1): ");
         //     return true;
@@ -373,6 +374,19 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             head_id = rb->block_id;
         }
         first = std::min(first, head);
+
+        // erase indexes before content
+        write(rocksdb_inst->database, index_batch);
+        write(rocksdb_inst->database, content_batch);
+    }
+
+    void end_write(bool write_fill) {
+        if (write_fill)
+            write_fill_status(active_index_batch);
+
+        // write content before indexes to enable truncate() to behave correctly if process exits before flushing
+        write(rocksdb_inst->database, active_content_batch);
+        write(rocksdb_inst->database, active_index_batch);
     }
 
     bool received(get_blocks_result_v0& result) override {
@@ -380,19 +394,32 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             return true;
         if (config->stop_before && result.this_block->block_num >= config->stop_before) {
             ilog("block ${b}: stop requested", ("b", result.this_block->block_num));
-            write_fill_status(*active_batch);
-            write(rocksdb_inst->database, *active_batch);
-            active_batch.reset();
+            end_write(true);
             rocksdb_inst->database.flush(false, false);
             return false;
         }
 
-        if (!active_batch)
-            active_batch.emplace();
+        if (result.this_block->block_num >= 40013524) {
+            end_write(true);
+            {
+                std::string ss;
+                rocksdb_inst->database.db->GetProperty("rocksdb.stats", &ss);
+                std::cout << ss << "\n";
+            }
+            rocksdb_inst->database.flush(true, true);
+            {
+                std::string ss;
+                rocksdb_inst->database.db->GetProperty("rocksdb.stats", &ss);
+                std::cout << ss << "\n";
+            }
+            _exit(0);
+        }
+
         try {
             if (result.this_block->block_num <= head) {
                 ilog("switch forks at block ${b}", ("b", result.this_block->block_num));
-                truncate(*active_batch, result.this_block->block_num);
+                end_write(true);
+                truncate(result.this_block->block_num);
             }
 
             bool near       = result.this_block->block_num + 4 >= result.last_irreversible.block_num;
@@ -403,11 +430,12 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             if (head_id != abieos::checksum256{} && (!result.prev_block || result.prev_block->block_id != head_id))
                 throw std::runtime_error("prev_block does not match");
             if (result.block)
-                receive_block(result.this_block->block_num, result.this_block->block_id, *result.block, *active_batch);
+                receive_block(
+                    result.this_block->block_num, result.this_block->block_id, *result.block, active_content_batch, active_index_batch);
             if (result.deltas)
-                receive_deltas(*active_batch, result.this_block->block_num, *result.deltas);
+                receive_deltas(active_content_batch, active_index_batch, result.this_block->block_num, *result.deltas);
             if (result.traces)
-                receive_traces(*active_batch, result.this_block->block_num, *result.traces);
+                receive_traces(active_content_batch, active_index_batch, result.this_block->block_num, *result.traces);
 
             head            = result.this_block->block_num;
             head_id         = result.this_block->block_id;
@@ -417,23 +445,19 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
                 first = head;
 
             rdb::put(
-                *active_batch, kv::make_received_block_key(result.this_block->block_num),
+                active_content_batch, kv::make_received_block_key(result.this_block->block_num),
                 kv::received_block{result.this_block->block_num, result.this_block->block_id});
 
             if (commit_now) {
-                write_fill_status(*active_batch);
-                write(rocksdb_inst->database, *active_batch);
+                end_write(true);
                 if (config->enable_trim) {
-                    trim(*active_batch);
-                    write_fill_status(*active_batch);
-                    write(rocksdb_inst->database, *active_batch);
+                    trim(active_content_batch, active_index_batch);
+                    end_write(true);
                 }
-                active_batch.reset();
             }
             if (near)
                 rocksdb_inst->database.flush(false, false);
         } catch (...) {
-            active_batch.reset();
             throw;
         }
 
@@ -474,14 +498,16 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         }
     } // fill
 
-    void add_row(rocksdb::WriteBatch& batch, rocksdb_table& table, uint32_t block_num, bool present_k, const std::vector<char>& value) {
+    void add_row(
+        rocksdb::WriteBatch& content_batch, rocksdb::WriteBatch& index_batch, rocksdb_table& table, uint32_t block_num, bool present_k,
+        const std::vector<char>& value) {
         kv::clear_positions(table.kv_table->fields);
         kv::fill_positions({value.data(), value.data() + value.size()}, table.kv_table->fields);
 
         std::vector<char> key;
         kv::append_table_key(key, block_num, present_k, table.short_name);
         kv::extract_keys_from_value(key, {value.data(), value.data() + value.size()}, table.kv_table->keys);
-        rdb::put(batch, key, value);
+        rdb::put(content_batch, key, value);
 
         std::vector<char> index_key;
         for (auto* query : table.kv_table->queries) {
@@ -489,11 +515,13 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             kv::append_index_key(index_key, table.short_name, query->wasm_name);
             kv::extract_keys_from_value(index_key, {value.data(), value.data() + value.size()}, query->sort_keys);
             kv::append_index_suffix(index_key, block_num, present_k);
-            batch.Put(rdb::to_slice(index_key), {});
+            index_batch.Put(rdb::to_slice(index_key), {});
         }
     }
 
-    void receive_block(uint32_t block_num, const checksum256& block_id, input_buffer bin, rocksdb::WriteBatch& batch) {
+    void receive_block(
+        uint32_t block_num, const checksum256& block_id, input_buffer bin, rocksdb::WriteBatch& content_batch,
+        rocksdb::WriteBatch& index_batch) {
         state_history::signed_block block;
         bin_to_native(block, bin);
         std::vector<char> value;
@@ -509,10 +537,10 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         abieos::native_to_bin(block.schedule_version, value);
         abieos::native_to_bin(block.new_producers ? *block.new_producers : state_history::producer_schedule{}, value);
 
-        add_row(batch, get_table("block_info"), block_num, true, value);
+        add_row(content_batch, index_batch, get_table("block_info"), block_num, true, value);
     } // receive_block
 
-    void receive_deltas(rocksdb::WriteBatch& batch, uint32_t block_num, input_buffer bin) {
+    void receive_deltas(rocksdb::WriteBatch& content_batch, rocksdb::WriteBatch& index_batch, uint32_t block_num, input_buffer bin) {
         auto&             table_delta_type = get_type("table_delta");
         std::vector<char> value;
 
@@ -529,7 +557,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
                     ilog(
                         "block ${b} ${t} ${n} of ${r}",
                         ("b", block_num)("t", table_delta.name)("n", num_processed)("r", table_delta.rows.size()));
-                    write(rocksdb_inst->database, batch);
+                    end_write(false);
                 }
                 check_variant(row.data, *table.abi_type, 0u);
                 value.clear();
@@ -537,29 +565,31 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
                 abieos::native_to_bin(row.present, value);
                 for (auto& field : table.fields)
                     fill(value, row.data, *field);
-                add_row(batch, table, block_num, row.present, value);
+                add_row(content_batch, index_batch, table, block_num, row.present, value);
                 ++num_processed;
             }
         }
     } // receive_deltas
 
-    void receive_traces(rocksdb::WriteBatch& batch, uint32_t block_num, input_buffer bin) {
+    void receive_traces(rocksdb::WriteBatch& content_batch, rocksdb::WriteBatch& index_batch, uint32_t block_num, input_buffer bin) {
         auto     num          = read_varuint32(bin);
         uint32_t num_ordinals = 0;
         for (uint32_t i = 0; i < num; ++i) {
             state_history::transaction_trace trace;
             bin_to_native(trace, bin);
-            write_transaction_trace(batch, block_num, num_ordinals, std::get<state_history::transaction_trace_v0>(trace));
+            write_transaction_trace(
+                content_batch, index_batch, block_num, num_ordinals, std::get<state_history::transaction_trace_v0>(trace));
         }
     }
 
     void write_transaction_trace(
-        rocksdb::WriteBatch& batch, uint32_t block_num, uint32_t& num_ordinals, const state_history::transaction_trace_v0& ttrace) {
+        rocksdb::WriteBatch& content_batch, rocksdb::WriteBatch& index_batch, uint32_t block_num, uint32_t& num_ordinals,
+        const state_history::transaction_trace_v0& ttrace) {
         auto* failed = !ttrace.failed_dtrx_trace.empty()
                            ? &std::get<state_history::transaction_trace_v0>(ttrace.failed_dtrx_trace[0].recurse)
                            : nullptr;
         if (failed)
-            write_transaction_trace(batch, block_num, num_ordinals, *failed);
+            write_transaction_trace(content_batch, index_batch, block_num, num_ordinals, *failed);
         uint32_t transaction_ordinal = ++num_ordinals;
 
         std::vector<char> key;
@@ -587,12 +617,12 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         // rdb::put(batch, key, value); // todo: indexes, including trim
 
         for (auto& atrace : ttrace.action_traces)
-            write_action_trace(batch, block_num, ttrace, std::get<state_history::action_trace_v0>(atrace), value);
+            write_action_trace(content_batch, index_batch, block_num, ttrace, std::get<state_history::action_trace_v0>(atrace), value);
     }
 
     void write_action_trace(
-        rocksdb::WriteBatch& batch, uint32_t block_num, const state_history::transaction_trace_v0& ttrace,
-        const state_history::action_trace_v0& atrace, std::vector<char>& value) {
+        rocksdb::WriteBatch& content_batch, rocksdb::WriteBatch& index_batch, uint32_t block_num,
+        const state_history::transaction_trace_v0& ttrace, const state_history::action_trace_v0& atrace, std::vector<char>& value) {
         value.clear();
 
         abieos::native_to_bin(block_num, value);
@@ -623,7 +653,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         abieos::native_to_bin(atrace.console, value);
         abieos::native_to_bin(atrace.except ? *atrace.except : std::string(), value);
 
-        add_row(batch, get_table("action_trace"), block_num, true, value);
+        add_row(content_batch, index_batch, get_table("action_trace"), block_num, true, value);
 
         // todo: receipt_auth_sequence
         // todo: authorization
@@ -679,7 +709,9 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     //     });
     // }
 
-    void remove_row(rocksdb::WriteBatch& batch, abieos::name table_name, uint32_t block_num, std::vector<char> key) {
+    void remove_row(
+        rocksdb::WriteBatch& content_batch, rocksdb::WriteBatch& index_batch, abieos::name table_name, uint32_t block_num,
+        std::vector<char> key) {
         // auto index_ref_bounds = kv::make_table_index_ref_key(block_num, key);
         // rdb::for_each(rocksdb_inst->database, index_ref_bounds, index_ref_bounds, [&](auto k, auto v) {
         //     rdb::check(batch.Delete(rdb::to_slice(v)), "remove_row (1): ");
@@ -689,14 +721,14 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         // rdb::check(batch.Delete(rdb::to_slice(key)), "remove_row (3): ");
     }
 
-    // void remove_delta(rocksdb::WriteBatch& batch, abieos::name table_name, uint32_t block_num, bool present, abieos::input_buffer pk) {
+    // void remove_delta(rocksdb::WriteBatch& content_batch, rocksdb::WriteBatch& index_batch, abieos::name table_name, uint32_t block_num, bool present, abieos::input_buffer pk) {
     //     std::vector<char> delta_key;
     //     kv::append_table_key(delta_key, block_num, present, table_name);
     //     delta_key.insert(delta_key.end(), pk.pos, pk.end);
-    //     remove_row(batch, table_name, block_num, delta_key);
+    //     remove_row(content_batch, index_batch, table_name, block_num, delta_key);
     // }
 
-    void trim(rocksdb::WriteBatch& batch) {
+    void trim(rocksdb::WriteBatch& content_batch, rocksdb::WriteBatch& index_batch) {
         // todo: optimize batching
         if (!config->enable_trim)
             return;
@@ -715,7 +747,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             }
             // for_each_row_in_block(block_num, [&](auto row_table_name, auto row_pk) {
             //     for_each_row_trim(row_table_name, row_pk, block_num, [&](auto table_key) {
-            //         remove_row(batch, row_table_name, block_num, {table_key.pos, table_key.end});
+            //         remove_row(content_batch, index_batch, row_table_name, block_num, {table_key.pos, table_key.end});
             //         ++num_rows_removed;
             //         return true;
             //     });
@@ -727,7 +759,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             //             return true;
             //         if (trim_block_num > block_num + 1)
             //             throw std::runtime_error("found unexpected block in trim search: " + std::to_string(trim_block_num));
-            //         remove_delta(batch, delta_table_name, trim_block_num, trim_present, delta_pk);
+            //         remove_delta(content_batch, index_batch, delta_table_name, trim_block_num, trim_present, delta_pk);
             //         ++num_deltas_removed;
             //         return true;
             //     });

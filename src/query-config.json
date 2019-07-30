@@ -1,6 +1,19 @@
 {
     "tables": [
         {
+            "name": "received_block",
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "block_id",
+                    "type": "checksum256"
+                }
+            ]
+        },
+        {
             "name": "block_info",
             "fields": [
                 {

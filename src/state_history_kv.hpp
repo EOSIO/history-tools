@@ -10,7 +10,9 @@ namespace kv {
 using namespace abieos::literals;
 
 // clang-format off
+// todo: remove this
 inline const std::map<std::string, abieos::name> table_names = {
+    {"received_block",              "recvd.block"_n},
     {"block_info",                  "block.info"_n},
     {"transaction_trace",           "ttrace"_n},
     {"action_trace",                "atrace"_n},
@@ -21,10 +23,10 @@ inline const std::map<std::string, abieos::name> table_names = {
     {"contract_table",              "c.table"_n},
     {"contract_row",                "c.row"_n},
     {"contract_index64",            "c.index64"_n},
-    {"contract_index128",           "c.index128"_n},
-    {"contract_index256",           "c.index128"_n},
+    {"contract_index128",           "c.index.b"_n},
+    {"contract_index256",           "c.index.c"_n},
     {"contract_index_double",       "c.index.d"_n},
-    {"contract_index_long_double",  "c.index.ld"_n},
+    {"contract_index_long_double",  "c.index.e"_n},
     {"global_property",             "glob.prop"_n},
     {"generated_transaction",       "gen.tx"_n},
     {"protocol_state",              "protocol.st"_n},
@@ -368,6 +370,12 @@ inline std::vector<char> make_index_key(abieos::name table_name, abieos::name in
     return result;
 }
 
+inline void read_table_prefix(abieos::input_buffer& bin, uint32_t& block_num, abieos::name& table_name, bool& present_k) {
+    block_num  = key_to_native<uint32_t>(bin);
+    table_name = key_to_native<abieos::name>(bin);
+    present_k  = key_to_native<bool>(bin);
+}
+
 inline void append_index_suffix(std::vector<char>& dest, uint32_t block) { native_to_key(dest, ~block); }
 
 inline void append_index_suffix(std::vector<char>& dest, uint32_t block, bool present_k) {
@@ -427,6 +435,8 @@ struct defs {
     };
 
     struct config : query_config::config<defs> {
+        std::map<abieos::name, table*> table_name_map = {};
+
         template <typename M>
         void prepare(const M& type_map) {
             query_config::config<defs>::prepare(type_map);
@@ -434,7 +444,8 @@ struct defs {
                 auto it = table_names.find(tab.name);
                 if (it == table_names.end())
                     throw std::runtime_error("query_database: unknown table: " + tab.name);
-                tab.short_name = it->second;
+                tab.short_name                 = it->second;
+                table_name_map[tab.short_name] = &tab;
             }
         }
     };

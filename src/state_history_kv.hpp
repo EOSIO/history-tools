@@ -9,36 +9,6 @@ namespace kv {
 
 using namespace abieos::literals;
 
-// clang-format off
-// todo: remove this
-inline const std::map<std::string, abieos::name> table_names = {
-    {"received_block",              "recvd.block"_n},
-    {"block_info",                  "block.info"_n},
-    {"transaction_trace",           "ttrace"_n},
-    {"action_trace",                "atrace"_n},
-
-    {"account",                     "account"_n},
-    {"account_metadata",            "account.meta"_n},
-    {"code",                        "code"_n},
-    {"contract_table",              "c.table"_n},
-    {"contract_row",                "c.row"_n},
-    {"contract_index64",            "c.index64"_n},
-    {"contract_index128",           "c.index.b"_n},
-    {"contract_index256",           "c.index.c"_n},
-    {"contract_index_double",       "c.index.d"_n},
-    {"contract_index_long_double",  "c.index.e"_n},
-    {"global_property",             "glob.prop"_n},
-    {"generated_transaction",       "gen.tx"_n},
-    {"protocol_state",              "protocol.st"_n},
-    {"permission",                  "permission"_n},
-    {"permission_link",             "perm.link"_n},
-    {"resource_limits",             "res.lim"_n},
-    {"resource_usage",              "res.usage"_n},
-    {"resource_limits_state",       "res.lim.stat"_n},
-    {"resource_limits_config",      "res.lim.conf"_n},
-};
-// clang-format on
-
 inline void inc_key(std::vector<char>& key) {
     for (auto it = key.rbegin(); it != key.rend(); ++it)
         if (++*it)
@@ -428,27 +398,9 @@ struct defs {
         std::optional<uint32_t> byte_position = {};
     };
 
-    using key = query_config::key<defs>;
-
-    struct table : query_config::table<defs> {
-        abieos::name short_name = {};
-    };
-
-    struct config : query_config::config<defs> {
-        std::map<abieos::name, table*> table_name_map = {};
-
-        template <typename M>
-        void prepare(const M& type_map) {
-            query_config::config<defs>::prepare(type_map);
-            for (auto& tab : tables) {
-                auto it = table_names.find(tab.name);
-                if (it == table_names.end())
-                    throw std::runtime_error("query_database: unknown table: " + tab.name);
-                tab.short_name                 = it->second;
-                table_name_map[tab.short_name] = &tab;
-            }
-        }
-    };
+    using key    = query_config::key<defs>;
+    using table  = query_config::table<defs>;
+    using config = query_config::config<defs>;
 }; // defs
 
 using field  = defs::field;

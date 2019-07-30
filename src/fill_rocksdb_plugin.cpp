@@ -39,12 +39,11 @@ struct rocksdb_field {
 };
 
 struct rocksdb_table {
-    std::string                                 name       = {};
-    abieos::name                                short_name = {};
-    kv::table*                                  kv_table   = {};
-    const abieos::abi_type*                     abi_type   = {};
-    std::vector<std::unique_ptr<rocksdb_field>> fields     = {};
-    std::map<std::string, rocksdb_field*>       field_map  = {};
+    std::string                                 name      = {};
+    kv::table*                                  kv_table  = {};
+    const abieos::abi_type*                     abi_type  = {};
+    std::vector<std::unique_ptr<rocksdb_field>> fields    = {};
+    std::map<std::string, rocksdb_field*>       field_map = {};
 };
 
 struct fill_rocksdb_config : connection_config {
@@ -229,17 +228,13 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     }
 
     void add_table(const std::string& table_name, const std::string& table_type, const jarray& key_names) {
-        auto table_name_it = kv::table_names.find(table_name);
-        if (table_name_it == kv::table_names.end())
-            throw std::runtime_error("unknown table \"" + table_name + "\"");
         if (tables.find(table_name) != tables.end())
             throw std::runtime_error("duplicate table \"" + table_name + "\"");
 
-        auto& table      = tables[table_name];
-        table.name       = table_name;
-        table.short_name = table_name_it->second;
-        table.kv_table   = &get_kv_table(table_name);
-        table.abi_type   = &get_type(table_type);
+        auto& table    = tables[table_name];
+        table.name     = table_name;
+        table.kv_table = &get_kv_table(table_name);
+        table.abi_type = &get_type(table_type);
 
         if (!table.abi_type->filled_variant || table.abi_type->fields.size() != 1 || !table.abi_type->fields[0].type->filled_struct)
             throw std::runtime_error("don't know how to process " + table.abi_type->name);
@@ -269,10 +264,9 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
                 std::get<std::string>(o["name"].value), std::get<std::string>(o["type"].value), std::get<jarray>(o["key_names"].value));
         }
 
-        block_info_table             = &tables["block_info"];
-        block_info_table->name       = "block_info";
-        block_info_table->short_name = "block.info"_n;
-        block_info_table->kv_table   = &get_kv_table("block_info");
+        block_info_table           = &tables["block_info"];
+        block_info_table->name     = "block_info";
+        block_info_table->kv_table = &get_kv_table("block_info");
         fill_fields(*block_info_table, "", abieos::abi_field{"block_num", &get_type("uint32")});
         fill_fields(*block_info_table, "", abieos::abi_field{"block_id", &get_type("checksum256")});
         fill_fields(*block_info_table, "", abieos::abi_field{"timestamp", &get_type("block_timestamp_type")});
@@ -286,10 +280,9 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         // block_info_trim.name  = "trim"_n;
         // block_info_trim.fields.push_back(block_info_table->field_map["block_num"]);
 
-        action_trace_table             = &tables["action_trace"];
-        action_trace_table->name       = "action_trace";
-        action_trace_table->short_name = "atrace"_n;
-        action_trace_table->kv_table   = &get_kv_table("action_trace");
+        action_trace_table           = &tables["action_trace"];
+        action_trace_table->name     = "action_trace";
+        action_trace_table->kv_table = &get_kv_table("action_trace");
         fill_fields(*action_trace_table, "", abieos::abi_field{"block_num", &get_type("uint32")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"transaction_id", &get_type("checksum256")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"transaction_status", &get_type("uint8")});
@@ -385,6 +378,8 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             head_id = rb->block_id;
         }
         first = std::min(first, head);
+
+        // todo: should fill_status be written first?
 
         // erase indexes before content
         write(rocksdb_inst->database, index_batch);
@@ -521,14 +516,14 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         kv::fill_positions({value.data(), value.data() + value.size()}, table.kv_table->fields);
 
         std::vector<char> key;
-        kv::append_table_key(key, block_num, present_k, table.short_name);
+        kv::append_table_key(key, block_num, present_k, table.kv_table->short_name);
         kv::extract_keys_from_value(key, {value.data(), value.data() + value.size()}, table.kv_table->keys);
         rdb::put(content_batch, key, value);
 
         std::vector<char> index_key;
         for (auto* query : table.kv_table->queries) {
             index_key.clear();
-            kv::append_index_key(index_key, table.short_name, query->wasm_name);
+            kv::append_index_key(index_key, table.kv_table->short_name, query->wasm_name);
             kv::extract_keys_from_value(index_key, {value.data(), value.data() + value.size()}, query->sort_keys);
             kv::append_index_suffix(index_key, block_num, present_k);
             index_batch.Put(rdb::to_slice(index_key), {});

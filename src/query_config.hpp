@@ -48,17 +48,19 @@ constexpr void for_each_field(key<Defs>*, F f) {
 
 template <typename Defs>
 struct table {
-    std::string                                  name      = {};
-    std::vector<typename Defs::field>            fields    = {};
-    bool                                         is_delta  = {};
-    std::vector<typename Defs::key>              keys      = {};
-    std::map<std::string, typename Defs::field*> field_map = {};
-    std::vector<typename Defs::query*>           queries   = {};
+    std::string                                  name       = {};
+    abieos::name                                 short_name = {};
+    std::vector<typename Defs::field>            fields     = {};
+    bool                                         is_delta   = {};
+    std::vector<typename Defs::key>              keys       = {};
+    std::map<std::string, typename Defs::field*> field_map  = {};
+    std::vector<typename Defs::query*>           queries    = {};
 };
 
 template <typename Defs, typename F>
 constexpr void for_each_field(table<Defs>*, F f) {
     ABIEOS_MEMBER(table<Defs>, name);
+    ABIEOS_MEMBER(table<Defs>, short_name);
     ABIEOS_MEMBER(table<Defs>, fields);
     ABIEOS_MEMBER(table<Defs>, is_delta);
     ABIEOS_MEMBER(table<Defs>, keys);
@@ -124,15 +126,17 @@ void set_join_key_fields(const table<Defs>& tab, std::vector<Key>& keys) {
 
 template <typename Defs>
 struct config {
-    std::vector<typename Defs::table>             tables    = {};
-    std::vector<typename Defs::query>             queries   = {};
-    std::map<std::string, typename Defs::table*>  table_map = {};
-    std::map<abieos::name, typename Defs::query*> query_map = {};
+    std::vector<typename Defs::table>             tables         = {};
+    std::vector<typename Defs::query>             queries        = {};
+    std::map<std::string, typename Defs::table*>  table_map      = {};
+    std::map<abieos::name, typename Defs::table*> table_name_map = {};
+    std::map<abieos::name, typename Defs::query*> query_map      = {};
 
     template <typename M>
     void prepare(const M& type_map) {
         for (auto& table : tables) {
-            table_map[table.name] = &table;
+            table_map[table.name]            = &table;
+            table_name_map[table.short_name] = &table;
             for (auto& field : table.fields) {
                 table.field_map[field.name] = &field;
                 auto it                     = type_map.find(field.type);

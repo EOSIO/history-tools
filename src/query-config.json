@@ -2,6 +2,7 @@
     "tables": [
         {
             "name": "received_block",
+            "short_name": "recvd.block",
             "fields": [
                 {
                     "name": "block_num",
@@ -15,6 +16,7 @@
         },
         {
             "name": "block_info",
+            "short_name": "block.info",
             "fields": [
                 {
                     "name": "block_num",
@@ -60,6 +62,7 @@
         },
         {
             "name": "action_trace",
+            "short_name": "atrace",
             "keys": [
                 {
                     "name": "transaction_id"
@@ -159,6 +162,7 @@
         },
         {
             "name": "account",
+            "short_name": "account",
             "is_delta": true,
             "keys": [
                 {
@@ -190,6 +194,7 @@
         },
         {
             "name": "account_metadata",
+            "short_name": "account.meta",
             "is_delta": true,
             "keys": [
                 {
@@ -239,6 +244,7 @@
         },
         {
             "name": "code",
+            "short_name": "code",
             "is_delta": true,
             "keys": [
                 {
@@ -280,6 +286,7 @@
         },
         {
             "name": "contract_table",
+            "short_name": "c.table",
             "is_delta": true,
             "keys": [
                 {
@@ -313,6 +320,7 @@
         },
         {
             "name": "contract_row",
+            "short_name": "c.row",
             "is_delta": true,
             "keys": [
                 {
@@ -366,6 +374,7 @@
         },
         {
             "name": "contract_index64",
+            "short_name": "c.index64",
             "is_delta": true,
             "keys": [
                 {
@@ -420,6 +429,7 @@
         },
         {
             "name": "contract_index128",
+            "short_name": "c.index.b",
             "is_delta": true,
             "keys": [
                 {
@@ -474,6 +484,7 @@
         },
         {
             "name": "contract_index256",
+            "short_name": "c.index.c",
             "is_delta": true,
             "keys": [
                 {
@@ -528,6 +539,7 @@
         },
         {
             "name": "contract_index_double",
+            "short_name": "c.index.d",
             "is_delta": true,
             "keys": [
                 {
@@ -582,6 +594,7 @@
         },
         {
             "name": "contract_index_long_double",
+            "short_name": "c.index.e",
             "is_delta": true,
             "keys": [
                 {
@@ -636,6 +649,7 @@
         },
         {
             "name": "global_property",
+            "short_name": "glob.prop",
             "is_delta": true,
             "keys": [],
             "fields": [
@@ -647,6 +661,7 @@
         },
         {
             "name": "generated_transaction",
+            "short_name": "gen.tx",
             "is_delta": true,
             "keys": [
                 {
@@ -681,11 +696,13 @@
         },
         {
             "name": "protocol_state",
+            "short_name": "protocol.st",
             "is_delta": true,
             "keys": []
         },
         {
             "name": "permission",
+            "short_name": "permission",
             "is_delta": true,
             "keys": [
                 {
@@ -716,6 +733,7 @@
         },
         {
             "name": "permission_link",
+            "short_name": "perm.link",
             "is_delta": true,
             "keys": [
                 {
@@ -749,6 +767,7 @@
         },
         {
             "name": "resource_limits",
+            "short_name": "res.lim",
             "is_delta": true,
             "keys": [
                 {
@@ -776,6 +795,7 @@
         },
         {
             "name": "resource_usage",
+            "short_name": "res.usage",
             "is_delta": true,
             "keys": [
                 {
@@ -791,12 +811,14 @@
         },
         {
             "name": "resource_limits_state",
+            "short_name": "res.lim.stat",
             "is_delta": true,
             "keys": [],
             "fields": []
         },
         {
             "name": "resource_limits_config",
+            "short_name": "res.lim.conf",
             "is_delta": true,
             "keys": [],
             "fields": []

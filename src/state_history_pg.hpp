@@ -1,6 +1,8 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
+#include <fc/array.hpp>
+#include <fc/crypto/public_key.hpp>
 #include "query_config.hpp"
 #include "state_history.hpp"
 
@@ -98,6 +100,15 @@ inline abieos::checksum256 sql_to_checksum256(const char* ch) {
     return result;
 }
 
+inline std::string public_key_to_string_EOS(const abieos::public_key& key) {
+    std::string key_str = public_key_to_string(key);
+    if (key.type == abieos::key_type::k1) {
+       fc::crypto::public_key key(key_str);
+       return std::string(key);
+    }
+    return key_str;
+}
+
 template <typename T>
 std::string sql_str(pqxx::connection& c, bool bulk, const T& obj);
 
@@ -155,7 +166,7 @@ inline std::string sql_str(bool bulk, abieos::time_point v)                     
 inline std::string sql_str(bool bulk, abieos::time_point_sec v)                         { return v.utc_seconds ? quote(bulk, std::string(v)): null_value(bulk); }
 inline std::string sql_str(bool bulk, abieos::block_timestamp v)                        { return v.slot ?  quote(bulk, std::string(v)) : null_value(bulk); }
 inline std::string sql_str(bool bulk, const abieos::checksum256& v)                     { return quote(bulk, v.value == abieos::checksum256{}.value ? "" : std::string(v)); }
-inline std::string sql_str(bool bulk, const abieos::public_key& v)                      { return quote(bulk, public_key_to_string(v)); }
+inline std::string sql_str(bool bulk, const abieos::public_key& v)                      { return quote(bulk, public_key_to_string_EOS(v)); }
 inline std::string sql_str(bool bulk, const abieos::signature& v)                       { return quote(bulk, signature_to_string(v)); }
 inline std::string sql_str(bool bulk, const abieos::bytes&)                             { throw std::runtime_error("sql_str(bytes): not implemented"); }
 inline std::string sql_str(bool bulk, transaction_status v)                             { return quote(bulk, to_string(v)); }

@@ -729,7 +729,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                 if (&x != &block.new_producers->producers[0])
                     values += ",";
                 values += begin_object_in_array(bulk) + quote(bulk, (std::string)x.producer_name) + "," +
-                          quote(bulk, public_key_to_string(x.block_signing_key)) + end_object_in_array(bulk);
+                          quote(bulk, public_key_to_string_EOS(x.block_signing_key)) + end_object_in_array(bulk);
             }
             values += end_array(bulk, t, config->schema, "producer_key");
         } else {

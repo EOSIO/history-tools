@@ -154,6 +154,7 @@ struct config {
     std::map<std::string, typename Defs::table*>  table_map      = {};
     std::map<abieos::name, typename Defs::table*> table_name_map = {};
     std::map<std::string, typename Defs::index*>  index_map      = {};
+    std::map<abieos::name, typename Defs::index*> index_name_map = {};
     std::map<abieos::name, typename Defs::query*> query_map      = {};
 
     template <typename M>
@@ -192,7 +193,11 @@ struct config {
             if (index_map.find(index.index) != index_map.end())
                 throw std::runtime_error("duplicate index: " + index.index);
             index_map[index.index] = &index;
-            auto it                = table_map.find(index.table);
+            if (index_name_map.find(index.short_name) != index_name_map.end())
+                throw std::runtime_error("duplicate index: " + (std::string)index.short_name);
+            index_name_map[index.short_name] = &index;
+
+            auto it = table_map.find(index.table);
             if (it == table_map.end())
                 throw std::runtime_error("index " + (std::string)index.short_name + ": unknown table: " + index.table);
             auto& table     = *it->second;

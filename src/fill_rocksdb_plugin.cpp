@@ -126,30 +126,45 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             throw std::runtime_error("Found head " + std::to_string(expected - 1) + " but fill_status.head = " + std::to_string(head));
 
         ilog("verifying index entries reference existing records");
-        uint32_t num_ti_keys = 0;
+        uint64_t     num_ti_keys = 0;
+        abieos::name last_table, last_index;
+        uint64_t     last_num_keys = 0;
         for_each(rocksdb_inst->database, kv::make_index_key(), kv::make_index_key(), [&](auto k, auto v) {
-            if (!((++num_ti_keys) % 1'000'000))
-                ilog("checked ${n} index entries", ("n", num_ti_keys));
-
             abieos::name table, index;
             auto         kk = k;
             kv::key_to_native<uint8_t>(kk);
             kv::read_index_prefix(kk, table, index);
+            if (table != last_table || index != last_index) {
+                if (last_table.value)
+                    ilog(
+                        "table '${t}' index '${i}' has ${e} entries",
+                        ("t", (std::string)last_table)("i", (std::string)last_index)("e", last_num_keys));
+                last_table    = table;
+                last_index    = index;
+                last_num_keys = 0;
+                ilog("table '${t}' index '${i}'", ("t", (std::string)last_table)("i", (std::string)last_index));
+            }
+
+            ++last_num_keys;
+            if (!((++num_ti_keys) % 1'000'000))
+                ilog("found ${n} index entries so far, ${i} for this index", ("n", num_ti_keys)("i", last_num_keys));
 
             auto& c        = rocksdb_inst->query_config;
-            auto  query_it = c.query_map.find(index);
-            if (query_it == c.query_map.end())
+            auto  index_it = c.index_name_map.find(index);
+            if (index_it == c.index_name_map.end())
                 throw std::runtime_error("found unknown index '" + (std::string)index + "'");
-            auto& query = *query_it->second;
-            if (query.table_obj->short_name != table)
+            auto& index_obj = *index_it->second;
+            if (index_obj.table_obj->short_name != table)
                 throw std::runtime_error("index '" + (std::string)index + "' is not for table '" + (std::string)table + "'");
 
-            auto pk = extract_pk_from_index(k, *query.table_obj, query.index_obj->sort_keys);
+            auto pk = extract_pk_from_index(k, *index_obj.table_obj, index_obj.sort_keys);
             if (!rdb::exists(rocksdb_inst->database, rdb::to_slice(pk)))
                 throw std::runtime_error(
                     "index '" + (std::string)index + "' references a missing entry in table '" + (std::string)table + "'");
             return true;
         });
+        ilog(
+            "table '${t}' index '${i}' has ${e} entries", ("t", (std::string)last_table)("i", (std::string)last_index)("e", last_num_keys));
         ilog("checked ${n} index entries", ("n", num_ti_keys));
         ilog("database appears ok");
     }

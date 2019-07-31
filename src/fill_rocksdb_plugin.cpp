@@ -241,16 +241,6 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
         for (auto& f : table.abi_type->fields[0].type->fields)
             fill_fields(table, "", f);
-
-        // auto& trim_index  = table.indexes["trim"_n];
-        // trim_index.name   = "trim"_n;
-        // for (auto& key : key_names) {
-        //     auto& field_name = std::get<std::string>(key.value);
-        //     auto  it         = table.field_map.find(field_name);
-        //     if (it == table.field_map.end())
-        //         throw std::runtime_error("table \"" + table_name + "\" key \"" + field_name + "\" not found");
-        //     trim_index.fields.push_back(it->second);
-        // }
     }
 
     void init_tables(std::string_view abi_json) {
@@ -276,9 +266,6 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         fill_fields(*block_info_table, "", abieos::abi_field{"transaction_mroot", &get_type("checksum256")});
         fill_fields(*block_info_table, "", abieos::abi_field{"action_mroot", &get_type("checksum256")});
         fill_fields(*block_info_table, "", abieos::abi_field{"schedule_version", &get_type("uint32")});
-        // auto& block_info_trim = block_info_table->indexes["trim"_n];
-        // block_info_trim.name  = "trim"_n;
-        // block_info_trim.fields.push_back(block_info_table->field_map["block_num"]);
 
         action_trace_table           = &tables["action_trace"];
         action_trace_table->name     = "action_trace";
@@ -297,11 +284,16 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         fill_fields(*action_trace_table, "", abieos::abi_field{"console", &get_type("string")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"except", &get_type("string")});
         fill_fields(*action_trace_table, "", abieos::abi_field{"error_code", &get_type("uint64")});
-        // auto& action_trace_trim = action_trace_table->indexes["trim"_n];
-        // action_trace_trim.name  = "trim"_n;
-        // action_trace_trim.fields.push_back(action_trace_table->field_map["block_num"]);
-        // action_trace_trim.fields.push_back(action_trace_table->field_map["transaction_id"]);
-        // action_trace_trim.fields.push_back(action_trace_table->field_map["action_ordinal"]);
+
+        if (config->enable_trim) {
+            auto& c = rocksdb_inst->query_config;
+            for (auto& table : c.tables) {
+                if (table.is_delta && !table.trim_index_obj)
+                    throw std::runtime_error("delta table " + table.name + " is missing a trim index");
+                if (!table.is_delta && table.trim_index_obj)
+                    throw std::runtime_error("non-delta table " + table.name + " has a trim index");
+            }
+        }
     } // init_tables
 
     void received_abi(std::string_view abi) override {

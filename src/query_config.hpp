@@ -48,13 +48,16 @@ constexpr void for_each_field(key<Defs>*, F f) {
 
 template <typename Defs>
 struct table {
-    std::string                                  name       = {};
-    abieos::name                                 short_name = {};
-    std::vector<typename Defs::field>            fields     = {};
-    bool                                         is_delta   = {};
-    std::vector<typename Defs::key>              keys       = {};
-    std::map<std::string, typename Defs::field*> field_map  = {};
-    std::vector<typename Defs::index*>           indexes    = {};
+    std::string                                  name           = {};
+    abieos::name                                 short_name     = {};
+    std::vector<typename Defs::field>            fields         = {};
+    bool                                         is_delta       = {};
+    std::string                                  trim_index     = {};
+    std::vector<typename Defs::key>              keys           = {};
+    std::map<std::string, typename Defs::field*> field_map      = {};
+    std::vector<typename Defs::index*>           indexes        = {};
+    std::map<std::string, typename Defs::index*> index_map      = {};
+    typename Defs::index*                        trim_index_obj = {};
 };
 
 template <typename Defs, typename F>
@@ -63,6 +66,7 @@ constexpr void for_each_field(table<Defs>*, F f) {
     ABIEOS_MEMBER(table<Defs>, short_name);
     ABIEOS_MEMBER(table<Defs>, fields);
     ABIEOS_MEMBER(table<Defs>, is_delta);
+    ABIEOS_MEMBER(table<Defs>, trim_index);
     ABIEOS_MEMBER(table<Defs>, keys);
 };
 
@@ -185,12 +189,18 @@ struct config {
         };
 
         for (auto& index : indexes) {
+            if (index_map.find(index.index) != index_map.end())
+                throw std::runtime_error("duplicate index: " + index.index);
             index_map[index.index] = &index;
             auto it                = table_map.find(index.table);
             if (it == table_map.end())
                 throw std::runtime_error("index " + (std::string)index.short_name + ": unknown table: " + index.table);
-            index.table_obj = it->second;
-            it->second->indexes.push_back(&index);
+            auto& table     = *it->second;
+            index.table_obj = &table;
+            table.indexes.push_back(&index);
+            if (table.index_map.find(index.index) != table.index_map.end())
+                throw std::runtime_error("table '" + index.table + "' has duplicate index '" + index.index + "'");
+            table.index_map[index.index] = &index;
             set_key_fields(*index.table_obj, index.sort_keys);
             add_types(index.range_types, index.sort_keys, index.table_obj, index.short_name);
         }
@@ -224,6 +234,15 @@ struct config {
                         "query " + (std::string)query.wasm_name +
                         ": unknown join_query_wasm_name: " + (std::string)query.join_query_wasm_name);
                 query.join_query = it2->second;
+            }
+        }
+
+        for (auto& table : tables) {
+            if (!table.trim_index.empty()) {
+                auto it = table.index_map.find(table.trim_index);
+                if (it == table.index_map.end())
+                    throw std::runtime_error("table '" + table.name + "' trim_index '" + table.trim_index + "' does not exist");
+                table.trim_index_obj = it->second;
             }
         }
     } // prepare()

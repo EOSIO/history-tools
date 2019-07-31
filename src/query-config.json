@@ -164,6 +164,7 @@
             "name": "account",
             "short_name": "account",
             "is_delta": true,
+            "trim_index": "account_name_block_present_idx",
             "keys": [
                 {
                     "name": "name"
@@ -196,6 +197,7 @@
             "name": "account_metadata",
             "short_name": "account.meta",
             "is_delta": true,
+            "trim_index": "acctmeta_name_block_present_idx",
             "keys": [
                 {
                     "name": "name"
@@ -246,6 +248,7 @@
             "name": "code",
             "short_name": "code",
             "is_delta": true,
+            "trim_index": "code_type_ver_hash_block_present_idx",
             "keys": [
                 {
                     "name": "vm_type"
@@ -288,6 +291,7 @@
             "name": "contract_table",
             "short_name": "c.table",
             "is_delta": true,
+            "trim_index": "contract_table_code_scope_table_block_prese_idx",
             "keys": [
                 {
                     "name": "code"
@@ -322,6 +326,7 @@
             "name": "contract_row",
             "short_name": "c.row",
             "is_delta": true,
+            "trim_index": "contract_row_code_table_scope_primary_key_block_num_prese_idx",
             "keys": [
                 {
                     "name": "code"
@@ -376,6 +381,7 @@
             "name": "contract_index64",
             "short_name": "c.index64",
             "is_delta": true,
+            "trim_index": "contract_index64_code_table_scope_pk_block_prese_idx",
             "keys": [
                 {
                     "name": "code"
@@ -431,6 +437,7 @@
             "name": "contract_index128",
             "short_name": "c.index.b",
             "is_delta": true,
+            "trim_index": "contract_index128_code_table_scope_pk_block_prese_idx",
             "keys": [
                 {
                     "name": "code"
@@ -486,6 +493,7 @@
             "name": "contract_index256",
             "short_name": "c.index.c",
             "is_delta": true,
+            "trim_index": "contract_index256_code_table_scope_pk_block_prese_idx",
             "keys": [
                 {
                     "name": "code"
@@ -541,6 +549,7 @@
             "name": "contract_index_double",
             "short_name": "c.index.d",
             "is_delta": true,
+            "trim_index": "contract_index_dbl_code_table_scope_pk_block_prese_idx",
             "keys": [
                 {
                     "name": "code"
@@ -596,6 +605,7 @@
             "name": "contract_index_long_double",
             "short_name": "c.index.e",
             "is_delta": true,
+            "trim_index": "contract_index_ldbl_code_table_scope_pk_block_prese_idx",
             "keys": [
                 {
                     "name": "code"
@@ -651,6 +661,7 @@
             "name": "global_property",
             "short_name": "glob.prop",
             "is_delta": true,
+            "trim_index": "global_property_block_prese_idx",
             "keys": [],
             "fields": [
                 {
@@ -663,6 +674,7 @@
             "name": "generated_transaction",
             "short_name": "gen.tx",
             "is_delta": true,
+            "trim_index": "generated_transaction_sender_senderid_block_prese_idx",
             "keys": [
                 {
                     "name": "sender"
@@ -698,6 +710,7 @@
             "name": "protocol_state",
             "short_name": "protocol.st",
             "is_delta": true,
+            "trim_index": "protocol_state_block_prese_idx",
             "keys": [],
             "fields": []
         },
@@ -705,6 +718,7 @@
             "name": "permission",
             "short_name": "permission",
             "is_delta": true,
+            "trim_index": "permission_owner_name_block_prese_idx",
             "keys": [
                 {
                     "name": "owner"
@@ -736,6 +750,7 @@
             "name": "permission_link",
             "short_name": "perm.link",
             "is_delta": true,
+            "trim_index": "permission_link_acct_code_msgtype_block_prese_idx",
             "keys": [
                 {
                     "name": "account"
@@ -770,6 +785,7 @@
             "name": "resource_limits",
             "short_name": "res.lim",
             "is_delta": true,
+            "trim_index": "resource_limits_owner_block_prese_idx",
             "keys": [
                 {
                     "name": "owner"
@@ -798,6 +814,7 @@
             "name": "resource_usage",
             "short_name": "res.usage",
             "is_delta": true,
+            "trim_index": "resource_usage_owner_block_prese_idx",
             "keys": [
                 {
                     "name": "owner"
@@ -814,6 +831,7 @@
             "name": "resource_limits_state",
             "short_name": "res.lim.stat",
             "is_delta": true,
+            "trim_index": "resource_limits_state_block_prese_idx",
             "keys": [],
             "fields": []
         },
@@ -821,6 +839,7 @@
             "name": "resource_limits_config",
             "short_name": "res.lim.conf",
             "is_delta": true,
+            "trim_index": "resource_limits_config_block_prese_idx",
             "keys": [],
             "fields": []
         }
@@ -943,6 +962,23 @@
             ]
         },
         {
+            "short_name": "ct.cst",
+            "index": "contract_table_code_scope_table_block_prese_idx",
+            "table": "contract_table",
+            "include_in_pg": false,
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                }
+            ]
+        },
+        {
             "short_name": "cr.ctps",
             "index": "contract_row_code_table_primary_key_scope_block_num_prese_idx",
             "table": "contract_row",
@@ -1000,6 +1036,26 @@
             ]
         },
         {
+            "short_name": "ci1.ctsp",
+            "index": "contract_index64_code_table_scope_pk_block_prese_idx",
+            "table": "contract_index64",
+            "include_in_pg": false,
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ]
+        },
+        {
             "short_name": "ci1.cts2p",
             "index": "contract_index64_code_table_scope_sk_pk_block_num_prese_idx",
             "table": "contract_index64",
@@ -1020,6 +1076,181 @@
                     "name": "primary_key"
                 }
             ]
+        },
+        {
+            "short_name": "cib.ctsp",
+            "index": "contract_index128_code_table_scope_pk_block_prese_idx",
+            "table": "contract_index128",
+            "include_in_pg": false,
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ]
+        },
+        {
+            "short_name": "cic.ctsp",
+            "index": "contract_index256_code_table_scope_pk_block_prese_idx",
+            "table": "contract_index256",
+            "include_in_pg": false,
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ]
+        },
+        {
+            "short_name": "cid.ctsp",
+            "index": "contract_index_dbl_code_table_scope_pk_block_prese_idx",
+            "table": "contract_index_double",
+            "include_in_pg": false,
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ]
+        },
+        {
+            "short_name": "cie.ctsp",
+            "index": "contract_index_ldbl_code_table_scope_pk_block_prese_idx",
+            "table": "contract_index_long_double",
+            "include_in_pg": false,
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ]
+        },
+        {
+            "short_name": "glob.prop",
+            "index": "global_property_block_prese_idx",
+            "table": "global_property",
+            "include_in_pg": false,
+            "sort_keys": []
+        },
+        {
+            "short_name": "gen.tx.si",
+            "index": "generated_transaction_sender_senderid_block_prese_idx",
+            "table": "generated_transaction",
+            "include_in_pg": false,
+            "sort_keys": [
+                {
+                    "name": "sender"
+                },
+                {
+                    "name": "sender_id"
+                }
+            ]
+        },
+        {
+            "short_name": "protocol.st",
+            "index": "protocol_state_block_prese_idx",
+            "table": "protocol_state",
+            "include_in_pg": false,
+            "sort_keys": []
+        },
+        {
+            "short_name": "perm.on",
+            "index": "permission_owner_name_block_prese_idx",
+            "table": "permission",
+            "include_in_pg": false,
+            "sort_keys": [
+                {
+                    "name": "owner"
+                },
+                {
+                    "name": "name"
+                }
+            ]
+        },
+        {
+            "short_name": "perml.act",
+            "index": "permission_link_acct_code_msgtype_block_prese_idx",
+            "table": "permission_link",
+            "include_in_pg": false,
+            "sort_keys": [
+                {
+                    "name": "account"
+                },
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "message_type"
+                }
+            ]
+        },
+        {
+            "short_name": "res.lim.o",
+            "index": "resource_limits_owner_block_prese_idx",
+            "table": "resource_limits",
+            "include_in_pg": false,
+            "sort_keys": [
+                {
+                    "name": "owner"
+                }
+            ]
+        },
+        {
+            "short_name": "res.usage.o",
+            "index": "resource_usage_owner_block_prese_idx",
+            "table": "resource_usage",
+            "include_in_pg": false,
+            "sort_keys": [
+                {
+                    "name": "owner"
+                }
+            ]
+        },
+        {
+            "short_name": "res.lim.stat",
+            "index": "resource_limits_state_block_prese_idx",
+            "table": "resource_limits_state",
+            "include_in_pg": false,
+            "sort_keys": []
+        },
+        {
+            "short_name": "res.lim.conf",
+            "index": "resource_limits_config_block_prese_idx",
+            "table": "resource_limits_config",
+            "include_in_pg": false,
+            "sort_keys": []
         }
     ],
     "queries": [

@@ -430,6 +430,7 @@ struct defs {
     using field  = query_config::field<defs>;
     using key    = query_config::key<defs>;
     using table  = query_config::table<defs>;
+    using index  = query_config::index<defs>;
     using query  = query_config::query<defs>;
     using config = query_config::config<defs>;
 }; // defs
@@ -437,6 +438,7 @@ struct defs {
 using field  = defs::field;
 using key    = defs::key;
 using table  = defs::table;
+using index  = defs::index;
 using query  = defs::query;
 using config = defs::config;
 

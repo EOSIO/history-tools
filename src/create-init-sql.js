@@ -99,7 +99,6 @@ function generate_index({ table, index, sort_keys, history_keys, conditions }) {
 // todo: This likely needs reoptimization.
 // todo: perf problem with low max_block_num
 function generate_nonstate({ table, index, limit_block_num, sort_keys, conditions, ...rest }) {
-    generate_index({ table, index, sort_keys, conditions, ...rest });
     conditions = conditions || [];
 
     const fn_name = schema + '.' + rest['function'];
@@ -149,8 +148,6 @@ function generate_nonstate({ table, index, limit_block_num, sort_keys, condition
 } // generate
 
 function generate_state({ table, index, limit_block_num, keys, sort_keys, history_keys, ordered_fields, join, join_key_values, fields_from_join, ...rest }) {
-    generate_index({ table, index, sort_keys, history_keys, ordered_fields, ...rest });
-
     const fn_name = schema + '.' + rest['function'];
     const fn_args = prefix => sort_keys.map(x => `${prefix}${x.name} ${x.type},`).join('\n            ');
     const sort_keys_tuple = (prefix, suffix, sep) => sort_keys.map(x => `${prefix}${x.name}${suffix}`).join(sep);
@@ -308,7 +305,29 @@ function fill_types(query, fields) {
             field.type = get_type(tables[query.table].fields[field.name].type);
 }
 
+let indexes_by_name = {};
+for (let index of config.indexes) {
+    index = {
+        include_in_pg: true,
+        ...index,
+        sort_keys: index.sort_keys || [],
+        history_keys: tables[index.table].is_delta ? [{
+            "name": "block_num",
+            "desc": true
+        },
+        {
+            "name": "present",
+            "desc": true
+        }] : [],
+    };
+    indexes_by_name[index.index] = index;
+    if (index.include_in_pg)
+        generate_index(index);
+}
+
 for (let query of config.queries) {
+    if (query.index)
+        query = { ...indexes_by_name[query.index], ...query };
     query = {
         ...query,
         keys: tables[query.table].keys || [],

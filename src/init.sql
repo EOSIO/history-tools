@@ -34,7 +34,7 @@
             "present" desc
         );
 
-        create index if not exists acctmeta_joined_name_block_present_idx on chain.account_metadata(
+        create index if not exists acctmeta_name_block_present_idx on chain.account_metadata(
             "name",
             "block_num" desc,
             "present" desc

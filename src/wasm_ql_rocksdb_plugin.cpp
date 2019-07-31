@@ -79,8 +79,8 @@ struct rocksdb_query_session : query_session {
             for (auto& type : types)
                 type.query_to_key(dest, query_bin);
         };
-        add_fields(first, query.range_types);
-        add_fields(last, query.range_types);
+        add_fields(first, query.index_obj->range_types);
+        add_fields(last, query.index_obj->range_types);
 
         auto max_results = std::min(abieos::read_raw<uint32_t>(query_bin), query.max_results);
 
@@ -97,7 +97,7 @@ struct rocksdb_query_session : query_session {
                 rdb::check(
                     db->Get(
                         rocksdb::ReadOptions(), db->DefaultColumnFamily(),
-                        rdb::to_slice(extract_pk_from_index(index_value, *query.table_obj, query.sort_keys)), &delta_value),
+                        rdb::to_slice(extract_pk_from_index(index_value, *query.table_obj, query.index_obj->sort_keys)), &delta_value),
                     "query_database: ");
                 rows.emplace_back(delta_value.data(), delta_value.data() + delta_value.size());
                 if (query.join_table) {

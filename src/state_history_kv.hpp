@@ -392,6 +392,7 @@ append_action_trace_key(std::vector<char>& dest, uint32_t block, const abieos::c
 
 struct defs {
     using type  = kv::type;
+    using index = query_config::index<defs>;
     using query = query_config::query<defs>;
 
     struct field : query_config::field<defs> {
@@ -406,6 +407,7 @@ struct defs {
 using field  = defs::field;
 using key    = defs::key;
 using table  = defs::table;
+using index  = defs::index;
 using query  = defs::query;
 using config = defs::config;
 

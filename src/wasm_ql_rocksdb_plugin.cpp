@@ -72,7 +72,7 @@ struct rocksdb_query_session : query_session {
         if (query.limit_block_num)
             max_block_num = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
 
-        auto first = kv::make_index_key(query.table_obj->short_name, query_name);
+        auto first = kv::make_index_key(query.table_obj->short_name, query.index_obj->short_name);
         auto last  = first;
 
         auto add_fields = [&](auto& dest, auto& types) {

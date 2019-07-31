@@ -521,10 +521,10 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         rdb::put(content_batch, key, value);
 
         std::vector<char> index_key;
-        for (auto* query : table.kv_table->queries) {
+        for (auto* index : table.kv_table->indexes) {
             index_key.clear();
-            kv::append_index_key(index_key, table.kv_table->short_name, query->wasm_name);
-            kv::extract_keys_from_value(index_key, {value.data(), value.data() + value.size()}, query->index_obj->sort_keys);
+            kv::append_index_key(index_key, table.kv_table->short_name, index->short_name);
+            kv::extract_keys_from_value(index_key, {value.data(), value.data() + value.size()}, index->sort_keys);
             kv::append_index_suffix(index_key, block_num, present_k);
             index_batch.Put(rdb::to_slice(index_key), {});
         }
@@ -545,10 +545,10 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         kv::fill_positions(v, table.fields);
 
         std::vector<char> index_key;
-        for (auto* query : table.queries) {
+        for (auto* index : table.indexes) {
             index_key.clear();
-            kv::append_index_key(index_key, table_name, query->wasm_name);
-            kv::extract_keys_from_value(index_key, v, query->index_obj->sort_keys);
+            kv::append_index_key(index_key, table_name, index->short_name);
+            kv::extract_keys_from_value(index_key, v, index->sort_keys);
             kv::append_index_suffix(index_key, block_num, present_k);
             index_batch.Delete(rdb::to_slice(index_key));
             if (num_indexes)

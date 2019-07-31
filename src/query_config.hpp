@@ -54,7 +54,7 @@ struct table {
     bool                                         is_delta   = {};
     std::vector<typename Defs::key>              keys       = {};
     std::map<std::string, typename Defs::field*> field_map  = {};
-    std::vector<typename Defs::query*>           queries    = {};
+    std::vector<typename Defs::index*>           indexes    = {};
 };
 
 template <typename Defs, typename F>
@@ -190,6 +190,7 @@ struct config {
             if (it == table_map.end())
                 throw std::runtime_error("index " + (std::string)index.short_name + ": unknown table: " + index.table);
             index.table_obj = it->second;
+            it->second->indexes.push_back(&index);
             set_key_fields(*index.table_obj, index.sort_keys);
             add_types(index.range_types, index.sort_keys, index.table_obj, index.short_name);
         }
@@ -205,7 +206,6 @@ struct config {
 
             query.index_obj = index_it->second;
             query.table_obj = it->second;
-            it->second->queries.push_back(&query);
             set_join_key_fields(*query.table_obj, query.join_key_values);
 
             query.result_fields = query.table_obj->fields;

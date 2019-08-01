@@ -76,6 +76,7 @@ struct index {
     std::string                      index         = {};
     std::string                      table         = {};
     bool                             include_in_pg = {};
+    bool                             only_for_trim = {};
     std::vector<typename Defs::key>  sort_keys     = {};
     std::vector<std::string>         conditions    = {};
     std::vector<typename Defs::type> range_types   = {};
@@ -88,6 +89,7 @@ constexpr void for_each_field(index<Defs>*, F f) {
     ABIEOS_MEMBER(index<Defs>, index);
     ABIEOS_MEMBER(index<Defs>, table);
     ABIEOS_MEMBER(index<Defs>, include_in_pg);
+    ABIEOS_MEMBER(index<Defs>, only_for_trim);
     ABIEOS_MEMBER(index<Defs>, sort_keys);
     ABIEOS_MEMBER(index<Defs>, conditions);
 };
@@ -221,6 +223,9 @@ struct config {
 
             query.index_obj = index_it->second;
             query.table_obj = it->second;
+            if (query.index_obj->only_for_trim)
+                throw std::runtime_error(
+                    "query '" + (std::string)query.wasm_name + "': index: '" + query.index + "' is marked only_for_trim");
             set_join_key_fields(*query.table_obj, query.join_key_values);
 
             query.result_fields = query.table_obj->fields;

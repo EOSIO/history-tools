@@ -529,6 +529,8 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
         std::vector<char> index_key;
         for (auto* index : table.kv_table->indexes) {
+            if (index->only_for_trim) // temp: disable trim indexes
+                continue;
             index_key.clear();
             kv::append_index_key(index_key, table.kv_table->short_name, index->short_name);
             kv::extract_keys_from_value(index_key, {value.data(), value.data() + value.size()}, index->sort_keys);
@@ -861,6 +863,9 @@ void fill_rocksdb_plugin::plugin_initialize(const variables_map& options) {
         my->config->stop_before  = options.count("fill-stop") ? options["fill-stop"].as<uint32_t>() : 0;
         my->config->enable_trim  = options.count("fill-trim");
         my->config->enable_check = options.count("frdb-check");
+
+        if (my->config->enable_trim)
+            throw std::runtime_error("--fill-trim not implemented yet");
     }
     FC_LOG_AND_RETHROW()
 }

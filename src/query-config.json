@@ -966,6 +966,7 @@
             "index": "contract_table_code_scope_table_block_prese_idx",
             "table": "contract_table",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": [
                 {
                     "name": "code"
@@ -1040,6 +1041,7 @@
             "index": "contract_index64_code_table_scope_pk_block_prese_idx",
             "table": "contract_index64",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": [
                 {
                     "name": "code"
@@ -1082,6 +1084,7 @@
             "index": "contract_index128_code_table_scope_pk_block_prese_idx",
             "table": "contract_index128",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": [
                 {
                     "name": "code"
@@ -1102,6 +1105,7 @@
             "index": "contract_index256_code_table_scope_pk_block_prese_idx",
             "table": "contract_index256",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": [
                 {
                     "name": "code"
@@ -1122,6 +1126,7 @@
             "index": "contract_index_dbl_code_table_scope_pk_block_prese_idx",
             "table": "contract_index_double",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": [
                 {
                     "name": "code"
@@ -1142,6 +1147,7 @@
             "index": "contract_index_ldbl_code_table_scope_pk_block_prese_idx",
             "table": "contract_index_long_double",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": [
                 {
                     "name": "code"
@@ -1162,6 +1168,7 @@
             "index": "global_property_block_prese_idx",
             "table": "global_property",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": []
         },
         {
@@ -1169,6 +1176,7 @@
             "index": "generated_transaction_sender_senderid_block_prese_idx",
             "table": "generated_transaction",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": [
                 {
                     "name": "sender"
@@ -1183,6 +1191,7 @@
             "index": "protocol_state_block_prese_idx",
             "table": "protocol_state",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": []
         },
         {
@@ -1190,6 +1199,7 @@
             "index": "permission_owner_name_block_prese_idx",
             "table": "permission",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": [
                 {
                     "name": "owner"
@@ -1204,6 +1214,7 @@
             "index": "permission_link_acct_code_msgtype_block_prese_idx",
             "table": "permission_link",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": [
                 {
                     "name": "account"
@@ -1221,6 +1232,7 @@
             "index": "resource_limits_owner_block_prese_idx",
             "table": "resource_limits",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": [
                 {
                     "name": "owner"
@@ -1232,6 +1244,7 @@
             "index": "resource_usage_owner_block_prese_idx",
             "table": "resource_usage",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": [
                 {
                     "name": "owner"
@@ -1243,6 +1256,7 @@
             "index": "resource_limits_state_block_prese_idx",
             "table": "resource_limits_state",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": []
         },
         {
@@ -1250,6 +1264,7 @@
             "index": "resource_limits_config_block_prese_idx",
             "table": "resource_limits_config",
             "include_in_pg": false,
+            "only_for_trim": true,
             "sort_keys": []
         }
     ],

@@ -3,9 +3,9 @@
 // todo: trim: n behind head
 // todo: trim: remove last !present
 
-#include "state_history_pg.hpp"
-
 #include "fill_pg_plugin.hpp"
+#include "state_history_connection.hpp"
+#include "state_history_pg.hpp"
 #include "util.hpp"
 
 #include <boost/asio/connect.hpp>
@@ -42,9 +42,7 @@ struct table_stream {
 
 struct fpg_session;
 
-struct fill_postgresql_config {
-    std::string host;
-    std::string port;
+struct fill_postgresql_config : connection_config {
     std::string schema;
     uint32_t    skip_to       = 0;
     uint32_t    stop_before   = 0;
@@ -60,13 +58,11 @@ struct fill_postgresql_plugin_impl : std::enable_shared_from_this<fill_postgresq
     ~fill_postgresql_plugin_impl();
 };
 
-struct fpg_session : std::enable_shared_from_this<fpg_session> {
+struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_session> {
     fill_postgresql_plugin_impl*                         my = nullptr;
     std::shared_ptr<fill_postgresql_config>              config;
     std::optional<pqxx::connection>                      sql_connection;
-    tcp::resolver                                        resolver;
-    websocket::stream<tcp::socket>                       stream;
-    bool                                                 received_abi    = false;
+    std::shared_ptr<state_history::connection>           connection;
     bool                                                 created_trim    = false;
     uint32_t                                             head            = 0;
     std::string                                          head_id         = "";
@@ -74,23 +70,17 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     std::string                                          irreversible_id = "";
     uint32_t                                             first           = 0;
     uint32_t                                             first_bulk      = 0;
-    abi_def                                              abi{};
-    std::map<std::string, abi_type>                      abi_types;
     std::map<std::string, std::unique_ptr<table_stream>> table_streams;
 
-    fpg_session(fill_postgresql_plugin_impl* my, asio::io_context& ioc)
+    fpg_session(fill_postgresql_plugin_impl* my)
         : my(my)
-        , config(my->config)
-        , resolver(ioc)
-        , stream(ioc) {
+        , config(my->config) {
 
         ilog("connect to postgresql");
         sql_connection.emplace();
-        stream.binary(true);
-        stream.read_message_max(10ull * 1024 * 1024 * 1024);
     }
 
-    void start() {
+    void start(asio::io_context& ioc) {
         if (config->drop_schema) {
             pqxx::work t(*sql_connection);
             ilog("drop schema ${s}", ("s", t.quote_name(config->schema)));
@@ -98,51 +88,17 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             t.commit();
         }
 
-        ilog("connect to ${h}:${p}", ("h", config->host)("p", config->port));
-        resolver.async_resolve(
-            config->host, config->port, [self = shared_from_this(), this](error_code ec, tcp::resolver::results_type results) {
-                callback(ec, "resolve", [&] {
-                    asio::async_connect(
-                        stream.next_layer(), results.begin(), results.end(), [self = shared_from_this(), this](error_code ec, auto&) {
-                            callback(ec, "connect", [&] {
-                                stream.async_handshake(config->host, "/", [self = shared_from_this(), this](error_code ec) {
-                                    callback(ec, "handshake", [&] { //
-                                        start_read();
-                                    });
-                                });
-                            });
-                        });
-                });
-            });
+        connection = std::make_shared<state_history::connection>(ioc, *config, shared_from_this());
+        connection->connect();
     }
 
-    void start_read() {
-        auto in_buffer = std::make_shared<flat_buffer>();
-        stream.async_read(*in_buffer, [self = shared_from_this(), this, in_buffer](error_code ec, size_t) {
-            callback(ec, "async_read", [&] {
-                if (!received_abi)
-                    receive_abi(in_buffer);
-                else {
-                    if (!receive_result(in_buffer)) {
-                        close();
-                        return;
-                    }
-                }
-                start_read();
-            });
-        });
-    }
-
-    void receive_abi(const std::shared_ptr<flat_buffer>& p) {
-        auto data = p->data();
-        json_to_native(abi, std::string_view{(const char*)data.data(), data.size()});
-        check_abi_version(abi.version);
-        abi_types    = create_contract(abi).abi_types;
-        received_abi = true;
-
+    void received_abi(std::string_view abi) override {
         if (config->create_schema)
             create_tables();
+        connection->send(get_status_request_v0{});
+    }
 
+    bool received(get_status_result_v0& status) override {
         pqxx::work t(*sql_connection);
         load_fill_status(t);
         auto           positions = get_positions(t);
@@ -151,7 +107,8 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         pipeline.complete();
         t.commit();
 
-        send_request(positions);
+        connection->request_blocks(status, std::max(config->skip_to, head + 1), positions);
+        return true;
     }
 
     template <typename T>
@@ -259,7 +216,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_num, transaction_ordinal",                     "block_num bigint, transaction_ordinal integer, failed_dtrx_trace varchar(64)", "partial_signatures varchar[], partial_context_free_data bytea[]");
         // clang-format on
 
-        for (auto& table : abi.tables) {
+        for (auto& table : connection->abi.tables) {
             auto& variant_type = get_type(table.type);
             if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
                 throw std::runtime_error("don't know how to proccess " + variant_type.name);
@@ -300,7 +257,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             return;
         pqxx::work t(*sql_connection);
         ilog("create_trim");
-        for (auto& table : abi.tables) {
+        for (auto& table : connection->abi.tables) {
             if (table.key_names.empty())
                 continue;
             std::string query = "create index if not exists " + table.type;
@@ -378,7 +335,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                     )";
         };
 
-        for (auto& table : abi.tables) {
+        for (auto& table : connection->abi.tables) {
             if (table.key_names.empty()) {
                 query += R"(
                     for key_search in
@@ -432,17 +389,13 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         first           = r[4].as<uint32_t>();
     }
 
-    jarray get_positions(pqxx::work& t) {
-        jarray result;
-        auto   rows = t.exec(
+    std::vector<block_position> get_positions(pqxx::work& t) {
+        std::vector<block_position> result;
+        auto                        rows = t.exec(
             "select block_num, block_id from " + t.quote_name(config->schema) + ".received_block where block_num >= " +
             std::to_string(irreversible) + " and block_num <= " + std::to_string(head) + " order by block_num");
-        for (auto row : rows) {
-            result.push_back(jvalue{jobject{
-                {{"block_num"s}, {row[0].as<std::string>()}},
-                {{"block_id"s}, {row[1].as<std::string>()}},
-            }});
-        }
+        for (auto row : rows)
+            result.push_back({row[0].as<uint32_t>(), sql_to_checksum256(row[1].as<std::string>().c_str())});
         return result;
     }
 
@@ -469,7 +422,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         trunc("action_trace");
         trunc("transaction_trace");
         trunc("block_info");
-        for (auto& table : abi.tables)
+        for (auto& table : connection->abi.tables)
             trunc(table.type);
 
         auto result = pipeline.retrieve(pipeline.insert(
@@ -484,17 +437,9 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         first = std::min(first, head);
     } // truncate
 
-    bool receive_result(const std::shared_ptr<flat_buffer>& p) {
-        auto         data = p->data();
-        input_buffer bin{(const char*)data.data(), (const char*)data.data() + data.size()};
-        check_variant(bin, get_type("result"), "get_blocks_result_v0");
-
-        get_blocks_result_v0 result;
-        bin_to_native(result, bin);
-
+    bool received(get_blocks_result_v0& result) override {
         if (!result.this_block)
             return true;
-
         bool bulk         = result.this_block->block_num + 4 < result.last_irreversible.block_num;
         bool large_deltas = false;
         if (!bulk && result.deltas && result.deltas->end - result.deltas->pos >= 10 * 1024 * 1024) {
@@ -909,87 +854,9 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         first = end_trim;
     }
 
-    void send_request(const jarray& positions) {
-        send(jvalue{jarray{{"get_blocks_request_v0"s},
-                           {jobject{
-                               {{"start_block_num"s}, {std::to_string(std::max(config->skip_to, head + 1))}},
-                               {{"end_block_num"s}, {"4294967295"s}},
-                               {{"max_messages_in_flight"s}, {"4294967295"s}},
-                               {{"have_positions"s}, {positions}},
-                               {{"irreversible_only"s}, {false}},
-                               {{"fetch_block"s}, {true}},
-                               {{"fetch_traces"s}, {true}},
-                               {{"fetch_deltas"s}, {true}},
-                           }}}});
-    }
+    const abi_type& get_type(const std::string& name) { return connection->get_type(name); }
 
-    const abi_type& get_type(const std::map<std::string, abi_type>& abi_types, const std::string& name) {
-        auto it = abi_types.find(name);
-        if (it == abi_types.end())
-            throw std::runtime_error("unknown type "s + name);
-        return it->second;
-    }
-
-    const abi_type& get_type(const std::string& name) { return get_type(abi_types, name); }
-
-    void send(const jvalue& value) {
-        auto bin = std::make_shared<std::vector<char>>();
-        json_to_bin(*bin, &get_type("request"), value);
-        stream.async_write(
-            asio::buffer(*bin), [self = shared_from_this(), bin, this](error_code ec, size_t) { callback(ec, "async_write", [&] {}); });
-    }
-
-    void check_variant(input_buffer& bin, const abi_type& type, uint32_t expected) {
-        auto index = read_varuint32(bin);
-        if (!type.filled_variant)
-            throw std::runtime_error(type.name + " is not a variant"s);
-        if (index >= type.fields.size())
-            throw std::runtime_error("expected "s + type.fields[expected].name + " got " + std::to_string(index));
-        if (index != expected)
-            throw std::runtime_error("expected "s + type.fields[expected].name + " got " + type.fields[index].name);
-    }
-
-    void check_variant(input_buffer& bin, const abi_type& type, const char* expected) {
-        auto index = read_varuint32(bin);
-        if (!type.filled_variant)
-            throw std::runtime_error(type.name + " is not a variant"s);
-        if (index >= type.fields.size())
-            throw std::runtime_error("expected "s + expected + " got " + std::to_string(index));
-        if (type.fields[index].name != expected)
-            throw std::runtime_error("expected "s + expected + " got " + type.fields[index].name);
-    }
-
-    template <typename F>
-    void catch_and_close(F f) {
-        try {
-            f();
-        } catch (const std::exception& e) {
-            elog("${e}", ("e", e.what()));
-            close();
-        } catch (...) {
-            elog("unknown exception");
-            close();
-        }
-    }
-
-    template <typename F>
-    void callback(error_code ec, const char* what, F f) {
-        if (ec)
-            return on_fail(ec, what);
-        catch_and_close(f);
-    }
-
-    void on_fail(error_code ec, const char* what) {
-        try {
-            elog("${w}: ${m}", ("w", what)("m", ec.message()));
-            close();
-        } catch (...) {
-            elog("exception while closing");
-        }
-    }
-
-    void close() {
-        stream.next_layer().close();
+    void closed() override {
         if (my)
             my->session.reset();
     }
@@ -1036,11 +903,11 @@ void fill_pg_plugin::plugin_initialize(const variables_map& options) {
 }
 
 void fill_pg_plugin::plugin_startup() {
-    my->session = std::make_shared<fpg_session>(my.get(), app().get_io_service());
-    my->session->start();
+    my->session = std::make_shared<fpg_session>(my.get());
+    my->session->start(app().get_io_service());
 }
 
 void fill_pg_plugin::plugin_shutdown() {
     if (my->session)
-        my->session->close();
+        my->session->connection->close();
 }

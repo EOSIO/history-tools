@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "module": "es2015",
+        "target": "es2017",
+        "outDir": "dist",
+        "sourceMap": true,
+        "noImplicitAny": false,
+        "noUnusedLocals": false,
+        "jsx": "react",
+        "baseUrl": "."
+    },
+    "include": [
+        "src/**/*.ts",
+        "node_modules/eosjs/**/*.d.ts"
+    ]
+}

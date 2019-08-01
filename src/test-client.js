@@ -320,7 +320,7 @@ async function dump_transfers(clientWasm) {
         fs.writeFileSync('token_request_schema.json', JSON.stringify(tokenWasm.describe_query_request(), null, 4));
         fs.writeFileSync('token_response_schema.json', JSON.stringify(tokenWasm.describe_query_response(), null, 4));
 
-        await dump_block_info(chainWasm, ["irreversible", 0], ["irreversible", 1]);
+        await dump_block_info(chainWasm, ["head", 0], ["head", 1]);
         console.log();
         await dump_tapos(chainWasm, ["head", -3], 0);
         console.log();
@@ -328,7 +328,7 @@ async function dump_transfers(clientWasm) {
         console.log();
         await get_abi(chainWasm, ['eosio', 'eosio.token', 'eosio.null', 'eosio.nope']);
         console.log();
-        await get_code(chainWasm, ['eosio', 'eosio.token', 'eosio.null', 'eosio.nope']);
+        await get_code(chainWasm, ['eosio.null']);
         console.log();
         await dump_eos_balances(["head", 0], tokenWasm, 'eosio', 'eosio.zzzzzzj');
         console.log();

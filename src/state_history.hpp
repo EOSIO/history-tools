@@ -76,6 +76,58 @@ ABIEOS_REFLECT(block_position) {
     ABIEOS_MEMBER(block_position, block_id)
 }
 
+struct get_status_request_v0 {};
+
+ABIEOS_REFLECT(get_status_request_v0) {}
+
+struct get_blocks_request_v0 {
+    uint32_t                    start_block_num        = {};
+    uint32_t                    end_block_num          = {};
+    uint32_t                    max_messages_in_flight = {};
+    std::vector<block_position> have_positions         = {};
+    bool                        irreversible_only      = {};
+    bool                        fetch_block            = {};
+    bool                        fetch_traces           = {};
+    bool                        fetch_deltas           = {};
+};
+
+ABIEOS_REFLECT(get_blocks_request_v0) {
+    ABIEOS_MEMBER(get_blocks_request_v0, start_block_num);
+    ABIEOS_MEMBER(get_blocks_request_v0, end_block_num);
+    ABIEOS_MEMBER(get_blocks_request_v0, max_messages_in_flight);
+    ABIEOS_MEMBER(get_blocks_request_v0, have_positions);
+    ABIEOS_MEMBER(get_blocks_request_v0, irreversible_only);
+    ABIEOS_MEMBER(get_blocks_request_v0, fetch_block);
+    ABIEOS_MEMBER(get_blocks_request_v0, fetch_traces);
+    ABIEOS_MEMBER(get_blocks_request_v0, fetch_deltas);
+}
+
+struct get_blocks_ack_request_v0 {
+    uint32_t num_messages = {};
+};
+
+ABIEOS_REFLECT(get_blocks_ack_request_v0) { ABIEOS_MEMBER(get_blocks_ack_request_v0, num_messages); }
+
+using request = std::variant<get_status_request_v0, get_blocks_request_v0, get_blocks_ack_request_v0>;
+
+struct get_status_result_v0 {
+    block_position head                    = {};
+    block_position last_irreversible       = {};
+    uint32_t       trace_begin_block       = {};
+    uint32_t       trace_end_block         = {};
+    uint32_t       chain_state_begin_block = {};
+    uint32_t       chain_state_end_block   = {};
+};
+
+ABIEOS_REFLECT(get_status_result_v0) {
+    ABIEOS_MEMBER(get_status_result_v0, head);
+    ABIEOS_MEMBER(get_status_result_v0, last_irreversible);
+    ABIEOS_MEMBER(get_status_result_v0, trace_begin_block);
+    ABIEOS_MEMBER(get_status_result_v0, trace_end_block);
+    ABIEOS_MEMBER(get_status_result_v0, chain_state_begin_block);
+    ABIEOS_MEMBER(get_status_result_v0, chain_state_end_block);
+}
+
 struct get_blocks_result_v0 {
     block_position                      head              = {};
     block_position                      last_irreversible = {};
@@ -95,6 +147,8 @@ ABIEOS_REFLECT(get_blocks_result_v0) {
     ABIEOS_MEMBER(get_blocks_result_v0, traces)
     ABIEOS_MEMBER(get_blocks_result_v0, deltas)
 }
+
+using result = std::variant<get_status_result_v0, get_blocks_result_v0>;
 
 struct row {
     bool                 present = {};
@@ -385,6 +439,28 @@ ABIEOS_REFLECT(signed_block) {
     ABIEOS_BASE(signed_block_header)
     ABIEOS_MEMBER(signed_block, transactions)
     ABIEOS_MEMBER(signed_block, block_extensions)
+}
+
+inline void check_variant(abieos::input_buffer& bin, const abieos::abi_type& type, uint32_t expected) {
+    using namespace std::literals;
+    auto index = abieos::read_varuint32(bin);
+    if (!type.filled_variant)
+        throw std::runtime_error(type.name + " is not a variant"s);
+    if (index >= type.fields.size())
+        throw std::runtime_error("expected "s + type.fields[expected].name + " got " + std::to_string(index));
+    if (index != expected)
+        throw std::runtime_error("expected "s + type.fields[expected].name + " got " + type.fields[index].name);
+}
+
+inline void check_variant(abieos::input_buffer& bin, const abieos::abi_type& type, const char* expected) {
+    using namespace std::literals;
+    auto index = abieos::read_varuint32(bin);
+    if (!type.filled_variant)
+        throw std::runtime_error(type.name + " is not a variant"s);
+    if (index >= type.fields.size())
+        throw std::runtime_error("expected "s + expected + " got " + std::to_string(index));
+    if (type.fields[index].name != expected)
+        throw std::runtime_error("expected "s + expected + " got " + type.fields[index].name);
 }
 
 } // namespace state_history

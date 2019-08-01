@@ -34,7 +34,7 @@
             "present" desc
         );
 
-        create index if not exists acctmeta_joined_name_block_present_idx on chain.account_metadata(
+        create index if not exists acctmeta_name_block_present_idx on chain.account_metadata(
             "name",
             "block_num" desc,
             "present" desc
@@ -276,7 +276,6 @@
         drop function if exists chain.account_range_name;
         create function chain.account_range_name(
             max_block_num bigint,
-            
             first_name varchar(13),
             last_name varchar(13),
             max_results integer
@@ -438,7 +437,6 @@
         drop function if exists chain.acctmeta_joined_range_name;
         create function chain.acctmeta_joined_range_name(
             max_block_num bigint,
-            
             first_name varchar(13),
             last_name varchar(13),
             max_results integer
@@ -720,7 +718,6 @@
         drop function if exists chain.code_range_type_ver_hash;
         create function chain.code_range_type_ver_hash(
             max_block_num bigint,
-            
             first_vm_type smallint,
             first_vm_version smallint,
             first_code_hash varchar(64),
@@ -908,7 +905,6 @@
         drop function if exists chain.acctmeta_joincode_range_name;
         create function chain.acctmeta_joincode_range_name(
             max_block_num bigint,
-            
             first_name varchar(13),
             last_name varchar(13),
             max_results integer
@@ -1218,7 +1214,6 @@
         drop function if exists chain.contract_row_range_code_table_pk_scope;
         create function chain.contract_row_range_code_table_pk_scope(
             max_block_num bigint,
-            
             first_code varchar(13),
             first_table varchar(13),
             first_primary_key decimal,
@@ -1428,7 +1423,6 @@
         drop function if exists chain.contract_row_range_code_table_scope_pk;
         create function chain.contract_row_range_code_table_scope_pk(
             max_block_num bigint,
-            
             first_code varchar(13),
             first_table varchar(13),
             first_scope varchar(13),
@@ -1638,7 +1632,6 @@
         drop function if exists chain.contract_row_range_scope_table_pk_code;
         create function chain.contract_row_range_scope_table_pk_code(
             max_block_num bigint,
-            
             first_scope varchar(13),
             first_table varchar(13),
             first_primary_key decimal,
@@ -1848,7 +1841,6 @@
         drop function if exists chain.contract_index64_range_code_table_scope_sk_pk;
         create function chain.contract_index64_range_code_table_scope_sk_pk(
             max_block_num bigint,
-            
             first_code varchar(13),
             first_table varchar(13),
             first_scope varchar(13),

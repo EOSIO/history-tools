@@ -10,8 +10,8 @@ struct rocksdb_inst {
     state_history::rdb::database database;
     state_history::kv::config    query_config{};
 
-    rocksdb_inst(const boost::filesystem::path& db_path)
-        : database{db_path} {}
+    rocksdb_inst(const boost::filesystem::path& db_path, std::optional<uint32_t> threads, std::optional<uint32_t> max_open_files)
+        : database{db_path, threads, max_open_files} {}
 };
 
 class rocksdb_plugin : public appbase::plugin<rocksdb_plugin> {

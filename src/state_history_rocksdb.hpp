@@ -4,6 +4,7 @@
 #include "state_history_kv.hpp"
 
 #include <boost/filesystem.hpp>
+#include <fc/exception/exception.hpp>
 #include <rocksdb/db.h>
 
 namespace state_history {
@@ -23,7 +24,7 @@ struct database {
     std::shared_ptr<rocksdb::Statistics> stats;
     std::unique_ptr<rocksdb::DB>         db;
 
-    database(const boost::filesystem::path& db_path) {
+    database(const boost::filesystem::path& db_path, std::optional<uint32_t> threads, std::optional<uint32_t> max_open_files) {
         rocksdb::DB*     p;
         rocksdb::Options options;
         // stats = options.statistics = rocksdb::CreateDBStatistics();
@@ -37,15 +38,21 @@ struct database {
         options.bytes_per_sync                       = 1048576;
         options.compaction_pri                       = rocksdb::kMinOverlappingRatio;
 
+        if (threads)
+            options.IncreaseParallelism(*threads);
         options.OptimizeLevelStyleCompaction(256ull << 20);
         for (auto& x : options.compression_per_level) // todo: fix snappy build
             x = rocksdb::kNoCompression;
 
         options.memtable_factory                = std::make_shared<rocksdb::VectorRepFactory>();
         options.allow_concurrent_memtable_write = false;
+        if (max_open_files)
+            options.max_open_files = *max_open_files;
 
+        ilog("open ${p}", ("p", db_path.c_str()));
         check(rocksdb::DB::Open(options, db_path.c_str(), &p), "rocksdb::DB::Open: ");
         db.reset(p);
+        ilog("database opened");
     }
 
     database(const database&) = delete;

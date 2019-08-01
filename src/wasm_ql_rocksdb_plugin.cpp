@@ -141,8 +141,10 @@ struct rocksdb_query_session : query_session {
 }; // rocksdb_query_session
 
 std::unique_ptr<query_session> rocksdb_database_interface::create_query_session() {
-    if (!rocksdb_inst)
-        rocksdb_inst = app().find_plugin<rocksdb_plugin>()->get_rocksdb_inst();
+    if (rocksdb_inst)
+        rocksdb_inst->database.db->TryCatchUpWithPrimary();
+    else
+        rocksdb_inst = app().find_plugin<rocksdb_plugin>()->get_rocksdb_inst_ro();
     auto session = std::make_unique<rocksdb_query_session>(shared_from_this());
     return session;
 }

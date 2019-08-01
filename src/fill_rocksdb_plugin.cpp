@@ -63,7 +63,7 @@ struct fill_rocksdb_plugin_impl : std::enable_shared_from_this<fill_rocksdb_plug
 struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_session> {
     fill_rocksdb_plugin_impl*                  my = nullptr;
     std::shared_ptr<fill_rocksdb_config>       config;
-    std::shared_ptr<::rocksdb_inst>            rocksdb_inst = app().find_plugin<rocksdb_plugin>()->get_rocksdb_inst();
+    std::shared_ptr<::rocksdb_inst>            rocksdb_inst = app().find_plugin<rocksdb_plugin>()->get_rocksdb_inst_rw();
     rocksdb::WriteBatch                        active_content_batch;
     rocksdb::WriteBatch                        active_index_batch;
     std::shared_ptr<state_history::connection> connection;

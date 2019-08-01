@@ -24,7 +24,7 @@ struct database {
     std::shared_ptr<rocksdb::Statistics> stats;
     std::unique_ptr<rocksdb::DB>         db;
 
-    database(const boost::filesystem::path& db_path, std::optional<uint32_t> threads, std::optional<uint32_t> max_open_files) {
+    database(const char* db_path, const char* ro_path, std::optional<uint32_t> threads, std::optional<uint32_t> max_open_files) {
         rocksdb::DB*     p;
         rocksdb::Options options;
         // stats = options.statistics = rocksdb::CreateDBStatistics();
@@ -49,8 +49,13 @@ struct database {
         if (max_open_files)
             options.max_open_files = *max_open_files;
 
-        ilog("open ${p}", ("p", db_path.c_str()));
-        check(rocksdb::DB::Open(options, db_path.c_str(), &p), "rocksdb::DB::Open: ");
+        if (ro_path) {
+            ilog("open secondary ${p} ${s}", ("p", db_path)("s", ro_path));
+            check(rocksdb::DB::OpenAsSecondary(options, db_path, ro_path, &p), "rocksdb::DB::OpenAsSecondary: ");
+        } else {
+            ilog("open primary ${p}", ("p", db_path));
+            check(rocksdb::DB::Open(options, db_path, &p), "rocksdb::DB::Open: ");
+        }
         db.reset(p);
         ilog("database opened");
     }

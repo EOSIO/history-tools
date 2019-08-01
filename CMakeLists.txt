@@ -70,15 +70,15 @@ endif()
 
 set(SKIP_FC_TESTS ON)
 
-# execute_process(COMMAND git submodule status --recursive
-#                 COMMAND grep -c "^[+\-]"
-#                 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-#                 OUTPUT_VARIABLE submodule_status
-#                 OUTPUT_STRIP_TRAILING_WHITESPACE)
-# if(submodule_status GREATER 0)
-#    message(FATAL_ERROR "git submodules are not up to date.
-# Please run the command 'git submodule update --init --recursive'.")
-# endif()
+execute_process(COMMAND git submodule status --recursive
+                COMMAND grep -c "^[+\-]"
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                OUTPUT_VARIABLE submodule_status
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(submodule_status GREATER 0)
+   message(FATAL_ERROR "git submodules are not up to date.
+Please run the command 'git submodule update --init --recursive'.")
+endif()
 
 include(SetupTargetMacros)
 include(GNUInstallDirs)
@@ -86,9 +86,11 @@ include(VersionMacros)
 
 set(WITH_TESTS OFF)
 
+add_compile_options(-Wno-error=shadow)
+
 add_subdirectory(external/appbase)
 add_subdirectory(external/fc)
-add_subdirectory(external/rocksdb)
+add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
 
 set(FOUND_ROCKSDB ON)
 set(ROCKSDB_LIB rocksdb)

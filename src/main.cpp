@@ -18,14 +18,6 @@
 #include "wasm_ql_pg_plugin.hpp"
 #endif
 
-#ifdef INCLUDE_FILL_LMDB_PLUGIN
-#include "fill_lmdb_plugin.hpp"
-#endif
-
-#ifdef INCLUDE_WASM_QL_LMDB_PLUGIN
-#include "wasm_ql_lmdb_plugin.hpp"
-#endif
-
 #ifdef INCLUDE_FILL_ROCKSDB_PLUGIN
 #include "fill_rocksdb_plugin.hpp"
 #endif

@@ -399,7 +399,7 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
 
 void wasm_ql_plugin::plugin_startup() {
     if (!my->state->db_iface)
-        throw std::runtime_error("wasm_ql_plugin needs either wasm_ql_pg_plugin or wasm_ql_lmdb_plugin");
+        throw std::runtime_error("wasm_ql_plugin needs either wasm_ql_pg_plugin or wasm_ql_rocksdb_plugin");
     my->listen();
 }
 void wasm_ql_plugin::plugin_shutdown() { my->stopping = true; }

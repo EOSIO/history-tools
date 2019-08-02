@@ -57,6 +57,20 @@ inline std::string to_string(transaction_status status) {
     throw std::runtime_error("unknown status: " + std::to_string((uint8_t)status));
 }
 
+inline transaction_status get_transaction_status(const std::string& s) {
+    if (s == "executed")
+        return transaction_status::executed;
+    if (s == "soft_fail")
+        return transaction_status::soft_fail;
+    if (s == "hard_fail")
+        return transaction_status::hard_fail;
+    if (s == "delayed")
+        return transaction_status::delayed;
+    if (s == "expired")
+        return transaction_status::expired;
+    throw std::runtime_error("unknown status: " + s);
+}
+
 inline bool bin_to_native(transaction_status& status, abieos::bin_to_native_state& state, bool) {
     status = transaction_status(abieos::read_raw<uint8_t>(state.bin));
     return true;
@@ -461,6 +475,45 @@ inline void check_variant(abieos::input_buffer& bin, const abieos::abi_type& typ
         throw std::runtime_error("expected "s + expected + " got " + std::to_string(index));
     if (type.fields[index].name != expected)
         throw std::runtime_error("expected "s + expected + " got " + type.fields[index].name);
+}
+
+struct trx_filter {
+    bool                              include     = {};
+    std::optional<transaction_status> status      = {};
+    std::optional<abieos::name>       receiver    = {};
+    std::optional<abieos::name>       act_account = {};
+    std::optional<abieos::name>       act_name    = {};
+};
+
+inline bool matches(const trx_filter& filter, const transaction_trace_v0& ttrace, const action_trace_v0& atrace) {
+    if (filter.status && ttrace.status != *filter.status)
+        return false;
+    if (filter.receiver && atrace.receiver != *filter.receiver)
+        return false;
+    if (filter.act_account && atrace.act.account != *filter.act_account)
+        return false;
+    if (filter.act_name && atrace.act.name != *filter.act_name)
+        return false;
+    return true;
+}
+
+inline bool filter(const std::vector<trx_filter>& filters, const transaction_trace_v0& ttrace, const action_trace_v0& atrace) {
+    for (auto& filt : filters) {
+        if (matches(filt, ttrace, atrace)) {
+            if (filt.include)
+                return true;
+            else
+                return false;
+        }
+    }
+    return false;
+}
+
+inline bool filter(const std::vector<trx_filter>& filters, const transaction_trace_v0& ttrace) {
+    for (auto& atrace : ttrace.action_traces)
+        if (filter(filters, ttrace, std::get<0>(atrace)))
+            return true;
+    return false;
 }
 
 } // namespace state_history

@@ -43,12 +43,13 @@ struct table_stream {
 struct fpg_session;
 
 struct fill_postgresql_config : connection_config {
-    std::string schema;
-    uint32_t    skip_to       = 0;
-    uint32_t    stop_before   = 0;
-    bool        drop_schema   = false;
-    bool        create_schema = false;
-    bool        enable_trim   = false;
+    std::string             schema;
+    uint32_t                skip_to       = 0;
+    uint32_t                stop_before   = 0;
+    std::vector<trx_filter> trx_filters   = {};
+    bool                    drop_schema   = false;
+    bool                    create_schema = false;
+    bool                    enable_trim   = false;
 };
 
 struct fill_postgresql_plugin_impl : std::enable_shared_from_this<fill_postgresql_plugin_impl> {
@@ -702,15 +703,19 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         for (uint32_t i = 0; i < num; ++i) {
             transaction_trace trace;
             bin_to_native(trace, bin);
-            write_transaction_trace(block_num, num_ordinals, std::get<transaction_trace_v0>(trace), bulk, t, pipeline);
+            if (filter(config->trx_filters, std::get<0>(trace)))
+                write_transaction_trace(block_num, num_ordinals, std::get<transaction_trace_v0>(trace), bulk, t, pipeline);
         }
     }
 
     void write_transaction_trace(
         uint32_t block_num, uint32_t& num_ordinals, transaction_trace_v0& ttrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
         auto* failed = !ttrace.failed_dtrx_trace.empty() ? &std::get<transaction_trace_v0>(ttrace.failed_dtrx_trace[0].recurse) : nullptr;
-        if (failed)
+        if (failed) {
+            if (!filter(config->trx_filters, *failed))
+                return;
             write_transaction_trace(block_num, num_ordinals, *failed, bulk, t, pipeline);
+        }
         auto        transaction_ordinal = ++num_ordinals;
         std::string failed_id           = failed ? std::string(failed->id) : "";
         std::string fields              = "block_num, transaction_ordinal, failed_dtrx_trace";
@@ -895,6 +900,7 @@ void fill_pg_plugin::plugin_initialize(const variables_map& options) {
         my->config->schema        = options["pg-schema"].as<std::string>();
         my->config->skip_to       = options.count("fill-skip-to") ? options["fill-skip-to"].as<uint32_t>() : 0;
         my->config->stop_before   = options.count("fill-stop") ? options["fill-stop"].as<uint32_t>() : 0;
+        my->config->trx_filters   = fill_plugin::get_trx_filters(options);
         my->config->drop_schema   = options.count("fpg-drop");
         my->config->create_schema = options.count("fpg-create");
         my->config->enable_trim   = options.count("fill-trim");

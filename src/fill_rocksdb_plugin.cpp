@@ -47,10 +47,11 @@ struct rocksdb_table {
 };
 
 struct fill_rocksdb_config : connection_config {
-    uint32_t skip_to      = 0;
-    uint32_t stop_before  = 0;
-    bool     enable_trim  = false;
-    bool     enable_check = false;
+    uint32_t                skip_to      = 0;
+    uint32_t                stop_before  = 0;
+    std::vector<trx_filter> trx_filters  = {};
+    bool                    enable_trim  = false;
+    bool                    enable_check = false;
 };
 
 struct fill_rocksdb_plugin_impl : std::enable_shared_from_this<fill_rocksdb_plugin_impl> {
@@ -627,8 +628,9 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         for (uint32_t i = 0; i < num; ++i) {
             state_history::transaction_trace trace;
             bin_to_native(trace, bin);
-            write_transaction_trace(
-                content_batch, index_batch, block_num, num_ordinals, std::get<state_history::transaction_trace_v0>(trace));
+            if (filter(config->trx_filters, std::get<0>(trace)))
+                write_transaction_trace(
+                    content_batch, index_batch, block_num, num_ordinals, std::get<state_history::transaction_trace_v0>(trace));
         }
     }
 
@@ -638,8 +640,11 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         auto* failed = !ttrace.failed_dtrx_trace.empty()
                            ? &std::get<state_history::transaction_trace_v0>(ttrace.failed_dtrx_trace[0].recurse)
                            : nullptr;
-        if (failed)
+        if (failed) {
+            if (!filter(config->trx_filters, *failed))
+                return;
             write_transaction_trace(content_batch, index_batch, block_num, num_ordinals, *failed);
+        }
         uint32_t transaction_ordinal = ++num_ordinals;
 
         std::vector<char> key;
@@ -861,6 +866,7 @@ void fill_rocksdb_plugin::plugin_initialize(const variables_map& options) {
         my->config->port         = port;
         my->config->skip_to      = options.count("fill-skip-to") ? options["fill-skip-to"].as<uint32_t>() : 0;
         my->config->stop_before  = options.count("fill-stop") ? options["fill-stop"].as<uint32_t>() : 0;
+        my->config->trx_filters  = fill_plugin::get_trx_filters(options);
         my->config->enable_trim  = options.count("fill-trim");
         my->config->enable_check = options.count("frdb-check");
 

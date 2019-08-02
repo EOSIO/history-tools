@@ -52,6 +52,7 @@ struct pg_query_session : query_session {
         abieos::name query_name;
         abieos::bin_to_native(query_name, query_bin);
 
+        // todo: check for false positives in secondary indexes
         auto it = db_iface->config.query_map.find(query_name);
         if (it == db_iface->config.query_map.end())
             throw std::runtime_error("query_database: unknown query: " + (std::string)query_name);

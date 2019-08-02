@@ -60,6 +60,8 @@ struct rocksdb_query_session : query_session {
         abieos::name query_name;
         abieos::bin_to_native(query_name, query_bin);
 
+        // todo: need checkpoint at first query; database is live during query
+        // todo: check for false positives in secondary indexes
         // todo: check if index is populated in rdb
         auto it = db_iface->rocksdb_inst->query_config.query_map.find(query_name);
         if (it == db_iface->rocksdb_inst->query_config.query_map.end())

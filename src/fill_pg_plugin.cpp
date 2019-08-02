@@ -55,8 +55,22 @@ struct fill_postgresql_config : connection_config {
 struct fill_postgresql_plugin_impl : std::enable_shared_from_this<fill_postgresql_plugin_impl> {
     std::shared_ptr<fill_postgresql_config> config = std::make_shared<fill_postgresql_config>();
     std::shared_ptr<fpg_session>            session;
+    boost::asio::deadline_timer             timer;
+
+    fill_postgresql_plugin_impl()
+        : timer(app().get_io_service()) {}
 
     ~fill_postgresql_plugin_impl();
+
+    void schedule_retry() {
+        timer.expires_from_now(boost::posix_time::seconds(1));
+        timer.async_wait([this](auto&) {
+            ilog("retry...");
+            start();
+        });
+    }
+
+    void start();
 };
 
 struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_session> {
@@ -87,6 +101,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             ilog("drop schema ${s}", ("s", t.quote_name(config->schema)));
             t.exec("drop schema if exists " + t.quote_name(config->schema) + " cascade");
             t.commit();
+            config->drop_schema = false;
         }
 
         connection = std::make_shared<state_history::connection>(ioc, *config, shared_from_this());
@@ -94,8 +109,10 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     }
 
     void received_abi(std::string_view abi) override {
-        if (config->create_schema)
+        if (config->create_schema) {
             create_tables();
+            config->create_schema = false;
+        }
         connection->send(get_status_request_v0{});
     }
 
@@ -861,9 +878,12 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
     const abi_type& get_type(const std::string& name) { return connection->get_type(name); }
 
-    void closed() override {
-        if (my)
+    void closed(bool retry) override {
+        if (my) {
             my->session.reset();
+            if (retry)
+                my->schedule_retry();
+        }
     }
 
     ~fpg_session() { ilog("fill_pg_plugin stopped"); }
@@ -874,6 +894,11 @@ static abstract_plugin& _fill_postgresql_plugin = app().register_plugin<fill_pg_
 fill_postgresql_plugin_impl::~fill_postgresql_plugin_impl() {
     if (session)
         session->my = nullptr;
+}
+
+void fill_postgresql_plugin_impl::start() {
+    session = std::make_shared<fpg_session>(this);
+    session->start(app().get_io_service());
 }
 
 fill_pg_plugin::fill_pg_plugin()
@@ -908,12 +933,10 @@ void fill_pg_plugin::plugin_initialize(const variables_map& options) {
     FC_LOG_AND_RETHROW()
 }
 
-void fill_pg_plugin::plugin_startup() {
-    my->session = std::make_shared<fpg_session>(my.get());
-    my->session->start(app().get_io_service());
-}
+void fill_pg_plugin::plugin_startup() { my->start(); }
 
 void fill_pg_plugin::plugin_shutdown() {
     if (my->session)
-        my->session->connection->close();
+        my->session->connection->close(false);
+    my->timer.cancel();
 }

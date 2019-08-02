@@ -57,8 +57,22 @@ struct fill_rocksdb_config : connection_config {
 struct fill_rocksdb_plugin_impl : std::enable_shared_from_this<fill_rocksdb_plugin_impl> {
     std::shared_ptr<fill_rocksdb_config> config = std::make_shared<fill_rocksdb_config>();
     std::shared_ptr<::flm_session>       session;
+    boost::asio::deadline_timer          timer;
+
+    fill_rocksdb_plugin_impl()
+        : timer(app().get_io_service()) {}
 
     ~fill_rocksdb_plugin_impl();
+
+    void schedule_retry() {
+        timer.expires_from_now(boost::posix_time::seconds(1));
+        timer.async_wait([this](auto&) {
+            ilog("retry...");
+            start();
+        });
+    }
+
+    void start();
 };
 
 struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_session> {
@@ -829,9 +843,12 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
     const abi_type& get_type(const std::string& name) { return connection->get_type(name); }
 
-    void closed() override {
-        if (my)
+    void closed(bool retry) override {
+        if (my) {
             my->session.reset();
+            if (retry)
+                my->schedule_retry();
+        }
     }
 
     ~flm_session() { ilog("fill_rocksdb_plugin stopped"); }
@@ -842,6 +859,11 @@ static abstract_plugin& _fill_rocksdb_plugin = app().register_plugin<fill_rocksd
 fill_rocksdb_plugin_impl::~fill_rocksdb_plugin_impl() {
     if (session)
         session->my = nullptr;
+}
+
+void fill_rocksdb_plugin_impl::start() {
+    session = std::make_shared<flm_session>(this);
+    session->connect(app().get_io_service());
 }
 
 fill_rocksdb_plugin::fill_rocksdb_plugin()
@@ -876,12 +898,10 @@ void fill_rocksdb_plugin::plugin_initialize(const variables_map& options) {
     FC_LOG_AND_RETHROW()
 }
 
-void fill_rocksdb_plugin::plugin_startup() {
-    my->session = std::make_shared<flm_session>(my.get());
-    my->session->connect(app().get_io_service());
-}
+void fill_rocksdb_plugin::plugin_startup() { my->start(); }
 
 void fill_rocksdb_plugin::plugin_shutdown() {
     if (my->session)
-        my->session->connection->close();
+        my->session->connection->close(false);
+    my->timer.cancel();
 }

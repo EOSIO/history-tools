@@ -17,7 +17,7 @@ struct connection_callbacks {
     virtual void received_abi(std::string_view abi) {}
     virtual bool received(get_status_result_v0& status) { return true; }
     virtual bool received(get_blocks_result_v0& result) { return true; }
-    virtual void closed() = 0;
+    virtual void closed(bool retry) = 0;
 };
 
 struct connection_config {
@@ -82,7 +82,7 @@ struct connection : std::enable_shared_from_this<connection> {
                     receive_abi(in_buffer);
                 else {
                     if (!receive_result(in_buffer)) {
-                        close();
+                        close(false);
                         return;
                     }
                 }
@@ -155,10 +155,10 @@ struct connection : std::enable_shared_from_this<connection> {
             f();
         } catch (const std::exception& e) {
             elog("${e}", ("e", e.what()));
-            close();
+            close(false);
         } catch (...) {
             elog("unknown exception");
-            close();
+            close(false);
         }
     }
 
@@ -172,17 +172,17 @@ struct connection : std::enable_shared_from_this<connection> {
     void on_fail(error_code ec, const char* what) {
         try {
             elog("${w}: ${m}", ("w", what)("m", ec.message()));
-            close();
+            close(true);
         } catch (...) {
             elog("exception while closing");
         }
     }
 
-    void close() {
+    void close(bool retry) {
         ilog("closing state-history socket");
         stream.next_layer().close();
         if (callbacks)
-            callbacks->closed();
+            callbacks->closed(retry);
         callbacks.reset();
     }
 }; // connection

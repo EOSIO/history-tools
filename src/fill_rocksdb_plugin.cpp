@@ -851,7 +851,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         }
     }
 
-    ~flm_session() { ilog("fill_rocksdb_plugin stopped"); }
+    ~flm_session() {}
 }; // flm_session
 
 static abstract_plugin& _fill_rocksdb_plugin = app().register_plugin<fill_rocksdb_plugin>();
@@ -904,4 +904,5 @@ void fill_rocksdb_plugin::plugin_shutdown() {
     if (my->session)
         my->session->connection->close(false);
     my->timer.cancel();
+    ilog("fill_rocksdb_plugin stopped");
 }

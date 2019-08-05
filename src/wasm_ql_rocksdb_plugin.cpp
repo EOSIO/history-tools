@@ -158,7 +158,7 @@ struct wasm_ql_rocksdb_plugin_impl {
 wasm_ql_rocksdb_plugin::wasm_ql_rocksdb_plugin()
     : my(std::make_shared<wasm_ql_rocksdb_plugin_impl>()) {}
 
-wasm_ql_rocksdb_plugin::~wasm_ql_rocksdb_plugin() { ilog("wasm_ql_rocksdb_plugin stopped"); }
+wasm_ql_rocksdb_plugin::~wasm_ql_rocksdb_plugin() {}
 
 void wasm_ql_rocksdb_plugin::set_program_options(options_description& cli, options_description& cfg) {}
 
@@ -172,4 +172,4 @@ void wasm_ql_rocksdb_plugin::plugin_initialize(const variables_map& options) {
 }
 
 void wasm_ql_rocksdb_plugin::plugin_startup() {}
-void wasm_ql_rocksdb_plugin::plugin_shutdown() {}
+void wasm_ql_rocksdb_plugin::plugin_shutdown() { ilog("wasm_ql_rocksdb_plugin stopped"); }

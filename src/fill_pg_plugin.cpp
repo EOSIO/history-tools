@@ -886,7 +886,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         }
     }
 
-    ~fpg_session() { ilog("fill_pg_plugin stopped"); }
+    ~fpg_session() {}
 }; // fpg_session
 
 static abstract_plugin& _fill_postgresql_plugin = app().register_plugin<fill_pg_plugin>();
@@ -939,4 +939,5 @@ void fill_pg_plugin::plugin_shutdown() {
     if (my->session)
         my->session->connection->close(false);
     my->timer.cancel();
+    ilog("fill_pg_plugin stopped");
 }

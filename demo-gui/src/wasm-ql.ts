@@ -90,11 +90,12 @@ class SerialBuffer {
 
 export class ClientWasm {
     public env: any;
+    public open_promise: Promise<void>;
     public inst: WebAssembly.Instance;
     public input_data: Uint8Array;
     public output_data: Uint8Array;
 
-    constructor(path) {
+    constructor(path: string) {
         const self = this;
         this.env = {
             abort() {
@@ -127,9 +128,8 @@ export class ClientWasm {
             },
         };
 
-        // todo: error handling
         this.input_data = new Uint8Array(0);
-        (WebAssembly as any).instantiateStreaming(fetch(path), { env: this.env }).then(x => {
+        this.open_promise = (WebAssembly as any).instantiateStreaming(fetch(path), { env: this.env }).then(x => {
             this.inst = x.instance;
             this.inst.exports.initialize();
         });
@@ -161,11 +161,12 @@ export class ClientWasm {
     }
 
     public async round_trip(request) {
+        await this.open_promise;
         const requestBin = this.create_query_request(request);
         const bin = new SerialBuffer();
         bin.pushVaruint32(1);
         bin.pushBytes(requestBin);
-        const queryReply = await fetch('http://' + window.location.hostname + ':8880/wasmql/v1/query', { method: 'POST', body: bin.asUint8Array() });
+        const queryReply = await fetch('/wasmql/v1/query', { method: 'POST', body: bin.asUint8Array() });
         if (queryReply.status !== 200)
             throw new Error(queryReply.status + ': ' + queryReply.statusText + ': ' + await queryReply.text());
         const reply = new SerialBuffer({ array: new Uint8Array(await queryReply.arrayBuffer()) });

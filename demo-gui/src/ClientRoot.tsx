@@ -16,7 +16,6 @@ class AppState {
 
     private run(wasm, query, args, firstKeyName, handle) {
         this.result = [];
-        this.clientRoot.forceUpdate();
         const thisRequest = ++this.request;
         let first_key = args[firstKeyName];
         let running = false;
@@ -37,6 +36,7 @@ class AppState {
                 this.more = null;
             this.clientRoot.forceUpdate();
         };
+        this.clientRoot.forceUpdate();
     }
 
     public runSelected() {
@@ -383,5 +383,6 @@ export default function init(prev: AppState) {
         prev.alive = false;
     }
     ReactDOM.render(<ClientRoot {...{ appState }} />, document.getElementById('main'));
+    appState.runSelected();
     return appState;
 }

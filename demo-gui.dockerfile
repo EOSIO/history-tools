@@ -70,7 +70,8 @@ run wget https://github.com/EOSIO/eosio.cdt/releases/download/v1.6.1/eosio.cdt_1
 run apt-get install -y ./eosio.cdt_1.6.1-1_amd64.deb
 
 workdir /root
-run git clone -b develop --recursive https://github.com/EOSIO/history-tools.git
+run mkdir /root/history-tools
+copy . /root/history-tools
 run mkdir /root/history-tools/build
 workdir /root/history-tools/build
 run cmake -GNinja -DCMAKE_CXX_COMPILER=clang++-8 -DCMAKE_C_COMPILER=clang-8 ..

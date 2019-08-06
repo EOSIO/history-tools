@@ -478,19 +478,21 @@ inline void extract_keys_from_value(std::vector<char>& dest, abieos::input_buffe
     }
 }
 
-inline std::vector<char> extract_pk_from_index(abieos::input_buffer index, kv::table& table, std::vector<kv::key>& index_keys) {
-    auto temp = index;
-    skip_key<uint8_t>(temp);      // key_tag::index
-    skip_key<abieos::name>(temp); // table_name
-    skip_key<abieos::name>(temp); // index_name
+inline const char*
+extract_from_index(abieos::input_buffer index, kv::table& table, std::vector<kv::key>& index_keys, uint32_t& block, bool& present_k) {
+    auto start = index.pos;
+    skip_key<uint8_t>(index);      // key_tag::index
+    skip_key<abieos::name>(index); // table_name
+    skip_key<abieos::name>(index); // index_name
 
     clear_positions(table.fields);
-    fill_positions_rw(index.pos, temp, index_keys);
+    fill_positions_rw(start, index, index_keys);
+    auto suffix_pos = index.pos;
+    read_index_suffix(index, block, present_k);
+    return suffix_pos;
+}
 
-    uint32_t block;
-    bool     present_k;
-    read_index_suffix(temp, block, present_k);
-
+inline std::vector<char> extract_pk(abieos::input_buffer index, kv::table& table, uint32_t block, bool present_k) {
     std::vector<char> result;
     append_table_key(result, block, present_k, table.short_name);
     for (auto& k : table.keys) {
@@ -500,6 +502,13 @@ inline std::vector<char> extract_pk_from_index(abieos::input_buffer index, kv::t
         k.field->type_obj->key_to_key(result, b);
     }
     return result;
+}
+
+inline std::vector<char> extract_pk_from_index(abieos::input_buffer index, kv::table& table, std::vector<kv::key>& index_keys) {
+    uint32_t block;
+    bool     present_k;
+    extract_from_index(index, table, index_keys, block, present_k);
+    return extract_pk(index, table, block, present_k);
 }
 
 } // namespace kv

@@ -483,10 +483,8 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
             if (commit_now) {
                 end_write(true);
-                if (config->enable_trim) {
-                    trim(active_content_batch, active_index_batch);
-                    end_write(true);
-                }
+                if (config->enable_trim)
+                    trim();
             }
             if (near)
                 rocksdb_inst->database.flush(false, false);
@@ -582,6 +580,17 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         content_batch.Delete(rdb::to_slice(k));
         if (num_rows)
             ++*num_rows;
+    }
+
+    void remove_row(
+        rocksdb::WriteBatch& content_batch, rocksdb::WriteBatch& index_batch, abieos::input_buffer k, uint64_t* num_rows = nullptr,
+        uint64_t* num_indexes = nullptr) {
+
+        rocksdb::PinnableSlice v;
+        auto*                  db   = rocksdb_inst->database.db.get();
+        auto                   stat = db->Get(rocksdb::ReadOptions(), db->DefaultColumnFamily(), rdb::to_slice(k), &v);
+        rdb::check(stat, "get: ");
+        remove_row(content_batch, index_batch, k, rdb::to_input_buffer(v), num_rows, num_indexes);
     }
 
     void receive_block(
@@ -797,48 +806,71 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     //     remove_row(content_batch, index_batch, table_name, block_num, delta_key);
     // }
 
-    void trim(rocksdb::WriteBatch& content_batch, rocksdb::WriteBatch& index_batch) {
-        // todo: optimize batching
-        if (!config->enable_trim)
-            return;
+    void trim() {
         auto end_trim = std::min(head, irreversible);
         if (first >= end_trim)
             return;
-        ilog("trim: ${b} - ${e}", ("b", first)("e", end_trim));
         rocksdb_inst->database.flush(true, true);
+        rocksdb::WriteBatch batch;
+        ilog("trim: ${b} - ${e}", ("b", first)("e", end_trim));
 
-        uint64_t num_rows_removed   = 0;
-        uint64_t num_deltas_removed = 0;
-        for (auto block_num = first; block_num < end_trim; ++block_num) {
-            if (end_trim - first >= 400 && !(block_num % 100)) {
-                ilog("trim: removed ${r} rows and ${d} deltas so far", ("r", num_rows_removed)("d", num_deltas_removed));
-                ilog("trim ${x}", ("x", block_num));
+        uint64_t                    num_rows    = 0;
+        uint64_t                    num_indexes = 0;
+        std::set<std::vector<char>> trim_keys;
+
+        auto lower_bound = kv::make_table_key(first);
+        auto upper_bound = kv::make_table_key(end_trim);
+        rdb::for_each(rocksdb_inst->database, lower_bound, upper_bound, [&](auto k, auto v) {
+            uint32_t     block_num;
+            abieos::name table_name;
+            bool         present_k;
+            auto         temp_k = k;
+            kv::key_to_native<uint8_t>(temp_k);
+            kv::read_table_prefix(temp_k, block_num, table_name, present_k);
+
+            auto& table = get_kv_table(table_name);
+            if (table.trim_index_obj && block_num > first) {
+                std::vector<char> index_key;
+                kv::clear_positions(table.fields);
+                kv::fill_positions(v, table.fields);
+                kv::append_index_key(index_key, table_name, table.trim_index_obj->short_name);
+                kv::extract_keys_from_value(index_key, v, table.trim_index_obj->sort_keys);
+                trim_keys.insert(std::move(index_key));
+            } else if (!table.trim_index_obj && block_num < end_trim) {
+                remove_row(batch, batch, k, v, &num_rows, &num_indexes);
             }
-            // for_each_row_in_block(block_num, [&](auto row_table_name, auto row_pk) {
-            //     for_each_row_trim(row_table_name, row_pk, block_num, [&](auto table_key) {
-            //         remove_row(content_batch, index_batch, row_table_name, block_num, {table_key.pos, table_key.end});
-            //         ++num_rows_removed;
-            //         return true;
-            //     });
-            //     return true;
-            // });
-            // for_each_delta_in_block(block_num + 1, [&](auto delta_table_name, auto delta_present, auto delta_pk) {
-            //     for_each_delta_trim(delta_table_name, delta_pk, block_num + 1, [&](auto trim_block_num, auto trim_present) {
-            //         if (trim_block_num == block_num + 1)
-            //             return true;
-            //         if (trim_block_num > block_num + 1)
-            //             throw std::runtime_error("found unexpected block in trim search: " + std::to_string(trim_block_num));
-            //         remove_delta(content_batch, index_batch, delta_table_name, trim_block_num, trim_present, delta_pk);
-            //         ++num_deltas_removed;
-            //         return true;
-            //     });
-            //     return true;
-            // });
-            // rdb::check(batch.Delete(rdb::to_slice(kv::make_received_block_key(block_num))), "trim: ");
+            return true;
+        });
+
+        for (auto& range : trim_keys) {
+            abieos::name         table_name;
+            abieos::name         index_name;
+            abieos::input_buffer rk{range.data(), range.data() + range.size()};
+            kv::key_to_native<uint8_t>(rk);
+            kv::read_index_prefix(rk, table_name, index_name);
+            auto& table = get_kv_table(table_name);
+            auto& index = *table.trim_index_obj;
+
+            uint32_t prev_block = 0xffff'ffff;
+            rdb::for_each(rocksdb_inst->database, range, range, [&](auto k, auto) {
+                uint32_t          block;
+                bool              present_k;
+                auto              suffix_pos = kv::extract_from_index(k, table, index.sort_keys, block, present_k);
+                std::vector<char> partial_k{k.pos, suffix_pos};
+
+                if (prev_block <= end_trim) {
+                    auto pk = extract_pk(k, table, block, present_k);
+                    remove_row(batch, batch, {pk.data(), pk.data() + pk.size()}, &num_rows, &num_indexes);
+                }
+                prev_block = block;
+                return true;
+            });
         }
 
-        ilog("trim: removed ${r} rows and ${d} deltas", ("r", num_rows_removed)("d", num_deltas_removed));
+        ilog("trim: removed ${r} rows and ${d} index entries", ("r", num_rows)("d", num_indexes));
         first = end_trim;
+        write_fill_status(batch);
+        write(rocksdb_inst->database, batch);
     }
 
     const abi_type& get_type(const std::string& name) { return connection->get_type(name); }
@@ -891,9 +923,6 @@ void fill_rocksdb_plugin::plugin_initialize(const variables_map& options) {
         my->config->trx_filters  = fill_plugin::get_trx_filters(options);
         my->config->enable_trim  = options.count("fill-trim");
         my->config->enable_check = options.count("frdb-check");
-
-        if (my->config->enable_trim)
-            throw std::runtime_error("--fill-trim not implemented yet");
     }
     FC_LOG_AND_RETHROW()
 }

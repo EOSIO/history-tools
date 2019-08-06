@@ -81,7 +81,7 @@ inline bool json_to_native(transaction_status&, abieos::json_to_native_state&, a
 }
 
 inline void native_to_bin(const transaction_status& obj, std::vector<char>& bin) {
-    push_raw(bin, static_cast<uint8_t>(obj));
+    abieos::push_raw(bin, static_cast<uint8_t>(obj));
 }
 
 struct block_position {

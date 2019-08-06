@@ -7,14 +7,14 @@ The history tools repo has these components:
 * The wasm-ql library, when combined with the CDT library, provides utilities that server WASMs and client WASMs need
 * A set of example server WASMs and client WASMs
 
-| App             | Fills LMDB | wasm-ql with LMDB          | Fills PostgreSQL | wasm-ql with PostgreSQL |
-| --------------- | ---------- | -------------------------- | ---------------- | ---------------- |
-| `fill-lmdb`     | Yes        |                            |                  |                  |        
-| `wasm-ql-lmdb`  |            | Yes                        |                  |                  |            
-| `combo-lmdb`    | Yes        | Yes                        |                  |                  |            
-| `fill-pg`       |            |                            | Yes              |                  |        
-| `wasm-ql-pg`    |            |                            |                  | Yes              |            
-| `history-tools` | Yes*       | Yes*                       | Yes*             | Yes*             |            
+| App               | Fills RocksDB | wasm-ql with RocksDB       | Fills PostgreSQL | wasm-ql with PostgreSQL |
+| ----------------- | ------------- | -------------------------- | ---------------- | ---------------- |
+| `fill-rocksdb`    | Yes           |                            |                  |                  |        
+| `wasm-ql-rocksdb` |               | Yes                        |                  |                  |            
+| `combo-rocksdb`   | Yes           | Yes                        |                  |                  |            
+| `fill-pg`         |               |                            | Yes              |                  |        
+| `wasm-ql-pg`      |               |                            |                  | Yes              |            
+| `history-tools`   | Yes*          | Yes*                       | Yes*             | Yes*             |            
 
 Note: by default, `history-tools` does nothing; use the `--plugin` option to select plugins.
 
@@ -22,9 +22,9 @@ See the [documentation site](https://eosio.github.io/history-tools/)
 
 # Alpha Release
 
-This is the first alpha release of the EOSIO History Tools. It includes database fillers
-(`fill-pg`, `fill-lmdb`) which pull data from nodeos's State History Plugin, and a new
-query engine (`wasm-ql-pg`, `wasm-ql-lmdb`) which supports queries defined by wasm, along
+This is an alpha release of the EOSIO History Tools. It includes database fillers
+(`fill-pg`, `fill-rdb`) which pull data from nodeos's State History Plugin, and a new
+query engine (`wasm-ql-pg`, `wasm-ql-rdb`) which supports queries defined by wasm, along
 with an emulation of the legacy `/v1/` RPC API.
 
 This alpha release is designed to solicit community feedback. There are several potential
@@ -96,11 +96,11 @@ wasm-ql supports two kinds of queries:
 We're considering dropping client-side wasms and switching the format of the first type
 of query to JSON RPC, Graph QL, or another format. We're seeking feedback on this switch.
 
-## fill-lmdb, wasm-ql-lmdb
+## fill-rocksdb, wasm-ql-rocksdb
 
-This pair functions identically to `fill-pg` and `wasm-ql-pg`, but stores data using lmdb
-instead of postgresql. Since lmdb is an embedded database instead of a database server,
-this option may be simpler to administer.
+This pair functions identically to `fill-pg` and `wasm-ql-pg`, but stores data using RocksDB
+instead of postgresql. Since RocksDB is an embedded database instead of a database server,
+this option may be simpler to administer. RocksDB also saves space and fills quicker.
 
 ## Contributing
 

@@ -6,7 +6,7 @@
 | filler   |    |            |    | ------------- |       | ---------------   |
 |          | => | PostgreSQL | => | Server WASM A |  <=>  | Client WASM A     |
 |          |    |     or     |    | Server WASM B |  <=>  | Client WASM B     |
-|          |    |    LMDB    |    | ...           |       |                   |
+|          |    |   RocksDB  |    | ...           |       |                   |
 |          |    |            |    | Legacy WASM   |  <=>  | js using /v1/ RPC |
 +----------+    +------------+    +---------------+       +-------------------+
 ```
@@ -28,14 +28,14 @@ Client WASMs provide these functions to js clients:
 * `describe_query_response()`: Describes the JSON response format to clients using JSON Schema
 
 These legacy API functions are available to clients:
-* `chain/get_abi`: Retrieves the ABI of an account, if any.
-* `chain/get_account`: Retrieves account information, including code and abi but not including
+* `/v1/chain/get_abi`: Retrieves the ABI of an account, if any.
+* `/v1/chain/get_account`: Retrieves account information, including code and abi but not including
   quotas, weights, or permissions.
-* `chain/get_block`: Retrieves block information. Does not include producer signature or transactions.
-* `chain/get_code`: Retrieves the WASM of an account, if any.
-* `chain/get_currency_balance`: Retrieves currency balance in the specified token for the given account
+* `/v1/chain/get_block`: Retrieves block information. Does not include producer signature or transactions.
+* `/v1/chain/get_code`: Retrieves the WASM of an account, if any.
+* `/v1/chain/get_currency_balance`: Retrieves currency balance in the specified token for the given account
   accounted for with the given token account.
-* `chain/get_producer_schedule`: Retrieves up to 21 producers sorted by most votes.
-* `chain/get_table_rows`: Retrieves rows from arbitrary tables created by contracts.
-* `history/get_transaction`: Retrieves a transaction by transaction id.
-* `history/get_actions`: Retrieves transaction actions affecting the given receipt receiver.
+* `/v1/chain/get_producer_schedule`: Retrieves up to 21 producers sorted by most votes.
+* `/v1/chain/get_table_rows`: Retrieves rows from arbitrary tables created by contracts.
+* `/v1/history/get_transaction`: Retrieves a transaction by transaction id.
+* `/v1/history/get_actions`: Retrieves transaction actions affecting the given receipt receiver.

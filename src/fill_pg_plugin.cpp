@@ -52,6 +52,7 @@ struct fill_postgresql_config {
     bool        create_schema = false;
     bool        enable_trim   = false;
     bool        ignore_on_block = false;
+	bool        remove_old_delta_row = false;
 };
 
 struct fill_postgresql_plugin_impl : std::enable_shared_from_this<fill_postgresql_plugin_impl> {
@@ -78,6 +79,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     abi_def                                              abi{};
     std::map<std::string, abi_type>                      abi_types;
     std::map<std::string, std::unique_ptr<table_stream>> table_streams;
+	std::map<std::string, std::vector<std::string>>      abi_table_keys; // table name -> primary keys
 
     fpg_session(fill_postgresql_plugin_impl* my, asio::io_context& ioc)
         : my(my)
@@ -143,6 +145,12 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
 
         if (config->create_schema)
             create_tables();
+
+        for (auto& table : abi.tables) {
+            for (auto& key : table.key_names) {
+				abi_table_keys[table.type].push_back(key);
+			}
+		}
 
         pqxx::work t(*sql_connection);
         load_fill_status(t);
@@ -271,12 +279,18 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             std::string fields = "block_num bigint, present bool";
             for (auto& field : type.fields)
                 fill_field(t, "", fields, field);
-            std::string keys = "block_num, present";
+            std::string other_keys = "block_num, present", keys;
             for (auto& key : table.key_names)
-                keys += ", " + t.quote_name(key);
+                keys += (keys.length() ? ", " : "") + t.quote_name(key);
             std::string query =
-                "create table " + t.quote_name(config->schema) + "." + table.type + "(" + fields + ", primary key(" + keys + "))";
+                "create table " + t.quote_name(config->schema) + "." + table.type + "(" + fields + ", primary key(" + (other_keys + (keys.length() ? "," : "") + keys) + "))";
             t.exec(query);
+
+            if (keys.length()) {
+               query = "create index " + config->schema + "_" + table.type + "_index on " + 
+                  t.quote_name(config->schema) + "." + table.type +" (" + keys + ")";
+               t.exec(query);
+            }
         }
 
         t.exec(
@@ -522,6 +536,10 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             bulk = false;
         }
 
+		if (config->remove_old_delta_row) {
+			bulk = false;
+		}
+
         if (!bulk || large_deltas || !(result.this_block->block_num % 200))
             close_streams();
         if (table_streams.empty())
@@ -604,7 +622,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
 
     void fill_value(
         bool bulk, bool nested_bulk, pqxx::work& t, const std::string& base_name, std::string& fields, std::string& values,
-        input_buffer& bin, const abi_field& field) {
+        input_buffer& bin, const abi_field& field, std::string *delete_query = nullptr) {
         if (field.type->filled_struct) {
             for (auto& f : field.type->fields)
                 fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
@@ -687,21 +705,30 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                 throw std::runtime_error("don't know how to process " + field.type->name);
 
             fields += ", " + t.quote_name(base_name + field.name);
+			std::string val;
             if (bulk) {
                 if (nested_bulk)
                     values += ",";
                 else
                     values += "\t";
-                if (!is_optional || read_raw<bool>(bin))
-                    values += it->second.bin_to_sql(*sql_connection, bulk, bin);
-                else
+                if (!is_optional || read_raw<bool>(bin)) {
+					val = it->second.bin_to_sql(*sql_connection, bulk, bin);
+                    values += val;
+				} else
                     values += "\\N";
             } else {
-                if (!is_optional || read_raw<bool>(bin))
-                    values += ", " + it->second.bin_to_sql(*sql_connection, bulk, bin);
-                else
+                if (!is_optional || read_raw<bool>(bin)) {
+					val = it->second.bin_to_sql(*sql_connection, bulk, bin);
+                    values += ", " + val;				
+				} else
                     values += ", null";
             }
+			if (delete_query && val.length()) {
+				if (delete_query->length()) {
+					*delete_query += " and ";
+				}
+				*delete_query += t.quote_name(base_name + field.name) + " = " + val;
+			}
         }
     } // fill_value
 
@@ -752,6 +779,8 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                 throw std::runtime_error("don't know how to proccess " + variant_type.name);
             auto& type = *variant_type.fields[0].type;
 
+			auto& primary_keys = abi_table_keys[table_delta.name];
+
             size_t num_processed = 0;
             for (auto& row : table_delta.rows) {
                 if (table_delta.rows.size() > 10000 && !(num_processed % 10000))
@@ -761,8 +790,23 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
                 check_variant(row.data, variant_type, 0u);
                 std::string fields = "block_num, present";
                 std::string values = std::to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);
-                for (auto& field : type.fields)
-                    fill_value(bulk, false, t, "", fields, values, row.data, field);
+				std::string delete_query;
+                for (auto& field : type.fields) {
+                    bool is_key_field = false;
+					if (config->remove_old_delta_row ) {
+						for (auto& key : primary_keys) {
+							if (key == field.name) {
+								is_key_field = true;
+								break;
+							}
+						}
+					}
+                    fill_value(bulk, false, t, "", fields, values, row.data, field, (is_key_field ? &delete_query : nullptr));
+                }
+				if (config->remove_old_delta_row && !bulk && delete_query.length()) {
+					delete_query = "delete from " + t.quote_name(config->schema) + "." + table_delta.name + " where " + delete_query;
+					pipeline.insert(std::move(delete_query));
+				}
                 write(block_num, t, pipeline, bulk, table_delta.name, fields, values);
                 ++num_processed;
             }
@@ -1038,6 +1082,7 @@ void fill_pg_plugin::set_program_options(options_description& cli, options_descr
     clop("fpg-drop", "Drop (delete) schema and tables");
     clop("fpg-create", "Create schema and tables");
     clop("ignore-onblock", "Ignore onblock transactions");
+	clop("remove_old_delta_row", "remove old row of the same primary key from abi delta tables before every insertion, performance will degrade if enabled");
 }
 
 void fill_pg_plugin::plugin_initialize(const variables_map& options) {
@@ -1057,6 +1102,7 @@ void fill_pg_plugin::plugin_initialize(const variables_map& options) {
         my->config->create_schema = options.count("fpg-create");
         my->config->enable_trim   = options.count("fill-trim");
         my->config->ignore_on_block = options.count("ignore-onblock");
+		my->config->remove_old_delta_row = options.count("remove_old_delta_row");
     }
     FC_LOG_AND_RETHROW()
 }

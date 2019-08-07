@@ -1273,7 +1273,7 @@
             "function": "at_range_name_receiver_account_block_trans_action",
             "table": "action_trace",
             "max_results": 100,
-            "limit_block_num": true
+            "has_block_snapshot": true
         },
         {
             "wasm_name": "receipt.rcvr",
@@ -1281,7 +1281,7 @@
             "function": "receipt_receiver",
             "table": "action_trace",
             "max_results": 100,
-            "limit_block_num": true
+            "has_block_snapshot": true
         },
         {
             "wasm_name": "transaction",
@@ -1289,7 +1289,7 @@
             "function": "transaction",
             "table": "action_trace",
             "max_results": 100,
-            "limit_block_num": true
+            "has_block_snapshot": true
         },
         {
             "wasm_name": "account",
@@ -1297,7 +1297,7 @@
             "function": "account_range_name",
             "table": "account",
             "max_results": 100,
-            "limit_block_num": true
+            "has_block_snapshot": true
         },
         {
             "wasm_name": "acctmeta.jn",
@@ -1305,7 +1305,7 @@
             "function": "acctmeta_joined_range_name",
             "table": "account_metadata",
             "max_results": 100,
-            "limit_block_num": true,
+            "has_block_snapshot": true,
             "join": "account",
             "join_query_wasm_name": "account",
             "join_key_values": [
@@ -1340,7 +1340,7 @@
             "function": "code_range_type_ver_hash",
             "table": "code",
             "max_results": 100,
-            "limit_block_num": true
+            "has_block_snapshot": true
         },
         {
             "wasm_name": "meta.jn.code",
@@ -1348,7 +1348,7 @@
             "table": "account_metadata",
             "index": "acctmeta_name_block_present_idx",
             "max_results": 100,
-            "limit_block_num": true,
+            "has_block_snapshot": true,
             "join": "code",
             "join_query_wasm_name": "code",
             "join_key_values": [
@@ -1401,7 +1401,7 @@
             "function": "contract_row_range_code_table_pk_scope",
             "table": "contract_row",
             "max_results": 100,
-            "limit_block_num": true
+            "has_block_snapshot": true
         },
         {
             "wasm_name": "cr.ctsp",
@@ -1409,7 +1409,7 @@
             "function": "contract_row_range_code_table_scope_pk",
             "table": "contract_row",
             "max_results": 100,
-            "limit_block_num": true
+            "has_block_snapshot": true
         },
         {
             "wasm_name": "cr.stpc",
@@ -1417,7 +1417,7 @@
             "function": "contract_row_range_scope_table_pk_code",
             "table": "contract_row",
             "max_results": 100,
-            "limit_block_num": true
+            "has_block_snapshot": true
         },
         {
             "wasm_name": "ci1.cts2p",
@@ -1425,7 +1425,7 @@
             "function": "contract_index64_range_code_table_scope_sk_pk",
             "table": "contract_index64",
             "max_results": 100,
-            "limit_block_num": true,
+            "has_block_snapshot": true,
             "join": "contract_row",
             "join_query_wasm_name": "cr.ctsp",
             "join_key_values": [

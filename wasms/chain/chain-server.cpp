@@ -42,10 +42,10 @@ void process(tapos_request& req, const eosio::database_status& status) {
 
 void process(account_request& req, const eosio::database_status& status) {
     auto s = query_database(eosio::query_acctmeta_range_name{
-        .max_block   = get_block_num(req.max_block, status),
-        .first       = req.first,
-        .last        = req.last,
-        .max_results = req.max_results,
+        .snapshot_block = get_block_num(req.snapshot_block, status),
+        .first          = req.first,
+        .last           = req.last,
+        .max_results    = req.max_results,
     });
 
     account_response response;
@@ -65,10 +65,10 @@ void process(abi_request& req, const eosio::database_status& status) {
     abi_response response;
     for (auto name : req.names) {
         auto s     = query_database(eosio::query_account_range_name{
-            .max_block   = get_block_num(req.max_block, status),
-            .first       = name,
-            .last        = name,
-            .max_results = 1,
+            .snapshot_block = get_block_num(req.snapshot_block, status),
+            .first          = name,
+            .last           = name,
+            .max_results    = 1,
         });
         bool found = false;
         eosio::for_each_query_result<eosio::account>(s, [&](eosio::account& a) {
@@ -88,10 +88,10 @@ void process(code_request& req, const eosio::database_status& status) {
     code_response response;
     for (auto name : req.names) {
         auto s     = query_database(eosio::query_code_range_name{
-            .max_block   = get_block_num(req.max_block, status),
-            .first       = name,
-            .last        = name,
-            .max_results = 1,
+            .snapshot_block = get_block_num(req.snapshot_block, status),
+            .first          = name,
+            .last           = name,
+            .max_results    = 1,
         });
         bool found = false;
         eosio::for_each_query_result<eosio::metadata_code_joined>(s, [&](eosio::metadata_code_joined& a) {

@@ -74,6 +74,7 @@ struct rocksdb_query_session : query_session {
 
         // todo: check for false positives in secondary indexes
         // todo: check if index is populated in rdb
+        // todo: clamp snapshot_block_num to first?
         auto it = db_iface->rocksdb_inst->query_config.query_map.find(query_name);
         if (it == db_iface->rocksdb_inst->query_config.query_map.end())
             throw std::runtime_error("query_database: unknown query: " + (std::string)query_name);
@@ -81,9 +82,9 @@ struct rocksdb_query_session : query_session {
         if (!query.arg_types.empty())
             throw std::runtime_error("query_database: query: " + (std::string)query_name + " not implemented");
 
-        uint32_t max_block_num = 0;
-        if (query.limit_block_num)
-            max_block_num = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
+        uint32_t snapshot_block_num = 0;
+        if (query.has_block_snapshot)
+            snapshot_block_num = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
 
         auto first = kv::make_index_key(query.table_obj->short_name, query.index_obj->short_name);
         auto last  = first;
@@ -102,8 +103,8 @@ struct rocksdb_query_session : query_session {
         rdb::for_each_subkey(*it0, first, last, [&](const auto& index_key, auto, auto) {
             std::vector index_key_limit_block = index_key;
             if (query.table_obj->is_delta)
-                kv::append_index_suffix(index_key_limit_block, max_block_num);
-            // todo: unify rdb's and pg's handling of negative result because of max_block_num
+                kv::append_index_suffix(index_key_limit_block, snapshot_block_num);
+            // todo: unify rdb's and pg's handling of negative result because of snapshot_block_num
             rdb::for_each(*it1, index_key_limit_block, index_key, [&](auto index_value, auto) {
                 auto delta_value =
                     *rdb::get_raw(*it2, extract_pk_from_index(index_value, *query.table_obj, query.index_obj->sort_keys), true);
@@ -116,7 +117,7 @@ struct rocksdb_query_session : query_session {
                         append_fields(join_key, delta_value, query.join_key_values, true);
                         auto join_key_limit_block = join_key;
                         if (query.join_query->table_obj->is_delta)
-                            kv::append_index_suffix(join_key_limit_block, max_block_num);
+                            kv::append_index_suffix(join_key_limit_block, snapshot_block_num);
                         auto& row = rows.back();
                         rdb::for_each(*it3, join_key_limit_block, join_key, [&](auto join_index_value, auto) {
                             found_join            = true;

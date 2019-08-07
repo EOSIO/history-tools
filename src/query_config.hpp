@@ -98,7 +98,7 @@ struct query {
     std::string                       index                = {};
     std::string                       function             = {};
     std::string                       table                = {};
-    bool                              limit_block_num      = {};
+    bool                              has_block_snapshot   = {};
     uint32_t                          max_results          = {};
     std::string                       join                 = {};
     abieos::name                      join_query_wasm_name = {};
@@ -118,7 +118,7 @@ constexpr void for_each_field(query<Defs>*, F f) {
     ABIEOS_MEMBER(query<Defs>, index);
     ABIEOS_MEMBER(query<Defs>, function);
     ABIEOS_MEMBER(query<Defs>, table);
-    ABIEOS_MEMBER(query<Defs>, limit_block_num);
+    ABIEOS_MEMBER(query<Defs>, has_block_snapshot);
     ABIEOS_MEMBER(query<Defs>, max_results);
     ABIEOS_MEMBER(query<Defs>, join);
     ABIEOS_MEMBER(query<Defs>, join_query_wasm_name);

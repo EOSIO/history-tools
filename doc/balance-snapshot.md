@@ -94,7 +94,7 @@ struct eosiosystem_refund_request {
 // Identify system token
 eosio::symbol get_system_token(uint32_t block) {
     auto s = query_database(eosio::query_contract_row_range_code_table_scope_pk{
-        .max_block = block,
+        .snapshot_block = block,
         .first =
             {
                 .code        = "eosio"_n,
@@ -133,7 +133,7 @@ void process(get_liquid_request& req, const eosio::database_status& status) {
     auto system_token = get_system_token(req.block);
 
     auto s = query_database(eosio::query_contract_row_range_code_table_pk_scope{
-        .max_block = req.block,
+        .snapshot_block = req.block,
         .first =
             {
                 .code        = "eosio.token"_n,
@@ -169,7 +169,7 @@ void process(get_staked_request& req, const eosio::database_status& status) {
     auto system_token = get_system_token(req.block);
 
     auto s = query_database(eosio::query_contract_row_range_code_table_scope_pk{
-        .max_block = req.block,
+        .snapshot_block = req.block,
         .first =
             {
                 .code        = "eosio"_n,
@@ -205,7 +205,7 @@ void process(get_refund_request& req, const eosio::database_status& status) {
     auto system_token = get_system_token(req.block);
 
     auto s = query_database(eosio::query_contract_row_range_code_table_scope_pk{
-        .max_block = req.block,
+        .snapshot_block = req.block,
         .first =
             {
                 .code        = "eosio"_n,

@@ -15,7 +15,7 @@ struct transfer {
 void process(token_transfer_request& req, const eosio::database_status& status) {
     using query_type = eosio::query_action_trace_range_name_receiver_account_block_trans_action;
     auto s           = query_database(query_type{
-        .max_block = get_block_num(req.max_block, status),
+        .snapshot_block = get_block_num(req.snapshot_block, status),
         .first =
             {
                 .name           = "transfer"_n,
@@ -84,7 +84,7 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
 
 void process(balances_for_multiple_accounts_request& req, const eosio::database_status& status) {
     auto s = query_database(eosio::query_contract_row_range_code_table_pk_scope{
-        .max_block = get_block_num(req.max_block, status),
+        .snapshot_block = get_block_num(req.snapshot_block, status),
         .first =
             {
                 .code        = req.code,
@@ -114,7 +114,7 @@ void process(balances_for_multiple_accounts_request& req, const eosio::database_
 
 void process(balances_for_multiple_tokens_request& req, const eosio::database_status& status) {
     auto s = query_database(eosio::query_contract_row_range_scope_table_pk_code{
-        .max_block = get_block_num(req.max_block, status),
+        .snapshot_block = get_block_num(req.snapshot_block, status),
         .first =
             {
                 .scope       = req.account,

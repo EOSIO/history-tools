@@ -58,17 +58,17 @@ STRUCT_REFLECT(tapos_response) {
 }
 
 struct account_request {
-    eosio::block_select max_block   = {};
-    eosio::name         first       = {};
-    eosio::name         last        = {};
-    uint32_t            max_results = {};
-    bool                include_abi = {};
+    eosio::block_select snapshot_block = {};
+    eosio::name         first          = {};
+    eosio::name         last           = {};
+    uint32_t            max_results    = {};
+    bool                include_abi    = {};
 
-    EOSLIB_SERIALIZE(account_request, (max_block)(first)(last)(max_results)(include_abi))
+    EOSLIB_SERIALIZE(account_request, (snapshot_block)(first)(last)(max_results)(include_abi))
 };
 
 STRUCT_REFLECT(account_request) {
-    STRUCT_MEMBER(account_request, max_block)
+    STRUCT_MEMBER(account_request, snapshot_block)
     STRUCT_MEMBER(account_request, first)
     STRUCT_MEMBER(account_request, last)
     STRUCT_MEMBER(account_request, max_results)
@@ -91,14 +91,14 @@ STRUCT_REFLECT(account_response) {
 }
 
 struct abi_request {
-    eosio::block_select      max_block = {};
-    std::vector<eosio::name> names     = {};
+    eosio::block_select      snapshot_block = {};
+    std::vector<eosio::name> names          = {};
 
-    EOSLIB_SERIALIZE(abi_request, (max_block)(names))
+    EOSLIB_SERIALIZE(abi_request, (snapshot_block)(names))
 };
 
 STRUCT_REFLECT(abi_request) {
-    STRUCT_MEMBER(abi_request, max_block)
+    STRUCT_MEMBER(abi_request, snapshot_block)
     STRUCT_MEMBER(abi_request, names)
 }
 
@@ -127,14 +127,14 @@ STRUCT_REFLECT(abi_response) { //
 }
 
 struct code_request {
-    eosio::block_select      max_block = {};
-    std::vector<eosio::name> names     = {};
+    eosio::block_select      snapshot_block = {};
+    std::vector<eosio::name> names          = {};
 
-    EOSLIB_SERIALIZE(code_request, (max_block)(names))
+    EOSLIB_SERIALIZE(code_request, (snapshot_block)(names))
 };
 
 STRUCT_REFLECT(code_request) {
-    STRUCT_MEMBER(code_request, max_block)
+    STRUCT_MEMBER(code_request, snapshot_block)
     STRUCT_MEMBER(code_request, names)
 }
 

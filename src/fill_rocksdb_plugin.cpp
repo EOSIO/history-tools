@@ -364,7 +364,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         std::vector<block_position> result;
         if (head) {
             for (uint32_t i = irreversible; i <= head; ++i) {
-                auto rb = rdb::get<kv::received_block>(rocksdb_inst->database, kv::make_received_block_key(i));
+                auto rb = rdb::get<kv::received_block>(rocksdb_inst->database, kv::make_received_block_key(i), true);
                 result.push_back({rb->block_num, rb->block_id});
             }
         }

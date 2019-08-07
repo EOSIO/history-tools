@@ -22,11 +22,23 @@ struct rocksdb_database_interface : database_interface, std::enable_shared_from_
 struct rocksdb_query_session : query_session {
     std::shared_ptr<rocksdb_database_interface> db_iface;
     state_history::fill_status                  fill_status;
+    std::unique_ptr<rocksdb::Iterator>          it_for_get;
+    std::unique_ptr<rocksdb::Iterator>          it0;
+    std::unique_ptr<rocksdb::Iterator>          it1;
+    std::unique_ptr<rocksdb::Iterator>          it2;
+    std::unique_ptr<rocksdb::Iterator>          it3;
+    std::unique_ptr<rocksdb::Iterator>          it4;
 
     rocksdb_query_session(const std::shared_ptr<rocksdb_database_interface>& db_iface)
-        : db_iface(db_iface) {
+        : db_iface(db_iface)
+        , it_for_get{db_iface->rocksdb_inst->database.db->NewIterator(rocksdb::ReadOptions())}
+        , it0{db_iface->rocksdb_inst->database.db->NewIterator(rocksdb::ReadOptions())}
+        , it1{db_iface->rocksdb_inst->database.db->NewIterator(rocksdb::ReadOptions())}
+        , it2{db_iface->rocksdb_inst->database.db->NewIterator(rocksdb::ReadOptions())}
+        , it3{db_iface->rocksdb_inst->database.db->NewIterator(rocksdb::ReadOptions())}
+        , it4{db_iface->rocksdb_inst->database.db->NewIterator(rocksdb::ReadOptions())} {
 
-        auto f = rdb::get<state_history::fill_status>(db_iface->rocksdb_inst->database, kv::make_fill_status_key(), false);
+        auto f = rdb::get<state_history::fill_status>(*it_for_get, kv::make_fill_status_key(), false);
         if (f)
             fill_status = *f;
     }
@@ -36,7 +48,7 @@ struct rocksdb_query_session : query_session {
     virtual state_history::fill_status get_fill_status() override { return fill_status; }
 
     virtual std::optional<abieos::checksum256> get_block_id(uint32_t block_num) override {
-        auto rb = rdb::get<kv::received_block>(db_iface->rocksdb_inst->database, kv::make_received_block_key(block_num), false);
+        auto rb = rdb::get<kv::received_block>(*it_for_get, kv::make_received_block_key(block_num), false);
         if (rb)
             return rb->block_id;
         return {};
@@ -60,7 +72,6 @@ struct rocksdb_query_session : query_session {
         abieos::name query_name;
         abieos::bin_to_native(query_name, query_bin);
 
-        // todo: need checkpoint at first query; database is live during query
         // todo: check for false positives in secondary indexes
         // todo: check if index is populated in rdb
         auto it = db_iface->rocksdb_inst->query_config.query_map.find(query_name);
@@ -88,41 +99,31 @@ struct rocksdb_query_session : query_session {
 
         std::vector<std::vector<char>> rows;
         uint32_t                       num_results = 0;
-        auto*                          db          = db_iface->rocksdb_inst->database.db.get();
-        rdb::for_each_subkey(db_iface->rocksdb_inst->database, first, last, [&](const auto& index_key, auto, auto) {
+        rdb::for_each_subkey(*it0, first, last, [&](const auto& index_key, auto, auto) {
             std::vector index_key_limit_block = index_key;
             if (query.table_obj->is_delta)
                 kv::append_index_suffix(index_key_limit_block, max_block_num);
             // todo: unify rdb's and pg's handling of negative result because of max_block_num
-            for_each(db_iface->rocksdb_inst->database, index_key_limit_block, index_key, [&](auto index_value, auto) {
-                rocksdb::PinnableSlice delta_value;
-                rdb::check(
-                    db->Get(
-                        rocksdb::ReadOptions(), db->DefaultColumnFamily(),
-                        rdb::to_slice(extract_pk_from_index(index_value, *query.table_obj, query.index_obj->sort_keys)), &delta_value),
-                    "query_database: ");
-                rows.emplace_back(delta_value.data(), delta_value.data() + delta_value.size());
+            rdb::for_each(*it1, index_key_limit_block, index_key, [&](auto index_value, auto) {
+                auto delta_value =
+                    *rdb::get_raw(*it2, extract_pk_from_index(index_value, *query.table_obj, query.index_obj->sort_keys), true);
+                rows.emplace_back(delta_value.pos, delta_value.end);
                 if (query.join_table) {
                     auto join_key = kv::make_index_key(query.join_table->short_name, query.join_query_wasm_name);
-                    fill_positions(rdb::to_input_buffer(delta_value), query.table_obj->fields);
+                    fill_positions(delta_value, query.table_obj->fields);
                     bool found_join = false;
                     if (keys_have_positions(query.join_key_values)) {
-                        append_fields(join_key, rdb::to_input_buffer(delta_value), query.join_key_values, true);
+                        append_fields(join_key, delta_value, query.join_key_values, true);
                         auto join_key_limit_block = join_key;
                         if (query.join_query->table_obj->is_delta)
                             kv::append_index_suffix(join_key_limit_block, max_block_num);
                         auto& row = rows.back();
-                        for_each(db_iface->rocksdb_inst->database, join_key_limit_block, join_key, [&](auto join_index_value, auto) {
-                            found_join = true;
-                            rocksdb::PinnableSlice join_delta_value;
-                            rdb::check(
-                                db->Get(
-                                    rocksdb::ReadOptions(), db->DefaultColumnFamily(),
-                                    rdb::to_slice(extract_pk_from_index(join_index_value, *query.join_table, query.join_table->keys)),
-                                    &join_delta_value),
-                                "query_database: ");
-                            fill_positions(rdb::to_input_buffer(join_delta_value), query.join_table->fields);
-                            append_fields(row, rdb::to_input_buffer(join_delta_value), query.fields_from_join, false);
+                        rdb::for_each(*it3, join_key_limit_block, join_key, [&](auto join_index_value, auto) {
+                            found_join            = true;
+                            auto join_delta_value = *rdb::get_raw(
+                                *it4, extract_pk_from_index(join_index_value, *query.join_table, query.join_table->keys), true);
+                            fill_positions(join_delta_value, query.join_table->fields);
+                            append_fields(row, join_delta_value, query.fields_from_join, false);
                             return false;
                         });
                     }

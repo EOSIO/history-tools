@@ -13,7 +13,7 @@ struct transfer {
 };
 
 void process(token_transfer_request& req, const eosio::database_status& status) {
-    using query_type = eosio::query_action_trace_executed_range_name_receiver_account_block_trans_action;
+    using query_type = eosio::query_action_trace_range_name_receiver_account_block_trans_action;
     auto s           = query_database(query_type{
         .max_block = get_block_num(req.max_block, status),
         .first =
@@ -41,6 +41,8 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
     std::optional<query_type::key> last_key;
     eosio::for_each_query_result<eosio::action_trace>(s, [&](eosio::action_trace& at) {
         last_key = query_type::key::from_data(at);
+        if (at.transaction_status != eosio::transaction_status::executed)
+            return true;
 
         // todo: handle bad unpack
         auto unpacked = eosio::unpack<transfer>(at.action.data->pos(), at.action.data->remaining());

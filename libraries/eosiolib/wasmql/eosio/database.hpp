@@ -335,8 +335,7 @@ struct query_block_info_range_index {
     uint32_t max_results = {};
 };
 
-/// Pass this to `query_database` to get `action_trace` for a range of keys. Only includes actions
-/// in executed transactions.
+/// Pass this to `query_database` to get `action_trace` for a range of keys.
 ///
 /// The query results are sorted by `key`. Every record has a different key.
 /// ```c++
@@ -352,7 +351,7 @@ struct query_block_info_range_index {
 ///     static key from_data(const action_trace& data);
 /// };
 /// ```
-struct query_action_trace_executed_range_name_receiver_account_block_trans_action {
+struct query_action_trace_range_name_receiver_account_block_trans_action {
     struct key {
         eosio::name name           = {};
         eosio::name receiver       = {};
@@ -391,7 +390,7 @@ struct query_action_trace_executed_range_name_receiver_account_block_trans_actio
 };
 
 /// \group increment_key
-inline bool increment_key(query_action_trace_executed_range_name_receiver_account_block_trans_action::key& key) {
+inline bool increment_key(query_action_trace_range_name_receiver_account_block_trans_action::key& key) {
     return increment_key(key.action_ordinal) && //
            increment_key(key.transaction_id) && //
            increment_key(key.block_num) &&      //

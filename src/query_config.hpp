@@ -78,7 +78,6 @@ struct index {
     bool                             include_in_pg = {};
     bool                             only_for_trim = {};
     std::vector<typename Defs::key>  sort_keys     = {};
-    std::vector<std::string>         conditions    = {};
     std::vector<typename Defs::type> range_types   = {};
     typename Defs::table*            table_obj     = {};
 };
@@ -91,7 +90,6 @@ constexpr void for_each_field(index<Defs>*, F f) {
     ABIEOS_MEMBER(index<Defs>, include_in_pg);
     ABIEOS_MEMBER(index<Defs>, only_for_trim);
     ABIEOS_MEMBER(index<Defs>, sort_keys);
-    ABIEOS_MEMBER(index<Defs>, conditions);
 };
 
 template <typename Defs>

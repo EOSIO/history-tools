@@ -858,7 +858,7 @@
         },
         {
             "short_name": "at.e.nra",
-            "index": "at_executed_range_name_receiver_account_block_trans_action_idx",
+            "index": "at_range_name_receiver_account_block_trans_action_idx",
             "table": "action_trace",
             "sort_keys": [
                 {
@@ -879,14 +879,11 @@
                 {
                     "name": "action_ordinal"
                 }
-            ],
-            "conditions": [
-                "transaction_status = 'executed'"
             ]
         },
         {
             "short_name": "receipt.rcvr",
-            "index": "executed_receipt_receiver_idx",
+            "index": "receipt_receiver_idx",
             "table": "action_trace",
             "sort_keys": [
                 {
@@ -901,14 +898,11 @@
                 {
                     "name": "action_ordinal"
                 }
-            ],
-            "conditions": [
-                "transaction_status = 'executed'"
             ]
         },
         {
             "short_name": "transaction",
-            "index": "executed_transaction_idx",
+            "index": "transaction_idx",
             "table": "action_trace",
             "sort_keys": [
                 {
@@ -920,9 +914,6 @@
                 {
                     "name": "action_ordinal"
                 }
-            ],
-            "conditions": [
-                "transaction_status = 'executed'"
             ]
         },
         {
@@ -1278,24 +1269,24 @@
         },
         {
             "wasm_name": "at.e.nra",
-            "index": "at_executed_range_name_receiver_account_block_trans_action_idx",
-            "function": "at_executed_range_name_receiver_account_block_trans_action",
+            "index": "at_range_name_receiver_account_block_trans_action_idx",
+            "function": "at_range_name_receiver_account_block_trans_action",
             "table": "action_trace",
             "max_results": 100,
             "limit_block_num": true
         },
         {
             "wasm_name": "receipt.rcvr",
-            "index": "executed_receipt_receiver_idx",
-            "function": "executed_receipt_receiver",
+            "index": "receipt_receiver_idx",
+            "function": "receipt_receiver",
             "table": "action_trace",
             "max_results": 100,
             "limit_block_num": true
         },
         {
             "wasm_name": "transaction",
-            "index": "executed_transaction_idx",
-            "function": "executed_transaction",
+            "index": "transaction_idx",
+            "function": "transaction",
             "table": "action_trace",
             "max_results": 100,
             "limit_block_num": true

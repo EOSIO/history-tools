@@ -1,32 +1,26 @@
 
 
-        create index if not exists at_executed_range_name_receiver_account_block_trans_action_idx on chain.action_trace(
+        create index if not exists at_range_name_receiver_account_block_trans_action_idx on chain.action_trace(
             "act_name",
             "receiver",
             "act_account",
             "block_num",
             "transaction_id",
             "action_ordinal"
-        )
-        where
-            transaction_status = 'executed';
+        );
 
-        create index if not exists executed_receipt_receiver_idx on chain.action_trace(
+        create index if not exists receipt_receiver_idx on chain.action_trace(
             "receiver",
             "block_num",
             "transaction_id",
             "action_ordinal"
-        )
-        where
-            transaction_status = 'executed';
+        );
 
-        create index if not exists executed_transaction_idx on chain.action_trace(
+        create index if not exists transaction_idx on chain.action_trace(
             "transaction_id",
             "block_num",
             "action_ordinal"
-        )
-        where
-            transaction_status = 'executed';
+        );
 
         create index if not exists account_name_block_present_idx on chain.account(
             "name",
@@ -108,7 +102,6 @@
                     where
                         ("block_num") >= ("arg_first_block_num")
                         
-                        
                     order by
                         "block_num"
                     limit max_results
@@ -122,8 +115,8 @@
             end 
         $$ language plpgsql;
     
-        drop function if exists chain.at_executed_range_name_receiver_account_block_trans_action;
-        create function chain.at_executed_range_name_receiver_account_block_trans_action(
+        drop function if exists chain.at_range_name_receiver_account_block_trans_action;
+        create function chain.at_range_name_receiver_account_block_trans_action(
             max_block_num bigint,
             first_act_name varchar(13),
             first_receiver varchar(13),
@@ -163,8 +156,6 @@
                         chain.action_trace
                     where
                         ("act_name","receiver","act_account","block_num","transaction_id","action_ordinal") >= ("arg_first_act_name", "arg_first_receiver", "arg_first_act_account", "arg_first_block_num", "arg_first_transaction_id", "arg_first_action_ordinal")
-                        and transaction_status = 'executed'
-                        
                         and action_trace.block_num <= max_block_num
                     order by
                         "act_name","receiver","act_account","block_num","transaction_id","action_ordinal"
@@ -179,8 +170,8 @@
             end 
         $$ language plpgsql;
     
-        drop function if exists chain.executed_receipt_receiver;
-        create function chain.executed_receipt_receiver(
+        drop function if exists chain.receipt_receiver;
+        create function chain.receipt_receiver(
             max_block_num bigint,
             first_receiver varchar(13),
             first_block_num bigint,
@@ -212,8 +203,6 @@
                         chain.action_trace
                     where
                         ("receiver","block_num","transaction_id","action_ordinal") >= ("arg_first_receiver", "arg_first_block_num", "arg_first_transaction_id", "arg_first_action_ordinal")
-                        and transaction_status = 'executed'
-                        
                         and action_trace.block_num <= max_block_num
                     order by
                         "receiver","block_num","transaction_id","action_ordinal"
@@ -228,8 +217,8 @@
             end 
         $$ language plpgsql;
     
-        drop function if exists chain.executed_transaction;
-        create function chain.executed_transaction(
+        drop function if exists chain.transaction;
+        create function chain.transaction(
             max_block_num bigint,
             first_transaction_id varchar(64),
             first_block_num bigint,
@@ -257,8 +246,6 @@
                         chain.action_trace
                     where
                         ("transaction_id","block_num","action_ordinal") >= ("arg_first_transaction_id", "arg_first_block_num", "arg_first_action_ordinal")
-                        and transaction_status = 'executed'
-                        
                         and action_trace.block_num <= max_block_num
                     order by
                         "transaction_id","block_num","action_ordinal"

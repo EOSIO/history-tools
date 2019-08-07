@@ -84,23 +84,19 @@ function sort_key_expr(key, prefix, rename) {
     }
 }
 
-function generate_index({ table, index, sort_keys, history_keys, conditions }) {
+function generate_index({ table, index, sort_keys, history_keys }) {
     if (!index)
         return;
     indexes += `
         create index if not exists ${index} on ${schema}.${table}(
             ${sort_keys.map(x => sort_key_expr(x, '', false)).concat(history_keys.map(x => `"${x.name + (x.desc ? '" desc' : '"')}`)).join(',\n            ')}
         )`;
-    if (conditions)
-        indexes += '\n        where\n            ' + conditions.join('\n            and ');
     indexes += ';\n';
 }
 
 // todo: This likely needs reoptimization.
 // todo: perf problem with low max_block_num
-function generate_nonstate({ table, index, limit_block_num, sort_keys, conditions, ...rest }) {
-    conditions = conditions || [];
-
+function generate_nonstate({ table, index, limit_block_num, sort_keys, ...rest }) {
     const fn_name = schema + '.' + rest['function'];
     const fn_args = prefix => sort_keys.map(x => `${prefix}${x.name} ${x.type},`).join('\n            ');
     const sort_keys_tuple = (prefix, suffix, sep) => sort_keys.map(x => `${prefix}${x.name}${suffix}`).join(sep);
@@ -114,7 +110,6 @@ function generate_nonstate({ table, index, limit_block_num, sort_keys, condition
         ${indent}        ${schema}.${table}
         ${indent}    where
         ${indent}        (${sort_keys_tuple_expr('')}) >= (${sort_keys_tuple('"arg_first_', '"', ', ')})
-        ${indent}        ${conditions.map(x => `and ${x}\n        ${indent}        `).join('')}
         ${indent}        ${limit_block_num ? `and ${table}.block_num <= max_block_num` : ``}
         ${indent}    order by
         ${indent}        ${sort_keys_tuple_expr('')}

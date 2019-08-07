@@ -95,8 +95,8 @@ function generate_index({ table, index, sort_keys, history_keys }) {
 }
 
 // todo: This likely needs reoptimization.
-// todo: perf problem with low max_block_num
-function generate_nonstate({ table, index, limit_block_num, sort_keys, ...rest }) {
+// todo: perf problem with low snapshot_block_num
+function generate_nonstate({ table, index, has_block_snapshot, sort_keys, ...rest }) {
     const fn_name = schema + '.' + rest['function'];
     const fn_args = prefix => sort_keys.map(x => `${prefix}${x.name} ${x.type},`).join('\n            ');
     const sort_keys_tuple = (prefix, suffix, sep) => sort_keys.map(x => `${prefix}${x.name}${suffix}`).join(sep);
@@ -110,7 +110,7 @@ function generate_nonstate({ table, index, limit_block_num, sort_keys, ...rest }
         ${indent}        ${schema}.${table}
         ${indent}    where
         ${indent}        (${sort_keys_tuple_expr('')}) >= (${sort_keys_tuple('"arg_first_', '"', ', ')})
-        ${indent}        ${limit_block_num ? `and ${table}.block_num <= max_block_num` : ``}
+        ${indent}        ${has_block_snapshot ? `and ${table}.block_num <= snapshot_block_num` : ``}
         ${indent}    order by
         ${indent}        ${sort_keys_tuple_expr('')}
         ${indent}    limit max_results
@@ -125,7 +125,7 @@ function generate_nonstate({ table, index, limit_block_num, sort_keys, ...rest }
     functions += `
         drop function if exists ${fn_name};
         create function ${fn_name}(
-            ${limit_block_num ? `max_block_num bigint,` : ``}
+            ${has_block_snapshot ? `snapshot_block_num bigint,` : ``}
             ${fn_args('first_')}
             ${fn_args('last_')}
             max_results integer
@@ -142,7 +142,7 @@ function generate_nonstate({ table, index, limit_block_num, sort_keys, ...rest }
     `;
 } // generate
 
-function generate_state({ table, index, limit_block_num, keys, sort_keys, history_keys, ordered_fields, join, join_key_values, fields_from_join, ...rest }) {
+function generate_state({ table, index, has_block_snapshot, keys, sort_keys, history_keys, ordered_fields, join, join_key_values, fields_from_join, ...rest }) {
     const fn_name = schema + '.' + rest['function'];
     const fn_args = prefix => sort_keys.map(x => `${prefix}${x.name} ${x.type},`).join('\n            ');
     const sort_keys_tuple = (prefix, suffix, sep) => sort_keys.map(x => `${prefix}${x.name}${suffix}`).join(sep);
@@ -168,7 +168,7 @@ function generate_state({ table, index, limit_block_num, keys, sort_keys, histor
         ${indent}                    ${schema}.${join}
         ${indent}                where
         ${indent}                    ${join_key_values.map(x => `${join}."${x.name}" = ${x.expression.replace('${table}', 'block_search')}`).join('\n                            ' + indent + 'and ')}
-        ${indent}                    ${limit_block_num ? `and ${join}.block_num <= max_block_num` : ``}
+        ${indent}                    ${has_block_snapshot ? `and ${join}.block_num <= snapshot_block_num` : ``}
         ${indent}                order by
         ${indent}                    ${join_key_values.map(x => `${join}."${x.name}"`).join(',\n                            ' + indent)},
         ${indent}                    ${history_keys.map(x => `${join}."${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                            ' + indent)}
@@ -214,7 +214,7 @@ function generate_state({ table, index, limit_block_num, keys, sort_keys, histor
         ${indent}            ${schema}.${table}
         ${indent}        where
         ${indent}            ${sort_keys.map(x => `${table}."${x.name}" = key_search."${x.name}"`).join('\n                    ' + indent + 'and ')}
-        ${indent}            ${limit_block_num ? `and ${table}.block_num <= max_block_num` : ``}
+        ${indent}            ${has_block_snapshot ? `and ${table}.block_num <= snapshot_block_num` : ``}
         ${indent}        order by
         ${indent}            ${sort_keys_tuple(`${table}."`, '"', ',\n                    ' + indent)},
         ${indent}            ${history_keys.map(x => `${table}."${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                    ' + indent)}
@@ -248,7 +248,7 @@ function generate_state({ table, index, limit_block_num, keys, sort_keys, histor
     functions += `
         drop function if exists ${fn_name};
         create function ${fn_name}(
-            ${limit_block_num ? `max_block_num bigint,` : ``}
+            ${has_block_snapshot ? `snapshot_block_num bigint,` : ``}
             ${fn_args('first_')}
             ${fn_args('last_')}
             max_results integer

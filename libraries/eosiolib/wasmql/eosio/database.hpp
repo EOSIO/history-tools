@@ -377,7 +377,7 @@ struct query_action_trace_range_name_receiver_account_block_trans_action {
     name query_name = "at.e.nra"_n;
 
     /// Look at this point of time in history
-    uint32_t max_block = {};
+    uint32_t snapshot_block = {};
 
     /// Query records with keys in the range [`first`, `last`].
     key first = {};
@@ -434,7 +434,7 @@ struct query_action_trace_receipt_receiver {
     name query_name = "receipt.rcvr"_n;
 
     /// Look at this point of time in history
-    uint32_t max_block = {};
+    uint32_t snapshot_block = {};
 
     /// Query records with keys in the range [`first`, `last`].
     key first = {};
@@ -486,7 +486,7 @@ struct query_transaction_receipt {
     name query_name = "transaction"_n;
 
     /// Look at this point of time in history
-    uint32_t max_block = {};
+    uint32_t snapshot_block = {};
 
     /// Query records with keys in the range [`first`, `last`].
     key first = {};
@@ -512,7 +512,7 @@ struct query_account_range_name {
     name query_name = "account"_n;
 
     /// Look at this point of time in history
-    uint32_t max_block = {};
+    uint32_t snapshot_block = {};
 
     /// Query records with `name` in the range [`first`, `last`].
     name first = {};
@@ -532,7 +532,7 @@ struct query_acctmeta_range_name {
     name query_name = "acctmeta.jn"_n;
 
     /// Look at this point of time in history
-    uint32_t max_block = {};
+    uint32_t snapshot_block = {};
 
     /// Query records with `name` in the range [`first`, `last`].
     name first = {};
@@ -551,7 +551,7 @@ struct query_code_range_name {
     name query_name = "meta.jn.code"_n;
 
     /// Look at this point of time in history
-    uint32_t max_block = {};
+    uint32_t snapshot_block = {};
 
     /// Query records with `name` in the range [`first`, `last`].
     name first = {};
@@ -599,7 +599,7 @@ struct query_contract_row_range_code_table_pk_scope {
     name query_name = "cr.ctps"_n;
 
     /// Look at this point of time in history
-    uint32_t max_block = {};
+    uint32_t snapshot_block = {};
 
     /// Query records with keys in the range [`first`, `last`].
     key first = {};
@@ -655,7 +655,7 @@ struct query_contract_row_range_code_table_scope_pk {
     name query_name = "cr.ctsp"_n;
 
     /// Look at this point of time in history
-    uint32_t max_block = {};
+    uint32_t snapshot_block = {};
 
     /// Query records with keys in the range [`first`, `last`].
     key first = {};
@@ -711,7 +711,7 @@ struct query_contract_row_range_scope_table_pk_code {
     name query_name = "cr.stpc"_n;
 
     /// Look at this point of time in history
-    uint32_t max_block = {};
+    uint32_t snapshot_block = {};
 
     /// Query records with keys in the range [`first`, `last`].
     key first = {};
@@ -770,7 +770,7 @@ struct query_contract_index64_range_code_table_scope_sk_pk {
     name query_name = "ci1.cts2p"_n;
 
     /// Look at this point of time in history
-    uint32_t max_block = {};
+    uint32_t snapshot_block = {};
 
     /// Query records with keys in the range [`first`, `last`].
     key first = {};

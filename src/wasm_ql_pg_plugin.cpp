@@ -58,13 +58,13 @@ struct pg_query_session : query_session {
             throw std::runtime_error("query_database: unknown query: " + (std::string)query_name);
         pg::query& query = *it->second;
 
-        uint32_t max_block_num = 0;
-        if (query.limit_block_num)
-            max_block_num = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
+        uint32_t snapshot_block_num = 0;
+        if (query.has_block_snapshot)
+            snapshot_block_num = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
         std::string query_str = "select * from \"" + db_iface->schema + "\"." + query.function + "(";
         bool        need_sep  = false;
-        if (query.limit_block_num) {
-            query_str += pg::sql_str(false, max_block_num);
+        if (query.has_block_snapshot) {
+            query_str += pg::sql_str(false, snapshot_block_num);
             need_sep = true;
         }
         auto add_args = [&](auto& args) {

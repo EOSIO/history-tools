@@ -25,7 +25,7 @@ class AppState {
             running = true;
             const reply = await wasm.round_trip([
                 query,
-                { ...args, max_block: ['head', args.max_block], [firstKeyName]: first_key },
+                { ...args, snapshot_block: ['head', args.snapshot_block], [firstKeyName]: first_key },
             ]);
             if (thisRequest !== this.request)
                 return;
@@ -44,7 +44,7 @@ class AppState {
     }
 
     public accountsArgs = {
-        max_block: 100000000,
+        snapshot_block: 100000000,
         first: '',
         last: '',
         include_abi: true,
@@ -70,7 +70,7 @@ class AppState {
     public accounts = { run: this.run_accounts.bind(this), form: AccountsForm };
 
     public multTokensArgs = {
-        max_block: 100000000,
+        snapshot_block: 100000000,
         account: 'b1',
         first_key: { sym: '', code: '' },
         last_key: { sym: '', code: '' },
@@ -88,7 +88,7 @@ class AppState {
     public multipleTokens = { run: this.run_mult_tokens.bind(this), form: MultipleTokensForm };
 
     public tokensMultAccArgs = {
-        max_block: 100000000,
+        snapshot_block: 100000000,
         code: 'eosio.token',
         sym: 'EOS',
         first_account: '',
@@ -104,7 +104,7 @@ class AppState {
     public tokensMultAcc = { run: this.run_tok_mul_acc.bind(this), form: TokensForMultipleAccountsForm };
 
     public transfersArgs = {
-        max_block: 100000000,
+        snapshot_block: 100000000,
         first_key: {
             receiver: '',
             account: '',
@@ -184,9 +184,9 @@ function AccountsForm({ appState }: { appState: AppState }) {
             <table>
                 <tbody>
                     {/* <tr>
-                        <td>max_block</td>
+                        <td>snapshot_block  </td>
                         <td></td>
-                        <td><input type="text" value={appState.accountsArgs.max_block} onChange={e => { appState.accountsArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.accountsArgs.snapshot_block  } onChange={e => { appState.accountsArgs.snapshot_block    = +e.target.value; appState.runSelected(); }} /></td>
                     </tr> */}
                     <tr>
                         <td>first</td>
@@ -210,9 +210,9 @@ function MultipleTokensForm({ appState }: { appState: AppState }) {
             <table>
                 <tbody>
                     {/* <tr>
-                        <td>max_block</td>
+                        <td>snapshot_block  </td>
                         <td></td>
-                        <td><input type="text" value={appState.multTokensArgs.max_block} onChange={e => { appState.multTokensArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.multTokensArgs.snapshot_block    } onChange={e => { appState.multTokensArgs.snapshot_block    = +e.target.value; appState.runSelected(); }} /></td>
                     </tr> */}
                     <tr>
                         <td>account</td>
@@ -251,9 +251,9 @@ function TokensForMultipleAccountsForm({ appState }: { appState: AppState }) {
             <table>
                 <tbody>
                     {/* <tr>
-                        <td>max_block</td>
+                        <td>snapshot_block  </td>
                         <td></td>
-                        <td><input type="text" value={appState.tokensMultAccArgs.max_block} onChange={e => { appState.tokensMultAccArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.tokensMultAccArgs.snapshot_block } onChange={e => { appState.tokensMultAccArgs.snapshot_block  = +e.target.value; appState.runSelected(); }} /></td>
                     </tr> */}
                     <tr>
                         <td>code</td>
@@ -287,9 +287,9 @@ function TransfersForm({ appState }: { appState: AppState }) {
             <table>
                 <tbody>
                     {/* <tr>
-                        <td>max_block</td>
+                        <td>snapshot_block  </td>
                         <td></td>
-                        <td><input type="text" value={appState.transfersArgs.max_block} onChange={e => { appState.transfersArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.transfersArgs.snapshot_block } onChange={e => { appState.transfersArgs.snapshot_block  = +e.target.value; appState.runSelected(); }} /></td>
                     </tr> */}
                     <tr>
                         <td>first_receiver</td>

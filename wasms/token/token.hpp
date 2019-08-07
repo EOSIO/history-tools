@@ -42,7 +42,7 @@ STRUCT_REFLECT(token_transfer) {
 
 // todo: version
 struct token_transfer_request {
-    eosio::block_select max_block               = {};
+    eosio::block_select snapshot_block          = {};
     token_transfer_key  first_key               = {};
     token_transfer_key  last_key                = {};
     bool                include_notify_incoming = false;
@@ -52,7 +52,7 @@ struct token_transfer_request {
 };
 
 STRUCT_REFLECT(token_transfer_request) {
-    STRUCT_MEMBER(token_transfer_request, max_block)
+    STRUCT_MEMBER(token_transfer_request, snapshot_block)
     STRUCT_MEMBER(token_transfer_request, first_key)
     STRUCT_MEMBER(token_transfer_request, last_key)
     STRUCT_MEMBER(token_transfer_request, include_notify_incoming)
@@ -76,16 +76,16 @@ STRUCT_REFLECT(token_transfer_response) {
 
 // todo: version
 struct balances_for_multiple_accounts_request {
-    eosio::block_select max_block     = {};
-    eosio::name         code          = {};
-    eosio::symbol_code  sym           = {};
-    eosio::name         first_account = {};
-    eosio::name         last_account  = {};
-    uint32_t            max_results   = {};
+    eosio::block_select snapshot_block = {};
+    eosio::name         code           = {};
+    eosio::symbol_code  sym            = {};
+    eosio::name         first_account  = {};
+    eosio::name         last_account   = {};
+    uint32_t            max_results    = {};
 };
 
 STRUCT_REFLECT(balances_for_multiple_accounts_request) {
-    STRUCT_MEMBER(balances_for_multiple_accounts_request, max_block)
+    STRUCT_MEMBER(balances_for_multiple_accounts_request, snapshot_block)
     STRUCT_MEMBER(balances_for_multiple_accounts_request, code)
     STRUCT_MEMBER(balances_for_multiple_accounts_request, sym)
     STRUCT_MEMBER(balances_for_multiple_accounts_request, first_account)
@@ -112,15 +112,15 @@ STRUCT_REFLECT(bfmt_key) {
 
 // todo: version
 struct balances_for_multiple_tokens_request {
-    eosio::block_select max_block   = {};
-    eosio::name         account     = {};
-    bfmt_key            first_key   = {};
-    bfmt_key            last_key    = {};
-    uint32_t            max_results = {};
+    eosio::block_select snapshot_block = {};
+    eosio::name         account        = {};
+    bfmt_key            first_key      = {};
+    bfmt_key            last_key       = {};
+    uint32_t            max_results    = {};
 };
 
 STRUCT_REFLECT(balances_for_multiple_tokens_request) {
-    STRUCT_MEMBER(balances_for_multiple_tokens_request, max_block)
+    STRUCT_MEMBER(balances_for_multiple_tokens_request, snapshot_block)
     STRUCT_MEMBER(balances_for_multiple_tokens_request, account)
     STRUCT_MEMBER(balances_for_multiple_tokens_request, first_key)
     STRUCT_MEMBER(balances_for_multiple_tokens_request, last_key)

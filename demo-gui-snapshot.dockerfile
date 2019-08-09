@@ -80,17 +80,9 @@ run ninja
 run bash -c "cd ../demo-gui && npm i && npm run build"
 
 # Final image
-from ubuntu:18.04
-run apt-get update && apt-get install -y libssl1.0.0
+from snapshot
 
-workdir /root
-run mkdir history-tools
-workdir /root/history-tools
-run mkdir build
-run mkdir src
-run mkdir -p demo-gui/dist
 workdir /root/history-tools/build
-
 copy --from=builder /usr/local/lib/libmozjs-64.so /usr/local/lib/
 copy --from=builder /root/history-tools/src/glue.js /root/history-tools/src/
 copy --from=builder /root/history-tools/src/query-config.json /root/history-tools/src/
@@ -105,6 +97,8 @@ copy --from=builder /root/history-tools/demo-gui/dist/client.bundle.js /root/his
 copy --from=builder /root/history-tools/demo-gui/dist/index.html /root/history-tools/demo-gui/dist/
 copy --from=builder /root/history-tools/demo-gui/dist/token-client.wasm /root/history-tools/demo-gui/dist/
 
-env LD_LIBRARY_PATH=/usr/local/lib
+workdir /root/history-tools/build
+run ls -lh
+run du -h .
 expose 80/tcp
-entrypoint ["./combo-rocksdb", "--wql-static-dir", "../demo-gui/dist/", "--wql-listen", "0.0.0.0:80"]
+entrypoint ["./wasm-ql-rocksdb", "--wql-static-dir", "../demo-gui/dist/", "--wql-listen", "0.0.0.0:80"]

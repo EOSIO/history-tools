@@ -189,12 +189,12 @@ function AccountsForm({ appState }: { appState: AppState }) {
                         <td><input type="text" value={appState.accountsArgs.snapshot_block  } onChange={e => { appState.accountsArgs.snapshot_block    = +e.target.value; appState.runSelected(); }} /></td>
                     </tr> */}
                     <tr>
-                        <td>first</td>
+                        <td>min account</td>
                         <td></td>
                         <td><input type="text" value={appState.accountsArgs.first} onChange={e => { appState.accountsArgs.first = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
-                        <td>last</td>
+                        <td>max account</td>
                         <td></td>
                         <td><input type="text" value={appState.accountsArgs.last} onChange={e => { appState.accountsArgs.last = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
@@ -219,7 +219,7 @@ function MultipleTokensForm({ appState }: { appState: AppState }) {
                         <td></td>
                         <td><input type="text" value={appState.multTokensArgs.account} onChange={e => { appState.multTokensArgs.account = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
-                    <tr>
+                    {/* <tr>
                         <td>first_key</td>
                         <td>sym</td>
                         <td><input type="text" value={appState.multTokensArgs.first_key.sym} onChange={e => { appState.multTokensArgs.first_key.sym = e.target.value; appState.runSelected(); }} /></td>
@@ -238,7 +238,7 @@ function MultipleTokensForm({ appState }: { appState: AppState }) {
                         <td></td>
                         <td>code</td>
                         <td><input type="text" value={appState.multTokensArgs.last_key.code} onChange={e => { appState.multTokensArgs.last_key.code = e.target.value; appState.runSelected(); }} /></td>
-                    </tr>
+                    </tr> */}
                 </tbody>
             </table>
         </div>
@@ -266,12 +266,12 @@ function TokensForMultipleAccountsForm({ appState }: { appState: AppState }) {
                         <td><input type="text" value={appState.tokensMultAccArgs.sym} onChange={e => { appState.tokensMultAccArgs.sym = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
-                        <td>first_account</td>
+                        <td>min account</td>
                         <td></td>
                         <td><input type="text" value={appState.tokensMultAccArgs.first_account} onChange={e => { appState.tokensMultAccArgs.first_account = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
-                        <td>last_account</td>
+                        <td>max account</td>
                         <td></td>
                         <td><input type="text" value={appState.tokensMultAccArgs.last_account} onChange={e => { appState.tokensMultAccArgs.last_account = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
@@ -292,12 +292,12 @@ function TransfersForm({ appState }: { appState: AppState }) {
                         <td><input type="text" value={appState.transfersArgs.snapshot_block } onChange={e => { appState.transfersArgs.snapshot_block  = +e.target.value; appState.runSelected(); }} /></td>
                     </tr> */}
                     <tr>
-                        <td>first_receiver</td>
+                        <td>min receiver</td>
                         <td></td>
                         <td><input type="text" value={appState.transfersArgs.first_key.receiver} onChange={e => { appState.transfersArgs.first_key.receiver = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
-                        <td>last_receiver</td>
+                        <td>max receiver</td>
                         <td></td>
                         <td><input type="text" value={appState.transfersArgs.last_key.receiver} onChange={e => { appState.transfersArgs.last_key.receiver = e.target.value; appState.runSelected(); }} /></td>
                     </tr>

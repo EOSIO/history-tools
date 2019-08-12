@@ -2,19 +2,19 @@
 
 A wasm-ql system needs:
 * nodeos running the state-history plugin, with either full or recent history
-* A database: PostgreSQL or LMDB
+* A database: PostgreSQL or RocksDB
 * A database filler
 * 1 or more wasm-ql server processes
 
-## Minimal LMDB-based system
+## Minimal RocksDB-based system
 
-* `combo-lmdb` fills an LMDB database and has a single-process, single-thread wasm-ql server.
+* `combo-rocksdb` fills an RocksDB database and has a single-process, single-thread wasm-ql server.
 * Suitable for single-developer testing
 
-## Multiple-process LMDB-based system
+## Multiple-process RocksDB-based system
 
-* `fill-lmdb` fills an LMDB database. Run 1 instance of this on a machine.
-* `wasm-ql-lmdb` uses the database to answer queries. It serves requests from the main thread; to scale it, run multiple instances of this on the same machine as `fill-lmdb`.
+* `fill-rocksdb` fills an RocksDB database. Run 1 instance of this on a machine.
+* `wasm-ql-rocksdb` uses the database to answer queries. It serves requests from the main thread; to scale it, run multiple instances of this on the same machine as `fill-rocksdb`.
 
 ## Multiple-process PostgreSQL-based system
 
@@ -26,7 +26,7 @@ A wasm-ql system needs:
 wasm-ql servers use the same connection methods and options as the [database fillers](database-fillers.md).
 
 * PostgreSQL: `fill-pg` sets up a bare database without indexes and query functions. After `fill-pg` is caught up to the chain, stop it then run `init.sql` in this repository's source directory. e.g. `psql -f path/to/init.sql`.
-* LMDB: `fill-lmdb` and `combo-lmdb` create a full set of indexes.
+* RocksDB: `fill-rocksdb` and `combo-rocksdb` create a full set of indexes.
 
 ## Testing wasm-ql
 
@@ -42,10 +42,11 @@ node ../src/test-client.js
 
 Options:
 
-| LMDB wasm-ql          | PostgreSQL wasm-ql        | Default               | Description |
+| RocksDB wasm-ql       | PostgreSQL wasm-ql        | Default               | Description |
 |---------------------  |-------------------------- |--------------------   |-------------|
-| --wql-listen          | --wql-listen              | localhost:8880        | endpoint to listen for incoming queries |
-| --wql-wasm-dir        | --wql-wasm-dir            | .                     | directory to fetch WASMs from |
-|                       | --pg-schema               | chain                 | schema to use |
-| --lmdb-database       |                           |                       | database path |
-| --query-config        | --query-config            |                       | query configuration file |
+| --wql-listen          | --wql-listen              | localhost:8880        | Endpoint to listen for incoming queries |
+| --wql-wasm-dir        | --wql-wasm-dir            | .                     | Directory to fetch WASMs from |
+|                       | --pg-schema               | chain                 | Schema to use |
+| --rdb-database        |                           |                       | Database path |
+| --rdb-secondary       |                           |                       | Path for secondary database instance. This database automatically tails the primary database. |
+| --query-config        | --query-config            |                       | Query configuration file |

@@ -287,42 +287,42 @@ void sql_to_bin(std::vector<char>& bin, const pqxx::field& f) {
     if constexpr (abieos::is_optional_v<T>)
         throw std::runtime_error("sql_to_bin<optional<T>> not implemented");
     else
-        abieos::native_to_bin(bin, f.as<T>());
+        abieos::native_to_bin(f.as<T>(), bin);
 }
 
 // clang-format off
 template <>
 inline void sql_to_bin<transaction_status>(std::vector<char>& bin, const pqxx::field& f) {
     if (false) {}
-    else if (!strcmp("executed",  f.c_str())) abieos::native_to_bin(bin, (uint8_t)transaction_status::executed);
-    else if (!strcmp("soft_fail", f.c_str())) abieos::native_to_bin(bin, (uint8_t)transaction_status::soft_fail);
-    else if (!strcmp("hard_fail", f.c_str())) abieos::native_to_bin(bin, (uint8_t)transaction_status::hard_fail);
-    else if (!strcmp("delayed",   f.c_str())) abieos::native_to_bin(bin, (uint8_t)transaction_status::delayed);
-    else if (!strcmp("expired",   f.c_str())) abieos::native_to_bin(bin, (uint8_t)transaction_status::expired);
+    else if (!strcmp("executed",  f.c_str())) abieos::native_to_bin( (uint8_t)transaction_status::executed, bin);
+    else if (!strcmp("soft_fail", f.c_str())) abieos::native_to_bin( (uint8_t)transaction_status::soft_fail, bin);
+    else if (!strcmp("hard_fail", f.c_str())) abieos::native_to_bin( (uint8_t)transaction_status::hard_fail, bin);
+    else if (!strcmp("delayed",   f.c_str())) abieos::native_to_bin( (uint8_t)transaction_status::delayed, bin);
+    else if (!strcmp("expired",   f.c_str())) abieos::native_to_bin( (uint8_t)transaction_status::expired, bin);
     else
         throw std::runtime_error("invalid value for transaction_status: " + f.as<std::string>());
 }
 // clang-format on
 
 // clang-format off
-template <> inline void sql_to_bin<uint8_t>                    (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, (uint8_t)f.as<uint16_t>()); }
-template <> inline void sql_to_bin<int8_t>                     (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, (int8_t)f.as<int16_t>()); }
+template <> inline void sql_to_bin<uint8_t>                    (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( (uint8_t)f.as<uint16_t>(), bin); }
+template <> inline void sql_to_bin<int8_t>                     (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( (int8_t)f.as<int16_t>(), bin); }
 template <> inline void sql_to_bin<abieos::varuint32>          (std::vector<char>& bin, const pqxx::field& f) { abieos::push_varuint32(bin, f.as<uint32_t>()); }
 template <> inline void sql_to_bin<abieos::varint32>           (std::vector<char>& bin, const pqxx::field& f) { abieos::push_varint32(bin, f.as<int32_t>()); }
 template <> inline void sql_to_bin<abieos::int128>             (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<int128> not implemented"); }
 template <> inline void sql_to_bin<abieos::uint128>            (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<uint128> not implemented"); }
 template <> inline void sql_to_bin<abieos::float128>           (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<float128> not implemented"); }
-template <> inline void sql_to_bin<abieos::name>               (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, abieos::name{f.c_str()}); }
-template <> inline void sql_to_bin<abieos::time_point>         (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_to_time_point(f.c_str())); }
+template <> inline void sql_to_bin<abieos::name>               (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( abieos::name{f.c_str()}, bin); }
+template <> inline void sql_to_bin<abieos::time_point>         (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( sql_to_time_point(f.c_str()), bin); }
 template <> inline void sql_to_bin<abieos::time_point_sec>     (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<time_point_sec> not implemented"); }
-template <> inline void sql_to_bin<abieos::block_timestamp>    (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_to_block_timestamp(f.c_str())); }
-template <> inline void sql_to_bin<abieos::checksum256>        (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_to_checksum256(f.c_str())); }
+template <> inline void sql_to_bin<abieos::block_timestamp>    (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( sql_to_block_timestamp(f.c_str()), bin); }
+template <> inline void sql_to_bin<abieos::checksum256>        (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( sql_to_checksum256(f.c_str()), bin); }
 template <> inline void sql_to_bin<abieos::public_key>         (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<public_key> not implemented"); }
 template <> inline void sql_to_bin<abieos::signature>          (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<signature> not implemented"); }
-template <> inline void sql_to_bin<abieos::bytes>              (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, sql_to_bytes(f.c_str())); }
-template <> inline void sql_to_bin<std::string>                (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, std::string{f.c_str()}); } // todo: unescape
+template <> inline void sql_to_bin<abieos::bytes>              (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( sql_to_bytes(f.c_str()), bin); }
+template <> inline void sql_to_bin<std::string>                (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( std::string{f.c_str()}, bin); } // todo: unescape
 template <> inline void sql_to_bin<abieos::input_buffer>       (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<input_buffer> not implemented"); }
-template <> inline void sql_to_bin<abieos::symbol>             (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin(bin, abieos::string_to_symbol(f.c_str())); }
+template <> inline void sql_to_bin<abieos::symbol>             (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( abieos::string_to_symbol(f.c_str()), bin); }
 // clang-format on
 
 struct type {
@@ -400,6 +400,7 @@ inline const std::map<std::string_view, type> abi_type_to_sql_type = {
     {"uint16",                  type_for<uint16_t>},
     {"int16",                   type_for<int16_t>},
     {"uint32",                  type_for<uint32_t>},
+    {"uint32?",                 type_for<std::optional<uint32_t>>},
     {"int32",                   type_for<int32_t>},
     {"uint64",                  type_for<uint64_t>},
     {"int64",                   type_for<int64_t>},
@@ -429,6 +430,7 @@ struct defs {
     using field  = query_config::field<defs>;
     using key    = query_config::key<defs>;
     using table  = query_config::table<defs>;
+    using index  = query_config::index<defs>;
     using query  = query_config::query<defs>;
     using config = query_config::config<defs>;
 }; // defs
@@ -436,6 +438,7 @@ struct defs {
 using field  = defs::field;
 using key    = defs::key;
 using table  = defs::table;
+using index  = defs::index;
 using query  = defs::query;
 using config = defs::config;
 

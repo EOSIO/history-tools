@@ -1,7 +1,22 @@
 {
     "tables": [
         {
+            "name": "received_block",
+            "short_name": "recvd.block",
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "block_id",
+                    "type": "checksum256"
+                }
+            ]
+        },
+        {
             "name": "block_info",
+            "short_name": "block.info",
             "fields": [
                 {
                     "name": "block_num",
@@ -47,6 +62,15 @@
         },
         {
             "name": "action_trace",
+            "short_name": "atrace",
+            "keys": [
+                {
+                    "name": "transaction_id"
+                },
+                {
+                    "name": "action_ordinal"
+                }
+            ],
             "fields": [
                 {
                     "name": "block_num",
@@ -138,16 +162,9 @@
         },
         {
             "name": "account",
-            "history_keys": [
-                {
-                    "name": "block_num",
-                    "desc": true
-                },
-                {
-                    "name": "present",
-                    "desc": true
-                }
-            ],
+            "short_name": "account",
+            "is_delta": true,
+            "trim_index": "account_name_block_present_idx",
             "keys": [
                 {
                     "name": "name"
@@ -178,16 +195,9 @@
         },
         {
             "name": "account_metadata",
-            "history_keys": [
-                {
-                    "name": "block_num",
-                    "desc": true
-                },
-                {
-                    "name": "present",
-                    "desc": true
-                }
-            ],
+            "short_name": "account.meta",
+            "is_delta": true,
+            "trim_index": "acctmeta_name_block_present_idx",
             "keys": [
                 {
                     "name": "name"
@@ -236,16 +246,9 @@
         },
         {
             "name": "code",
-            "history_keys": [
-                {
-                    "name": "block_num",
-                    "desc": true
-                },
-                {
-                    "name": "present",
-                    "desc": true
-                }
-            ],
+            "short_name": "code",
+            "is_delta": true,
+            "trim_index": "code_type_ver_hash_block_present_idx",
             "keys": [
                 {
                     "name": "vm_type"
@@ -285,17 +288,45 @@
             ]
         },
         {
-            "name": "contract_row",
-            "history_keys": [
+            "name": "contract_table",
+            "short_name": "c.table",
+            "is_delta": true,
+            "trim_index": "contract_table_code_scope_table_block_prese_idx",
+            "keys": [
                 {
-                    "name": "block_num",
-                    "desc": true
+                    "name": "code"
                 },
                 {
-                    "name": "present",
-                    "desc": true
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
                 }
             ],
+            "fields": [
+                {
+                    "name": "code",
+                    "type": "name"
+                },
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "table",
+                    "type": "name"
+                },
+                {
+                    "name": "payer",
+                    "type": "name"
+                }
+            ]
+        },
+        {
+            "name": "contract_row",
+            "short_name": "c.row",
+            "is_delta": true,
+            "trim_index": "contract_row_code_table_scope_primary_key_block_num_prese_idx",
             "keys": [
                 {
                     "name": "code"
@@ -348,16 +379,9 @@
         },
         {
             "name": "contract_index64",
-            "history_keys": [
-                {
-                    "name": "block_num",
-                    "desc": true
-                },
-                {
-                    "name": "present",
-                    "desc": true
-                }
-            ],
+            "short_name": "c.index64",
+            "is_delta": true,
+            "trim_index": "contract_index64_code_table_scope_pk_block_prese_idx",
             "keys": [
                 {
                     "name": "code"
@@ -408,14 +432,424 @@
                     "type": "uint64"
                 }
             ]
+        },
+        {
+            "name": "contract_index128",
+            "short_name": "c.index.b",
+            "is_delta": true,
+            "trim_index": "contract_index128_code_table_scope_pk_block_prese_idx",
+            "keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "code",
+                    "type": "name"
+                },
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "table",
+                    "type": "name"
+                },
+                {
+                    "name": "primary_key",
+                    "short_name": "pk",
+                    "type": "uint64"
+                },
+                {
+                    "name": "payer",
+                    "type": "name"
+                },
+                {
+                    "name": "secondary_key",
+                    "short_name": "sk",
+                    "type": "uint128"
+                }
+            ]
+        },
+        {
+            "name": "contract_index256",
+            "short_name": "c.index.c",
+            "is_delta": true,
+            "trim_index": "contract_index256_code_table_scope_pk_block_prese_idx",
+            "keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "code",
+                    "type": "name"
+                },
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "table",
+                    "type": "name"
+                },
+                {
+                    "name": "primary_key",
+                    "short_name": "pk",
+                    "type": "uint64"
+                },
+                {
+                    "name": "payer",
+                    "type": "name"
+                },
+                {
+                    "name": "secondary_key",
+                    "short_name": "sk",
+                    "type": "checksum256"
+                }
+            ]
+        },
+        {
+            "name": "contract_index_double",
+            "short_name": "c.index.d",
+            "is_delta": true,
+            "trim_index": "contract_index_dbl_code_table_scope_pk_block_prese_idx",
+            "keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "code",
+                    "type": "name"
+                },
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "table",
+                    "type": "name"
+                },
+                {
+                    "name": "primary_key",
+                    "short_name": "pk",
+                    "type": "uint64"
+                },
+                {
+                    "name": "payer",
+                    "type": "name"
+                },
+                {
+                    "name": "secondary_key",
+                    "short_name": "sk",
+                    "type": "float64"
+                }
+            ]
+        },
+        {
+            "name": "contract_index_long_double",
+            "short_name": "c.index.e",
+            "is_delta": true,
+            "trim_index": "contract_index_ldbl_code_table_scope_pk_block_prese_idx",
+            "keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "present",
+                    "type": "bool"
+                },
+                {
+                    "name": "code",
+                    "type": "name"
+                },
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "table",
+                    "type": "name"
+                },
+                {
+                    "name": "primary_key",
+                    "short_name": "pk",
+                    "type": "uint64"
+                },
+                {
+                    "name": "payer",
+                    "type": "name"
+                },
+                {
+                    "name": "secondary_key",
+                    "short_name": "sk",
+                    "type": "float128"
+                }
+            ]
+        },
+        {
+            "name": "global_property",
+            "short_name": "glob.prop",
+            "is_delta": true,
+            "trim_index": "global_property_block_prese_idx",
+            "keys": [],
+            "fields": [
+                {
+                    "name": "proposed_schedule_block_num",
+                    "type": "uint32?"
+                }
+            ]
+        },
+        {
+            "name": "generated_transaction",
+            "short_name": "gen.tx",
+            "is_delta": true,
+            "trim_index": "generated_transaction_sender_senderid_block_prese_idx",
+            "keys": [
+                {
+                    "name": "sender"
+                },
+                {
+                    "name": "sender_id"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "sender",
+                    "type": "name"
+                },
+                {
+                    "name": "sender_id",
+                    "type": "uint128"
+                },
+                {
+                    "name": "payer",
+                    "type": "name"
+                },
+                {
+                    "name": "trx_id",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "packed_trx",
+                    "type": "bytes"
+                }
+            ]
+        },
+        {
+            "name": "protocol_state",
+            "short_name": "protocol.st",
+            "is_delta": true,
+            "trim_index": "protocol_state_block_prese_idx",
+            "keys": [],
+            "fields": []
+        },
+        {
+            "name": "permission",
+            "short_name": "permission",
+            "is_delta": true,
+            "trim_index": "permission_owner_name_block_prese_idx",
+            "keys": [
+                {
+                    "name": "owner"
+                },
+                {
+                    "name": "name"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "owner",
+                    "type": "name"
+                },
+                {
+                    "name": "name",
+                    "type": "name"
+                },
+                {
+                    "name": "parent",
+                    "type": "name"
+                },
+                {
+                    "name": "last_updated",
+                    "type": "time_point"
+                }
+            ]
+        },
+        {
+            "name": "permission_link",
+            "short_name": "perm.link",
+            "is_delta": true,
+            "trim_index": "permission_link_acct_code_msgtype_block_prese_idx",
+            "keys": [
+                {
+                    "name": "account"
+                },
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "message_type"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "account",
+                    "type": "name"
+                },
+                {
+                    "name": "code",
+                    "type": "name"
+                },
+                {
+                    "name": "message_type",
+                    "type": "name"
+                },
+                {
+                    "name": "required_permission",
+                    "type": "name"
+                }
+            ]
+        },
+        {
+            "name": "resource_limits",
+            "short_name": "res.lim",
+            "is_delta": true,
+            "trim_index": "resource_limits_owner_block_prese_idx",
+            "keys": [
+                {
+                    "name": "owner"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "owner",
+                    "type": "name"
+                },
+                {
+                    "name": "net_weight",
+                    "type": "int64"
+                },
+                {
+                    "name": "cpu_weight",
+                    "type": "int64"
+                },
+                {
+                    "name": "ram_bytes",
+                    "type": "int64"
+                }
+            ]
+        },
+        {
+            "name": "resource_usage",
+            "short_name": "res.usage",
+            "is_delta": true,
+            "trim_index": "resource_usage_owner_block_prese_idx",
+            "keys": [
+                {
+                    "name": "owner"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "owner",
+                    "type": "name"
+                }
+            ]
+        },
+        {
+            "name": "resource_limits_state",
+            "short_name": "res.lim.stat",
+            "is_delta": true,
+            "trim_index": "resource_limits_state_block_prese_idx",
+            "keys": [],
+            "fields": []
+        },
+        {
+            "name": "resource_limits_config",
+            "short_name": "res.lim.conf",
+            "is_delta": true,
+            "trim_index": "resource_limits_config_block_prese_idx",
+            "keys": [],
+            "fields": []
         }
     ],
-    "queries": [
+    "indexes": [
         {
-            "wasm_name": "block.info",
-            "function": "block_info_range_index",
+            "short_name": "block.info",
+            "index": "block_info_block",
             "table": "block_info",
-            "max_results": 100,
+            "include_in_pg": false,
             "sort_keys": [
                 {
                     "name": "block_num"
@@ -423,12 +857,9 @@
             ]
         },
         {
-            "wasm_name": "at.e.nra",
-            "index": "at_executed_range_name_receiver_account_block_trans_action_idx",
-            "function": "at_executed_range_name_receiver_account_block_trans_action",
+            "short_name": "at.e.nra",
+            "index": "at_range_name_receiver_account_block_trans_action_idx",
             "table": "action_trace",
-            "max_results": 100,
-            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "act_name"
@@ -448,18 +879,12 @@
                 {
                     "name": "action_ordinal"
                 }
-            ],
-            "conditions": [
-                "transaction_status = 'executed'"
             ]
         },
         {
-            "wasm_name": "receipt.rcvr",
-            "index": "executed_receipt_receiver_idx",
-            "function": "executed_receipt_receiver",
+            "short_name": "receipt.rcvr",
+            "index": "receipt_receiver_idx",
             "table": "action_trace",
-            "max_results": 100,
-            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "receiver"
@@ -473,18 +898,12 @@
                 {
                     "name": "action_ordinal"
                 }
-            ],
-            "conditions": [
-                "transaction_status = 'executed'"
             ]
         },
         {
-            "wasm_name": "transaction",
-            "index": "executed_transaction_idx",
-            "function": "executed_transaction",
+            "short_name": "transaction",
+            "index": "transaction_idx",
             "table": "action_trace",
-            "max_results": 100,
-            "limit_block_num": true,
             "sort_keys": [
                 {
                     "name": "transaction_id"
@@ -495,10 +914,382 @@
                 {
                     "name": "action_ordinal"
                 }
-            ],
-            "conditions": [
-                "transaction_status = 'executed'"
             ]
+        },
+        {
+            "short_name": "account",
+            "index": "account_name_block_present_idx",
+            "table": "account",
+            "sort_keys": [
+                {
+                    "name": "name"
+                }
+            ]
+        },
+        {
+            "short_name": "acctmeta.jn",
+            "index": "acctmeta_name_block_present_idx",
+            "table": "account_metadata",
+            "sort_keys": [
+                {
+                    "name": "name"
+                }
+            ]
+        },
+        {
+            "short_name": "code",
+            "index": "code_type_ver_hash_block_present_idx",
+            "table": "code",
+            "sort_keys": [
+                {
+                    "name": "vm_type"
+                },
+                {
+                    "name": "vm_version"
+                },
+                {
+                    "name": "code_hash"
+                }
+            ]
+        },
+        {
+            "short_name": "ct.cst",
+            "index": "contract_table_code_scope_table_block_prese_idx",
+            "table": "contract_table",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                }
+            ]
+        },
+        {
+            "short_name": "cr.ctps",
+            "index": "contract_row_code_table_primary_key_scope_block_num_prese_idx",
+            "table": "contract_row",
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                },
+                {
+                    "name": "scope"
+                }
+            ]
+        },
+        {
+            "short_name": "cr.ctsp",
+            "index": "contract_row_code_table_scope_primary_key_block_num_prese_idx",
+            "table": "contract_row",
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ]
+        },
+        {
+            "short_name": "cr.stpc",
+            "index": "contract_row_scope_table_primary_key_code_block_num_prese_idx",
+            "table": "contract_row",
+            "sort_keys": [
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "primary_key"
+                },
+                {
+                    "name": "code"
+                }
+            ]
+        },
+        {
+            "short_name": "ci1.ctsp",
+            "index": "contract_index64_code_table_scope_pk_block_prese_idx",
+            "table": "contract_index64",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ]
+        },
+        {
+            "short_name": "ci1.cts2p",
+            "index": "contract_index64_code_table_scope_sk_pk_block_num_prese_idx",
+            "table": "contract_index64",
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "secondary_key"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ]
+        },
+        {
+            "short_name": "cib.ctsp",
+            "index": "contract_index128_code_table_scope_pk_block_prese_idx",
+            "table": "contract_index128",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ]
+        },
+        {
+            "short_name": "cic.ctsp",
+            "index": "contract_index256_code_table_scope_pk_block_prese_idx",
+            "table": "contract_index256",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ]
+        },
+        {
+            "short_name": "cid.ctsp",
+            "index": "contract_index_dbl_code_table_scope_pk_block_prese_idx",
+            "table": "contract_index_double",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ]
+        },
+        {
+            "short_name": "cie.ctsp",
+            "index": "contract_index_ldbl_code_table_scope_pk_block_prese_idx",
+            "table": "contract_index_long_double",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "table"
+                },
+                {
+                    "name": "scope"
+                },
+                {
+                    "name": "primary_key"
+                }
+            ]
+        },
+        {
+            "short_name": "glob.prop",
+            "index": "global_property_block_prese_idx",
+            "table": "global_property",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": []
+        },
+        {
+            "short_name": "gen.tx.si",
+            "index": "generated_transaction_sender_senderid_block_prese_idx",
+            "table": "generated_transaction",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": [
+                {
+                    "name": "sender"
+                },
+                {
+                    "name": "sender_id"
+                }
+            ]
+        },
+        {
+            "short_name": "protocol.st",
+            "index": "protocol_state_block_prese_idx",
+            "table": "protocol_state",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": []
+        },
+        {
+            "short_name": "perm.on",
+            "index": "permission_owner_name_block_prese_idx",
+            "table": "permission",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": [
+                {
+                    "name": "owner"
+                },
+                {
+                    "name": "name"
+                }
+            ]
+        },
+        {
+            "short_name": "perml.act",
+            "index": "permission_link_acct_code_msgtype_block_prese_idx",
+            "table": "permission_link",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": [
+                {
+                    "name": "account"
+                },
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "message_type"
+                }
+            ]
+        },
+        {
+            "short_name": "res.lim.o",
+            "index": "resource_limits_owner_block_prese_idx",
+            "table": "resource_limits",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": [
+                {
+                    "name": "owner"
+                }
+            ]
+        },
+        {
+            "short_name": "res.usage.o",
+            "index": "resource_usage_owner_block_prese_idx",
+            "table": "resource_usage",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": [
+                {
+                    "name": "owner"
+                }
+            ]
+        },
+        {
+            "short_name": "res.lim.stat",
+            "index": "resource_limits_state_block_prese_idx",
+            "table": "resource_limits_state",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": []
+        },
+        {
+            "short_name": "res.lim.conf",
+            "index": "resource_limits_config_block_prese_idx",
+            "table": "resource_limits_config",
+            "include_in_pg": false,
+            "only_for_trim": true,
+            "sort_keys": []
+        }
+    ],
+    "queries": [
+        {
+            "wasm_name": "block.info",
+            "index": "block_info_block",
+            "function": "block_info_range_index",
+            "table": "block_info",
+            "max_results": 100
+        },
+        {
+            "wasm_name": "at.e.nra",
+            "index": "at_range_name_receiver_account_block_trans_action_idx",
+            "function": "at_range_name_receiver_account_block_trans_action",
+            "table": "action_trace",
+            "max_results": 100,
+            "has_block_snapshot": true
+        },
+        {
+            "wasm_name": "receipt.rcvr",
+            "index": "receipt_receiver_idx",
+            "function": "receipt_receiver",
+            "table": "action_trace",
+            "max_results": 100,
+            "has_block_snapshot": true
+        },
+        {
+            "wasm_name": "transaction",
+            "index": "transaction_idx",
+            "function": "transaction",
+            "table": "action_trace",
+            "max_results": 100,
+            "has_block_snapshot": true
         },
         {
             "wasm_name": "account",
@@ -506,27 +1297,15 @@
             "function": "account_range_name",
             "table": "account",
             "max_results": 100,
-            "is_state": true,
-            "limit_block_num": true,
-            "sort_keys": [
-                {
-                    "name": "name"
-                }
-            ]
+            "has_block_snapshot": true
         },
         {
             "wasm_name": "acctmeta.jn",
-            "index": "acctmeta_joined_name_block_present_idx",
+            "index": "acctmeta_name_block_present_idx",
             "function": "acctmeta_joined_range_name",
             "table": "account_metadata",
             "max_results": 100,
-            "is_state": true,
-            "limit_block_num": true,
-            "sort_keys": [
-                {
-                    "name": "name"
-                }
-            ],
+            "has_block_snapshot": true,
             "join": "account",
             "join_query_wasm_name": "account",
             "join_key_values": [
@@ -561,32 +1340,15 @@
             "function": "code_range_type_ver_hash",
             "table": "code",
             "max_results": 100,
-            "is_state": true,
-            "limit_block_num": true,
-            "sort_keys": [
-                {
-                    "name": "vm_type"
-                },
-                {
-                    "name": "vm_version"
-                },
-                {
-                    "name": "code_hash"
-                }
-            ]
+            "has_block_snapshot": true
         },
         {
             "wasm_name": "meta.jn.code",
             "function": "acctmeta_joincode_range_name",
             "table": "account_metadata",
+            "index": "acctmeta_name_block_present_idx",
             "max_results": 100,
-            "is_state": true,
-            "limit_block_num": true,
-            "sort_keys": [
-                {
-                    "name": "name"
-                }
-            ],
+            "has_block_snapshot": true,
             "join": "code",
             "join_query_wasm_name": "code",
             "join_key_values": [
@@ -639,22 +1401,7 @@
             "function": "contract_row_range_code_table_pk_scope",
             "table": "contract_row",
             "max_results": 100,
-            "is_state": true,
-            "limit_block_num": true,
-            "sort_keys": [
-                {
-                    "name": "code"
-                },
-                {
-                    "name": "table"
-                },
-                {
-                    "name": "primary_key"
-                },
-                {
-                    "name": "scope"
-                }
-            ]
+            "has_block_snapshot": true
         },
         {
             "wasm_name": "cr.ctsp",
@@ -662,22 +1409,7 @@
             "function": "contract_row_range_code_table_scope_pk",
             "table": "contract_row",
             "max_results": 100,
-            "is_state": true,
-            "limit_block_num": true,
-            "sort_keys": [
-                {
-                    "name": "code"
-                },
-                {
-                    "name": "table"
-                },
-                {
-                    "name": "scope"
-                },
-                {
-                    "name": "primary_key"
-                }
-            ]
+            "has_block_snapshot": true
         },
         {
             "wasm_name": "cr.stpc",
@@ -685,22 +1417,7 @@
             "function": "contract_row_range_scope_table_pk_code",
             "table": "contract_row",
             "max_results": 100,
-            "is_state": true,
-            "limit_block_num": true,
-            "sort_keys": [
-                {
-                    "name": "scope"
-                },
-                {
-                    "name": "table"
-                },
-                {
-                    "name": "primary_key"
-                },
-                {
-                    "name": "code"
-                }
-            ]
+            "has_block_snapshot": true
         },
         {
             "wasm_name": "ci1.cts2p",
@@ -708,25 +1425,7 @@
             "function": "contract_index64_range_code_table_scope_sk_pk",
             "table": "contract_index64",
             "max_results": 100,
-            "is_state": true,
-            "limit_block_num": true,
-            "sort_keys": [
-                {
-                    "name": "code"
-                },
-                {
-                    "name": "table"
-                },
-                {
-                    "name": "scope"
-                },
-                {
-                    "name": "secondary_key"
-                },
-                {
-                    "name": "primary_key"
-                }
-            ],
+            "has_block_snapshot": true,
             "join": "contract_row",
             "join_query_wasm_name": "cr.ctsp",
             "join_key_values": [

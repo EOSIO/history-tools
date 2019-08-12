@@ -33,7 +33,6 @@ apt update && apt install -y \
     clang-8             \
     git                 \
     libgmp-dev          \
-    liblmdb-dev         \
     libpq-dev           \
     lld-8               \
     lldb-8              \
@@ -41,6 +40,7 @@ apt update && apt install -y \
     nodejs              \
     npm                 \
     pkg-config          \
+    postgresql-server-dev-all \
     python2.7-dev       \
     python3-dev         \
     rustc               \

@@ -52,18 +52,19 @@ struct pg_query_session : query_session {
         abieos::name query_name;
         abieos::bin_to_native(query_name, query_bin);
 
+        // todo: check for false positives in secondary indexes
         auto it = db_iface->config.query_map.find(query_name);
         if (it == db_iface->config.query_map.end())
             throw std::runtime_error("query_database: unknown query: " + (std::string)query_name);
         pg::query& query = *it->second;
 
-        uint32_t max_block_num = 0;
-        if (query.limit_block_num)
-            max_block_num = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
+        uint32_t snapshot_block_num = 0;
+        if (query.has_block_snapshot)
+            snapshot_block_num = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
         std::string query_str = "select * from \"" + db_iface->schema + "\"." + query.function + "(";
         bool        need_sep  = false;
-        if (query.limit_block_num) {
-            query_str += pg::sql_str(false, max_block_num);
+        if (query.has_block_snapshot) {
+            query_str += pg::sql_str(false, snapshot_block_num);
             need_sep = true;
         }
         auto add_args = [&](auto& args) {
@@ -75,8 +76,8 @@ struct pg_query_session : query_session {
             }
         };
         add_args(query.arg_types);
-        add_args(query.range_types);
-        add_args(query.range_types);
+        add_args(query.index_obj->range_types);
+        add_args(query.index_obj->range_types);
         auto max_results = abieos::read_raw<uint32_t>(query_bin);
         query_str += pg::sep(false) + pg::sql_str(false, std::min(max_results, query.max_results));
         query_str += ")";
@@ -126,7 +127,7 @@ struct wasm_ql_pg_plugin_impl {
 wasm_ql_pg_plugin::wasm_ql_pg_plugin()
     : my(std::make_shared<wasm_ql_pg_plugin_impl>()) {}
 
-wasm_ql_pg_plugin::~wasm_ql_pg_plugin() { ilog("wasm_ql_pg_plugin stopped"); }
+wasm_ql_pg_plugin::~wasm_ql_pg_plugin() {}
 
 void wasm_ql_pg_plugin::set_program_options(options_description& cli, options_description& cfg) {}
 
@@ -147,4 +148,4 @@ void wasm_ql_pg_plugin::plugin_initialize(const variables_map& options) {
 }
 
 void wasm_ql_pg_plugin::plugin_startup() {}
-void wasm_ql_pg_plugin::plugin_shutdown() {}
+void wasm_ql_pg_plugin::plugin_shutdown() { ilog("wasm_ql_pg_plugin stopped"); }

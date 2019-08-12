@@ -1,4 +1,4 @@
-from ubuntu:18.04
+from ubuntu:18.04 as builder
 
 workdir /root
 run apt-get update && apt-get install -y wget gnupg
@@ -70,9 +70,41 @@ run wget https://github.com/EOSIO/eosio.cdt/releases/download/v1.6.1/eosio.cdt_1
 run apt-get install -y ./eosio.cdt_1.6.1-1_amd64.deb
 
 workdir /root
-run git clone --recursive https://github.com/EOSIO/history-tools.git
+run mkdir /root/history-tools
+copy . /root/history-tools
 run mkdir /root/history-tools/build
 workdir /root/history-tools/build
 run cmake -GNinja -DCMAKE_CXX_COMPILER=clang++-8 -DCMAKE_C_COMPILER=clang-8 ..
 run bash -c "cd ../src && npm install node-fetch"
 run ninja
+run bash -c "cd ../demo-gui && npm i && npm run build"
+
+# Final image
+from ubuntu:18.04
+run apt-get update && apt-get install -y libssl1.0.0
+
+workdir /root
+run mkdir history-tools
+workdir /root/history-tools
+run mkdir build
+run mkdir src
+run mkdir -p demo-gui/dist
+workdir /root/history-tools/build
+
+copy --from=builder /usr/local/lib/libmozjs-64.so /usr/local/lib/
+copy --from=builder /root/history-tools/src/glue.js /root/history-tools/src/
+copy --from=builder /root/history-tools/src/query-config.json /root/history-tools/src/
+copy --from=builder /root/history-tools/build/combo-rocksdb /root/history-tools/build/
+copy --from=builder /root/history-tools/build/fill-rocksdb /root/history-tools/build/
+copy --from=builder /root/history-tools/build/wasm-ql-rocksdb /root/history-tools/build/
+copy --from=builder /root/history-tools/build/chain-server.wasm /root/history-tools/build/
+copy --from=builder /root/history-tools/build/legacy-server.wasm /root/history-tools/build/
+copy --from=builder /root/history-tools/build/token-server.wasm /root/history-tools/build/
+copy --from=builder /root/history-tools/demo-gui/dist/chain-client.wasm /root/history-tools/demo-gui/dist/
+copy --from=builder /root/history-tools/demo-gui/dist/client.bundle.js /root/history-tools/demo-gui/dist/
+copy --from=builder /root/history-tools/demo-gui/dist/index.html /root/history-tools/demo-gui/dist/
+copy --from=builder /root/history-tools/demo-gui/dist/token-client.wasm /root/history-tools/demo-gui/dist/
+
+env LD_LIBRARY_PATH=/usr/local/lib
+expose 80/tcp
+entrypoint ["./combo-rocksdb", "--wql-static-dir", "../demo-gui/dist/", "--wql-listen", "0.0.0.0:80"]

@@ -13,9 +13,9 @@ struct transfer {
 };
 
 void process(token_transfer_request& req, const eosio::database_status& status) {
-    using query_type = eosio::query_action_trace_executed_range_name_receiver_account_block_trans_action;
+    using query_type = eosio::query_action_trace_range_name_receiver_account_block_trans_action;
     auto s           = query_database(query_type{
-        .max_block = get_block_num(req.max_block, status),
+        .snapshot_block = get_block_num(req.snapshot_block, status),
         .first =
             {
                 .name           = "transfer"_n,
@@ -41,6 +41,8 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
     std::optional<query_type::key> last_key;
     eosio::for_each_query_result<eosio::action_trace>(s, [&](eosio::action_trace& at) {
         last_key = query_type::key::from_data(at);
+        if (at.transaction_status != eosio::transaction_status::executed)
+            return true;
 
         // todo: handle bad unpack
         auto unpacked = eosio::unpack<transfer>(at.action.data->pos(), at.action.data->remaining());
@@ -82,7 +84,7 @@ void process(token_transfer_request& req, const eosio::database_status& status) 
 
 void process(balances_for_multiple_accounts_request& req, const eosio::database_status& status) {
     auto s = query_database(eosio::query_contract_row_range_code_table_pk_scope{
-        .max_block = get_block_num(req.max_block, status),
+        .snapshot_block = get_block_num(req.snapshot_block, status),
         .first =
             {
                 .code        = req.code,
@@ -112,7 +114,7 @@ void process(balances_for_multiple_accounts_request& req, const eosio::database_
 
 void process(balances_for_multiple_tokens_request& req, const eosio::database_status& status) {
     auto s = query_database(eosio::query_contract_row_range_scope_table_pk_code{
-        .max_block = get_block_num(req.max_block, status),
+        .snapshot_block = get_block_num(req.snapshot_block, status),
         .first =
             {
                 .scope       = req.account,

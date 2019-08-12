@@ -211,10 +211,10 @@ async function dump_tapos(clientWasm, ref_block, expire_seconds) {
     console.log(JSON.stringify(reply, null, 4));
 }
 
-async function dump_accounts(clientWasm, max_block, first, last) {
+async function dump_accounts(clientWasm, snapshot_block, first, last) {
     do {
         const reply = await clientWasm.round_trip(['account', {
-            max_block,
+            snapshot_block,
             first: first,
             last: last,
             max_results: 100,
@@ -227,7 +227,7 @@ async function dump_accounts(clientWasm, max_block, first, last) {
 
 async function get_abi(clientWasm, names) {
     const reply = await clientWasm.round_trip(['abi', {
-        max_block: ["irreversible", 0],
+        snapshot_block: ["irreversible", 0],
         names,
     }]);
     console.log(JSON.stringify(reply, null, 4));
@@ -235,16 +235,16 @@ async function get_abi(clientWasm, names) {
 
 async function get_code(clientWasm, names) {
     const reply = await clientWasm.round_trip(['code', {
-        max_block: ["irreversible", 0],
+        snapshot_block: ["irreversible", 0],
         names,
     }]);
     console.log(JSON.stringify(reply, null, 4));
 }
 
-async function dump_eos_balances(max_block, clientWasm, first_account, last_account) {
+async function dump_eos_balances(snapshot_block, clientWasm, first_account, last_account) {
     do {
         const reply = await clientWasm.round_trip(['bal.mult.acc', {
-            max_block,
+            snapshot_block,
             code: 'eosio.token',
             sym: 'EOS',
             first_account: first_account,
@@ -257,10 +257,10 @@ async function dump_eos_balances(max_block, clientWasm, first_account, last_acco
     } while (first_account);
 }
 
-async function dump_tokens(clientWasm, account, max_block, first_key, last_key) {
+async function dump_tokens(clientWasm, account, snapshot_block, first_key, last_key) {
     do {
         const reply = await clientWasm.round_trip(['bal.mult.tok', {
-            max_block,
+            snapshot_block,
             account,
             first_key,
             last_key,
@@ -291,7 +291,7 @@ async function dump_transfers(clientWasm) {
     let i = 0;
     while (first_key) {
         const reply = await clientWasm.round_trip(['transfer', {
-            max_block: ["irreversible", 0],
+            snapshot_block: ["irreversible", 0],
             first_key,
             last_key,
             max_results: 10,
@@ -320,7 +320,7 @@ async function dump_transfers(clientWasm) {
         fs.writeFileSync('token_request_schema.json', JSON.stringify(tokenWasm.describe_query_request(), null, 4));
         fs.writeFileSync('token_response_schema.json', JSON.stringify(tokenWasm.describe_query_response(), null, 4));
 
-        await dump_block_info(chainWasm, ["irreversible", 0], ["irreversible", 1]);
+        await dump_block_info(chainWasm, ["head", 0], ["head", 1]);
         console.log();
         await dump_tapos(chainWasm, ["head", -3], 0);
         console.log();
@@ -328,7 +328,7 @@ async function dump_transfers(clientWasm) {
         console.log();
         await get_abi(chainWasm, ['eosio', 'eosio.token', 'eosio.null', 'eosio.nope']);
         console.log();
-        await get_code(chainWasm, ['eosio', 'eosio.token', 'eosio.null', 'eosio.nope']);
+        await get_code(chainWasm, ['eosio.null']);
         console.log();
         await dump_eos_balances(["head", 0], tokenWasm, 'eosio', 'eosio.zzzzzzj');
         console.log();

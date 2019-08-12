@@ -75,9 +75,9 @@ struct callbacks {
         // todo: verify cb_alloc isn't in imports
         auto result = backend.get_context().execute_func_table(
             this, eosio::vm::interpret_visitor(backend.get_context()), cb_alloc, cb_alloc_data, size);
-        if (!result || !std::holds_alternative<eosio::vm::i32_const_t>(*result))
+        if (!result || !result->is_a<eosio::vm::i32_const_t>())
             throw std::runtime_error("cb_alloc returned incorrect type");
-        char* begin = allocator.get_base_ptr<char>() + std::get<eosio::vm::i32_const_t>(*result).data.ui;
+        char* begin = allocator.get_base_ptr<char>() + result->to_ui32();
         check_bounds(begin, begin + size);
         return begin;
     }
@@ -167,8 +167,7 @@ static void run_query(::state& state, abieos::name wasm_name) {
     backend.set_wasm_allocator(&state.wa);
 
     rhf_t::resolve(backend.get_module());
-    backend.reset();
-    // todo: wasm start function. Not created by CDT, but may be created by other tooling.
+    backend.initialize(&cb);
     backend(&cb, "env", "initialize");
     backend(&cb, "env", "run_query");
 }

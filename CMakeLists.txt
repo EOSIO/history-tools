@@ -7,7 +7,9 @@ cmake_minimum_required (VERSION 3.10)
 project(history-tools VERSION 0.1 LANGUAGES CXX)
 
 cmake_policy(SET CMP0077 NEW)
-set(ENABLE_TESTS OFF)
+set(ENABLE_INSTALL OFF cache bool "")
+set(ENABLE_TOOLS OFF cache bool "")
+set(ENABLE_TESTS OFF cache bool "")
 add_subdirectory(external/eos-vm)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
@@ -118,6 +120,10 @@ function(add_app APP FLAGS LIBS)
             ${ROCKSDB_INCLUDE_DIR}
     )
     target_link_libraries(${APP} appbase fc eos-vm ${Boost_LIBRARIES} ${LIBS} -lpthread)
+    if(APPLE)
+    else()
+        target_link_libraries(${APP} -latomic)
+    endif()
     target_compile_options(${APP} PUBLIC -DAPP_NAME="${APP}" ${FLAGS})
 
     string(TOLOWER ${CMAKE_BUILD_TYPE} LOWERCASE_CMAKE_BUILD_TYPE)

@@ -30,12 +30,13 @@ static abstract_plugin& _wasm_ql_plugin = app().register_plugin<wasm_ql_plugin>(
 
 struct wasm_ql_plugin_impl : std::enable_shared_from_this<wasm_ql_plugin_impl> {
     bool                                   stopping         = false;
+    int                                    num_threads      = {};
     std::string                            endpoint_address = {};
     std::string                            endpoint_port    = {};
     std::shared_ptr<wasm_ql::shared_state> state            = {};
     std::shared_ptr<wasm_ql::http_server>  http_server      = {};
 
-    void start_http() { http_server = wasm_ql::http_server::create(state, endpoint_address, endpoint_port); }
+    void start_http() { http_server = wasm_ql::http_server::create(num_threads, state, endpoint_address, endpoint_port); }
 
     void shutdown() {
         stopping = true;
@@ -54,6 +55,7 @@ wasm_ql_plugin::~wasm_ql_plugin() {
 
 void wasm_ql_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op = cfg.add_options();
+    op("wql-threads", bpo::value<int>()->default_value(8), "Number of threads to process requests");
     op("wql-listen", bpo::value<std::string>()->default_value("localhost:8880"), "Endpoint to listen on");
     op("wql-allow-origin", bpo::value<std::string>()->default_value("*"), "Access-Control-Allow-Origin header. Use \"*\" to allow any.");
     op("wql-wasm-dir", bpo::value<std::string>()->default_value("."), "Directory to fetch WASMs from");
@@ -69,6 +71,7 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
 
         my->state               = std::make_shared<wasm_ql::shared_state>();
         my->state->console      = options.count("wql-console");
+        my->num_threads         = options.at("wql-threads").as<int>();
         my->endpoint_port       = ip_port.substr(ip_port.find(':') + 1, ip_port.size());
         my->endpoint_address    = ip_port.substr(0, ip_port.find(':'));
         my->state->allow_origin = options.at("wql-allow-origin").as<std::string>();

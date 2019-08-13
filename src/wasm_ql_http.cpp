@@ -2,6 +2,7 @@
 
 #include "wasm_ql_http.hpp"
 
+#include <boost/asio/strand.hpp>
 #include <boost/beast.hpp>
 #include <boost/filesystem.hpp>
 
@@ -12,6 +13,7 @@ namespace asio  = boost::asio;
 namespace beast = boost::beast;
 namespace http  = beast::http;
 using tcp       = asio::ip::tcp;
+using beast::tcp_stream;
 
 using namespace std::literals;
 
@@ -75,8 +77,8 @@ static const char* get_content_type(const boost::filesystem::path& ext) {
         return "application/octet-stream";
 }
 
-static void handle_request(
-    wasm_ql::thread_state& thread_state, tcp::socket& socket, http::request<http::vector_body<char>> req, beast::error_code& ec) {
+static void
+handle_request(wasm_ql::thread_state& thread_state, tcp_stream& socket, http::request<http::vector_body<char>> req, beast::error_code& ec) {
 
     auto const error = [&req](http::status status, beast::string_view why) {
         http::response<http::string_body> res{status, req.version()};
@@ -164,7 +166,7 @@ static void handle_request(
     return send(error(http::status::not_found, "The resource '" + req.target().to_string() + "' was not found.\n"));
 } // handle_request
 
-static void accepted(const std::shared_ptr<wasm_ql::shared_state>& shared_state, tcp::socket socket) {
+static void accepted(const std::shared_ptr<const wasm_ql::shared_state>& shared_state, tcp_stream socket) {
     beast::error_code     ec;
     wasm_ql::thread_state thread_state{shared_state};
 
@@ -182,28 +184,35 @@ static void accepted(const std::shared_ptr<wasm_ql::shared_state>& shared_state,
             return fail(ec, "write");
         break; // disable keep-alive support for now
     }
-    socket.shutdown(tcp::socket::shutdown_send, ec);
+    // socket.shutdown(tcp::socket::shutdown_send, ec);
 }
 
 struct server_impl : http_server, std::enable_shared_from_this<server_impl> {
-    asio::io_service&              ioc;
-    std::shared_ptr<shared_state>  state    = {};
-    std::string                    address  = {};
-    std::string                    port     = {};
-    bool                           stopping = false;
-    std::unique_ptr<tcp::acceptor> acceptor = {};
+    int                                 num_threads;
+    asio::io_service                    ioc;
+    std::shared_ptr<const shared_state> state    = {};
+    std::string                         address  = {};
+    std::string                         port     = {};
+    std::vector<std::thread>            threads  = {};
+    std::unique_ptr<tcp::acceptor>      acceptor = {};
 
-    server_impl(asio::io_service& ioc, const std::shared_ptr<shared_state>& state, const std::string& address, const std::string& port)
-        : ioc{ioc}
+    server_impl(int num_threads, const std::shared_ptr<const shared_state>& state, const std::string& address, const std::string& port)
+        : num_threads{num_threads}
+        , ioc{num_threads}
         , state{state}
         , address{address}
         , port{port} {}
 
     virtual ~server_impl() {}
 
-    virtual void stop() override { stopping = true; }
+    virtual void stop() override {
+        ioc.stop();
+        for (auto& t : threads)
+            t.join();
+        threads.clear();
+    }
 
-    void listen() {
+    void start() {
         boost::system::error_code ec;
         auto                      check_ec = [&](const char* what) {
             if (!ec)
@@ -215,7 +224,7 @@ struct server_impl : http_server, std::enable_shared_from_this<server_impl> {
         ilog("listen on ${a}:${p}", ("a", address)("p", port));
         tcp::resolver resolver(ioc);
         auto          addr = resolver.resolve(tcp::resolver::query(tcp::v4(), address, port));
-        acceptor           = std::make_unique<tcp::acceptor>(ioc);
+        acceptor           = std::make_unique<tcp::acceptor>(boost::asio::make_strand(ioc));
         acceptor->open(addr->endpoint().protocol());
         int x = 1;
         setsockopt(acceptor->native_handle(), SOL_SOCKET, SO_REUSEPORT, &x, sizeof(x));
@@ -223,28 +232,32 @@ struct server_impl : http_server, std::enable_shared_from_this<server_impl> {
         acceptor->listen(1, ec);
         check_ec("listen");
         do_accept();
+
+        threads.reserve(num_threads);
+        for (int i = 0; i < num_threads; ++i)
+            threads.emplace_back([self = shared_from_this()] { self->ioc.run(); });
     }
 
     void do_accept() {
-        auto socket = std::make_shared<tcp::socket>(ioc);
-        acceptor->async_accept(*socket, [self = shared_from_this(), socket, this](auto ec) {
-            if (stopping)
+        acceptor->async_accept(boost::asio::make_strand(ioc), [self = shared_from_this()](auto ec, auto socket) {
+            if (self->ioc.stopped())
                 return;
             if (ec) {
                 if (ec == boost::system::errc::too_many_files_open)
-                    catch_and_log([&] { do_accept(); });
+                    catch_and_log([&] { self->do_accept(); });
                 return;
             }
-            catch_and_log([&] { accepted(state, std::move(*socket)); });
-            catch_and_log([&] { do_accept(); });
+            catch_and_log([&] { accepted(self->state, tcp_stream{std::move(socket)}); });
+            catch_and_log([&] { self->do_accept(); });
         });
     }
 }; // server_impl
 
-std::shared_ptr<http_server>
-http_server::create(const std::shared_ptr<shared_state>& state, const std::string& address, const std::string& port) {
-    auto server = std::make_shared<server_impl>(appbase::app().get_io_service(), state, address, port);
-    server->listen();
+std::shared_ptr<http_server> http_server::create(
+    int num_threads, const std::shared_ptr<const shared_state>& state, const std::string& address, const std::string& port) {
+    FC_ASSERT(num_threads > 0, "too few threads");
+    auto server = std::make_shared<server_impl>(num_threads, state, address, port);
+    server->start();
     return server;
 }
 

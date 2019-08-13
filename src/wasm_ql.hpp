@@ -16,13 +16,13 @@ struct shared_state {
 };
 
 struct thread_state {
-    std::shared_ptr<shared_state>    shared          = {};
-    eosio::vm::wasm_allocator        wa              = {};
-    std::vector<char>                database_status = {};
-    abieos::input_buffer             request         = {}; // todo: rename
-    std::vector<char>                reply           = {}; // todo: rename
-    std::unique_ptr<::query_session> query_session   = {};
-    state_history::fill_status       fill_status     = {};
+    std::shared_ptr<const shared_state> shared          = {};
+    eosio::vm::wasm_allocator           wa              = {};
+    std::vector<char>                   database_status = {};
+    abieos::input_buffer                request         = {}; // todo: rename
+    std::vector<char>                   reply           = {}; // todo: rename
+    std::unique_ptr<::query_session>    query_session   = {};
+    state_history::fill_status          fill_status     = {};
 };
 
 void                     register_callbacks();

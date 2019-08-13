@@ -1,5 +1,6 @@
 // copyright defined in LICENSE.txt
 
+#pragma once
 #include "wasm_ql_plugin.hpp"
 
 #include <eosio/vm/backend.hpp>

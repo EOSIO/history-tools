@@ -10,7 +10,7 @@ cmake_policy(SET CMP0077 NEW)
 set(ENABLE_INSTALL OFF cache bool "")
 set(ENABLE_TOOLS OFF cache bool "")
 set(ENABLE_TESTS OFF cache bool "")
-add_subdirectory(external/eos-vm)
+add_subdirectory(external/eos-vm EXCLUDE_FROM_ALL)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
@@ -31,13 +31,13 @@ add_definitions(-DBOOST_ASIO_DISABLE_STD_EXPERIMENTAL_STRING_VIEW)
 
 find_package(eosio.cdt)
 find_package(PostgreSQL COMPONENTS Libraries)
-find_package(Boost 1.66 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
+find_package(Boost 1.70 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
 find_package(PkgConfig REQUIRED)
 
 if (PostgreSQL_INCLUDE_DIR)
   set(SKIP_PQXX_SHARED ON)
   set(SKIP_BUILD_TEST ON)
-  add_subdirectory(external/libpqxx)
+  add_subdirectory(external/libpqxx EXCLUDE_FROM_ALL)
   set(PQXX_LIBRARIES pqxx_static)
 else()
   set(PQXX_LIBRARIES "")
@@ -93,8 +93,8 @@ set(WITH_TESTS OFF)
 
 add_compile_options(-Wno-error=shadow)
 
-add_subdirectory(external/appbase)
-add_subdirectory(external/fc)
+add_subdirectory(external/appbase EXCLUDE_FROM_ALL)
+add_subdirectory(external/fc EXCLUDE_FROM_ALL)
 add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
 
 set(FOUND_ROCKSDB ON)
@@ -119,7 +119,8 @@ function(add_app APP FLAGS LIBS)
             ${JS_INCLUDE_DIRS}
             ${ROCKSDB_INCLUDE_DIR}
     )
-    target_link_libraries(${APP} appbase fc eos-vm ${Boost_LIBRARIES} ${LIBS} -lpthread)
+    target_link_libraries(${APP} appbase fc eos-vm Boost::date_time Boost::filesystem Boost::chrono Boost::system Boost::iostreams Boost::program_options Boost::unit_test_framework ${LIBS} -lpthread)
+
     if(APPLE)
     else()
         target_link_libraries(${APP} -latomic)

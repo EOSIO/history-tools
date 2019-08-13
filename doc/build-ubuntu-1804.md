@@ -50,14 +50,14 @@ update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 100
 update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-8 100
 ```
 
-Build and install Boost 1.69. Adjust `-j10` to match your machine. Bad things will
+Build and install Boost 1.70. Adjust `-j10` to match your machine. Bad things will
 happen if you don't have enough RAM for the number of cores you use:
 
 ```
 cd ~
-wget https://dl.bintray.com/boostorg/release/1.69.0/source/boost_1_69_0.tar.gz
-tar xf boost_1_69_0.tar.gz
-cd boost_1_69_0
+wget https://dl.bintray.com/boostorg/release/1.70.0/source/boost_1_70_0.tar.gz
+tar xf boost_1_70_0.tar.gz
+cd boost_1_70_0
 ./bootstrap.sh
 ./b2 toolset=clang -j10 install
 ```

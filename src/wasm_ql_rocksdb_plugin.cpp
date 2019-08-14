@@ -79,8 +79,8 @@ struct rocksdb_query_session : query_session {
         // todo: check for false positives in secondary indexes
         // todo: check if index is populated in rdb
         // todo: clamp snapshot_block_num to first?
-        auto it = db_iface->rocksdb_inst->query_config.query_map.find(query_name);
-        if (it == db_iface->rocksdb_inst->query_config.query_map.end())
+        auto it = db_iface->rocksdb_inst->query_config->query_map.find(query_name);
+        if (it == db_iface->rocksdb_inst->query_config->query_map.end())
             throw std::runtime_error("query_database: unknown query: " + (std::string)query_name);
         auto& query = *it->second;
         if (!query.arg_types.empty())
@@ -153,10 +153,6 @@ struct rocksdb_query_session : query_session {
 }; // rocksdb_query_session
 
 std::unique_ptr<query_session> rocksdb_database_interface::create_query_session() {
-    if (rocksdb_inst)
-        rocksdb_inst->database.db->TryCatchUpWithPrimary();
-    else
-        rocksdb_inst = app().find_plugin<rocksdb_plugin>()->get_rocksdb_inst_ro();
     auto session = std::make_unique<rocksdb_query_session>(shared_from_this());
     return session;
 }
@@ -174,8 +170,10 @@ void wasm_ql_rocksdb_plugin::set_program_options(options_description& cli, optio
 
 void wasm_ql_rocksdb_plugin::plugin_initialize(const variables_map& options) {
     try {
-        if (!my->interface)
-            my->interface = std::make_shared<rocksdb_database_interface>();
+        if (!my->interface) {
+            my->interface               = std::make_shared<rocksdb_database_interface>();
+            my->interface->rocksdb_inst = app().find_plugin<rocksdb_plugin>()->get_rocksdb_inst(true);
+        }
         app().find_plugin<wasm_ql_plugin>()->set_database(my->interface);
     }
     FC_LOG_AND_RETHROW()

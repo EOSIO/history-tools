@@ -94,7 +94,8 @@ handle_request(wasm_ql::thread_state& thread_state, tcp_stream& socket, http::re
         http::response<http::vector_body<char>> res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, content_type);
-        res.set(http::field::access_control_allow_origin, thread_state.shared->allow_origin);
+        if (!thread_state.shared->allow_origin.empty())
+            res.set(http::field::access_control_allow_origin, thread_state.shared->allow_origin);
         // res.keep_alive(req.keep_alive());
         res.body() = std::move(reply);
         res.prepare_payload();
@@ -109,7 +110,8 @@ handle_request(wasm_ql::thread_state& thread_state, tcp_stream& socket, http::re
                                             std::make_tuple(http::status::ok, req.version())};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, get_content_type(path.extension()));
-        res.set(http::field::access_control_allow_origin, thread_state.shared->allow_origin);
+        if (!thread_state.shared->allow_origin.empty())
+            res.set(http::field::access_control_allow_origin, thread_state.shared->allow_origin);
         res.content_length(size);
         // res.keep_alive(req.keep_alive());
         res.prepare_payload();

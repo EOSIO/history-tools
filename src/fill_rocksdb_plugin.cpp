@@ -78,7 +78,7 @@ struct fill_rocksdb_plugin_impl : std::enable_shared_from_this<fill_rocksdb_plug
 struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_session> {
     fill_rocksdb_plugin_impl*                  my = nullptr;
     std::shared_ptr<fill_rocksdb_config>       config;
-    std::shared_ptr<::rocksdb_inst>            rocksdb_inst = app().find_plugin<rocksdb_plugin>()->get_rocksdb_inst_rw();
+    std::shared_ptr<::rocksdb_inst>            rocksdb_inst = app().find_plugin<rocksdb_plugin>()->get_rocksdb_inst(false);
     rocksdb::WriteBatch                        active_content_batch;
     rocksdb::WriteBatch                        active_index_batch;
     std::shared_ptr<state_history::connection> connection;
@@ -164,7 +164,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             if (!((++num_ti_keys) % 1'000'000))
                 ilog("found ${n} index entries so far, ${i} for this index", ("n", num_ti_keys)("i", last_num_keys));
 
-            auto& c        = rocksdb_inst->query_config;
+            auto& c        = *rocksdb_inst->query_config;
             auto  index_it = c.index_name_map.find(index);
             if (index_it == c.index_name_map.end())
                 throw std::runtime_error("found unknown index '" + (std::string)index + "'");
@@ -242,7 +242,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     }
 
     const kv::table& get_kv_table(const std::string& name) {
-        auto& c  = rocksdb_inst->query_config;
+        auto& c  = *rocksdb_inst->query_config;
         auto  it = c.table_map.find(name);
         if (it == c.table_map.end())
             throw std::runtime_error("table \"" + name + "\" missing in query-config");
@@ -250,7 +250,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     }
 
     const kv::table& get_kv_table(abieos::name name) {
-        auto& c  = rocksdb_inst->query_config;
+        auto& c  = *rocksdb_inst->query_config;
         auto  it = c.table_name_map.find(name);
         if (it == c.table_name_map.end())
             throw std::runtime_error("table \"" + (std::string)name + "\" missing in query-config");
@@ -316,7 +316,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         fill_fields(*action_trace_table, "", abieos::abi_field{"error_code", &get_type("uint64")});
 
         if (config->enable_trim) {
-            auto& c = rocksdb_inst->query_config;
+            auto& c = *rocksdb_inst->query_config;
             for (auto& table : c.tables) {
                 if (table.is_delta && !table.trim_index_obj)
                     throw std::runtime_error("delta table " + table.name + " is missing a trim index");

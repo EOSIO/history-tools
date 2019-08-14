@@ -1,4 +1,6 @@
-# EOSIO History Tools
+# EOSIO History Tools ![EOSIO Alpha](https://img.shields.io/badge/EOSIO-Alpha-blue.svg)
+
+[![Software License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](./LICENSE)
 
 The history tools repo has these components:
 

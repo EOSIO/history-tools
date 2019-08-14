@@ -56,7 +56,7 @@ struct pg_query_session : query_session {
         auto it = db_iface->config.query_map.find(query_name);
         if (it == db_iface->config.query_map.end())
             throw std::runtime_error("query_database: unknown query: " + (std::string)query_name);
-        pg::query& query = *it->second;
+        const pg::query& query = *it->second;
 
         uint32_t snapshot_block_num = 0;
         if (query.has_block_snapshot)

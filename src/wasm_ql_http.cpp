@@ -39,6 +39,34 @@ using namespace std::literals;
 
 namespace wasm_ql {
 
+class thread_state_cache {
+  private:
+    std::mutex                                   mutex;
+    std::shared_ptr<const wasm_ql::shared_state> shared_state;
+    std::vector<std::unique_ptr<thread_state>>   states;
+
+  public:
+    thread_state_cache(const std::shared_ptr<const wasm_ql::shared_state>& shared_state)
+        : shared_state(shared_state) {}
+
+    std::unique_ptr<thread_state> get_state() {
+        std::lock_guard<std::mutex> lock{mutex};
+        if (states.empty()) {
+            auto result    = std::make_unique<thread_state>();
+            result->shared = shared_state;
+            return result;
+        }
+        auto result = std::move(states.back());
+        states.pop_back();
+        return result;
+    }
+
+    void store_state(std::unique_ptr<thread_state> state) {
+        std::lock_guard<std::mutex> lock{mutex};
+        states.push_back(std::move(state));
+    }
+};
+
 // Report a failure
 static void fail(beast::error_code ec, const char* what) { elog("${w}: ${s}", ("w", what)("s", ec.message())); }
 
@@ -128,7 +156,7 @@ std::string path_cat(beast::string_view base, beast::string_view path) {
 template <class Body, class Allocator, class Send>
 void handle_request(
     beast::string_view doc_root, const std::shared_ptr<const shared_state>& shared_state,
-    http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send) {
+    const std::shared_ptr<thread_state_cache>& state_cache, http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send) {
     // Returns a bad request response
     const auto bad_request = [&req](beast::string_view why) {
         http::response<http::string_body> res{http::status::bad_request, req.version()};
@@ -178,13 +206,17 @@ void handle_request(
         if (req.target() == "/wasmql/v1/query") {
             if (req.method() != http::verb::post)
                 return send(error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
-            wasm_ql::thread_state thread_state{shared_state};
-            return send(ok(query(thread_state, req.body()), "application/octet-stream"));
+            auto thread_state = state_cache->get_state();
+            send(ok(query(*thread_state, req.body()), "application/octet-stream"));
+            state_cache->store_state(std::move(thread_state));
+            return;
         } else if (req.target().starts_with("/v1/")) {
             if (req.method() != http::verb::post)
                 return send(error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
-            wasm_ql::thread_state thread_state{shared_state};
-            return send(ok(legacy_query(thread_state, req.target().to_string(), req.body()), "application/octet-stream"));
+            auto thread_state = state_cache->get_state();
+            send(ok(legacy_query(*thread_state, req.target().to_string(), req.body()), "application/octet-stream"));
+            state_cache->store_state(std::move(thread_state));
+            return;
         } else if (doc_root.empty()) {
             return send(error(http::status::not_found, "The resource '" + req.target().to_string() + "' was not found.\n"));
         } else {
@@ -315,6 +347,7 @@ class http_session : public std::enable_shared_from_this<http_session> {
     beast::flat_buffer                  buffer_;
     std::shared_ptr<const std::string>  doc_root_;
     std::shared_ptr<const shared_state> shared_state_;
+    std::shared_ptr<thread_state_cache> state_cache_;
     queue                               queue_;
 
     // The parser is stored in an optional container so we can
@@ -324,10 +357,12 @@ class http_session : public std::enable_shared_from_this<http_session> {
   public:
     // Take ownership of the socket
     http_session(
-        tcp::socket&& socket, const std::shared_ptr<const std::string>& doc_root, const std::shared_ptr<const shared_state>& shared_state)
+        tcp::socket&& socket, const std::shared_ptr<const std::string>& doc_root, const std::shared_ptr<const shared_state>& shared_state,
+        const std::shared_ptr<thread_state_cache>& state_cache)
         : stream_(std::move(socket))
         , doc_root_(doc_root)
         , shared_state_(shared_state)
+        , state_cache_(state_cache)
         , queue_(*this) {}
 
     // Start the session
@@ -360,7 +395,7 @@ class http_session : public std::enable_shared_from_this<http_session> {
             return fail(ec, "read");
 
         // Send the response
-        handle_request(*doc_root_, shared_state_, parser_->release(), queue_);
+        handle_request(*doc_root_, shared_state_, state_cache_, parser_->release(), queue_);
 
         // If we aren't at the queue limit, try to pipeline another request
         if (!queue_.is_full())
@@ -401,6 +436,7 @@ class listener : public std::enable_shared_from_this<listener> {
     tcp::acceptor                       acceptor_;
     std::shared_ptr<const std::string>  doc_root_;
     std::shared_ptr<const shared_state> shared_state_;
+    std::shared_ptr<thread_state_cache> state_cache_;
 
   public:
     listener(
@@ -409,7 +445,9 @@ class listener : public std::enable_shared_from_this<listener> {
         : ioc_(ioc)
         , acceptor_(net::make_strand(ioc))
         , doc_root_(doc_root)
-        , shared_state_(shared_state) {
+        , shared_state_(shared_state)
+        , state_cache_(std::make_shared<thread_state_cache>(shared_state_)) {
+
         beast::error_code ec;
 
         // Open the acceptor
@@ -455,7 +493,7 @@ class listener : public std::enable_shared_from_this<listener> {
             fail(ec, "accept");
         } else {
             // Create the http session and run it
-            std::make_shared<http_session>(std::move(socket), doc_root_, shared_state_)->run();
+            std::make_shared<http_session>(std::move(socket), doc_root_, shared_state_, state_cache_)->run();
         }
 
         // Accept another connection

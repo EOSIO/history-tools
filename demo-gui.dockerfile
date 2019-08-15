@@ -35,9 +35,9 @@ run update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 100
 run update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-8 100
 
 workdir /root
-run wget https://dl.bintray.com/boostorg/release/1.69.0/source/boost_1_69_0.tar.gz
-run tar xf boost_1_69_0.tar.gz
-workdir /root/boost_1_69_0
+run wget https://dl.bintray.com/boostorg/release/1.70.0/source/boost_1_70_0.tar.gz
+run tar xf boost_1_70_0.tar.gz
+workdir /root/boost_1_70_0
 run ./bootstrap.sh
 run ./b2 toolset=clang -j10 install
 
@@ -48,18 +48,6 @@ workdir /root/cmake-3.14.5
 run ./bootstrap --parallel=10
 run make -j10
 run make -j10 install
-
-workdir /root
-run wget https://archive.mozilla.org/pub/firefox/releases/64.0/source/firefox-64.0.source.tar.xz
-run tar xf firefox-64.0.source.tar.xz
-workdir /root/firefox-64.0/js/src/
-run autoconf2.13
-
-run mkdir build_REL.OBJ
-workdir /root/firefox-64.0/js/src/build_REL.OBJ
-run SHELL=/bin/bash ../configure --disable-debug --enable-optimize --disable-jemalloc --disable-replace-malloc
-run SHELL=/bin/bash make -j10
-run SHELL=/bin/bash make install
 
 workdir /root
 run wget https://github.com/EOSIO/eos/releases/download/v1.8.1/eosio_1.8.1-1-ubuntu-18.04_amd64.deb
@@ -91,8 +79,6 @@ run mkdir src
 run mkdir -p demo-gui/dist
 workdir /root/history-tools/build
 
-copy --from=builder /usr/local/lib/libmozjs-64.so /usr/local/lib/
-copy --from=builder /root/history-tools/src/glue.js /root/history-tools/src/
 copy --from=builder /root/history-tools/src/query-config.json /root/history-tools/src/
 copy --from=builder /root/history-tools/build/combo-rocksdb /root/history-tools/build/
 copy --from=builder /root/history-tools/build/fill-rocksdb /root/history-tools/build/

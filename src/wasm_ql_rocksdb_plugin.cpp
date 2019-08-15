@@ -54,13 +54,17 @@ struct rocksdb_query_session : query_session {
         return {};
     }
 
-    void append_fields(std::vector<char>& dest, abieos::input_buffer src, const std::vector<kv::key>& keys, bool xform_key) {
+    void append_fields(
+        std::vector<char>& dest, abieos::input_buffer src, const std::vector<kv::key>& keys,
+        std::vector<std::optional<uint32_t>>& positions, bool xform_key) {
+
         for (auto& key : keys) {
-            if (!key.field->byte_position)
+            auto pos = positions.at(key.field->field_index);
+            if (!pos)
                 throw std::runtime_error("key " + key.name + " has unknown position");
-            if (*key.field->byte_position > src.end - src.pos)
+            if (*pos > src.end - src.pos)
                 throw std::runtime_error("key position is out of range");
-            abieos::input_buffer key_pos{src.pos + *key.field->byte_position, src.end};
+            abieos::input_buffer key_pos{src.pos + *pos, src.end};
             if (xform_key)
                 key.field->type_obj->bin_to_key(dest, key_pos);
             else
@@ -75,8 +79,8 @@ struct rocksdb_query_session : query_session {
         // todo: check for false positives in secondary indexes
         // todo: check if index is populated in rdb
         // todo: clamp snapshot_block_num to first?
-        auto it = db_iface->rocksdb_inst->query_config.query_map.find(query_name);
-        if (it == db_iface->rocksdb_inst->query_config.query_map.end())
+        auto it = db_iface->rocksdb_inst->query_config->query_map.find(query_name);
+        if (it == db_iface->rocksdb_inst->query_config->query_map.end())
             throw std::runtime_error("query_database: unknown query: " + (std::string)query_name);
         auto& query = *it->second;
         if (!query.arg_types.empty())
@@ -111,10 +115,12 @@ struct rocksdb_query_session : query_session {
                 rows.emplace_back(delta_value.pos, delta_value.end);
                 if (query.join_table) {
                     auto join_key = kv::make_index_key(query.join_table->short_name, query.join_query_wasm_name);
-                    fill_positions(delta_value, query.table_obj->fields);
+                    std::vector<std::optional<uint32_t>> table_positions;
+                    kv::init_positions(table_positions, query.table_obj->fields.size());
+                    fill_positions(delta_value, query.table_obj->fields, table_positions);
                     bool found_join = false;
-                    if (keys_have_positions(query.join_key_values)) {
-                        append_fields(join_key, delta_value, query.join_key_values, true);
+                    if (keys_have_positions(query.join_key_values, table_positions)) {
+                        append_fields(join_key, delta_value, query.join_key_values, table_positions, true);
                         auto join_key_limit_block = join_key;
                         if (query.join_query->table_obj->is_delta)
                             kv::append_index_suffix(join_key_limit_block, snapshot_block_num);
@@ -123,8 +129,10 @@ struct rocksdb_query_session : query_session {
                             found_join            = true;
                             auto join_delta_value = *rdb::get_raw(
                                 *it4, extract_pk_from_index(join_index_value, *query.join_table, query.join_table->keys), true);
-                            fill_positions(join_delta_value, query.join_table->fields);
-                            append_fields(row, join_delta_value, query.fields_from_join, false);
+                            std::vector<std::optional<uint32_t>> join_positions;
+                            kv::init_positions(join_positions, query.join_table->fields.size());
+                            fill_positions(join_delta_value, query.join_table->fields, join_positions);
+                            append_fields(row, join_delta_value, query.fields_from_join, join_positions, false);
                             return false;
                         });
                     }
@@ -145,10 +153,6 @@ struct rocksdb_query_session : query_session {
 }; // rocksdb_query_session
 
 std::unique_ptr<query_session> rocksdb_database_interface::create_query_session() {
-    if (rocksdb_inst)
-        rocksdb_inst->database.db->TryCatchUpWithPrimary();
-    else
-        rocksdb_inst = app().find_plugin<rocksdb_plugin>()->get_rocksdb_inst_ro();
     auto session = std::make_unique<rocksdb_query_session>(shared_from_this());
     return session;
 }
@@ -166,8 +170,10 @@ void wasm_ql_rocksdb_plugin::set_program_options(options_description& cli, optio
 
 void wasm_ql_rocksdb_plugin::plugin_initialize(const variables_map& options) {
     try {
-        if (!my->interface)
-            my->interface = std::make_shared<rocksdb_database_interface>();
+        if (!my->interface) {
+            my->interface               = std::make_shared<rocksdb_database_interface>();
+            my->interface->rocksdb_inst = app().find_plugin<rocksdb_plugin>()->get_rocksdb_inst(true);
+        }
         app().find_plugin<wasm_ql_plugin>()->set_database(my->interface);
     }
     FC_LOG_AND_RETHROW()

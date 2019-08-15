@@ -27,13 +27,13 @@ constexpr void for_each_field(field<Defs>*, F f) {
 
 template <typename Defs>
 struct key {
-    std::string           name           = {};
-    std::string           src_name       = {};
-    std::string           new_name       = {};
-    std::string           type           = {};
-    std::string           expression     = {};
-    std::string           arg_expression = {};
-    typename Defs::field* field          = {};
+    std::string                 name           = {};
+    std::string                 src_name       = {};
+    std::string                 new_name       = {};
+    std::string                 type           = {};
+    std::string                 expression     = {};
+    std::string                 arg_expression = {};
+    const typename Defs::field* field          = {};
 };
 
 template <typename Defs, typename F>
@@ -48,16 +48,16 @@ constexpr void for_each_field(key<Defs>*, F f) {
 
 template <typename Defs>
 struct table {
-    std::string                                  name           = {};
-    abieos::name                                 short_name     = {};
-    std::vector<typename Defs::field>            fields         = {};
-    bool                                         is_delta       = {};
-    std::string                                  trim_index     = {};
-    std::vector<typename Defs::key>              keys           = {};
-    std::map<std::string, typename Defs::field*> field_map      = {};
-    std::vector<typename Defs::index*>           indexes        = {};
-    std::map<std::string, typename Defs::index*> index_map      = {};
-    typename Defs::index*                        trim_index_obj = {};
+    std::string                                        name           = {};
+    abieos::name                                       short_name     = {};
+    std::vector<typename Defs::field>                  fields         = {};
+    bool                                               is_delta       = {};
+    std::string                                        trim_index     = {};
+    std::vector<typename Defs::key>                    keys           = {};
+    std::map<std::string, const typename Defs::field*> field_map      = {};
+    std::vector<const typename Defs::index*>           indexes        = {};
+    std::map<std::string, const typename Defs::index*> index_map      = {};
+    const typename Defs::index*                        trim_index_obj = {};
 };
 
 template <typename Defs, typename F>
@@ -79,7 +79,7 @@ struct index {
     bool                             only_for_trim = {};
     std::vector<typename Defs::key>  sort_keys     = {};
     std::vector<typename Defs::type> range_types   = {};
-    typename Defs::table*            table_obj     = {};
+    const typename Defs::table*      table_obj     = {};
 };
 
 template <typename Defs, typename F>
@@ -106,10 +106,10 @@ struct query {
     std::vector<typename Defs::key>   fields_from_join     = {};
     std::vector<typename Defs::type>  arg_types            = {};
     std::vector<typename Defs::field> result_fields        = {};
-    typename Defs::index*             index_obj            = {};
-    typename Defs::table*             table_obj            = {};
-    typename Defs::table*             join_table           = {};
-    query*                            join_query           = {};
+    const typename Defs::index*       index_obj            = {};
+    const typename Defs::table*       table_obj            = {};
+    const typename Defs::table*       join_table           = {};
+    const query*                      join_query           = {};
 };
 
 template <typename Defs, typename F>
@@ -148,14 +148,14 @@ void set_join_key_fields(const table<Defs>& tab, std::vector<Key>& keys) {
 
 template <typename Defs>
 struct config {
-    std::vector<typename Defs::table>             tables         = {};
-    std::vector<typename Defs::index>             indexes        = {};
-    std::vector<typename Defs::query>             queries        = {};
-    std::map<std::string, typename Defs::table*>  table_map      = {};
-    std::map<abieos::name, typename Defs::table*> table_name_map = {};
-    std::map<std::string, typename Defs::index*>  index_map      = {};
-    std::map<abieos::name, typename Defs::index*> index_name_map = {};
-    std::map<abieos::name, typename Defs::query*> query_map      = {};
+    std::vector<typename Defs::table>                   tables         = {};
+    std::vector<typename Defs::index>                   indexes        = {};
+    std::vector<typename Defs::query>                   queries        = {};
+    std::map<std::string, const typename Defs::table*>  table_map      = {};
+    std::map<abieos::name, const typename Defs::table*> table_name_map = {};
+    std::map<std::string, const typename Defs::index*>  index_map      = {};
+    std::map<abieos::name, const typename Defs::index*> index_name_map = {};
+    std::map<abieos::name, const typename Defs::query*> query_map      = {};
 
     template <typename M>
     void prepare(const M& type_map) {
@@ -200,7 +200,7 @@ struct config {
             auto it = table_map.find(index.table);
             if (it == table_map.end())
                 throw std::runtime_error("index " + (std::string)index.short_name + ": unknown table: " + index.table);
-            auto& table     = *it->second;
+            auto& table     = const_cast<typename Defs::table&>(*it->second);
             index.table_obj = &table;
             table.indexes.push_back(&index);
             if (table.index_map.find(index.index) != table.index_map.end())

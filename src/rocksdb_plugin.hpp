@@ -7,11 +7,11 @@
 #include "state_history_rocksdb.hpp"
 
 struct rocksdb_inst {
-    state_history::rdb::database database;
-    state_history::kv::config    query_config{};
+    state_history::rdb::database                     database;
+    std::unique_ptr<const state_history::kv::config> query_config{};
 
-    rocksdb_inst(const char* db_path, const char* ro_path, std::optional<uint32_t> threads, std::optional<uint32_t> max_open_files)
-        : database{db_path, ro_path, threads, max_open_files} {}
+    rocksdb_inst(const char* db_path, std::optional<uint32_t> threads, std::optional<uint32_t> max_open_files, bool fast_reads)
+        : database{db_path, threads, max_open_files, fast_reads} {}
 };
 
 class rocksdb_plugin : public appbase::plugin<rocksdb_plugin> {
@@ -26,8 +26,7 @@ class rocksdb_plugin : public appbase::plugin<rocksdb_plugin> {
     void         plugin_startup();
     void         plugin_shutdown();
 
-    std::shared_ptr<rocksdb_inst> get_rocksdb_inst_rw();
-    std::shared_ptr<rocksdb_inst> get_rocksdb_inst_ro();
+    std::shared_ptr<rocksdb_inst> get_rocksdb_inst(bool fast_reads);
 
   private:
     std::shared_ptr<struct rocksdb_plugin_impl> my;

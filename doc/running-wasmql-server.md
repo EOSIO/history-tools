@@ -44,9 +44,12 @@ Options:
 
 | RocksDB wasm-ql       | PostgreSQL wasm-ql        | Default               | Description |
 |---------------------  |-------------------------- |--------------------   |-------------|
+| --wql-threads         | --wql-threads             | 8                     | Number of threads to process requests |
 | --wql-listen          | --wql-listen              | localhost:8880        | Endpoint to listen for incoming queries |
+| --wql-allow-origin    | --wql-allow-origin        |                       | Access-Control-Allow-Origin header. Use "*" to allow any. |
 | --wql-wasm-dir        | --wql-wasm-dir            | .                     | Directory to fetch WASMs from |
+| --wql-static-dir      | --wql-static-dir          | (disabled)            | Directory to serve static files from |
+| --wql-console         | --wql-console             | (disabled)            | Show console output |
 |                       | --pg-schema               | chain                 | Schema to use |
 | --rdb-database        |                           |                       | Database path |
-| --rdb-secondary       |                           |                       | Path for secondary database instance. This database automatically tails the primary database. |
 | --query-config        | --query-config            |                       | Query configuration file |

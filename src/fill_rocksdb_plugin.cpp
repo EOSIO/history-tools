@@ -40,7 +40,7 @@ struct rocksdb_field {
 
 struct rocksdb_table {
     std::string                                 name      = {};
-    kv::table*                                  kv_table  = {};
+    const kv::table*                            kv_table  = {};
     const abieos::abi_type*                     abi_type  = {};
     std::vector<std::unique_ptr<rocksdb_field>> fields    = {};
     std::map<std::string, rocksdb_field*>       field_map = {};
@@ -78,7 +78,7 @@ struct fill_rocksdb_plugin_impl : std::enable_shared_from_this<fill_rocksdb_plug
 struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_session> {
     fill_rocksdb_plugin_impl*                  my = nullptr;
     std::shared_ptr<fill_rocksdb_config>       config;
-    std::shared_ptr<::rocksdb_inst>            rocksdb_inst = app().find_plugin<rocksdb_plugin>()->get_rocksdb_inst_rw();
+    std::shared_ptr<::rocksdb_inst>            rocksdb_inst = app().find_plugin<rocksdb_plugin>()->get_rocksdb_inst(false);
     rocksdb::WriteBatch                        active_content_batch;
     rocksdb::WriteBatch                        active_index_batch;
     std::shared_ptr<state_history::connection> connection;
@@ -164,7 +164,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             if (!((++num_ti_keys) % 1'000'000))
                 ilog("found ${n} index entries so far, ${i} for this index", ("n", num_ti_keys)("i", last_num_keys));
 
-            auto& c        = rocksdb_inst->query_config;
+            auto& c        = *rocksdb_inst->query_config;
             auto  index_it = c.index_name_map.find(index);
             if (index_it == c.index_name_map.end())
                 throw std::runtime_error("found unknown index '" + (std::string)index + "'");
@@ -241,16 +241,16 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         return table_it->second;
     }
 
-    kv::table& get_kv_table(const std::string& name) {
-        auto& c  = rocksdb_inst->query_config;
+    const kv::table& get_kv_table(const std::string& name) {
+        auto& c  = *rocksdb_inst->query_config;
         auto  it = c.table_map.find(name);
         if (it == c.table_map.end())
             throw std::runtime_error("table \"" + name + "\" missing in query-config");
         return *it->second;
     }
 
-    kv::table& get_kv_table(abieos::name name) {
-        auto& c  = rocksdb_inst->query_config;
+    const kv::table& get_kv_table(abieos::name name) {
+        auto& c  = *rocksdb_inst->query_config;
         auto  it = c.table_name_map.find(name);
         if (it == c.table_name_map.end())
             throw std::runtime_error("table \"" + (std::string)name + "\" missing in query-config");
@@ -316,7 +316,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         fill_fields(*action_trace_table, "", abieos::abi_field{"error_code", &get_type("uint64")});
 
         if (config->enable_trim) {
-            auto& c = rocksdb_inst->query_config;
+            auto& c = *rocksdb_inst->query_config;
             for (auto& table : c.tables) {
                 if (table.is_delta && !table.trim_index_obj)
                     throw std::runtime_error("delta table " + table.name + " is missing a trim index");
@@ -532,12 +532,13 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     void add_row(
         rocksdb::WriteBatch& content_batch, rocksdb::WriteBatch& index_batch, rocksdb_table& table, uint32_t block_num, bool present_k,
         const std::vector<char>& value) {
-        kv::clear_positions(table.kv_table->fields);
-        kv::fill_positions({value.data(), value.data() + value.size()}, table.kv_table->fields);
+        std::vector<std::optional<uint32_t>> positions;
+        kv::init_positions(positions, table.kv_table->fields.size());
+        kv::fill_positions({value.data(), value.data() + value.size()}, table.kv_table->fields, positions);
 
         std::vector<char> key;
         kv::append_table_key(key, block_num, present_k, table.kv_table->short_name);
-        kv::extract_keys_from_value(key, {value.data(), value.data() + value.size()}, table.kv_table->keys);
+        kv::extract_keys(key, {value.data(), value.data() + value.size()}, table.kv_table->keys, positions);
         rdb::put(content_batch, key, value);
 
         std::vector<char> index_key;
@@ -546,7 +547,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
                 continue;
             index_key.clear();
             kv::append_index_key(index_key, table.kv_table->short_name, index->short_name);
-            kv::extract_keys_from_value(index_key, {value.data(), value.data() + value.size()}, index->sort_keys);
+            kv::extract_keys(index_key, {value.data(), value.data() + value.size()}, index->sort_keys, positions);
             kv::append_index_suffix(index_key, block_num, present_k);
             index_batch.Put(rdb::to_slice(index_key), {});
         }
@@ -563,14 +564,16 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         kv::read_table_prefix(temp_k, block_num, table_name, present_k);
 
         auto& table = get_kv_table(table_name);
-        kv::clear_positions(table.fields);
-        kv::fill_positions(v, table.fields);
+
+        std::vector<std::optional<uint32_t>> positions;
+        kv::init_positions(positions, table.fields.size());
+        kv::fill_positions(v, table.fields, positions);
 
         std::vector<char> index_key;
         for (auto* index : table.indexes) {
             index_key.clear();
             kv::append_index_key(index_key, table_name, index->short_name);
-            kv::extract_keys_from_value(index_key, v, index->sort_keys);
+            kv::extract_keys(index_key, v, index->sort_keys, positions);
             kv::append_index_suffix(index_key, block_num, present_k);
             index_batch.Delete(rdb::to_slice(index_key));
             if (num_indexes)
@@ -762,11 +765,12 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
             auto& table = get_kv_table(table_name);
             if (table.trim_index_obj && block_num > first) {
-                std::vector<char> index_key;
-                kv::clear_positions(table.fields);
-                kv::fill_positions(v, table.fields);
+                std::vector<char>                    index_key;
+                std::vector<std::optional<uint32_t>> positions;
+                kv::init_positions(positions, table.fields.size());
+                kv::fill_positions(v, table.fields, positions);
                 kv::append_index_key(index_key, table_name, table.trim_index_obj->short_name);
-                kv::extract_keys_from_value(index_key, v, table.trim_index_obj->sort_keys);
+                kv::extract_keys(index_key, v, table.trim_index_obj->sort_keys, positions);
                 trim_keys.insert(std::move(index_key));
             } else if (!table.trim_index_obj && block_num < end_trim) {
                 remove_row(batch, batch, k, v, &num_rows, &num_indexes);
@@ -785,13 +789,15 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
             uint32_t prev_block = 0xffff'ffff;
             rdb::for_each(rocksdb_inst->database, range, range, [&](auto k, auto) {
+                std::vector<std::optional<uint32_t>> positions;
+                kv::init_positions(positions, table.fields.size());
                 uint32_t          block;
                 bool              present_k;
-                auto              suffix_pos = kv::extract_from_index(k, table, index.sort_keys, block, present_k);
+                auto              suffix_pos = kv::fill_positions_from_index(k, index.sort_keys, block, present_k, positions);
                 std::vector<char> partial_k{k.pos, suffix_pos};
 
                 if (prev_block <= end_trim) {
-                    auto pk = extract_pk(k, table, block, present_k);
+                    auto pk = extract_pk(k, table, block, present_k, positions);
                     remove_row(batch, batch, {pk.data(), pk.data() + pk.size()}, &num_rows, &num_indexes);
                 }
                 prev_block = block;

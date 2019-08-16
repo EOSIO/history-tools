@@ -46,6 +46,7 @@ struct fill_postgresql_config {
     std::string host;
     std::string port;
     std::string schema;
+    std::string dbstring;
     uint32_t    skip_to       = 0;
     uint32_t    stop_before   = 0;
     bool        drop_schema   = false;
@@ -79,7 +80,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
     abi_def                                              abi{};
     std::map<std::string, abi_type>                      abi_types;
     std::map<std::string, std::unique_ptr<table_stream>> table_streams;
-	std::map<std::string, std::vector<std::string>>      abi_table_keys; // table name -> primary keys
+    std::map<std::string, std::vector<std::string>>      abi_table_keys; // table name -> primary keys
 
     fpg_session(fill_postgresql_plugin_impl* my, asio::io_context& ioc)
         : my(my)
@@ -87,8 +88,8 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         , resolver(ioc)
         , stream(ioc) {
 
-        ilog("connect to postgresql");
-        sql_connection.emplace();
+        ilog("connect to postgresql with dbstring \"${s}\"", ("s", config->dbstring));
+        sql_connection.emplace(config->dbstring);
         stream.binary(true);
         stream.read_message_max(10ull * 1024 * 1024 * 1024);
     }
@@ -287,7 +288,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             t.exec(query);
 
             if (keys.length()) {
-               query = "create index " + config->schema + "_" + table.type + "_index on " + 
+               query = "create index " + config->schema + "_" + table.type + "_index on " +
                   t.quote_name(config->schema) + "." + table.type +" (" + keys + ")";
                t.exec(query);
             }
@@ -295,7 +296,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
 
         t.exec(
             "create table " + t.quote_name(config->schema) +
-            R"(.block_info(                   
+            R"(.block_info(
                 "block_num" bigint,
                 "block_id" varchar(64),
                 "timestamp" timestamp,
@@ -432,7 +433,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             };
         }
         query += R"(
-                end 
+                end
             $$ language plpgsql;
         )";
 
@@ -578,10 +579,10 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         if (result.block && block.transactions.size() > 0) {
             pipeline.insert(
                 "insert into " + t.quote_name(config->schema) + ".received_nonempty_block (block_num, block_id, transaction_count, timestamp) values (" +
-                std::to_string(result.this_block->block_num) + ", " + 
-                quote(std::string(result.this_block->block_id)) + ", " + 
+                std::to_string(result.this_block->block_num) + ", " +
+                quote(std::string(result.this_block->block_id)) + ", " +
                 std::to_string(block.transactions.size()) + ", " +
-                quote(std::string(block.timestamp)) + ")");            
+                quote(std::string(block.timestamp)) + ")");
         }
 
         pipeline.complete();
@@ -719,7 +720,7 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
             } else {
                 if (!is_optional || read_raw<bool>(bin)) {
 					val = it->second.bin_to_sql(*sql_connection, bulk, bin);
-                    values += ", " + val;				
+                    values += ", " + val;
 				} else
                     values += ", null";
             }
@@ -1082,7 +1083,8 @@ void fill_pg_plugin::set_program_options(options_description& cli, options_descr
     clop("fpg-drop", "Drop (delete) schema and tables");
     clop("fpg-create", "Create schema and tables");
     clop("ignore-onblock", "Ignore onblock transactions");
-	clop("remove_old_delta_row", "remove old row of the same primary key from abi delta tables before every insertion, performance will degrade if enabled");
+    clop("remove_old_delta_row", "remove old row of the same primary key from abi delta tables before every insertion, performance will degrade if enabled");
+    clop("dbstring", bpo::value<std::string>(), "dbstring of postgresql");
 }
 
 void fill_pg_plugin::plugin_initialize(const variables_map& options) {
@@ -1095,6 +1097,7 @@ void fill_pg_plugin::plugin_initialize(const variables_map& options) {
         auto host                 = endpoint.substr(0, endpoint.find(':'));
         my->config->host          = host;
         my->config->port          = port;
+        my->config->dbstring      = options.count("dbstring") ? options["dbstring"].as<std::string>() : std::string();
         my->config->schema        = options["pg-schema"].as<std::string>();
         my->config->skip_to       = options.count("fill-skip-to") ? options["fill-skip-to"].as<uint32_t>() : 0;
         my->config->stop_before   = options.count("fill-stop") ? options["fill-stop"].as<uint32_t>() : 0;

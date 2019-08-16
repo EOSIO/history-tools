@@ -1,9 +1,22 @@
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
+import Draggable from 'react-draggable';
 import { FixedSizeList } from 'react-window';
 import * as ql from './wasm-ql';
 
 require('./style.css');
+
+function prettyPrint(x: any) {
+    return JSON.stringify(x, (k, v) => {
+        if (k === 'abi' || k === 'account_abi') {
+            if (v.length <= 66)
+                return v;
+            else
+                return v.substr(0, 64) + '... (' + (v.length / 2) + ' bytes)';
+        } else
+            return v;
+    }, 4);
+}
 
 class AppState {
     public alive = true;
@@ -13,6 +26,10 @@ class AppState {
     public tokenWasm = new ql.ClientWasm('./token-client.wasm');
     public request = 0;
     public more = null;
+    public queryInspector = false;
+    public lastQuery = [];
+    public replyInspector = false;
+    public lastReply = {} as any;
 
     private run(wasm, query, args, firstKeyName, handle) {
         this.result = [];
@@ -23,13 +40,15 @@ class AppState {
             if (running)
                 return;
             running = true;
-            const reply = await wasm.round_trip([
+            this.lastQuery = [
                 query,
                 { ...args, snapshot_block: ['head', args.snapshot_block], [firstKeyName]: first_key },
-            ]);
+            ];
+            const reply = await wasm.round_trip(this.lastQuery);
             if (thisRequest !== this.request)
                 return;
             running = false;
+            this.lastReply = reply[1];
             handle(reply[1]);
             first_key = reply[1].more;
             if (!first_key)
@@ -55,15 +74,7 @@ class AppState {
             for (let acc of reply.accounts) {
                 acc = (({ name, privileged, account_creation_date, code, last_code_update, account_abi }) =>
                     ({ name, privileged, account_creation_date, code, last_code_update, abi: account_abi }))(acc);
-                this.result.push(...JSON.stringify(acc, (k, v) => {
-                    if (k === 'abi') {
-                        if (v.length <= 66)
-                            return v;
-                        else
-                            return v.substr(0, 64) + '... (' + (v.length / 2) + ' bytes)';
-                    } else
-                        return v;
-                }, 4).split('\n'));
+                this.result.push(...prettyPrint(acc).split('\n'));
             }
         });
     }
@@ -174,6 +185,39 @@ function Results({ appState }: { appState: AppState }) {
                     return <pre style={style}>{content}</pre>;
                 }}
             </FSL>
+            {appState.queryInspector &&
+                <div className='query-inspect-container'>
+                    <Draggable
+                        axis='both'
+                        handle='.handle'
+                        defaultPosition={{ x: 10, y: 10 }}
+                        position={null}
+                        scale={1}
+                    >
+                        <div className='inspect'>
+                            <div className='handle'>Query Inspector</div>
+                            <pre className='inspect-content'>{prettyPrint(appState.lastQuery)}</pre>
+                        </div>
+                    </Draggable>
+                </div>
+            }
+            {appState.replyInspector &&
+                <div className='reply-inspect-container'>
+                    <Draggable
+                        axis='both'
+                        handle='.handle'
+                        defaultPosition={{ x: 10, y: 10 }}
+                        position={null}
+                        scale={1}
+                    >
+                        <div className='inspect'>
+                            <div className='handle'>Reply Inspector</div>
+                            {console.log(appState.lastReply)}
+                            <pre className='inspect-content'>{prettyPrint({ more: appState.lastReply.more, ...appState.lastReply })}</pre>
+                        </div>
+                    </Draggable>
+                </div>
+            }
         </div>
     );
 }
@@ -351,6 +395,23 @@ function Controls({ appState }: { appState: AppState }) {
                     onChange={e => { appState.selection = appState.transfers; appState.runSelected(); }}>
                 </input>
                 Transfers
+            </label>
+            <br />
+            <label>
+                <input
+                    type='checkbox'
+                    checked={appState.queryInspector}
+                    onChange={e => { appState.queryInspector = e.target.checked; appState.clientRoot.forceUpdate(); }}>
+                </input>
+                Query Inspector
+            </label>
+            <label>
+                <input
+                    type='checkbox'
+                    checked={appState.replyInspector}
+                    onChange={e => { appState.replyInspector = e.target.checked; appState.clientRoot.forceUpdate(); }}>
+                </input>
+                Reply Inspector
             </label>
         </div>
     );

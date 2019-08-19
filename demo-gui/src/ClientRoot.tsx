@@ -42,7 +42,7 @@ class AppState {
             running = true;
             this.lastQuery = [
                 query,
-                { ...args, snapshot_block: ['head', args.snapshot_block], [firstKeyName]: first_key },
+                { ...args, snapshot_block: ['absolute', args.snapshot_block], [firstKeyName]: first_key },
             ];
             const reply = await wasm.round_trip(this.lastQuery);
             if (thisRequest !== this.request)

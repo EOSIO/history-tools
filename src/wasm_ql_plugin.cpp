@@ -56,7 +56,7 @@ wasm_ql_plugin::~wasm_ql_plugin() {
 void wasm_ql_plugin::set_program_options(options_description& cli, options_description& cfg) {
     auto op = cfg.add_options();
     op("wql-threads", bpo::value<int>()->default_value(8), "Number of threads to process requests");
-    op("wql-listen", bpo::value<std::string>()->default_value("localhost:8880"), "Endpoint to listen on");
+    op("wql-listen", bpo::value<std::string>()->default_value("127.0.0.1:8880"), "Endpoint to listen on");
     op("wql-allow-origin", bpo::value<std::string>(), "Access-Control-Allow-Origin header. Use \"*\" to allow any.");
     op("wql-wasm-dir", bpo::value<std::string>()->default_value("."), "Directory to fetch WASMs from");
     op("wql-static-dir", bpo::value<std::string>(), "Directory to serve static files from (default: disabled)");

@@ -543,8 +543,6 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
         std::vector<char> index_key;
         for (auto* index : table.kv_table->indexes) {
-            if (index->only_for_trim) // temp: disable trim indexes
-                continue;
             index_key.clear();
             kv::append_index_key(index_key, table.kv_table->short_name, index->short_name);
             kv::extract_keys(index_key, {value.data(), value.data() + value.size()}, index->sort_keys, positions);

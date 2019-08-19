@@ -52,7 +52,7 @@ run make -j10 install
 workdir /root
 run git clone https://github.com/EOSIO/eosio.cdt.git
 workdir /root/eosio.cdt
-run git checkout v1.6.1
+run git checkout v1.6.2
 run git submodule update --init --recursive
 run mkdir build
 workdir /root/eosio.cdt/build

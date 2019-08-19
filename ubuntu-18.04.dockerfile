@@ -54,8 +54,8 @@ run wget https://github.com/EOSIO/eos/releases/download/v1.8.1/eosio_1.8.1-1-ubu
 run apt-get install -y ./eosio_1.8.1-1-ubuntu-18.04_amd64.deb
 
 workdir /root
-run wget https://github.com/EOSIO/eosio.cdt/releases/download/v1.6.1/eosio.cdt_1.6.1-1_amd64.deb
-run apt-get install -y ./eosio.cdt_1.6.1-1_amd64.deb
+run wget https://github.com/EOSIO/eosio.cdt/releases/download/v1.6.2/eosio.cdt_1.6.2-1-ubuntu-18.04_amd64.deb
+run apt-get install -y ./eosio.cdt_1.6.2-1-ubuntu-18.04_amd64.deb
 
 workdir /root
 run git clone --recursive https://github.com/EOSIO/history-tools.git

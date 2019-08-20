@@ -23,6 +23,7 @@ class AppState {
     public clientRoot: ClientRoot;
     public result = [];
     public chainWasm = new ql.ClientWasm('./chain-client.wasm');
+    public talkWasm = new ql.ClientWasm('./talk-client.wasm');
     public request = 0;
     public more = null;
     public queryInspector = false;
@@ -41,7 +42,7 @@ class AppState {
             running = true;
             this.lastQuery = [
                 query,
-                { ...args, snapshot_block: ['absolute', args.snapshot_block], [firstKeyName]: first_key },
+                { ...args, snapshot_block: args.snapshot_block === undefined ? undefined : ['absolute', args.snapshot_block], [firstKeyName]: first_key },
             ];
             const reply = await wasm.round_trip(this.lastQuery);
             if (thisRequest !== this.request)
@@ -79,8 +80,23 @@ class AppState {
     }
     public accounts = { run: this.run_accounts.bind(this), form: AccountsForm };
 
+    public messagesArgs = {
+        begin: {
+            parent_ids: [],
+            id: 0,
+        },
+        max_messages: 10,
+    };
+    public run_messages() {
+        this.run(this.talkWasm, 'get.messages', this.messagesArgs, 'begin', reply => {
+            for (const msg of reply.messages) {
+                this.result.push(...prettyPrint(msg).split('\n'));
+            }
+        });
+    }
+    public messages = { run: this.run_messages.bind(this), form: MessagesForm };
 
-    public selection = this.accounts;
+    public selection = this.messages;
 
     public restore(prev: AppState) {
         prev.request = -1;
@@ -150,6 +166,12 @@ function Results({ appState }: { appState: AppState }) {
     );
 }
 
+function MessagesForm({ appState }: { appState: AppState }) {
+    return (
+        <div className='balance'>
+        </div>
+    );
+}
 function AccountsForm({ appState }: { appState: AppState }) {
     return (
         <div className='balance'>
@@ -171,11 +193,17 @@ function AccountsForm({ appState }: { appState: AppState }) {
     );
 }
 
-
-
 function Controls({ appState }: { appState: AppState }) {
     return (
         <div className='control'>
+            <label>
+                <input
+                    type="radio"
+                    checked={appState.selection === appState.messages}
+                    onChange={e => { appState.selection = appState.messages; appState.runSelected(); }}>
+                </input>
+                Messages
+            </label>
             <label>
                 <input
                     type="radio"

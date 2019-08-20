@@ -58,9 +58,16 @@ run wget https://github.com/EOSIO/eosio.cdt/releases/download/v1.6.2/eosio.cdt_1
 run apt-get install -y ./eosio.cdt_1.6.2-1-ubuntu-18.04_amd64.deb
 
 workdir /root
-run git clone --recursive https://github.com/EOSIO/history-tools.git
+run mkdir /root/history-tools
+copy cmake /root/history-tools/cmake
+copy CMakeLists.txt /root/history-tools
+copy external /root/history-tools/external
+copy libraries /root/history-tools/libraries
+copy src /root/history-tools/src
+copy wasms /root/history-tools/wasms
+
 run mkdir /root/history-tools/build
 workdir /root/history-tools/build
-run cmake -GNinja -DCMAKE_CXX_COMPILER=clang++-8 -DCMAKE_C_COMPILER=clang-8 ..
+run cmake -GNinja -DSKIP_SUBMODULE_CHECK=1 -DCMAKE_CXX_COMPILER=clang++-8 -DCMAKE_C_COMPILER=clang-8 ..
 run bash -c "cd ../src && npm install node-fetch"
 run ninja

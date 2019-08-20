@@ -39,6 +39,7 @@ module.exports = {
         new webpack.NoEmitOnErrorsPlugin(),
         new CopyPlugin([
             { from: '../build/chain-client.wasm', to: 'chain-client.wasm' },
+            { from: 'src/talk-client.wasm', to: 'talk-client.wasm' },
         ]),
     ],
     output: {

@@ -1,8 +1,8 @@
 from history-tools as builder
 
-run apt-get update && apt-get install psmisc
+run apt-get update && apt-get install -y psmisc supervisor nginx
 
-run rm -rf /root/history-tools/demo-talk
+copy demo-gui /root/history-tools/demo-gui
 copy demo-talk /root/history-tools/demo-talk
 workdir /root/history-tools/demo-talk/src
 run eosio-cpp talk.cpp
@@ -11,7 +11,8 @@ run \
     cleos wallet create --to-console | tail -n 1 | sed 's/"//g' >/password                      && \
     cleos wallet import --private-key 5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3       && \
     (  nodeos -e -p eosio --plugin eosio::chain_api_plugin --plugin eosio::state_history_plugin    \
-       --disable-replay-opts --chain-state-history --trace-history &)                           && \
+       --disable-replay-opts --chain-state-history --trace-history                                 \
+       -d /nodeos-data --config-dir /nodeos-config & )                                          && \
     sleep 2                                                                                     && \
     cleos create account eosio talk     EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV   && \
     cleos set code talk talk.wasm                                                               && \
@@ -35,13 +36,19 @@ run \
     sleep 2                                                                                     && \
     killall nodeos                                                                              && \
     tail --pid=`pidof nodeos` -f /dev/null                                                      && \
-    echo "nodeos exited"
+    rm -rf /nodeos-data/snapshots /nodeos-data/state /nodeos-data/state-history                 && \
+    rm -rf /nodeos-data/blocks/reversible                                                       && \
+    ls -la /nodeos-data                                                                         && \
+    du -h /nodeos-data
 
-run apt-get update && apt-get install -y supervisor nginx
 run chmod 755 /root
 run mkdir -p /var/log/supervisor
 copy demo-talk/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 copy demo-talk/nginx-site.conf /etc/nginx/sites-available/default
+
+workdir /root/history-tools/demo-talk
+run npm i -g yarn
+run yarn && yarn build
 
 expose 80/tcp
 cmd ["/usr/bin/supervisord"]

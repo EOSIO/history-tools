@@ -48,6 +48,7 @@ template <typename T>
 __attribute__((noinline)) inline void parse_json_uint(T& result, const char*& pos, const char* end) {
     bool in_str = false;
     if (pos != end && *pos == '"') {
+        ++pos;
         in_str = true;
         parse_json_skip_space(pos, end);
     }

@@ -129,12 +129,6 @@ run \
     cleos create account eosio joe      EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV   && \
     cleos create account eosio sam      EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV   && \
     cleos create account eosio sue      EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV   && \
-    cleos push action talk post '[100,0,adam,"First Post"]' -p adam                             && \
-    cleos push action talk post    '[101,100,bill,"First Reply"]' -p bill                       && \
-    cleos push action talk post       '[102,101,bob,"Nested"]' -p bob                           && \
-    cleos push action talk post       '[103,101,jack,"Another"]' -p jack                        && \
-    cleos push action talk post    '[110,100,jane,"Another Reply"]' -p jane                     && \
-    cleos push action talk post '[200,0,jenn,"Second Post"]' -p jenn                            && \
     sleep 2                                                                                     && \
     killall nodeos                                                                              && \
     tail --pid=`pidof nodeos` -f /dev/null                                                      && \
@@ -143,7 +137,12 @@ run \
 
 # Final image
 from ubuntu:18.04
-run apt-get update && apt-get install -y libssl1.0.0 libatomic1 supervisor nginx
+run apt-get update && apt-get install -y    \
+    libssl1.0.0                             \
+    libatomic1                              \
+    supervisor                              \
+    nginx                                   \
+    nodejs
 
 workdir /root
 copy --from=builder /root/eosio_1.8.1-1-ubuntu-18.04_amd64.deb /root
@@ -164,22 +163,28 @@ copy demo-talk/nginx-site.conf /etc/nginx/sites-available/default
 workdir /root
 run mkdir history-tools
 workdir /root/history-tools
-run mkdir build
-run mkdir src
-run mkdir -p demo-talk/dist
+run mkdir -p        \
+    build           \
+    demo-talk/dist  \
+    demo-talk/src   \
+    src
 
-copy --from=builder /root/history-tools/src/query-config.json /root/history-tools/src/
+copy --from=builder /root/history-tools/build/chain-server.wasm /root/history-tools/build/
 copy --from=builder /root/history-tools/build/combo-rocksdb /root/history-tools/build/
 copy --from=builder /root/history-tools/build/fill-rocksdb /root/history-tools/build/
-copy --from=builder /root/history-tools/build/wasm-ql-rocksdb /root/history-tools/build/
-copy --from=builder /root/history-tools/build/chain-server.wasm /root/history-tools/build/
 copy --from=builder /root/history-tools/build/legacy-server.wasm /root/history-tools/build/
 copy --from=builder /root/history-tools/build/token-server.wasm /root/history-tools/build/
+copy --from=builder /root/history-tools/build/wasm-ql-rocksdb /root/history-tools/build/
 copy --from=builder /root/history-tools/demo-talk/src/talk-server.wasm /root/history-tools/build/
+
 copy --from=builder /root/history-tools/demo-talk/dist/chain-client.wasm /root/history-tools/demo-talk/dist/
-copy --from=builder /root/history-tools/demo-talk/dist/talk-client.wasm /root/history-tools/demo-talk/dist/
 copy --from=builder /root/history-tools/demo-talk/dist/client.bundle.js /root/history-tools/demo-talk/dist/
 copy --from=builder /root/history-tools/demo-talk/dist/index.html /root/history-tools/demo-talk/dist/
+copy --from=builder /root/history-tools/demo-talk/dist/talk-client.wasm /root/history-tools/demo-talk/dist/
+
+copy --from=builder /root/history-tools/demo-talk/src/fill.js /root/history-tools/demo-talk/src/
+
+copy --from=builder /root/history-tools/src/query-config.json /root/history-tools/src/
 
 workdir /root
 expose 80/tcp

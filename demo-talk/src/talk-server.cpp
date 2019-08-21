@@ -43,12 +43,13 @@ std::optional<message> get_message(uint64_t parent, uint64_t min_id, const eosio
 
 // process this query
 void process(get_messages_request& req, const eosio::database_status& status) {
-    auto                  parents = std::move(req.begin.parent_ids);
-    auto                  id      = req.begin.id;
+    auto                  max_messages = std::min(req.max_messages, 20u);
+    auto                  parents      = std::move(req.begin.parent_ids);
+    auto                  id           = req.begin.id;
     get_messages_response response;
 
     while (true) {
-        if (response.messages.size() >= req.max_messages) {
+        if (response.messages.size() >= max_messages) {
             // Terminate search and mark resume point
             response.more = message_position{
                 .parent_ids = std::move(parents),

@@ -80,6 +80,7 @@ class AppState {
     }
     public accounts = { run: this.run_accounts.bind(this), form: AccountsForm };
 
+    public messageCache = new Map<string, any>();
     public messagesArgs = {
         begin: {
             parent_ids: [],
@@ -89,8 +90,14 @@ class AppState {
     };
     public run_messages() {
         this.run(this.talkWasm, 'get.messages', this.messagesArgs, 'begin', reply => {
-            for (const msg of reply.messages) {
-                this.result.push(...prettyPrint(msg).split('\n'));
+            for (const m of reply.messages) {
+                const msg = { ...m };
+                if (msg.reply_to === '0')
+                    msg.depth = 0;
+                else
+                    msg.depth = this.messageCache.get(msg.reply_to).depth + 1;
+                this.messageCache.set(msg.id, msg);
+                this.result.push((' '.repeat(msg.depth * 4) + msg.user.padEnd(13)).padEnd(80) + ' ' + msg.content);
             }
         });
     }

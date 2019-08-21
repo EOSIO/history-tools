@@ -2,6 +2,7 @@ import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import Draggable from 'react-draggable';
 import ReactMarkdown from 'react-markdown';
+import MonacoEditor from 'react-monaco-editor';
 import { FixedSizeList } from 'react-window';
 import * as ql from '../../demo-gui/src/wasm-ql';
 
@@ -110,7 +111,7 @@ class AppState {
     public introduction = { title: 'Introduction', filename: 'introduction.md', run: null, form: MarkdownForm };
     public dataDesc = { title: 'Data Description', filename: 'data-description.md', run: null, form: MarkdownForm };
     public queryDesc = { title: 'Query Description', filename: 'query-description.md', run: null, form: MarkdownForm };
-    public talkHpp = { title: 'talk.hpp (contract)', filename: 'talk.hpp', run: null, form: SourceForm };
+    public talkHpp = { title: 'talk.hpp', filename: 'talk.hpp', run: null, form: SourceForm };
     public talkCpp = { title: 'talk.cpp (contract)', filename: 'talk.cpp', run: null, form: SourceForm };
     public talkServer = { title: 'talk-server.cpp', filename: 'talk-server.cpp', run: null, form: SourceForm };
     public talkClient = { title: 'talk-client.cpp', filename: 'talk-client.cpp', run: null, form: SourceForm };
@@ -207,7 +208,13 @@ function SourceForm({ appState }: { appState: AppState }) {
         })();
     }
     return (
-        <pre><code>{sel.content}</code></pre>
+        <MonacoEditor
+            width="800"
+            height="800"
+            language="cpp"
+            theme="vs-dark"
+            value={sel.content}
+        />
     );
 }
 
@@ -248,6 +255,7 @@ function Controls({ appState }: { appState: AppState }) {
             <br />
             <ContentRadio {...{ appState, selection: appState.dataDesc }} />
             <ContentRadio {...{ appState, selection: appState.queryDesc }} />
+            <br />
             <ContentRadio {...{ appState, selection: appState.talkHpp }} />
             <ContentRadio {...{ appState, selection: appState.talkCpp }} />
             <ContentRadio {...{ appState, selection: appState.talkServer }} />

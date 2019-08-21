@@ -2,6 +2,7 @@ const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const webpack = require('webpack');
+const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
 
 module.exports = {
     entry: {
@@ -48,6 +49,7 @@ module.exports = {
             { from: 'src/talk.cpp', to: 'talk.cpp' },
             { from: 'src/talk.hpp', to: 'talk.hpp' },
         ]),
+        new MonacoWebpackPlugin({ languages: ['cpp', 'javascript', 'typescript'] }),
     ],
     output: {
         filename: '[name].bundle.js',

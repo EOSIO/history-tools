@@ -20,4 +20,4 @@ This demonstrates using `combo-rocksdb` to record and query threaded conversatio
   **Query Inspector** and **Reply Inspector** to see the the JSON data going into and
   coming from `talk-client.wasm`.
 * Select the **Accounts** radio button to see the list of accounts on chain.
-* Select the other radio buttons to read more explanations and see source code.
+* Select the other radio buttons to read explanations and see source code.

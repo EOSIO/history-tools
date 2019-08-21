@@ -183,7 +183,11 @@ copy --from=builder /root/history-tools/demo-talk/dist/data-description.md      
 copy --from=builder /root/history-tools/demo-talk/dist/index.html               /root/history-tools/demo-talk/dist
 copy --from=builder /root/history-tools/demo-talk/dist/introduction.md          /root/history-tools/demo-talk/dist
 copy --from=builder /root/history-tools/demo-talk/dist/query-description.md     /root/history-tools/demo-talk/dist
+copy --from=builder /root/history-tools/demo-talk/dist/talk-client.cpp          /root/history-tools/demo-talk/dist
 copy --from=builder /root/history-tools/demo-talk/dist/talk-client.wasm         /root/history-tools/demo-talk/dist
+copy --from=builder /root/history-tools/demo-talk/dist/talk-server.cpp          /root/history-tools/demo-talk/dist
+copy --from=builder /root/history-tools/demo-talk/dist/talk.cpp                 /root/history-tools/demo-talk/dist
+copy --from=builder /root/history-tools/demo-talk/dist/talk.hpp                 /root/history-tools/demo-talk/dist
 
 copy --from=builder /root/history-tools/demo-talk/src/fill.js                   /root/history-tools/demo-talk/src/
 

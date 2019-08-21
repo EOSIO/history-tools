@@ -43,8 +43,9 @@ id: 04, reply_to: 02, user: Bob,   content: Reply to Jane's Post
 
 If a database index sorts the rows by `id` or by `reply_to`, the result won't be in threaded order.
 If the client reorders the data, it may need to either fetch much more data than fits on screen,
-or use many round-trips to the server, which then needs round trips to the database. If the
-server reorders the data, then it can make round trips to the database, but doesn't need extra
+or use many round-trips to the server, which then needs round trips to the database.
+
+If the server reorders the data, then it can make round trips to the database, but doesn't need extra
 round trips to the client. This reduces latency.
 
-`talk-server.wasm`, which runs in `comb-lmdb`, reorders the data on demand by clients.
+`talk-server.wasm`, which runs in `combo-lmdb`, reorders the data on demand by clients.

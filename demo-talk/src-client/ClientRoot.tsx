@@ -110,6 +110,10 @@ class AppState {
     public introduction = { title: 'Introduction', filename: 'introduction.md', run: null, form: MarkdownForm };
     public dataDesc = { title: 'Data Description', filename: 'data-description.md', run: null, form: MarkdownForm };
     public queryDesc = { title: 'Query Description', filename: 'query-description.md', run: null, form: MarkdownForm };
+    public talkHpp = { title: 'talk.hpp (contract)', filename: 'talk.hpp', run: null, form: SourceForm };
+    public talkCpp = { title: 'talk.cpp (contract)', filename: 'talk.cpp', run: null, form: SourceForm };
+    public talkServer = { title: 'talk-server.cpp', filename: 'talk-server.cpp', run: null, form: SourceForm };
+    public talkClient = { title: 'talk-client.cpp', filename: 'talk-client.cpp', run: null, form: SourceForm };
 
     public selection = this.introduction as any;
 
@@ -166,7 +170,7 @@ function AccountsForm({ appState }: { appState: AppState }) {
     return (
         <div>
             Accounts on this chain:
-            <br />
+            <br /><br />
         </div>
     );
 }
@@ -190,6 +194,23 @@ function MarkdownForm({ appState }: { appState: AppState }) {
     );
 }
 
+function SourceForm({ appState }: { appState: AppState }) {
+    const sel = appState.selection as any;
+    if (!sel.loading) {
+        sel.loading = true;
+        sel.content = '';
+        (async () => {
+            const resp = await fetch(sel.filename);
+            sel.content = await resp.text();
+            if (appState.selection === sel)
+                appState.clientRoot.forceUpdate();
+        })();
+    }
+    return (
+        <pre><code>{sel.content}</code></pre>
+    );
+}
+
 function ContentRadio({ appState, selection }) {
     return (
         <label>
@@ -207,13 +228,14 @@ function Controls({ appState }: { appState: AppState }) {
     return (
         <div className='control'>
             <ContentRadio {...{ appState, selection: appState.introduction }} />
+            <br />
             <label>
                 <input
                     type='radio'
                     checked={appState.selection === appState.messages}
                     onChange={e => { appState.selection = appState.messages; appState.runSelected(); }}>
                 </input>
-                Messages
+                Messages Query
             </label>
             <label>
                 <input
@@ -221,8 +243,15 @@ function Controls({ appState }: { appState: AppState }) {
                     checked={appState.selection === appState.accounts}
                     onChange={e => { appState.selection = appState.accounts; appState.runSelected(); }}>
                 </input>
-                Accounts
+                Accounts Query
             </label>
+            <br />
+            <ContentRadio {...{ appState, selection: appState.dataDesc }} />
+            <ContentRadio {...{ appState, selection: appState.queryDesc }} />
+            <ContentRadio {...{ appState, selection: appState.talkHpp }} />
+            <ContentRadio {...{ appState, selection: appState.talkCpp }} />
+            <ContentRadio {...{ appState, selection: appState.talkServer }} />
+            <ContentRadio {...{ appState, selection: appState.talkClient }} />
             <br />
             <label>
                 <input
@@ -240,9 +269,6 @@ function Controls({ appState }: { appState: AppState }) {
                 </input>
                 Reply Inspector
             </label>
-            <br />
-            <ContentRadio {...{ appState, selection: appState.dataDesc }} />
-            <ContentRadio {...{ appState, selection: appState.queryDesc }} />
         </div>
     );
 }

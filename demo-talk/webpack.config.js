@@ -38,11 +38,15 @@ module.exports = {
         }),
         new webpack.NoEmitOnErrorsPlugin(),
         new CopyPlugin([
+            { from: '../build/chain-client.wasm', to: 'chain-client.wasm' },
             { from: 'src-client/data-description.md', to: 'data-description.md' },
             { from: 'src-client/introduction.md', to: 'introduction.md' },
             { from: 'src-client/query-description.md', to: 'query-description.md' },
-            { from: '../build/chain-client.wasm', to: 'chain-client.wasm' },
+            { from: 'src/talk-client.cpp', to: 'talk-client.cpp' },
             { from: 'src/talk-client.wasm', to: 'talk-client.wasm' },
+            { from: 'src/talk-server.cpp', to: 'talk-server.cpp' },
+            { from: 'src/talk.cpp', to: 'talk.cpp' },
+            { from: 'src/talk.hpp', to: 'talk.hpp' },
         ]),
     ],
     output: {

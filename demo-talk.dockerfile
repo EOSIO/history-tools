@@ -169,22 +169,24 @@ run mkdir -p        \
     demo-talk/src   \
     src
 
-copy --from=builder /root/history-tools/build/chain-server.wasm /root/history-tools/build/
-copy --from=builder /root/history-tools/build/combo-rocksdb /root/history-tools/build/
-copy --from=builder /root/history-tools/build/fill-rocksdb /root/history-tools/build/
-copy --from=builder /root/history-tools/build/legacy-server.wasm /root/history-tools/build/
-copy --from=builder /root/history-tools/build/token-server.wasm /root/history-tools/build/
-copy --from=builder /root/history-tools/build/wasm-ql-rocksdb /root/history-tools/build/
-copy --from=builder /root/history-tools/demo-talk/src/talk-server.wasm /root/history-tools/build/
+copy --from=builder /root/history-tools/build/chain-server.wasm                 /root/history-tools/build/
+copy --from=builder /root/history-tools/build/combo-rocksdb                     /root/history-tools/build/
+copy --from=builder /root/history-tools/build/fill-rocksdb                      /root/history-tools/build/
+copy --from=builder /root/history-tools/build/legacy-server.wasm                /root/history-tools/build/
+copy --from=builder /root/history-tools/build/token-server.wasm                 /root/history-tools/build/
+copy --from=builder /root/history-tools/build/wasm-ql-rocksdb                   /root/history-tools/build/
+copy --from=builder /root/history-tools/demo-talk/src/talk-server.wasm          /root/history-tools/build/
 
-copy --from=builder /root/history-tools/demo-talk/dist/chain-client.wasm /root/history-tools/demo-talk/dist/
-copy --from=builder /root/history-tools/demo-talk/dist/client.bundle.js /root/history-tools/demo-talk/dist/
-copy --from=builder /root/history-tools/demo-talk/dist/index.html /root/history-tools/demo-talk/dist/
-copy --from=builder /root/history-tools/demo-talk/dist/talk-client.wasm /root/history-tools/demo-talk/dist/
+copy --from=builder /root/history-tools/demo-talk/dist/chain-client.wasm        /root/history-tools/demo-talk/dist
+copy --from=builder /root/history-tools/demo-talk/dist/client.bundle.js         /root/history-tools/demo-talk/dist
+copy --from=builder /root/history-tools/demo-talk/dist/index.html               /root/history-tools/demo-talk/dist
+copy --from=builder /root/history-tools/demo-talk/dist/introduction.md          /root/history-tools/demo-talk/dist
+copy --from=builder /root/history-tools/demo-talk/dist/query-description.md     /root/history-tools/demo-talk/dist
+copy --from=builder /root/history-tools/demo-talk/dist/talk-client.wasm         /root/history-tools/demo-talk/dist
 
-copy --from=builder /root/history-tools/demo-talk/src/fill.js /root/history-tools/demo-talk/src/
+copy --from=builder /root/history-tools/demo-talk/src/fill.js                   /root/history-tools/demo-talk/src/
 
-copy --from=builder /root/history-tools/src/query-config.json /root/history-tools/src/
+copy --from=builder /root/history-tools/src/query-config.json                   /root/history-tools/src/
 
 workdir /root
 expose 80/tcp

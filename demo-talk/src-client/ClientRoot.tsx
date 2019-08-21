@@ -1,6 +1,7 @@
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import Draggable from 'react-draggable';
+import ReactMarkdown from 'react-markdown';
 import { FixedSizeList } from 'react-window';
 import * as ql from '../../demo-gui/src/wasm-ql';
 
@@ -59,7 +60,10 @@ class AppState {
     }
 
     public runSelected() {
-        this.selection.run();
+        if (this.selection.run)
+            this.selection.run();
+        else
+            this.clientRoot.forceUpdate();
     }
 
     public accountsArgs = {
@@ -103,7 +107,10 @@ class AppState {
     }
     public messages = { run: this.run_messages.bind(this), form: MessagesForm };
 
-    public selection = this.messages;
+    public introduction = { title: 'Introduction', filename: 'introduction.md', run: null, form: MarkdownForm };
+    public queryDesc = { title: 'Query Description', filename: 'query-description.md', run: null, form: MarkdownForm };
+
+    public selection = this.introduction as any;
 
     public restore(prev: AppState) {
         prev.request = -1;
@@ -136,76 +143,72 @@ function Results({ appState }: { appState: AppState }) {
                     return <pre style={style}>{content}</pre>;
                 }}
             </FSL>
-            {appState.queryInspector &&
-                <div className='query-inspect-container'>
-                    <Draggable
-                        axis='both'
-                        handle='.handle'
-                        defaultPosition={{ x: 10, y: 10 }}
-                        position={null}
-                        scale={1}
-                    >
-                        <div className='inspect'>
-                            <div className='handle'>Query Inspector</div>
-                            <pre className='inspect-content'>{prettyPrint(appState.lastQuery)}</pre>
-                        </div>
-                    </Draggable>
-                </div>
-            }
-            {appState.replyInspector &&
-                <div className='reply-inspect-container'>
-                    <Draggable
-                        axis='both'
-                        handle='.handle'
-                        defaultPosition={{ x: 10, y: 10 }}
-                        position={null}
-                        scale={1}
-                    >
-                        <div className='inspect'>
-                            <div className='handle'>Reply Inspector</div>
-                            {console.log(appState.lastReply)}
-                            <pre className='inspect-content'>{prettyPrint({ more: appState.lastReply.more, ...appState.lastReply })}</pre>
-                        </div>
-                    </Draggable>
-                </div>
-            }
         </div>
     );
 }
 
 function MessagesForm({ appState }: { appState: AppState }) {
     return (
-        <div className='balance'>
-        </div>
+        <div>
+            <ul>
+                <li>This fetches messages from the tree as needed; scroll the area below to see more.</li>
+                <li>A process running in the background pushes transactions containing new messages.
+                    &nbsp;<a href='#' onClick={e => appState.runSelected()}>Click this to refresh.</a></li>
+                <li>Use the Query Inspector and Reply Inspector (left side of page) to see the query and
+                    reply during scrolling.</li>
+
+            </ul>
+        </div >
     );
 }
 function AccountsForm({ appState }: { appState: AppState }) {
     return (
-        <div className='balance'>
-            <table>
-                <tbody>
-                    <tr>
-                        <td>min account</td>
-                        <td></td>
-                        <td><input type="text" value={appState.accountsArgs.first} onChange={e => { appState.accountsArgs.first = e.target.value; appState.runSelected(); }} /></td>
-                    </tr>
-                    <tr>
-                        <td>max account</td>
-                        <td></td>
-                        <td><input type="text" value={appState.accountsArgs.last} onChange={e => { appState.accountsArgs.last = e.target.value; appState.runSelected(); }} /></td>
-                    </tr>
-                </tbody>
-            </table>
+        <div>
+            Accounts on this chain:
+            <br />
         </div>
+    );
+}
+
+function MarkdownForm({ appState }: { appState: AppState }) {
+    const sel = appState.selection as any;
+    if (!sel.loading) {
+        sel.loading = true;
+        sel.content = '';
+        (async () => {
+            const resp = await fetch(sel.filename);
+            sel.content = await resp.text();
+            if (appState.selection === sel)
+                appState.clientRoot.forceUpdate();
+        })();
+    }
+    return (
+        <div>
+            <ReactMarkdown source={sel.content} />
+        </div>
+    );
+}
+
+function ContentRadio({ appState, selection }) {
+    return (
+        <label>
+            <input
+                type='radio'
+                checked={appState.selection === selection}
+                onChange={e => { appState.selection = selection; appState.runSelected(); }}>
+            </input>
+            {selection.title}
+        </label>
     );
 }
 
 function Controls({ appState }: { appState: AppState }) {
     return (
         <div className='control'>
+            <ContentRadio {...{ appState, selection: appState.introduction }} />
             <label>
                 <input
-                    type="radio"
+                    type='radio'
                     checked={appState.selection === appState.messages}
                     onChange={e => { appState.selection = appState.messages; appState.runSelected(); }}>
                 </input>
@@ -213,7 +216,7 @@ function Controls({ appState }: { appState: AppState }) {
             </label>
             <label>
                 <input
-                    type="radio"
+                    type='radio'
                     checked={appState.selection === appState.accounts}
                     onChange={e => { appState.selection = appState.accounts; appState.runSelected(); }}>
                 </input>
@@ -236,6 +239,8 @@ function Controls({ appState }: { appState: AppState }) {
                 </input>
                 Reply Inspector
             </label>
+            <br />
+            <ContentRadio {...{ appState, selection: appState.queryDesc }} />
         </div>
     );
 }
@@ -250,11 +255,45 @@ class ClientRoot extends React.Component<{ appState: AppState }> {
                     Example application demonstrating wasm-ql
                 </div>
                 <Controls appState={appState} />
-                {appState.selection.form({ appState })}
-                <Results appState={appState} />
+                <div className='center'>
+                    {appState.selection.form({ appState })}
+                    {appState.selection.run && <Results appState={appState} />}
+                </div>
                 <div className='disclaimer'>
                     <a href="https://github.com/EOSIO/history-tools">GitHub Repo...</a>
                 </div>
+                {appState.queryInspector &&
+                    <div className='query-inspect-container'>
+                        <Draggable
+                            axis='both'
+                            handle='.handle'
+                            defaultPosition={{ x: 10, y: 10 }}
+                            position={null}
+                            scale={1}
+                        >
+                            <div className='inspect'>
+                                <div className='handle'>Query Inspector</div>
+                                <pre className='inspect-content'>{prettyPrint(appState.lastQuery)}</pre>
+                            </div>
+                        </Draggable>
+                    </div>
+                }
+                {appState.replyInspector &&
+                    <div className='reply-inspect-container'>
+                        <Draggable
+                            axis='both'
+                            handle='.handle'
+                            defaultPosition={{ x: 10, y: 10 }}
+                            position={null}
+                            scale={1}
+                        >
+                            <div className='inspect'>
+                                <div className='handle'>Reply Inspector</div>
+                                <pre className='inspect-content'>{prettyPrint({ more: appState.lastReply.more, ...appState.lastReply })}</pre>
+                            </div>
+                        </Draggable>
+                    </div>
+                }
             </div>
         );
     }

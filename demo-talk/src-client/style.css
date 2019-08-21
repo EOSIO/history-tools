@@ -3,14 +3,14 @@ body {
 }
 
 .client-root {
+    position: relative;
     display: grid;
     height: 100vh;
     grid-template-columns: 180px 400px 400px auto;
     grid-template-rows: auto auto 1fr auto;
     grid-template-areas:
-        "banner  banner  banner  ."
-        "control balance balance ."
-        ".       result  result ."
+        "banner  banner banner ."
+        "control center center ."
         ". . . ."
         "disclaimer disclaimer disclaimer .";
 }
@@ -23,8 +23,8 @@ body {
     align-content: start;
 }
 
-.balance {
-    grid-area: balance;
+.center {
+    grid-area: center;
     margin: 5px;
     display: grid;
     grid-template-columns: auto;
@@ -32,22 +32,20 @@ body {
 }
 
 .result {
-    grid-area: result;
-    position: relative;
     border: 1px solid;
 }
 
 .query-inspect-container {
     position: absolute;
-    left: 40px;
-    top: 40px;
+    left: 300px;
+    top: 140px;
     pointer-events: none;
 }
 
 .reply-inspect-container {
     position: absolute;
-    left: 80px;
-    top: 80px;
+    left: 400px;
+    top: 400px;
     pointer-events: none;
 }
 

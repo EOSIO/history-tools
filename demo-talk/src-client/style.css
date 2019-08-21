@@ -82,3 +82,28 @@ body {
     grid-area: disclaimer;
     margin: 5px;
 }
+
+.markdown table {
+    border-spacing: 0;
+}
+
+.markdown th,
+.markdown td {
+    border: 1px solid #000;
+    border-bottom: none;
+    border-right: none;
+    text-align: left;
+}
+
+.markdown tr:last-child td {
+    border-bottom: 1px solid #000;
+}
+
+.markdown tr td:last-child,
+.markdown tr th:last-child {
+    border-right: 1px solid #000;
+}
+
+.markdown code {
+    color: darkred;
+}

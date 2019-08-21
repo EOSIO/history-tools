@@ -108,6 +108,7 @@ class AppState {
     public messages = { run: this.run_messages.bind(this), form: MessagesForm };
 
     public introduction = { title: 'Introduction', filename: 'introduction.md', run: null, form: MarkdownForm };
+    public dataDesc = { title: 'Data Description', filename: 'data-description.md', run: null, form: MarkdownForm };
     public queryDesc = { title: 'Query Description', filename: 'query-description.md', run: null, form: MarkdownForm };
 
     public selection = this.introduction as any;
@@ -183,7 +184,7 @@ function MarkdownForm({ appState }: { appState: AppState }) {
         })();
     }
     return (
-        <div>
+        <div className='markdown'>
             <ReactMarkdown source={sel.content} />
         </div>
     );
@@ -240,6 +241,7 @@ function Controls({ appState }: { appState: AppState }) {
                 Reply Inspector
             </label>
             <br />
+            <ContentRadio {...{ appState, selection: appState.dataDesc }} />
             <ContentRadio {...{ appState, selection: appState.queryDesc }} />
         </div>
     );

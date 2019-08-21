@@ -38,6 +38,7 @@ module.exports = {
         }),
         new webpack.NoEmitOnErrorsPlugin(),
         new CopyPlugin([
+            { from: 'src-client/data-description.md', to: 'data-description.md' },
             { from: 'src-client/introduction.md', to: 'introduction.md' },
             { from: 'src-client/query-description.md', to: 'query-description.md' },
             { from: '../build/chain-client.wasm', to: 'chain-client.wasm' },

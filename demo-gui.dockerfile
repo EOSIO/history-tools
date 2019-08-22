@@ -59,17 +59,27 @@ run apt-get install -y ./eosio.cdt_1.6.2-1-ubuntu-18.04_amd64.deb
 
 workdir /root
 run mkdir /root/history-tools
-copy . /root/history-tools
+copy cmake /root/history-tools/cmake
+copy CMakeLists.txt /root/history-tools
+copy external /root/history-tools/external
+copy libraries /root/history-tools/libraries
+copy src /root/history-tools/src
+copy wasms /root/history-tools/wasms
+
 run mkdir /root/history-tools/build
 workdir /root/history-tools/build
-run cmake -GNinja -DCMAKE_CXX_COMPILER=clang++-8 -DCMAKE_C_COMPILER=clang-8 ..
+run cmake -GNinja -DSKIP_SUBMODULE_CHECK=1 -DCMAKE_CXX_COMPILER=clang++-8 -DCMAKE_C_COMPILER=clang-8 ..
 run bash -c "cd ../src && npm install node-fetch"
 run ninja
-run bash -c "cd ../demo-gui && npm i && npm run build"
+
+copy demo-gui /root/history-tools/demo-gui
+workdir /root/history-tools/demo-gui
+run npm i && npm run build
 
 # Final image
 from ubuntu:18.04
-run apt-get update && apt-get install -y libssl1.0.0
+run apt-get update && apt-get install -y libssl1.0.0 libatomic1
+run rm -rf /root/.local/share/eosio/
 
 workdir /root
 run mkdir history-tools
@@ -91,6 +101,6 @@ copy --from=builder /root/history-tools/demo-gui/dist/client.bundle.js /root/his
 copy --from=builder /root/history-tools/demo-gui/dist/index.html /root/history-tools/demo-gui/dist/
 copy --from=builder /root/history-tools/demo-gui/dist/token-client.wasm /root/history-tools/demo-gui/dist/
 
-env LD_LIBRARY_PATH=/usr/local/lib
+workdir /root/history-tools/build
 expose 80/tcp
 entrypoint ["./combo-rocksdb", "--wql-static-dir", "../demo-gui/dist/", "--wql-listen", "0.0.0.0:80"]

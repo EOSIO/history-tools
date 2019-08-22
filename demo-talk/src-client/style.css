@@ -1,0 +1,109 @@
+body {
+    margin: 0;
+}
+
+.client-root {
+    position: relative;
+    display: grid;
+    height: 100vh;
+    grid-template-columns: 180px 400px 400px auto;
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-areas:
+        "banner  banner banner ."
+        "control center center ."
+        ". . . ."
+        "disclaimer disclaimer disclaimer .";
+}
+
+.control {
+    grid-area: control;
+    margin: 5px;
+    display: grid;
+    grid-template-columns: auto;
+    align-content: start;
+}
+
+.center {
+    grid-area: center;
+    margin: 5px;
+    display: grid;
+    grid-template-columns: auto;
+    align-content: start;
+}
+
+.result {
+    border: 1px solid;
+}
+
+.query-inspect-container {
+    position: absolute;
+    left: 300px;
+    top: 140px;
+    pointer-events: none;
+}
+
+.reply-inspect-container {
+    position: absolute;
+    left: 400px;
+    top: 400px;
+    pointer-events: none;
+}
+
+.inspect {
+    pointer-events: all;
+    border: solid black;
+    background: white;
+    width: 600px;
+    height: 700px;
+    display: grid;
+    grid-template-columns: auto;
+    grid-template-rows: 20px auto;
+}
+
+.handle {
+    background: cyan;
+    cursor: default;
+}
+
+.inspect-content {
+    overflow: scroll;
+}
+
+.banner {
+    grid-area: banner;
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+    margin: 5px;
+}
+
+.disclaimer {
+    font-size: 11px;
+    grid-area: disclaimer;
+    margin: 5px;
+}
+
+.markdown table {
+    border-spacing: 0;
+}
+
+.markdown th,
+.markdown td {
+    border: 1px solid #000;
+    border-bottom: none;
+    border-right: none;
+    text-align: left;
+}
+
+.markdown tr:last-child td {
+    border-bottom: 1px solid #000;
+}
+
+.markdown tr td:last-child,
+.markdown tr th:last-child {
+    border-right: 1px solid #000;
+}
+
+.markdown code {
+    color: darkred;
+}

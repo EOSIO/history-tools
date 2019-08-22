@@ -75,14 +75,16 @@ endif()
 
 set(SKIP_FC_TESTS ON)
 
-execute_process(COMMAND git submodule status --recursive
-                COMMAND grep -c "^[+\-]"
-                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                OUTPUT_VARIABLE submodule_status
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
-if(submodule_status GREATER 0)
-   message(FATAL_ERROR "git submodules are not up to date.
+if(NOT DEFINED SKIP_SUBMODULE_CHECK)
+    execute_process(COMMAND git submodule status --recursive
+                    COMMAND grep -c "^[+\-]"
+                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    OUTPUT_VARIABLE submodule_status
+                    OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(submodule_status GREATER 0)
+    message(FATAL_ERROR "git submodules are not up to date.
 Please run the command 'git submodule update --init --recursive'.")
+    endif()
 endif()
 
 include(SetupTargetMacros)

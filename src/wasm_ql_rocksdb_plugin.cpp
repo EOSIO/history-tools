@@ -128,7 +128,8 @@ struct rocksdb_query_session : query_session {
                         rdb::for_each(*it3, join_key_limit_block, join_key, [&](auto join_index_value, auto) {
                             found_join            = true;
                             auto join_delta_value = *rdb::get_raw(
-                                *it4, extract_pk_from_index(join_index_value, *query.join_table, query.join_table->keys), true);
+                                *it4, extract_pk_from_index(join_index_value, *query.join_table, query.join_query->index_obj->sort_keys),
+                                true);
                             std::vector<std::optional<uint32_t>> join_positions;
                             kv::init_positions(join_positions, query.join_table->fields.size());
                             fill_positions(join_delta_value, query.join_table->fields, join_positions);

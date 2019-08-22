@@ -1,6 +1,6 @@
 # Database Fillers
 
-The database fillers connect to the nodeos state-history plugin and populate databases. 
+The database fillers connect to the nodeos state-history plugin and populate databases.
 
 ## PostgreSQL vs. RocksDB
 
@@ -13,13 +13,13 @@ The database fillers connect to the nodeos state-history plugin and populate dat
   * Simpler setup; RocksDB is an in-process database
   * Saves disk space compared to PostgreSQL
   * Faster filling than PostgreSQL
-  * Scaling: each machine has a separate database
+  * Scaling: each machine hosting wasm-ql servers has a separate database
 
 ## Running fillers
 
 When running `fill-pg` for the first time, use the `--fpg-create` option to create the schema and tables. To wipe the schema and start over, run with `--fpg-drop --fpg-create`. 
 
-`fill-rocksdb` automatically creates a database if it doesn't exist; it doesn't have `drop` or `create` options.
+`fill-rocksdb` and `combo-rocksdb` automatically create a database if it doesn't exist; it doesn't have `drop` or `create` options.
 
 After starting, a filler will populate the database. It will track real-time updates from nodeos after it catches up.
 
@@ -33,7 +33,7 @@ Use SIGINT or SIGTERM to stop.
 |                       | --pg-schema               | chain                 | schema to use |
 | --rdb-database        |                           |                       | database path |
 | --rdb-threads         |                           |                       | Increase number of background RocksDB threads. Recommend 8 for full history on large chains |
-| --rdb-max-files       |                           |                       | Limit max number of open files (default unlimited). This is a last-resort option; 'ulimit -n #', where # is a very large number is usually a better option. |
+| --rdb-max-files       |                           |                       | Limit max number of open files (default unlimited). This should be smaller than 'ulimit -n #'. # should be a very large number for full-history nodes. |
 | --query-config        |                           |                       | query configuration file |
 |                       | --fpg-drop                |                       | drop (delete) schema and tables |
 |                       | --fpg-create              |                       | create schema and tables |

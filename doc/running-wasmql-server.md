@@ -6,31 +6,23 @@ A wasm-ql system needs:
 * A database filler
 * 1 or more wasm-ql server processes
 
-## Minimal RocksDB-based system
+## RocksDB-based system
 
-* `combo-rocksdb` fills an RocksDB database and has a single-process, single-thread wasm-ql server.
-* Suitable for single-developer testing
+`combo-rocksdb` fills a RocksDB database and processes wasm-ql requests on multiple threads.
 
-## Multiple-process RocksDB-based system
+## PostgreSQL-based system
 
-* `fill-rocksdb` fills an RocksDB database. Run 1 instance of this on a machine.
-* `wasm-ql-rocksdb` uses the database to answer queries. It serves requests from the main thread; to scale it, run multiple instances of this on the same machine as `fill-rocksdb`.
-
-## Multiple-process PostgreSQL-based system
-
-* `fill-pg` fills a PostgreSQL database. Run 1 instance of this.
-* `wasm-ql-pg` uses the database to answer queries. It serves requests from the main thread; to scale it, run multiple instances of this, either on 1 machine, or spread across several.
+* `fill-pg` fills a PostgreSQL database.
+* `wasm-ql-pg` uses the database to answer queries. It processes wasm-ql requests on multiple threads.
 
 ## Connecting to a database
 
 wasm-ql servers use the same connection methods and options as the [database fillers](database-fillers.md).
 
 * PostgreSQL: `fill-pg` sets up a bare database without indexes and query functions. After `fill-pg` is caught up to the chain, stop it then run `init.sql` in this repository's source directory. e.g. `psql -f path/to/init.sql`.
-* RocksDB: `fill-rocksdb` and `combo-rocksdb` create a full set of indexes.
+* RocksDB: `fill-rocksdb` and `combo-rocksdb` automatically create a full set of indexes.
 
 ## Testing wasm-ql
-
-This uses the legacy API (/v1/...) to verify wasm-ql is operational. It queries active name bids on the system contract.
 
 ```
 cd build
@@ -52,4 +44,6 @@ Options:
 | --wql-console         | --wql-console             | (disabled)            | Show console output |
 |                       | --pg-schema               | chain                 | Schema to use |
 | --rdb-database        |                           |                       | Database path |
+| --rdb-threads         |                           |                       | Increase number of background RocksDB threads. Recommend 8 for full history on large chains |
+| --rdb-max-files       |                           |                       | Limit max number of open files (default unlimited). This should be smaller than 'ulimit -n #'. # should be a very large number for full-history nodes. |
 | --query-config        | --query-config            |                       | Query configuration file |

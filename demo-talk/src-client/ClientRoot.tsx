@@ -115,6 +115,7 @@ class AppState {
     public talkCpp = { title: 'talk.cpp (contract)', filename: 'talk.cpp', run: null, form: SourceForm };
     public talkServer = { title: 'talk-server.cpp', filename: 'talk-server.cpp', run: null, form: SourceForm };
     public talkClient = { title: 'talk-client.cpp', filename: 'talk-client.cpp', run: null, form: SourceForm };
+    public fill = { title: 'fill.js', filename: 'fill.js', run: null, form: SourceForm };
 
     public selection = this.introduction as any;
 
@@ -262,6 +263,7 @@ function Controls({ appState }: { appState: AppState }) {
             <ContentRadio {...{ appState, selection: appState.talkCpp }} />
             <ContentRadio {...{ appState, selection: appState.talkServer }} />
             <ContentRadio {...{ appState, selection: appState.talkClient }} />
+            <ContentRadio {...{ appState, selection: appState.fill }} />
             <br />
             <label>
                 <input

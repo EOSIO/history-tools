@@ -43,6 +43,7 @@ module.exports = {
             { from: 'src-client/data-description.md', to: 'data-description.md' },
             { from: 'src-client/introduction.md', to: 'introduction.md' },
             { from: 'src-client/query-description.md', to: 'query-description.md' },
+            { from: 'src/fill.js', to: 'fill.js' },
             { from: 'src/talk-client.cpp', to: 'talk-client.cpp' },
             { from: 'src/talk-client.wasm', to: 'talk-client.wasm' },
             { from: 'src/talk-server.cpp', to: 'talk-server.cpp' },

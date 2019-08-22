@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CDT_DIR=/usr/local/eosio.cdt
+CDT_DIR=/usr/local/eosio.cdt/eosio.cdt
 
 mkdir -p doc/generated
 pushd doc/generated

@@ -31,8 +31,8 @@ void rocksdb_plugin::set_program_options(options_description& cli, options_descr
        "Increase number of background RocksDB threads. Only used with fill_rocksdb_plugin. Recommend 8 for full history on "
        "large chains.");
     op("rdb-max-files", bpo::value<uint32_t>(),
-       "RocksDB limit max number of open files (default unlimited). This is a last-resort option; 'ulimit -n #', where # is a very large "
-       "number is usually a better option. Only used with fill_rocksdb_plugin; wasm_ql_pg_plugin is always unlimited.");
+       "RocksDB limit max number of open files (default unlimited). This should be smaller than 'ulimit -n #'. "
+       "# should be a very large number for full-history nodes.");
 }
 
 void rocksdb_plugin::plugin_initialize(const variables_map& options) {

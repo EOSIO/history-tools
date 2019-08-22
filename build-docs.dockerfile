@@ -16,7 +16,9 @@ run apt-get update && apt-get install -y \
     bzip2                       \
     cargo                       \
     clang-8                     \
+    cmake                       \
     git                         \
+    libboost-all-dev            \
     libgmp-dev                  \
     libpq-dev                   \
     lld-8                       \
@@ -35,21 +37,6 @@ run update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 100
 run update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-8 100
 
 workdir /root
-run wget https://dl.bintray.com/boostorg/release/1.70.0/source/boost_1_70_0.tar.gz
-run tar xf boost_1_70_0.tar.gz
-workdir /root/boost_1_70_0
-run ./bootstrap.sh
-run ./b2 toolset=clang -j10 install
-
-workdir /root
-run wget https://github.com/Kitware/CMake/releases/download/v3.14.5/cmake-3.14.5.tar.gz
-run tar xf cmake-3.14.5.tar.gz
-workdir /root/cmake-3.14.5
-run ./bootstrap --parallel=10
-run make -j10
-run make -j10 install
-
-workdir /root
 run git clone https://github.com/EOSIO/eosio.cdt.git
 workdir /root/eosio.cdt
 run git checkout v1.6.2
@@ -62,10 +49,6 @@ run ninja install
 
 # Hack in headers that standardese needs
 run cp -a /root/eosio.cdt/eosio_llvm/tools/clang/include/clang* /root/eosio.cdt/eosio_llvm/include
-
-# custom-built boost isn't compatable with standardese
-run rm -rf /usr/local/include/boost /usr/local/lib/libboost*
-run apt-get install -y libboost-all-dev
 
 # standardese
 workdir /root
@@ -82,13 +65,16 @@ run cp -a tool/standardese /usr/local/bin
 run npm i -g gitbook-cli
 run npm i -g jsdoc-to-markdown
 
-# generate docs. The user may change the BUILD_DATE arg to force a fresh pull
+# generate docs
 workdir /root
-run git clone --recursive https://github.com/EOSIO/history-tools.git
+run mkdir -p /root/history-tools/src
+copy book.json /root/history-tools
+copy doc /root/history-tools/doc
+copy external /root/history-tools/external
+copy generate-doc /root/history-tools
+copy libraries /root/history-tools/libraries
+copy src/HistoryTools.js /root/history-tools/src
 workdir /root/history-tools
-arg BUILD_DATE=unknown
-run echo ${BUILD_DATE}
-run git pull
 run bash generate-doc
 
 # result is in /root/history-tools/_book

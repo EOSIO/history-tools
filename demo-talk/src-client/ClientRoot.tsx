@@ -199,7 +199,6 @@ function SourceForm({ appState }: { appState: AppState }) {
     const sel = appState.selection as any;
     if (!sel.loading) {
         sel.loading = true;
-        sel.content = '';
         (async () => {
             const resp = await fetch(sel.filename);
             sel.content = await resp.text();
@@ -207,15 +206,18 @@ function SourceForm({ appState }: { appState: AppState }) {
                 appState.clientRoot.forceUpdate();
         })();
     }
-    return (
-        <MonacoEditor
-            width="800"
-            height="800"
-            language="cpp"
-            theme="vs-dark"
-            value={sel.content}
-        />
-    );
+    if (sel.content)
+        return (
+            <MonacoEditor
+                width="800"
+                height="800"
+                language="cpp"
+                theme="vs-dark"
+                value={sel.content}
+            />
+        );
+    else
+        return <div />;
 }
 
 function ContentRadio({ appState, selection }) {

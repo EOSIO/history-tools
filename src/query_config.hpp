@@ -26,9 +26,8 @@ constexpr void for_each_field(field<Defs>*, F f) {
 template <typename Defs>
 struct key {
     std::string                 name           = {};
-    std::string                 src_name       = {};
-    std::string                 new_name       = {};
-    std::string                 type           = {};
+    std::string                 join_src_name  = {};
+    std::string                 join_new_name  = {};
     std::string                 expression     = {};
     std::string                 arg_expression = {};
     const typename Defs::field* field          = {};
@@ -37,9 +36,8 @@ struct key {
 template <typename Defs, typename F>
 constexpr void for_each_field(key<Defs>*, F f) {
     ABIEOS_MEMBER(key<Defs>, name);
-    ABIEOS_MEMBER(key<Defs>, src_name);
-    ABIEOS_MEMBER(key<Defs>, new_name);
-    ABIEOS_MEMBER(key<Defs>, type);
+    ABIEOS_MEMBER(key<Defs>, join_src_name);
+    ABIEOS_MEMBER(key<Defs>, join_new_name);
     ABIEOS_MEMBER(key<Defs>, expression);
     ABIEOS_MEMBER(key<Defs>, arg_expression);
 };
@@ -137,9 +135,9 @@ void set_key_fields(const table<Defs>& tab, std::vector<Key>& keys) {
 template <typename Defs, typename Key>
 void set_join_key_fields(const table<Defs>& tab, std::vector<Key>& keys) {
     for (auto& k : keys) {
-        auto it = tab.field_map.find(k.src_name);
+        auto it = tab.field_map.find(k.join_src_name);
         if (it == tab.field_map.end())
-            throw std::runtime_error("key references unknown field " + k.src_name + " in table " + tab.name);
+            throw std::runtime_error("key references unknown field " + k.join_src_name + " in table " + tab.name);
         k.field = it->second;
     }
 }
@@ -172,15 +170,11 @@ struct config {
 
         auto add_types = [&](auto& dest, auto& fields, auto* table, auto short_name) {
             for (auto& key : fields) {
-                std::string type = key.type;
-                if (type.empty()) {
-                    auto field_it = table->field_map.find(key.name);
-                    if (field_it == table->field_map.end())
-                        throw std::runtime_error((std::string)short_name + ": unknown field: " + key.name);
-                    type = field_it->second->type;
-                }
-
-                auto type_it = type_map.find(type);
+                auto field_it = table->field_map.find(key.name);
+                if (field_it == table->field_map.end())
+                    throw std::runtime_error((std::string)short_name + ": unknown field: " + key.name);
+                auto& type    = field_it->second->type;
+                auto  type_it = type_map.find(type);
                 if (type_it == type_map.end())
                     throw std::runtime_error((std::string)short_name + " key " + key.name + ": unknown type: " + type);
                 dest.push_back(type_it->second);

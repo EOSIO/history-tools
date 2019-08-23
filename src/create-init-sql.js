@@ -152,7 +152,7 @@ function generate_state({ table, index, has_block_snapshot, keys, sort_keys, his
     for (let key of [...keys, ...history_keys])
         keys_by_name[key.name] = key;
     let data_fields = ordered_fields.filter(f => !(f.name in keys_by_name));
-    let return_type = ordered_fields.map(f => '"' + f.name + '" ' + type_map[f.type]).join(', ') + fields_from_join.map(f => ', "' + f.new_name + '" ' + type_map[f.type]).join('');
+    let return_type = ordered_fields.map(f => '"' + f.name + '" ' + type_map[f.type]).join(', ') + fields_from_join.map(f => ', "' + f.join_new_name + '" ' + type_map[f.type]).join('');
 
     const non_joined = (compare, indent) => `
         ${indent}            ${ordered_fields.map(f => `"${f.name}" = block_search."${f.name}";`).join('\n                    ' + indent)}
@@ -177,13 +177,13 @@ function generate_state({ table, index, has_block_snapshot, keys, sort_keys, his
         ${indent}                if join_block_search.present then
         ${indent}                    found_join_block = true;
         ${indent}                    ${ordered_fields.map(f => `"${f.name}" = block_search."${f.name}";`).join('\n                            ' + indent)}
-        ${indent}                    ${fields_from_join.map(f => `"${f.new_name}" = join_block_search."${f.name}";`).join('\n                            ' + indent)}
+        ${indent}                    ${fields_from_join.map(f => `"${f.join_new_name}" = join_block_search."${f.name}";`).join('\n                            ' + indent)}
         ${indent}                    return next;
         ${indent}                end if;
         ${indent}            end loop;
         ${indent}            if not found_join_block then
         ${indent}                ${ordered_fields.map(f => `"${f.name}" = block_search."${f.name}";`).join('\n                        ' + indent)}
-        ${indent}                ${fields_from_join.map(f => `"${f.new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                        ' + indent)}
+        ${indent}                ${fields_from_join.map(f => `"${f.join_new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                        ' + indent)}
         ${indent}                return next;
         ${indent}            end if;
     `;
@@ -227,7 +227,7 @@ function generate_state({ table, index, has_block_snapshot, keys, sort_keys, his
         ${indent}            "present" = false;
         ${indent}            ${keys.map(f => `"${f.name}" = key_search."${f.name}";`).join('\n                    ' + indent)}
         ${indent}            ${data_fields.map(f => `"${f.name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                    ' + indent)}
-        ${indent}            ${fields_from_join.map(f => `"${f.new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                    ' + indent)}
+        ${indent}            ${fields_from_join.map(f => `"${f.join_new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                    ' + indent)}
         ${indent}            return next;
         ${indent}        end if;
         ${indent}        num_results = num_results + 1;
@@ -238,7 +238,7 @@ function generate_state({ table, index, has_block_snapshot, keys, sort_keys, his
         ${indent}        "present" = false;
         ${indent}        ${keys.map(f => `"${f.name}" = key_search."${f.name}";`).join('\n                ' + indent)}
         ${indent}        ${data_fields.map(f => `"${f.name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                ' + indent)}
-        ${indent}        ${fields_from_join.map(f => `"${f.new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                ' + indent)}
+        ${indent}        ${fields_from_join.map(f => `"${f.join_new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                ' + indent)}
         ${indent}        return next;
         ${indent}        num_results = num_results + 1;
         ${indent}    end if;
@@ -337,7 +337,7 @@ for (let query of config.queries) {
         }] : [],
         ordered_fields: tables[query.table].ordered_fields,
         join_key_values: (query.join_key_values || []).map(({ name, expression }) => ({ name, expression, type: tables[query.join].fields[name].type })),
-        fields_from_join: (query.fields_from_join || []).map(({ name, new_name }) => ({ name, new_name, type: tables[query.join].fields[name].type })),
+        fields_from_join: (query.fields_from_join || []).map(({ name, join_new_name }) => ({ name, join_new_name, type: tables[query.join].fields[name].type })),
     };
     fill_types(query, query.keys);
     fill_types(query, query.sort_keys);

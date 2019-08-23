@@ -14,7 +14,7 @@ using talk_string = std::string; // contracts need this type
 
 // Message table
 struct [[eosio::table("message"), eosio::contract("talk")]] message {
-    uint64_t    id       = {};
+    uint64_t    id       = {}; // Non-0
     uint64_t    reply_to = {}; // Non-0 if this is a reply
     eosio::name user     = {};
     talk_string content  = {};

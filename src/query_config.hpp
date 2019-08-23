@@ -9,7 +9,6 @@ namespace query_config {
 template <typename Defs>
 struct field {
     std::string                name           = {};
-    std::string                short_name     = {};
     std::string                type           = {};
     bool                       begin_optional = {};
     bool                       end_optional   = {};
@@ -19,7 +18,6 @@ struct field {
 template <typename Defs, typename F>
 constexpr void for_each_field(field<Defs>*, F f) {
     ABIEOS_MEMBER(field<Defs>, name);
-    ABIEOS_MEMBER(field<Defs>, short_name);
     ABIEOS_MEMBER(field<Defs>, type);
     ABIEOS_MEMBER(field<Defs>, begin_optional);
     ABIEOS_MEMBER(field<Defs>, end_optional);
@@ -94,34 +92,34 @@ constexpr void for_each_field(index<Defs>*, F f) {
 
 template <typename Defs>
 struct query {
-    abieos::name                      wasm_name            = {};
-    std::string                       index                = {};
-    std::string                       function             = {};
-    std::string                       table                = {};
-    bool                              has_block_snapshot   = {};
-    uint32_t                          max_results          = {};
-    std::string                       join                 = {};
-    abieos::name                      join_query_wasm_name = {};
-    std::vector<typename Defs::key>   join_key_values      = {};
-    std::vector<typename Defs::key>   fields_from_join     = {};
-    std::vector<typename Defs::type>  arg_types            = {};
-    std::vector<typename Defs::field> result_fields        = {};
-    const typename Defs::index*       index_obj            = {};
-    const typename Defs::table*       table_obj            = {};
-    const typename Defs::table*       join_table           = {};
-    const query*                      join_query           = {};
+    abieos::name                      short_name            = {};
+    std::string                       index                 = {};
+    std::string                       function              = {};
+    std::string                       table                 = {};
+    bool                              has_block_snapshot    = {};
+    uint32_t                          max_results           = {};
+    std::string                       join                  = {};
+    abieos::name                      join_query_short_name = {};
+    std::vector<typename Defs::key>   join_key_values       = {};
+    std::vector<typename Defs::key>   fields_from_join      = {};
+    std::vector<typename Defs::type>  arg_types             = {};
+    std::vector<typename Defs::field> result_fields         = {};
+    const typename Defs::index*       index_obj             = {};
+    const typename Defs::table*       table_obj             = {};
+    const typename Defs::table*       join_table            = {};
+    const query*                      join_query            = {};
 };
 
 template <typename Defs, typename F>
 constexpr void for_each_field(query<Defs>*, F f) {
-    ABIEOS_MEMBER(query<Defs>, wasm_name);
+    ABIEOS_MEMBER(query<Defs>, short_name);
     ABIEOS_MEMBER(query<Defs>, index);
     ABIEOS_MEMBER(query<Defs>, function);
     ABIEOS_MEMBER(query<Defs>, table);
     ABIEOS_MEMBER(query<Defs>, has_block_snapshot);
     ABIEOS_MEMBER(query<Defs>, max_results);
     ABIEOS_MEMBER(query<Defs>, join);
-    ABIEOS_MEMBER(query<Defs>, join_query_wasm_name);
+    ABIEOS_MEMBER(query<Defs>, join_query_short_name);
     ABIEOS_MEMBER(query<Defs>, join_key_values);
     ABIEOS_MEMBER(query<Defs>, fields_from_join);
 };
@@ -211,36 +209,36 @@ struct config {
         }
 
         for (auto& query : queries) {
-            query_map[query.wasm_name] = &query;
-            auto index_it              = index_map.find(query.index);
+            query_map[query.short_name] = &query;
+            auto index_it               = index_map.find(query.index);
             if (index_it == index_map.end())
-                throw std::runtime_error("query " + (std::string)query.wasm_name + ": unknown index: " + query.index);
+                throw std::runtime_error("query " + (std::string)query.short_name + ": unknown index: " + query.index);
             auto it = table_map.find(query.table);
             if (it == table_map.end())
-                throw std::runtime_error("query " + (std::string)query.wasm_name + ": unknown table: " + query.table);
+                throw std::runtime_error("query " + (std::string)query.short_name + ": unknown table: " + query.table);
 
             query.index_obj = index_it->second;
             query.table_obj = it->second;
             if (query.index_obj->only_for_trim)
                 throw std::runtime_error(
-                    "query '" + (std::string)query.wasm_name + "': index: '" + query.index + "' is marked only_for_trim");
+                    "query '" + (std::string)query.short_name + "': index: '" + query.index + "' is marked only_for_trim");
             set_join_key_fields(*query.table_obj, query.join_key_values);
 
             query.result_fields = query.table_obj->fields;
             if (!query.join.empty()) {
                 auto it = table_map.find(query.join);
                 if (it == table_map.end())
-                    throw std::runtime_error("query " + (std::string)query.wasm_name + ": unknown table: " + query.join);
+                    throw std::runtime_error("query " + (std::string)query.short_name + ": unknown table: " + query.join);
                 query.join_table = it->second;
                 set_key_fields(*query.join_table, query.fields_from_join);
                 for (auto& key : query.fields_from_join)
                     query.result_fields.push_back(*key.field);
 
-                auto it2 = query_map.find(query.join_query_wasm_name);
+                auto it2 = query_map.find(query.join_query_short_name);
                 if (it2 == query_map.end())
                     throw std::runtime_error(
-                        "query " + (std::string)query.wasm_name +
-                        ": unknown join_query_wasm_name: " + (std::string)query.join_query_wasm_name);
+                        "query " + (std::string)query.short_name +
+                        ": unknown join_query_short_name: " + (std::string)query.join_query_short_name);
                 query.join_query = it2->second;
             }
         }

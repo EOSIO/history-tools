@@ -114,7 +114,7 @@ struct rocksdb_query_session : query_session {
                     *rdb::get_raw(*it2, extract_pk_from_index(index_value, *query.table_obj, query.index_obj->sort_keys), true);
                 rows.emplace_back(delta_value.pos, delta_value.end);
                 if (query.join_table) {
-                    auto join_key = kv::make_index_key(query.join_table->short_name, query.join_query_wasm_name);
+                    auto join_key = kv::make_index_key(query.join_table->short_name, query.join_query_short_name);
                     std::vector<std::optional<uint32_t>> table_positions;
                     kv::init_positions(table_positions, query.table_obj->fields.size());
                     fill_positions(delta_value, query.table_obj->fields, table_positions);

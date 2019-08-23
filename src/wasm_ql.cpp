@@ -122,8 +122,8 @@ static void retry_loop(wasm_ql::thread_state& thread_state, F f) {
     }
 }
 
-static void run_query(wasm_ql::thread_state& thread_state, abieos::name wasm_name) {
-    auto      code = backend_t::read_wasm(thread_state.shared->wasm_dir + "/" + (std::string)wasm_name + "-server.wasm");
+static void run_query(wasm_ql::thread_state& thread_state, abieos::name short_name) {
+    auto      code = backend_t::read_wasm(thread_state.shared->wasm_dir + "/" + (std::string)short_name + "-server.wasm");
     backend_t backend(code);
     callbacks cb{thread_state, backend};
     backend.set_wasm_allocator(&thread_state.wa);
@@ -146,9 +146,9 @@ std::vector<char> query(wasm_ql::thread_state& thread_state, const std::vector<c
             auto ns_name         = abieos::bin_to_native<abieos::name>(thread_state.request);
             if (ns_name != "local"_n)
                 throw std::runtime_error("unknown namespace: " + (std::string)ns_name);
-            auto wasm_name = abieos::bin_to_native<abieos::name>(thread_state.request);
+            auto short_name = abieos::bin_to_native<abieos::name>(thread_state.request);
 
-            run_query(thread_state, wasm_name);
+            run_query(thread_state, short_name);
             if (did_fork(thread_state))
                 return false;
 

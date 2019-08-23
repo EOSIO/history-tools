@@ -26,7 +26,7 @@ Whenever you run a filler after this point, use the `--fill-trim` option. Only u
 
 ## Creating a portable snapshot with full state-history
 
-* Enable the `producer_api_plugin` on a node with full state-history. Caution when using producer_api_plugin: either use a firewall to block access to `http-server-address`, or change it to `localhost:8888` to disable remote access.
+* Enable the `producer_api_plugin` on a node with full state-history. Caution when using producer_api_plugin: either use a firewall to block access to `http-server-address`, or change it to `127.0.0.1:8888` to disable remote access.
 * Create a portable snapshot: `curl http://127.0.0.1:8888/v1/producer/create_snapshot | json_pp`
 * Wait for nodeos to process several blocks after the snapshot completed. The goal is for the state-history files to contain at least 1 more block than the portable snapshot has, and for the block log to contain the block after it has become irreversible.
 * Stop nodeos
@@ -48,4 +48,4 @@ Whenever you run a filler after this point, use the `--fill-trim` option. Only u
 * Make sure `data/state` does not exist
 * Start nodeos with the `--snapshot` option, and the options listed in "Nodeos configuration" above
 
-If nodeos fails to receive blocks from the network, then try the above using `net_api_plugin`. Use `cleos net disconnect` and `cleos net connect` to reconnect nodes which timed out. Caution when using net_api_plugin: either use a firewall to block access to `http-server-address`, or change it to `localhost:8888` to disable remote access.
+If nodeos fails to receive blocks from the network, then try the above using `net_api_plugin`. Use `cleos net disconnect` and `cleos net connect` to reconnect nodes which timed out. Caution when using net_api_plugin: either use a firewall to block access to `http-server-address`, or change it to `127.0.0.1:8888` to disable remote access.

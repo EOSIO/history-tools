@@ -29,7 +29,7 @@ Use SIGINT or SIGTERM to stop.
 
 | RocksDB fill          | PostgreSQL fill           | Default               | Description |
 |---------------------  |-------------------------- |--------------------   |-------------|
-| --fill-connect-to     | --fill-connect-to         | localhost:8080        | state-history-plugin endpoint to connect to |
+| --fill-connect-to     | --fill-connect-to         | 127.0.0.1:8080        | state-history-plugin endpoint to connect to |
 |                       | --pg-schema               | chain                 | schema to use |
 | --rdb-database        |                           |                       | database path |
 | --rdb-threads         |                           |                       | Increase number of background RocksDB threads. Recommend 8 for full history on large chains |

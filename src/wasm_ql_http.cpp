@@ -536,9 +536,14 @@ struct server_impl : http_server, std::enable_shared_from_this<server_impl> {
         };
 
         ilog("listen on ${a}:${p}", ("a", address)("p", port));
+        boost::asio::ip::address a;
+        try {
+            a = net::ip::make_address(address);
+        } catch (std::exception& e) {
+            throw std::runtime_error("make_address(): "s + address + ": " + e.what());
+        }
         std::make_shared<listener>(
-            ioc, tcp::endpoint{net::ip::make_address(address), (unsigned short)std::atoi(port.c_str())},
-            std::make_shared<std::string>(state->static_dir), state)
+            ioc, tcp::endpoint{a, (unsigned short)std::atoi(port.c_str())}, std::make_shared<std::string>(state->static_dir), state)
             ->run();
 
         threads.reserve(num_threads);

@@ -37,7 +37,7 @@ Options:
 | RocksDB wasm-ql       | PostgreSQL wasm-ql        | Default               | Description |
 |---------------------  |-------------------------- |--------------------   |-------------|
 | --wql-threads         | --wql-threads             | 8                     | Number of threads to process requests |
-| --wql-listen          | --wql-listen              | localhost:8880        | Endpoint to listen for incoming queries |
+| --wql-listen          | --wql-listen              | 127.0.0.1:8880        | Endpoint to listen for incoming queries |
 | --wql-allow-origin    | --wql-allow-origin        |                       | Access-Control-Allow-Origin header. Use "*" to allow any. |
 | --wql-wasm-dir        | --wql-wasm-dir            | .                     | Directory to fetch WASMs from |
 | --wql-static-dir      | --wql-static-dir          | (disabled)            | Directory to serve static files from |

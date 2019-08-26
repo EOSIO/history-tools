@@ -25,8 +25,8 @@ See the [documentation site](https://eosio.github.io/history-tools/)
 # Alpha Release
 
 This is an alpha release of the EOSIO History Tools. It includes database fillers
-(`fill-pg`, `fill-rdb`) which pull data from nodeos's State History Plugin, and a new
-query engine (`wasm-ql-pg`, `wasm-ql-rdb`) which supports queries defined by wasm, along
+(`fill-pg`, `fill-rocksdb`) which pull data from nodeos's State History Plugin, and a new
+query engine (`wasm-ql-pg`, `wasm-ql-rocksdb`) which supports queries defined by wasm, along
 with an emulation of the legacy `/v1/` RPC API.
 
 This alpha release is designed to solicit community feedback. There are several potential
@@ -98,11 +98,17 @@ wasm-ql supports two kinds of queries:
 We're considering dropping client-side wasms and switching the format of the first type
 of query to JSON RPC, Graph QL, or another format. We're seeking feedback on this switch.
 
-## fill-rocksdb, wasm-ql-rocksdb
+## combo-rocksdb, fill-rocksdb, wasm-ql-rocksdb
 
-This pair functions identically to `fill-pg` and `wasm-ql-pg`, but stores data using RocksDB
+These function identically to `fill-pg` and `wasm-ql-pg`, but store data using RocksDB
 instead of postgresql. Since RocksDB is an embedded database instead of a database server,
 this option may be simpler to administer. RocksDB also saves space and fills quicker.
+
+* `combo-rocksdb`: Fills the database and answers queries. Use this for queries against a live database.
+* `fill-rocksdb`: Use this when filling a database for the first time. It fills faster
+   than `combo-rocksdb` but can't answer queries. Switch to `combo-rocksdb` after the database
+   catches up with the chain.
+* `wasm-ql-rocksdb`: Rarely used. Queries a database that isn't being filled.
 
 ## Contributing
 

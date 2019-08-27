@@ -39,6 +39,24 @@ future. Some of these may be driven by community feedback.
 This release supports nodeos 1.8.x. It does not support 1.7.x or the 1.8 RC versions. This release
 includes the following:
 
+## Changes since Alpha 0.1.0
+
+* There are now 2 self-contained demonstrations in public Docker images. See [container-demos](doc/container-demos.md) for details.
+  * Talk: this demonstrates using wasm-ql to provide messages from on-chain conversations to clients in threaded order.
+  * Partial history: this demonstrates some of wasm-ql's chain and token queries on data drawn from one of the public EOSIO networks.
+* Added RocksDB and removed LMDB. This has the following advantages:
+  * Filling outperforms both PostgreSQL and LMDB by considerable margins, both for partial history
+    and for full history on large well-known chains.
+  * Database size for full history is much smaller than PostgreSQL.
+* Database fillers have a new option `--fill-trx` to filter transaction traces.
+* Database fillers no longer need `--fill-skip-to` when starting from partial history.
+* Database fillers now automatically reconnect to the State History Plugin.
+* wasm-ql now uses a thread pool to handle queries. `--wql-threads` controls the thread pool size.
+* wasm-ql now uses eos-vm instead of SpiderMonkey. This simplifies the build process.
+* wasm-ql can now serve static files. Enabled by the new `--wql-static-dir` option.
+* SHiP connection handling moved to `state_history_connection.hpp`. This file may aid users needing
+  to write custom solutions which connect to the State History Plugin.
+
 ## fill-pg
 
 `fill-pg` fills postgresql with data from nodeos's State History Plugin. It provides nearly all
@@ -122,4 +140,6 @@ this option may be simpler to administer. RocksDB also saves space and fills qui
 
 ## Important
 
-See LICENSE for copyright and license terms.  Block.one makes its contribution on a voluntary basis as a member of the EOSIO community and is not responsible for ensuring the overall performance of the software or any related applications.  We make no representation, warranty, guarantee or undertaking in respect of the software or any related documentation, whether expressed or implied, including but not limited to the warranties or merchantability, fitness for a particular purpose and noninfringement. In no event shall we be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or documentation or the use or other dealings in the software or documentation.  Any test results or performance figures are indicative and will not reflect performance under all conditions.  Any reference to any third party or third-party product, service or other resource is not an endorsement or recommendation by Block.one.  We are not responsible, and disclaim any and all responsibility and liability, for your use of or reliance on any of these resources. Third-party resources may be updated, changed or terminated at any time, so the information here may be out of date or inaccurate.
+See [LICENSE](LICENSE) for copyright and license terms.
+
+All repositories and other materials are provided subject to the terms of this [IMPORTANT](important.md) notice and you must familiarize yourself with its terms.  The notice contains important information, limitations and restrictions relating to our software, publications, trademarks, third-party resources, and forward-looking statements.  By accessing any of our repositories and other materials, you accept and agree to the terms of the notice.

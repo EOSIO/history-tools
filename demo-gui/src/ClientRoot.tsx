@@ -431,6 +431,14 @@ class ClientRoot extends React.Component<{ appState: AppState }> {
                 <Results appState={appState} />
                 <div className='disclaimer'>
                     <a href="https://github.com/EOSIO/history-tools">GitHub Repo...</a>
+                    <br /><br />
+                    Disclaimer: All repositories and other materials are provided subject to this
+                    &nbsp;<a href="https://block.one/important-notice/">IMPORTANT</a>&nbsp;
+                    notice and you must familiarize yourself with its terms.  The notice contains
+                    important information, limitations and restrictions relating to our software,
+                    publications, trademarks, third-party resources, and forward-looking statements.
+                    By accessing any of our repositories and other materials, you accept and agree
+                    to the terms of the notice.
                 </div>
             </div>
         );

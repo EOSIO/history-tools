@@ -986,6 +986,8 @@ struct fpg_session : std::enable_shared_from_this<fpg_session> {
         } catch (...) {
             elog("exception while closing");
         }
+        elog("plugin failed, closing app");
+        app().quit();
     }
 
     void close() {

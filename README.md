@@ -39,7 +39,7 @@ future. Some of these may be driven by community feedback.
 This release supports nodeos 1.8.x. It does not support 1.7.x or the 1.8 RC versions. This release
 includes the following:
 
-## Changes since Alpha 0.1.0
+## Alpha 0.2.0
 
 * There are now 2 self-contained demonstrations in public Docker images. See [container-demos](doc/container-demos.md) for details.
   * Talk: this demonstrates using wasm-ql to provide messages from on-chain conversations to clients in threaded order.

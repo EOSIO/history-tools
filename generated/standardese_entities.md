@@ -64,7 +64,7 @@
     
       - [`query_acctmeta_range_name`](doc_database.md#standardese-eosio__query_acctmeta_range_name) - Pass this to `query_database` to get `account_metadata_joined` for a range of names.
     
-      - [`query_action_trace_executed_range_name_receiver_account_block_trans_action`](doc_database.md#standardese-eosio__query_action_trace_executed_range_name_receiver_account_block_trans_action) - Pass this to `query_database` to get `action_trace` for a range of keys. Only includes actions in executed transactions.
+      - [`query_action_trace_range_name_receiver_account_block_trans_action`](doc_database.md#standardese-eosio__query_action_trace_range_name_receiver_account_block_trans_action) - Pass this to `query_database` to get `action_trace` for a range of keys.
     
       - [`query_action_trace_receipt_receiver`](doc_database.md#standardese-eosio__query_action_trace_receipt_receiver) - Pass this to `query_database` to get `action_trace` for a range of `receipt_receiver` names.
     

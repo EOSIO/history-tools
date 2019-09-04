@@ -4,7 +4,7 @@
     <head>
         <meta charset="UTF-8">
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
-        <title>Database Fillers · GitBook</title>
+        <title>Containerized Demos · GitBook</title>
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="description" content="">
         <meta name="generator" content="GitBook 3.2.3">
@@ -57,10 +57,10 @@
     <link rel="shortcut icon" href="gitbook/images/favicon.ico" type="image/x-icon">
 
     
-    <link rel="next" href="nodeos-state-history.html" />
+    <link rel="next" href="database-fillers.html" />
     
     
-    <link rel="prev" href="container-demos.html" />
+    <link rel="prev" href="./" />
     
 
     </head>
@@ -102,7 +102,7 @@
             
         </li>
     
-        <li class="chapter " data-level="1.2" data-path="container-demos.html">
+        <li class="chapter active" data-level="1.2" data-path="container-demos.html">
             
                 <a href="container-demos.html">
             
@@ -115,7 +115,7 @@
             
         </li>
     
-        <li class="chapter active" data-level="1.3" data-path="database-fillers.html">
+        <li class="chapter " data-level="1.3" data-path="database-fillers.html">
             
                 <a href="database-fillers.html">
             
@@ -455,7 +455,7 @@
     <!-- Title -->
     <h1>
         <i class="fa fa-circle-o-notch fa-spin"></i>
-        <a href="." >Database Fillers</a>
+        <a href="." >Containerized Demos</a>
     </h1>
 </div>
 
@@ -470,205 +470,26 @@
     
                                 <section class="normal markdown-section">
                                 
-                                <h1 id="database-fillers">Database Fillers</h1>
-<p>The database fillers connect to the nodeos state-history plugin and populate databases.</p>
-<h2 id="postgresql-vs-rocksdb">PostgreSQL vs. RocksDB</h2>
-<ul>
-<li>PostgreSQL<ul>
-<li>Supports full history</li>
-<li>Partial history can fall behind on large chains; PostgreSQL sometimes struggles to delete large numbers of rows</li>
-<li>Scaling: supports wasm-ql running on multiple machines connecting to a single database</li>
-</ul>
-</li>
-<li>RocksDB<ul>
-<li>Supports full and partial history</li>
-<li>Simpler setup; RocksDB is an in-process database</li>
-<li>Saves disk space compared to PostgreSQL</li>
-<li>Faster filling than PostgreSQL</li>
-<li>Scaling: each machine hosting wasm-ql servers has a separate database</li>
-</ul>
-</li>
-</ul>
-<h2 id="running-fillers">Running fillers</h2>
-<p>When running <code>fill-pg</code> for the first time, use the <code>--fpg-create</code> option to create the schema and tables. To wipe the schema and start over, run with <code>--fpg-drop --fpg-create</code>. </p>
-<p><code>fill-rocksdb</code> and <code>combo-rocksdb</code> automatically create a database if it doesn&apos;t exist; it doesn&apos;t have <code>drop</code> or <code>create</code> options.</p>
-<p>After starting, a filler will populate the database. It will track real-time updates from nodeos after it catches up.</p>
-<p>Use SIGINT or SIGTERM to stop.</p>
-<h2 id="option-matrix">Option matrix</h2>
-<table>
-<thead>
-<tr>
-<th>RocksDB fill</th>
-<th>PostgreSQL fill</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>--fill-connect-to</td>
-<td>--fill-connect-to</td>
-<td>127.0.0.1:8080</td>
-<td>state-history-plugin endpoint to connect to</td>
-</tr>
-<tr>
-<td></td>
-<td>--pg-schema</td>
-<td>chain</td>
-<td>schema to use</td>
-</tr>
-<tr>
-<td>--rdb-database</td>
-<td></td>
-<td></td>
-<td>database path</td>
-</tr>
-<tr>
-<td>--rdb-threads</td>
-<td></td>
-<td></td>
-<td>Increase number of background RocksDB threads. Recommend 8 for full history on large chains</td>
-</tr>
-<tr>
-<td>--rdb-max-files</td>
-<td></td>
-<td></td>
-<td>Limit max number of open files (default unlimited). This should be smaller than &apos;ulimit -n #&apos;. # should be a very large number for full-history nodes.</td>
-</tr>
-<tr>
-<td>--query-config</td>
-<td></td>
-<td></td>
-<td>query configuration file</td>
-</tr>
-<tr>
-<td></td>
-<td>--fpg-drop</td>
-<td></td>
-<td>drop (delete) schema and tables</td>
-</tr>
-<tr>
-<td></td>
-<td>--fpg-create</td>
-<td></td>
-<td>create schema and tables</td>
-</tr>
-<tr>
-<td>--fill-trim</td>
-<td>--fill-trim</td>
-<td></td>
-<td>trim history before irreversible</td>
-</tr>
-<tr>
-<td>--fill-skip-to</td>
-<td>--fill-skip-to</td>
-<td></td>
-<td>skip blocks before arg</td>
-</tr>
-<tr>
-<td>--fill-stop</td>
-<td>--fill-stop</td>
-<td></td>
-<td>stop filling at block arg</td>
-</tr>
-<tr>
-<td>--fill-trx</td>
-<td>--fill-trx</td>
-<td></td>
-<td>filter transactions</td>
-</tr>
-</tbody>
-</table>
-<h2 id="transaction-filters">Transaction filters</h2>
-<p><code>--fill-trx</code> creates a set of transaction filtering rules. It has the following syntax:</p>
-<pre><code>--fill-trx include:status:receiver:act_account:act_name
-</code></pre><p>It ignores whitespace within the pattern.</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>May be empty?</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>include</td>
-<td>No</td>
-<td>&quot;<code>+</code>&quot; to pass a matching action, or &quot;<code>-</code>&quot; to not pass</td>
-</tr>
-<tr>
-<td>status</td>
-<td>Yes</td>
-<td>Transaction status. May be one of: <code>executed</code>, <code>soft_fail</code>, <code>hard_fail</code>, <code>delayed</code>, <code>expired</code></td>
-</tr>
-<tr>
-<td>receiver</td>
-<td>Yes</td>
-<td>The account which originally received the action, or the account which received a copy (<code>require_recipient</code>).</td>
-</tr>
-<tr>
-<td>act_account</td>
-<td>Yes</td>
-<td>The account which received the original. This is called <code>code</code> or <code>first_receiver</code> in the CDT.</td>
-</tr>
-<tr>
-<td>act_name</td>
-<td>Yes</td>
-<td>The name of the action</td>
-</tr>
-</tbody>
-</table>
-<p><code>--fill-trx</code> may be specified multiple times. This creates a list of rules. The filter checks an action against each
-rule in order. As soon as it finds a rule which matches the action it stops. The action passes if <code>include</code> is <code>+</code>. 
-The action doesn&apos;t pass if <code>include</code> is <code>-</code>. If no rules match, then the action doesn&apos;t pass.</p>
-<p>The filler writes a transaction to the database if any of the transaction&apos;s actions pass the filter. When this happens, it writes all
-actions in the transaction, including ones that didn&apos;t pass.</p>
-<h3 id="transaction-filter-examples">Transaction filter examples</h3>
-<ul>
-<li>Include all transactions. Includes deferred transactions which haven&apos;t executed
-yet or have failed. This is the default if no <code>--fill-trx</code> is provided:</li>
-</ul>
-<pre><code>--fill-trx &quot;+:        :            :            :&quot;
-</code></pre><ul>
-<li>Include all executed transactions. Excludes deferred transactions which haven&apos;t executed
-yet or have failed:</li>
-</ul>
-<pre><code>--fill-trx &quot;+:executed:            :            :&quot;
-</code></pre><ul>
-<li>Include all executed transactions, but exclude some spam:</li>
-</ul>
-<pre><code>--fill-trx &quot;-:        :blocktwitter:blocktwitter:&quot;
---fill-trx &quot;+:executed:            :            :&quot;
-</code></pre><ul>
-<li>Include all executed transfers. Includes all token contracts:</li>
-</ul>
-<pre><code>--fill-trx &quot;+:executed:            :            :transfer&quot;
-</code></pre><ul>
-<li>Include all executed transfers. Includes only <code>eosio.token</code>:</li>
-</ul>
-<pre><code>--fill-trx &quot;+:executed:            :eosio.token :transfer&quot;
-</code></pre><ul>
-<li>Include all executed transfers which notify specific accounts. Includes all token contracts:</li>
-</ul>
-<pre><code>--fill-trx &quot;+:executed:myaccount1  :            :transfer&quot;
---fill-trx &quot;+:executed:myaccount2  :            :transfer&quot;
-</code></pre><ul>
-<li>Include all executed transfers which notify specific accounts. Only includes <code>eosio.token</code>:</li>
-</ul>
-<pre><code>--fill-trx &quot;+:executed:myaccount1  :eosio.token :transfer&quot;
---fill-trx &quot;+:executed:myaccount2  :eosio.token :transfer&quot;
-</code></pre><h2 id="postgresql-configuration">PostgreSQL configuration</h2>
-<p>fill-postgresql relies on PostgreSQL environment variables to establish connections; see the PostgreSQL manual.</p>
-<p>A quick-and-dirty way to connect to PostgreSQL server running on another machine is to set these:</p>
-<ul>
-<li>PGUSER</li>
-<li>PGPASSWORD</li>
-<li>PGDATABASE</li>
-<li>PGHOST</li>
-</ul>
-<p>Use the <code>psql</code> utility to verify your connection.</p>
-
+                                <h1 id="containerized-demos">Containerized Demos</h1>
+<p>These self-contained demonstrations run in transient containers.</p>
+<h2 id="talk">Talk</h2>
+<p>This demo stores conversations on chain and uses wasm-ql to serve the messages to clients 
+in threaded order. The UI requests messages as needed to fill a virtual scroll area. The
+UI also has pages describing how the demo is constructed and reveals the sources for the
+contract and wasm-ql wasms.</p>
+<p>The single container hosts <code>nodeos</code>, <code>combo-rocksdb</code>, <code>nginx</code>, a background transaction
+pusher, and the UI.</p>
+<p>To start the demo, run the following, then point your browser to <a href="http://127.0.0.1:8881" target="_blank">http://127.0.0.1:8881</a></p>
+<pre><code>docker pull eosio/history-tools:demo-talk
+docker run --rm -it -p 127.0.0.1:8881:80 eosio/history-tools:demo-talk
+</code></pre><h2 id="partial-history">Partial History</h2>
+<p>Here&apos;s a demonstration of using wasm-ql&apos;s chain and token queries. This docker container
+is populated with partial history data drawn from one of the public EOSIO networks.
+It uses RocksDB.</p>
+<p>To start the demo, run the following, then point your browser to <a href="http://127.0.0.1:8882" target="_blank">http://127.0.0.1:8882</a></p>
+<pre><code>docker pull eosio/history-tools:demo-gui-snapshot
+docker run --rm -it -p 127.0.0.1:8882:80 eosio/history-tools:demo-gui-snapshot
+</code></pre>
                                 
                                 </section>
                             
@@ -695,12 +516,12 @@ yet or have failed:</li>
 
             
                 
-                <a href="container-demos.html" class="navigation navigation-prev " aria-label="Previous page: Containerized Demos">
+                <a href="./" class="navigation navigation-prev " aria-label="Previous page: History Tools">
                     <i class="fa fa-angle-left"></i>
                 </a>
                 
                 
-                <a href="nodeos-state-history.html" class="navigation navigation-next " aria-label="Next page: nodeos State History">
+                <a href="database-fillers.html" class="navigation navigation-next " aria-label="Next page: Database Fillers">
                     <i class="fa fa-angle-right"></i>
                 </a>
                 
@@ -711,7 +532,7 @@ yet or have failed:</li>
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"Database Fillers","level":"1.3","depth":1,"next":{"title":"nodeos State History","level":"1.3.1","depth":2,"path":"nodeos-state-history.md","ref":"nodeos-state-history.md","articles":[]},"previous":{"title":"Containerized Demos","level":"1.2","depth":1,"path":"container-demos.md","ref":"container-demos.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"database-fillers.md","mtime":"2019-09-04T14:12:41.000Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-09-04T14:14:53.368Z"},"basePath":".","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"Containerized Demos","level":"1.2","depth":1,"next":{"title":"Database Fillers","level":"1.3","depth":1,"path":"database-fillers.md","ref":"database-fillers.md","articles":[{"title":"nodeos State History","level":"1.3.1","depth":2,"path":"nodeos-state-history.md","ref":"nodeos-state-history.md","articles":[]}]},"previous":{"title":"History Tools","level":"1.1","depth":1,"path":"README.md","ref":"README.md","articles":[]},"dir":"ltr"},"config":{"plugins":[],"root":"doc","styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"pluginsConfig":{"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"sharing":{"facebook":true,"twitter":true,"google":false,"weibo":false,"instapaper":false,"vk":false,"all":["facebook","google","twitter","weibo","instapaper"]},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"theme":"default","pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"variables":{},"gitbook":"*"},"file":{"path":"container-demos.md","mtime":"2019-09-04T14:12:41.000Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2019-09-04T14:14:53.368Z"},"basePath":".","book":{"language":""}});
         });
     </script>
 </div>

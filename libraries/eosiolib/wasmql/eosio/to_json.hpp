@@ -4,7 +4,11 @@
 
 #include "fpconv.c"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-W#warnings"
 #include <date/date.h>
+#pragma clang diagnostic pop
+
 #include <eosio/asset.hpp>
 #include <eosio/fixed_bytes.hpp>
 #include <eosio/rope.hpp>

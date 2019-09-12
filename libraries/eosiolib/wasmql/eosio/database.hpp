@@ -6,6 +6,7 @@
 #pragma once
 
 #ifdef GENERATING_DOC
+#include <eosio/action.hpp>
 #include <eosio/fixed_bytes.hpp>
 #include <eosio/shared_memory.hpp>
 #include <eosio/struct_reflection.hpp>
@@ -13,6 +14,7 @@
 #include <type_traits>
 
 #else
+#include <eosio/action.hpp>
 #include <eosio/crypto.hpp>
 #include <eosio/fixed_bytes.hpp>
 #include <eosio/name.hpp>
@@ -116,15 +118,6 @@ STRUCT_REFLECT(receipt) {
     STRUCT_MEMBER(receipt, code_sequence);
     STRUCT_MEMBER(receipt, abi_sequence);
 }
-
-/// Details about action execution
-struct action {
-    eosio::name                            account = {};
-    eosio::name                            name    = {};
-    shared_memory<datastream<const char*>> data    = {};
-
-    EOSLIB_SERIALIZE(action, (account)(name)(data))
-};
 
 STRUCT_REFLECT(action) {
     STRUCT_MEMBER(action, account)

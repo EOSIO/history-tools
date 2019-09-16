@@ -73,6 +73,9 @@ __attribute__((noinline)) inline rope make_json_schema(symbol_code*) {
     return make_json_schema_string_pattern("... todo: symbol_code pattern ...");
 }
 
+/// \group make_json_schema_explicit
+__attribute__((noinline)) inline rope make_json_schema(asset*) { return make_json_schema_string_pattern("... todo: asset pattern ..."); }
+
 /// \group schema_type_name_explicit Get JSON Schema type name (Explicit Types)
 inline std::string_view schema_type_name(time_point*) { return "eosio::time_point"; }
 

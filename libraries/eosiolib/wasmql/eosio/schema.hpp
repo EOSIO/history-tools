@@ -85,6 +85,14 @@ __attribute__((noinline)) inline rope make_json_schema(time_point*) {
 }
 
 /// \group schema_type_name_explicit Get JSON Schema type name (Explicit Types)
+inline std::string_view schema_type_name(time_point_sec*) { return "eosio::time_point_sec"; }
+
+/// \group make_json_schema_explicit
+__attribute__((noinline)) inline rope make_json_schema(time_point_sec*) {
+    return make_json_schema_string_pattern("... todo: time_point_sec pattern ...");
+}
+
+/// \group schema_type_name_explicit Get JSON Schema type name (Explicit Types)
 inline std::string_view schema_type_name(block_timestamp*) { return "eosio::block_timestamp"; }
 
 /// \group make_json_schema_explicit
@@ -168,6 +176,9 @@ __attribute__((noinline)) inline rope make_json_schema(T*) {
     if constexpr (std::is_integral_v<T>) {
         // todo: range, pattern for string, etc.
         return R"("type":["integer","string"])";
+    } else if constexpr (std::is_arithmetic_v<T>) {
+        // todo: pattern for string
+        return R"("type":["number","string"])";
     } else {
         rope result = R"("type":"object","properties":{)";
         bool first  = true;

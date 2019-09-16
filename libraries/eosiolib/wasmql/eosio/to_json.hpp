@@ -298,6 +298,9 @@ __attribute__((noinline)) inline rope to_str_us(uint64_t microseconds) {
 __attribute__((noinline)) inline rope to_json(time_point value) { return rope{"\""} + to_str_us(value.elapsed.count()) + "\""; }
 
 /// \group to_json_explicit
+__attribute__((noinline)) inline rope to_json(time_point_sec value) { return to_json((time_point)value); }
+
+/// \group to_json_explicit
 __attribute__((noinline)) inline rope to_json(block_timestamp value) { return to_json(value.to_time_point()); }
 
 /// \group to_json_explicit

@@ -1,0 +1,9 @@
+language: cpp
+git:
+  depth: false
+matrix:
+  include:
+  - os: linux
+    dist: xenial
+    services: docker
+script: "docker build -f ./ubuntu-18.04.dockerfile ."

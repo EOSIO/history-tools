@@ -15,8 +15,8 @@ namespace state_history {
 struct connection_callbacks {
     virtual ~connection_callbacks() = default;
     virtual void received_abi(std::string_view abi) {}
-    virtual bool received(get_status_result_v0& status) { return true; }
-    virtual bool received(get_blocks_result_v0& result) { return true; }
+    virtual bool received(get_status_result_v0& status, abieos::input_buffer bin) { return true; }
+    virtual bool received(get_blocks_result_v0& result, abieos::input_buffer bin) { return true; }
     virtual void closed(bool retry) = 0;
 };
 
@@ -105,9 +105,10 @@ struct connection : std::enable_shared_from_this<connection> {
     bool receive_result(const std::shared_ptr<flat_buffer>& p) {
         auto                  data = p->data();
         input_buffer          bin{(const char*)data.data(), (const char*)data.data() + data.size()};
+        auto                  orig = bin;
         state_history::result result;
         bin_to_native(result, bin);
-        return callbacks && std::visit([&](auto& r) { return callbacks->received(r); }, result);
+        return callbacks && std::visit([&](auto& r) { return callbacks->received(r, orig); }, result);
     }
 
     void request_blocks(uint32_t start_block_num, const std::vector<block_position>& positions) {
@@ -117,7 +118,7 @@ struct connection : std::enable_shared_from_this<connection> {
         req.max_messages_in_flight = 0xffff'ffff;
         req.have_positions         = positions;
         req.irreversible_only      = false;
-        req.fetch_block            = true;
+        req.fetch_block            = false;
         req.fetch_traces           = true;
         req.fetch_deltas           = true;
         send(req);

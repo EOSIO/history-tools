@@ -36,6 +36,24 @@ function(add_client TARGET SRC)
        RUNTIME_OUTPUT_DIRECTORY ${ROOT_BINARY_DIR})
 endfunction()
 
-add_subdirectory(chain)
-add_subdirectory(legacy)
-add_subdirectory(token)
+function(add_other TARGET SRC)
+    add_executable(${TARGET} ${SRC})
+    target_link_libraries(${TARGET} -ftester)
+    target_compile_options(${TARGET} PUBLIC "-Os")
+    target_include_directories(${TARGET}
+        PUBLIC
+        ${ROOT_SOURCE_DIR}/libraries/eosiolib/wasmql 
+        ${ROOT_SOURCE_DIR}/external/abieos/src
+        ${ROOT_SOURCE_DIR}/external/abieos/external/date/include 
+        ${ROOT_SOURCE_DIR}/external/abieos/external/rapidjson/include 
+        )
+    set_target_properties(${TARGET}
+       PROPERTIES
+       RUNTIME_OUTPUT_DIRECTORY ${ROOT_BINARY_DIR})
+endfunction()
+
+# add_subdirectory(chain)
+# add_subdirectory(legacy)
+# add_subdirectory(token)
+
+add_other(foo foo.cpp)

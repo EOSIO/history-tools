@@ -1,9 +1,46 @@
-// copyright defined in LICENSE.txt
-
 #pragma once
-#include "abieos_exception.hpp"
+
+#ifdef EOSIO_CDT_COMPILATION
+#include <abieos.hpp>
+#include <eosio/check.hpp>
+#else
+#include <abieos_exception.hpp>
+#endif
 
 namespace state_history {
+
+#ifdef EOSIO_CDT_COMPILATION
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Winvalid-noreturn"
+[[noreturn]] inline void report_error(const std::string& s) { eosio::check(false, s); }
+#pragma clang diagnostic pop
+#else
+[[noreturn]] inline void report_error(const std::string& s) { throw std::runtime_error(s); }
+#endif
+
+template <typename T>
+T read_raw(abieos::input_buffer& bin) {
+    T           result{};
+    std::string error;
+    if (!abieos::read_raw<T>(bin, error, result))
+        report_error(error);
+    return result;
+}
+
+template <typename T>
+T assert_bin_to_native(abieos::input_buffer& bin) {
+    T           result{};
+    std::string error;
+    if (!abieos::bin_to_native<T>(result, error, bin))
+        report_error(error);
+    return result;
+}
+
+template <typename T>
+T assert_bin_to_native(const std::vector<char>& bin) {
+    abieos::input_buffer b{bin.data(), bin.data() + bin.size()};
+    return assert_bin_to_native<T>(b);
+}
 
 struct extension {
     uint16_t             type = {};
@@ -54,7 +91,7 @@ inline std::string to_string(transaction_status status) {
     case transaction_status::delayed: return "delayed";
     case transaction_status::expired: return "expired";
     }
-    throw std::runtime_error("unknown status: " + std::to_string((uint8_t)status));
+    report_error("unknown status: " + std::to_string((uint8_t)status));
 }
 
 inline transaction_status get_transaction_status(const std::string& s) {
@@ -68,16 +105,17 @@ inline transaction_status get_transaction_status(const std::string& s) {
         return transaction_status::delayed;
     if (s == "expired")
         return transaction_status::expired;
-    throw std::runtime_error("unknown status: " + s);
+    report_error("unknown status: " + s);
 }
 
 inline bool bin_to_native(transaction_status& status, abieos::bin_to_native_state& state, bool) {
-    status = transaction_status(abieos::read_raw<uint8_t>(state.bin));
+    status = transaction_status(state_history::read_raw<uint8_t>(state.bin));
     return true;
 }
 
-inline bool json_to_native(transaction_status&, abieos::json_to_native_state&, abieos::event_type, bool) {
-    throw abieos::error("json_to_native: transaction_status unsupported");
+inline bool json_to_native(transaction_status&, abieos::json_to_native_state& state, abieos::event_type, bool) {
+    state.error = "json_to_native: transaction_status unsupported";
+    return false;
 }
 
 inline void native_to_bin(const transaction_status& obj, std::vector<char>& bin) { abieos::push_raw(bin, static_cast<uint8_t>(obj)); }
@@ -185,6 +223,8 @@ ABIEOS_REFLECT(table_delta_v0) {
     ABIEOS_MEMBER(table_delta_v0, name)
     ABIEOS_MEMBER(table_delta_v0, rows)
 }
+
+using table_delta = std::variant<table_delta_v0>;
 
 struct permission_level {
     abieos::name actor      = {};
@@ -459,6 +499,7 @@ ABIEOS_REFLECT(signed_block) {
     ABIEOS_MEMBER(signed_block, block_extensions)
 }
 
+#ifndef EOSIO_CDT_COMPILATION
 inline void check_variant(abieos::input_buffer& bin, const abieos::abi_type& type, uint32_t expected) {
     using namespace std::literals;
     auto index = abieos::read_varuint32(bin);
@@ -480,6 +521,7 @@ inline void check_variant(abieos::input_buffer& bin, const abieos::abi_type& typ
     if (type.fields[index].name != expected)
         throw std::runtime_error("expected "s + expected + " got " + type.fields[index].name);
 }
+#endif
 
 struct trx_filter {
     bool                              include     = {};

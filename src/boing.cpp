@@ -65,21 +65,28 @@ struct callbacks {
         // todo: check bounds
     }
 
-    // char* alloc(uint32_t cb_alloc_data, uint32_t cb_alloc, uint32_t size) {
-    //     // todo: verify cb_alloc isn't in imports
-    //     auto result = state.backend.get_context().execute_func_table(
-    //         this, eosio::vm::interpret_visitor(state.backend.get_context()), cb_alloc, cb_alloc_data, size);
-    //     if (!result || !result->is_a<eosio::vm::i32_const_t>())
-    //         throw std::runtime_error("cb_alloc returned incorrect type");
-    //     char* begin = state.wa.get_base_ptr<char>() + result->to_ui32();
-    //     check_bounds(begin, begin + size);
-    //     return begin;
-    // }
+    char* alloc(uint32_t cb_alloc_data, uint32_t cb_alloc, uint32_t size) {
+        // todo: verify cb_alloc isn't in imports
+        if (state.backend.get_module().tables.size() < 0 || state.backend.get_module().tables[0].table.size() < cb_alloc)
+            throw std::runtime_error("cb_alloc is out of range");
+        auto result = state.backend.get_context().execute(
+            this, eosio::vm::jit_visitor(42), state.backend.get_module().tables[0].table[cb_alloc], cb_alloc_data, size);
 
-    // template <typename T>
-    // void set_data(uint32_t cb_alloc_data, uint32_t cb_alloc, const T& data) {
-    //     memcpy(alloc(cb_alloc_data, cb_alloc, data.size()), data.data(), data.size());
-    // }
+        if (!result || !result->is_a<eosio::vm::i32_const_t>())
+            throw std::runtime_error("cb_alloc returned incorrect type");
+        char* begin = state.wa.get_base_ptr<char>() + result->to_ui32();
+        check_bounds(begin, begin + size);
+        return begin;
+    }
+
+    void set_data(uint32_t cb_alloc_data, uint32_t cb_alloc, abieos::input_buffer data) {
+        memcpy(alloc(cb_alloc_data, cb_alloc, data.end - data.pos), data.pos, data.end - data.pos);
+    }
+
+    template <typename T>
+    void set_data(uint32_t cb_alloc_data, uint32_t cb_alloc, const T& data) {
+        memcpy(alloc(cb_alloc_data, cb_alloc, data.size()), data.data(), data.size());
+    }
 
     void abort() { throw std::runtime_error("called abort"); }
 
@@ -94,24 +101,17 @@ struct callbacks {
         std::cerr.write(begin, end - begin);
     }
 
-    uint32_t get_bin_size() { return state.bin.end - state.bin.pos; }
+    void get_bin(uint32_t cb_alloc_data, uint32_t cb_alloc) { set_data(cb_alloc_data, cb_alloc, state.bin); }
 
-    void get_bin(char* dest_begin, char* dest_end) {
-        check_bounds(dest_begin, dest_end);
-        if (dest_end - dest_begin < state.bin.end - state.bin.pos)
-            throw std::runtime_error("get_bin: dest buffer too small");
-        memcpy(dest_begin, state.bin.pos, state.bin.end - state.bin.pos);
-    }
-
-    // void get_args(uint32_t cb_alloc_data, uint32_t cb_alloc) { set_data(cb_alloc_data, cb_alloc, state.args); }
+    void get_args(uint32_t cb_alloc_data, uint32_t cb_alloc) { set_data(cb_alloc_data, cb_alloc, state.args); }
 }; // callbacks
 
 void register_callbacks() {
     rhf_t::add<callbacks, &callbacks::abort, eosio::vm::wasm_allocator>("env", "abort");
     rhf_t::add<callbacks, &callbacks::eosio_assert_message, eosio::vm::wasm_allocator>("env", "eosio_assert_message");
     rhf_t::add<callbacks, &callbacks::print_range, eosio::vm::wasm_allocator>("env", "print_range");
-    rhf_t::add<callbacks, &callbacks::get_bin_size, eosio::vm::wasm_allocator>("env", "get_bin_size");
     rhf_t::add<callbacks, &callbacks::get_bin, eosio::vm::wasm_allocator>("env", "get_bin");
+    rhf_t::add<callbacks, &callbacks::get_args, eosio::vm::wasm_allocator>("env", "get_args");
 }
 
 struct ship_connection_state : state_history::connection_callbacks, std::enable_shared_from_this<ship_connection_state> {

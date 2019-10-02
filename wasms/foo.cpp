@@ -6,15 +6,38 @@
 using namespace eosio;
 using namespace state_history;
 
-extern "C" __attribute__((eosio_wasm_import)) uint32_t get_bin_size();
-extern "C" __attribute__((eosio_wasm_import)) void     get_bin(char* dest_begin, char* dest_end);
+namespace eosio {
+namespace internal_use_do_not_use {
+
+extern "C" __attribute__((eosio_wasm_import)) void get_bin(void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
+
+template <typename Alloc_fn>
+inline void get_bin(Alloc_fn alloc_fn) {
+    return get_bin(&alloc_fn, [](void* cb_alloc_data, size_t size) -> void* { //
+        return (*reinterpret_cast<Alloc_fn*>(cb_alloc_data))(size);
+    });
+}
+
+} // namespace internal_use_do_not_use
+
+inline const std::vector<char>& get_bin() {
+    static std::optional<std::vector<char>> bytes;
+    if (!bytes) {
+        internal_use_do_not_use::get_bin([&](size_t size) {
+            bytes.emplace();
+            bytes->resize(size);
+            return bytes->data();
+        });
+    }
+    return *bytes;
+}
+
+} // namespace eosio
 
 extern "C" __attribute__((eosio_wasm_entry)) void initialize() {}
 
 extern "C" __attribute__((eosio_wasm_entry)) void start() {
-    std::vector<char> bin(get_bin_size());
-    get_bin(bin.data(), bin.data() + bin.size());
-    auto res = std::get<get_blocks_result_v0>(assert_bin_to_native<result>(bin));
+    auto res = std::get<get_blocks_result_v0>(assert_bin_to_native<result>(get_bin()));
     if (!res.this_block || !res.traces || !res.deltas)
         return;
     auto traces = assert_bin_to_native<std::vector<transaction_trace>>(*res.traces);

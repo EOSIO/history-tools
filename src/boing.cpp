@@ -1,4 +1,5 @@
 #include "state_history_connection.hpp"
+#include "state_history_rocksdb.hpp"
 #include <abieos_exception.hpp>
 #include <eosio/vm/backend.hpp>
 #include <fc/exception/exception.hpp>
@@ -43,11 +44,13 @@ struct wasm_type_converter<T&> : linear_memory_access {
 } // namespace eosio
 
 struct state {
-    const char*                wasm;
-    eosio::vm::wasm_allocator& wa;
-    backend_t&                 backend;
-    std::vector<char>          args;
-    abieos::input_buffer       bin;
+    const char*                  wasm;
+    eosio::vm::wasm_allocator&   wa;
+    backend_t&                   backend;
+    std::vector<char>            args;
+    abieos::input_buffer         bin;
+    state_history::rdb::database db{"db.rocksdb", {}, {}, true};
+    rocksdb::WriteBatch          write_batch;
 
     state(const char* wasm, eosio::vm::wasm_allocator& wa, backend_t& backend, std::vector<char> args)
         : wasm{wasm}
@@ -102,8 +105,13 @@ struct callbacks {
     }
 
     void get_bin(uint32_t cb_alloc_data, uint32_t cb_alloc) { set_data(cb_alloc_data, cb_alloc, state.bin); }
-
     void get_args(uint32_t cb_alloc_data, uint32_t cb_alloc) { set_data(cb_alloc_data, cb_alloc, state.args); }
+
+    void set_kv(const char* k_begin, const char* k_end, const char* v_begin, const char* v_end) {
+        check_bounds(k_begin, k_end);
+        check_bounds(v_begin, v_end);
+        state.write_batch.Put({k_begin, size_t(k_end - k_begin)}, {v_begin, size_t(v_end - v_begin)});
+    }
 }; // callbacks
 
 void register_callbacks() {
@@ -112,6 +120,7 @@ void register_callbacks() {
     rhf_t::add<callbacks, &callbacks::print_range, eosio::vm::wasm_allocator>("env", "print_range");
     rhf_t::add<callbacks, &callbacks::get_bin, eosio::vm::wasm_allocator>("env", "get_bin");
     rhf_t::add<callbacks, &callbacks::get_args, eosio::vm::wasm_allocator>("env", "get_args");
+    rhf_t::add<callbacks, &callbacks::set_kv, eosio::vm::wasm_allocator>("env", "set_kv");
 }
 
 struct ship_connection_state : state_history::connection_callbacks, std::enable_shared_from_this<ship_connection_state> {
@@ -141,10 +150,12 @@ struct ship_connection_state : state_history::connection_callbacks, std::enable_
     bool received(state_history::get_blocks_result_v0& result, abieos::input_buffer bin) override {
         ilog("received block ${n}", ("n", result.this_block ? result.this_block->block_num : -1));
         callbacks cb{*state};
+        state->write_batch.Clear();
         state->bin = bin;
         state->backend.initialize(&cb);
         // backend(&cb, "env", "initialize"); // todo: needs change to eosio-cpp
         state->backend(&cb, "env", "start", 0);
+        write(state->db, state->write_batch);
         return true;
     }
 

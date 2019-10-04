@@ -1,5 +1,8 @@
 #include "../src/state_history.hpp"
+#include <eosio/asset.hpp>
 #include <eosio/check.hpp>
+#include <eosio/datastream.hpp>
+#include <eosio/name.hpp>
 #include <eosio/print.hpp>
 #include <vector>
 
@@ -11,7 +14,7 @@ namespace eosio {
 namespace internal_use_do_not_use {
 
 extern "C" __attribute__((eosio_wasm_import)) void get_bin(void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
-extern "C" __attribute__((eosio_wasm_import)) void set_kv(const char* k_begin, const char* k_end, const char* v_begin, const char* v_end);
+extern "C" __attribute__((eosio_wasm_import)) void kv_set(const char* k_begin, const char* k_end, const char* v_begin, const char* v_end);
 
 template <typename Alloc_fn>
 inline void get_bin(Alloc_fn alloc_fn) {
@@ -53,9 +56,17 @@ template <typename C, typename... Args>
 struct serial_dispatcher<void (C::*)(Args...) const> {
     using type = std::tuple<Args...>;
 
+    template <typename T>
+    static T construct(datastream<const char*>& ds) {
+        T obj{};
+        ds >> obj;
+        return obj;
+    }
+
     template <typename F>
     static void dispatch(F f, abieos::input_buffer bin) {
-        std::apply(f, std::tuple<std::decay_t<Args>...>{state_history::assert_bin_to_native<std::decay_t<Args>>(bin)...});
+        datastream<const char*> ds(bin.pos, bin.end - bin.pos);
+        std::apply(f, std::tuple<std::decay_t<Args>...>{construct<std::decay_t<Args>>(ds)...});
     }
 };
 
@@ -110,19 +121,23 @@ extern "C" __attribute__((eosio_wasm_entry)) void start() {
     //     auto& d = std::get<table_delta_v0>(delta);
     //     print("    table: ", d.name, " rows: ", d.rows.size(), "\n");
     // }
+
+    auto k = abieos::native_to_bin(res.this_block->block_num);
+    auto v = get_bin();
+    internal_use_do_not_use::kv_set(k.data(), k.data() + k.size(), v.data(), v.data() + v.size());
 }
 
 /////////////////////////////////////////
 
-auto token_transfer = eosio::handle_action(
-    "eosio.token"_n, "transfer"_n, [](abieos::name from, abieos::name to, const abieos::asset& quantity, const std::string& memo) {
-        print("    transfer ", (std::string)from, " ", (std::string)to, " ", asset_to_string(quantity), " ", memo, "\n");
+eosio::handle_action token_transfer(
+    "eosio.token"_n, "transfer"_n, [](eosio::name from, eosio::name to, const eosio::asset& quantity, const std::string& memo) {
+        // print("    transfer ", from, " ", to, " ", quantity, " ", memo, "\n");
     });
 
-auto eosio_buyrex = eosio::handle_action("eosio"_n, "buyrex"_n, [](abieos::name from, const abieos::asset& amount) {
-    print("    buyrex ", (std::string)from, " ", asset_to_string(amount), "\n");
+eosio::handle_action eosio_buyrex("eosio"_n, "buyrex"_n, [](eosio::name from, const eosio::asset& amount) { //
+    print("    buyrex ", from, " ", amount, "\n");
 });
 
-auto eosio_sellrex = eosio::handle_action("eosio"_n, "sellrex"_n, [](abieos::name from, const abieos::asset& rex) {
-    print("    sellrex ", (std::string)from, " ", asset_to_string(rex), "\n");
+eosio::handle_action eosio_sellrex("eosio"_n, "sellrex"_n, [](eosio::name from, const eosio::asset& rex) { //
+    print("    sellrex ", from, " ", rex, "\n");
 });

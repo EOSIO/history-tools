@@ -46,18 +46,60 @@ struct wasm_type_converter<T&> : linear_memory_access {
 class combined_db {
   public:
     class iterator;
+    using bytes        = std::vector<char>;
+    using input_buffer = abieos::input_buffer;
+
+    struct key_value {
+        input_buffer key   = {};
+        input_buffer value = {};
+    };
+
+    struct key_present_value {
+        input_buffer key     = {};
+        bool         present = {};
+        input_buffer value   = {};
+    };
+
+    struct present_value {
+        bool  present = {};
+        bytes value   = {};
+    };
 
   private:
-    using change_map = std::map<std::vector<char>, std::pair<bool, std::vector<char>>>;
+    using change_map = std::map<bytes, present_value>;
 
     state_history::rdb::database db{"db.rocksdb", {}, {}, true};
     rocksdb::WriteBatch          write_batch;
     change_map                   changes;
 
-    static bool key_eq(abieos::input_buffer a, abieos::input_buffer b) { return std::equal(a.pos, a.end, b.pos, b.end); }
+    static int key_compare(input_buffer a, input_buffer b) {
+        if (std::lexicographical_compare(a.pos, a.end, b.pos, b.end))
+            return -1;
+        else if (std::equal(a.pos, a.end, b.pos, b.end))
+            return 0;
+        else
+            return 1;
+    }
 
-    static bool key_less(abieos::input_buffer a, abieos::input_buffer b) {
-        return std::lexicographical_compare(a.pos, a.end, b.pos, b.end);
+    template <typename T>
+    static int key_compare(const std::optional<T>& a, const std::optional<T>& b) {
+        if (!a && !b)
+            return 0;
+        else if (!a && b)
+            return 1;
+        else if (a && !b)
+            return -1;
+        else
+            return key_compare(a->key, b->key);
+    }
+
+    static const std::optional<key_present_value>&
+    key_min(const std::optional<key_present_value>& a, const std::optional<key_present_value>& b) {
+        auto cmp = key_compare(a, b);
+        if (cmp <= 0)
+            return a;
+        else
+            return b;
     }
 
     struct iterator_impl {
@@ -65,7 +107,6 @@ class combined_db {
         friend iterator;
 
         combined_db&                       combined;
-        bool                               valid = false;
         std::unique_ptr<rocksdb::Iterator> rocks_it;
         change_map::iterator               change_it;
 
@@ -78,58 +119,63 @@ class combined_db {
         iterator_impl& operator=(const iterator_impl&) = delete;
 
         void move_to_begin() {
-            valid = true;
             rocks_it->SeekToFirst();
             change_it = combined.changes.begin();
         }
 
-        void move_to_end() { valid = false; }
-
-        bool is_end() {
-            invalidate_if_removed();
-            return !valid || (!rocks_it->Valid() && change_it == combined.changes.end());
+        void move_to_end() {
+            rocks_it->SeekToLast();
+            if (rocks_it->Valid())
+                rocks_it->Next();
+            change_it = combined.changes.end();
         }
 
-        std::optional<std::pair<abieos::input_buffer, abieos::input_buffer>> get_kv() {
-            invalidate_if_removed();
-            if (!valid)
-                return {};
-            auto r = deref_rocks_it();
-            auto c = deref_change_it();
-            if (r && (!c || key_less(r->first, c->first)))
-                return r;
-            else
-                return c;
+        std::optional<key_value> get_kv() {
+            auto r   = deref_rocks_it();
+            auto c   = deref_change_it();
+            auto min = key_min(r, c);
+            if (min) {
+                if (min->present)
+                    return key_value{min->key, min->value};
+                move_to_end(); // invalidate iterator since it is at a removed element
+            }
+            return {};
         }
+
+        bool is_end() { return !get_kv(); }
 
         iterator_impl& operator++() {
-            if (!valid)
-                return *this;
             auto r = deref_rocks_it();
             auto c = deref_change_it();
-            if (r && (!c || key_less(r->first, c->first)))
-                rocks_it->Next();
-            else if (c)
-                ++change_it;
+            do {
+                auto cmp = key_compare(r, c);
+                if (cmp < 0) {
+                    rocks_it->Next();
+                } else if (cmp > 0) {
+                    ++change_it;
+                } else if (r && c) {
+                    rocks_it->Next();
+                    ++change_it;
+                }
+                r = deref_rocks_it();
+                c = deref_change_it();
+            } while (key_compare(r, c) > 0 && !c->present);
             return *this;
         }
 
-        void invalidate_if_removed() {
-            if (change_it != combined.changes.end() && !change_it->second.first)
-                valid = false;
-        }
-
-        std::optional<std::pair<abieos::input_buffer, abieos::input_buffer>> deref_rocks_it() {
+        std::optional<key_present_value> deref_rocks_it() {
             if (rocks_it->Valid())
-                return {{state_history::rdb::to_input_buffer(rocks_it->key()), state_history::rdb::to_input_buffer(rocks_it->value())}};
+                return {
+                    {state_history::rdb::to_input_buffer(rocks_it->key()), true, state_history::rdb::to_input_buffer(rocks_it->value())}};
             else
                 return {};
         }
 
-        std::optional<std::pair<abieos::input_buffer, abieos::input_buffer>> deref_change_it() {
+        std::optional<key_present_value> deref_change_it() {
             if (change_it != combined.changes.end())
                 return {{{change_it->first.data(), change_it->first.data() + change_it->first.size()},
-                         {change_it->second.second.data(), change_it->second.second.data() + change_it->second.second.size()}}};
+                         change_it->second.present,
+                         {change_it->second.value.data(), change_it->second.value.data() + change_it->second.value.size()}}};
             else
                 return {};
         }
@@ -154,21 +200,9 @@ class combined_db {
         iterator& operator=(const iterator&) = delete;
         iterator& operator=(iterator&&) = default;
 
-        friend bool operator==(const iterator& a, const iterator& b) {
-            auto akv = a.get_kv();
-            auto bkv = b.get_kv();
-            if (!akv || !bkv)
-                return !akv && !bkv;
-            return combined_db::key_eq(akv->first, bkv->first);
-        }
+        friend bool operator==(const iterator& a, const iterator& b) { return combined_db::key_compare(a.get_kv(), b.get_kv()) == 0; }
 
-        friend bool operator<(const iterator& a, const iterator& b) {
-            auto akv = a.get_kv();
-            auto bkv = b.get_kv();
-            if (!akv || !bkv)
-                return akv && !bkv;
-            return combined_db::key_less(akv->first, bkv->first);
-        }
+        friend bool operator<(const iterator& a, const iterator& b) { return combined_db::key_compare(a.get_kv(), b.get_kv()) < 0; }
 
         iterator& operator++() {
             if (impl)
@@ -176,9 +210,9 @@ class combined_db {
             return *this;
         }
 
-        bool is_end() { return !impl || impl->is_end(); }
+        bool is_end() const { return !impl || impl->is_end(); }
 
-        std::optional<std::pair<abieos::input_buffer, abieos::input_buffer>> get_kv() const {
+        std::optional<key_value> get_kv() const {
             if (impl)
                 return impl->get_kv();
             else
@@ -206,12 +240,12 @@ class combined_db {
 
     iterator end() { return {}; }
 
-    void set(abieos::input_buffer k, abieos::input_buffer v) {
+    void set(input_buffer k, input_buffer v) {
         write_batch.Put(state_history::rdb::to_slice(k), state_history::rdb::to_slice(v));
         changes[{k.pos, k.end}] = {true, {v.pos, v.end}};
     }
 
-    void erase(abieos::input_buffer k) {
+    void erase(input_buffer k) {
         write_batch.Delete(state_history::rdb::to_slice(k));
         changes[{k.pos, k.end}] = {false, {}};
     }
@@ -326,7 +360,7 @@ struct callbacks {
         auto  kv = it->get_kv();
         if (!kv)
             return false;
-        auto& k = kv->first;
+        auto& k = kv->key;
         set_data(cb_alloc_data, cb_alloc, k);
         return true;
     }
@@ -336,7 +370,7 @@ struct callbacks {
         auto  kv = it->get_kv();
         if (!kv)
             return false;
-        auto& v = kv->second;
+        auto& v = kv->value;
         set_data(cb_alloc_data, cb_alloc, v);
         return true;
     }

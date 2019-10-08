@@ -228,6 +228,7 @@ class combined_db {
 
     void write_changes() {
         write(db, write_batch);
+        db.flush(true, true);
         discard_changes();
     }
 

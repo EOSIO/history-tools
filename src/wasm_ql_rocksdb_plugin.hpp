@@ -1,15 +1,16 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include "fill_plugin.hpp"
-#include "lmdb_plugin.hpp"
 
-class fill_lmdb_plugin : public appbase::plugin<fill_lmdb_plugin> {
+#include "rocksdb_plugin.hpp"
+#include "wasm_ql_plugin.hpp"
+
+class wasm_ql_rocksdb_plugin : public appbase::plugin<wasm_ql_rocksdb_plugin> {
   public:
-    APPBASE_PLUGIN_REQUIRES((fill_plugin)(lmdb_plugin))
+    APPBASE_PLUGIN_REQUIRES((rocksdb_plugin)(wasm_ql_plugin))
 
-    fill_lmdb_plugin();
-    virtual ~fill_lmdb_plugin();
+    wasm_ql_rocksdb_plugin();
+    virtual ~wasm_ql_rocksdb_plugin();
 
     virtual void set_program_options(appbase::options_description& cli, appbase::options_description& cfg) override;
     void         plugin_initialize(const appbase::variables_map& options);
@@ -17,5 +18,5 @@ class fill_lmdb_plugin : public appbase::plugin<fill_lmdb_plugin> {
     void         plugin_shutdown();
 
   private:
-    std::shared_ptr<struct fill_lmdb_plugin_impl> my;
+    std::shared_ptr<struct wasm_ql_rocksdb_plugin_impl> my;
 };

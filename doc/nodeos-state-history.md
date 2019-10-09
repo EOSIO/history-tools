@@ -6,8 +6,8 @@
 |-------------------------------------------|-------------|
 | `--plugin eosio::state_history_plugin`    | always |
 | `--state-history-endpoint`                | optional; defaults to 127.0.0.1:8080 |
-| `--trace-history`                         | needed for wasm-ql; enable to collect transaction and action traces |
-| `--chain-state-history`                   | needed for wasm-ql; enable to collect state (tables) |
+| `--trace-history`                         | enable to collect transaction and action traces *required for wasm-ql*  |
+| `--chain-state-history`                   | enable to collect state (tables) *required for wasm-ql* |
 
 Caution: either use a firewall to block access to the state-history endpoint, or leave it as `127.0.0.1:8080` to disable remote access.
 

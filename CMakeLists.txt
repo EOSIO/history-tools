@@ -25,7 +25,6 @@ add_definitions(-DBOOST_ASIO_DISABLE_STD_EXPERIMENTAL_STRING_VIEW)
 
 find_package(eosio.cdt)
 find_package(PostgreSQL COMPONENTS Libraries)
-find_library(LMDB_LIB NAMES lmdb)
 find_package(Boost 1.66 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(JS mozjs-64)
@@ -37,12 +36,6 @@ if (PostgreSQL_INCLUDE_DIR)
   set(PQXX_LIBRARIES pqxx_static)
 else()
   set(PQXX_LIBRARIES "")
-endif()
-
-if (LMDB_LIB)
-    set(FOUND_LMDB TRUE)
-else()
-    set(LMDB_LIB "")
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -91,8 +84,17 @@ include(SetupTargetMacros)
 include(GNUInstallDirs)
 include(VersionMacros)
 
+set(WITH_TESTS OFF)
+
+add_compile_options(-Wno-error=shadow)
+
 add_subdirectory(external/appbase)
 add_subdirectory(external/fc)
+add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
+
+set(FOUND_ROCKSDB ON)
+set(ROCKSDB_LIB rocksdb)
+set(ROCKSDB_INCLUDE_DIR external/rocksdb/include)
 
 set(APPS "")
 function(add_app APP FLAGS LIBS)
@@ -108,6 +110,7 @@ function(add_app APP FLAGS LIBS)
             external/fc/include
             ${Boost_INCLUDE_DIR}
             ${JS_INCLUDE_DIRS}
+            ${ROCKSDB_INCLUDE_DIR}
     )
     target_link_libraries(${APP} appbase fc ${Boost_LIBRARIES} ${LIBS} -lpthread)
     target_compile_options(${APP} PUBLIC -DAPP_NAME="${APP}" ${JS_CFLAGS_OTHER} ${FLAGS})
@@ -125,7 +128,7 @@ function(add_app APP FLAGS LIBS)
     endif()
 endfunction(add_app)
 
-add_app(history-tools "-DDEFAULT_PLUGINS=" "${PQXX_LIBRARIES};${JS_LIBRARIES};${LMDB_LIB}")
+add_app(history-tools "-DDEFAULT_PLUGINS=" "${PQXX_LIBRARIES};${JS_LIBRARIES};${ROCKSDB_LIB}")
 
 message(STATUS "----------------------------------------------------")
 message(STATUS "Checked libraries:")
@@ -144,7 +147,7 @@ function(show_found desc found missing_msg)
 endfunction(show_found)
 
 show_found("    pq:         " "${PostgreSQL_INCLUDE_DIR}" "not found; will not build pg plugins")
-show_found("    lmdb:       " "${FOUND_LMDB}" "not found; will not build lmdb plugins")
+show_found("    rocksdb:    " "${FOUND_ROCKSDB}" "not found; will not build rocksdb plugins")
 show_found("    mozjs:      " "${JS_FOUND}" "not found; will not build wasm plugins")
 
 message(STATUS "Enabled plugins:")
@@ -162,18 +165,18 @@ if (PostgreSQL_INCLUDE_DIR)
     endif ()
 endif ()
 
-if (FOUND_LMDB)
-    message(STATUS "    fill_lmdb_plugin")
-    add_app(fill-lmdb "-DDEFAULT_PLUGINS=fill_lmdb_plugin;-DINCLUDE_FILL_LMDB_PLUGIN" "${LMDB_LIB}")
-    target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/lmdb_plugin.cpp src/fill_plugin.cpp src/fill_lmdb_plugin.cpp)
-    target_sources(fill-lmdb PRIVATE src/query_config_plugin.cpp src/lmdb_plugin.cpp src/fill_plugin.cpp src/fill_lmdb_plugin.cpp)
+if (FOUND_ROCKSDB)
+    message(STATUS "    fill_rocksdb_plugin")
+    add_app(fill-rocksdb "-DDEFAULT_PLUGINS=fill_rocksdb_plugin;-DINCLUDE_FILL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB}")
+    target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp)
+    target_sources(fill-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp)
     if (JS_FOUND)
-        message(STATUS "    wasm_ql_lmdb_plugin")
-        add_app(wasm-ql-lmdb "-DDEFAULT_PLUGINS=wasm_ql_lmdb_plugin;-DINCLUDE_WASM_QL_LMDB_PLUGIN" "${LMDB_LIB};${JS_LIBRARIES}")
-        add_app(combo-lmdb "-DDEFAULT_PLUGINS=fill_lmdb_plugin,wasm_ql_lmdb_plugin;-DINCLUDE_FILL_LMDB_PLUGIN;-DINCLUDE_WASM_QL_LMDB_PLUGIN" "${LMDB_LIB};${JS_LIBRARIES}")
-        target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/lmdb_plugin.cpp src/wasm_ql_lmdb_plugin.cpp)
-        target_sources(wasm-ql-lmdb PRIVATE src/query_config_plugin.cpp src/lmdb_plugin.cpp src/wasm_ql_lmdb_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
-        target_sources(combo-lmdb PRIVATE src/query_config_plugin.cpp src/lmdb_plugin.cpp src/wasm_ql_lmdb_plugin.cpp src/fill_plugin.cpp src/fill_lmdb_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
+        message(STATUS "    wasm_ql_rocksdb_plugin")
+        add_app(wasm-ql-rocksdb "-DDEFAULT_PLUGINS=wasm_ql_rocksdb_plugin;-DINCLUDE_WASM_QL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB};${JS_LIBRARIES}")
+        add_app(combo-rocksdb "-DDEFAULT_PLUGINS=fill_rocksdb_plugin,wasm_ql_rocksdb_plugin;-DINCLUDE_FILL_ROCKSDB_PLUGIN;-DINCLUDE_WASM_QL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB};${JS_LIBRARIES}")
+        target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp)
+        target_sources(wasm-ql-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
+        target_sources(combo-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
     endif ()
 endif()
 
@@ -189,7 +192,7 @@ endforeach()
 
 message(STATUS "----------------------------------------------------")
 
-if (NOT PostgreSQL_INCLUDE_DIR AND NOT FOUND_LMDB)
+if (NOT PostgreSQL_INCLUDE_DIR AND NOT FOUND_ROCKSDB)
     message(WARNING "No database libraries found. Only building WASM files.")
 endif()
 

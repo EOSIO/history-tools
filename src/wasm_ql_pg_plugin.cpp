@@ -52,6 +52,7 @@ struct pg_query_session : query_session {
         abieos::name query_name;
         abieos::bin_to_native(query_name, query_bin);
 
+        // todo: check for false positives in secondary indexes
         auto it = db_iface->config.query_map.find(query_name);
         if (it == db_iface->config.query_map.end())
             throw std::runtime_error("query_database: unknown query: " + (std::string)query_name);
@@ -75,8 +76,8 @@ struct pg_query_session : query_session {
             }
         };
         add_args(query.arg_types);
-        add_args(query.range_types);
-        add_args(query.range_types);
+        add_args(query.index_obj->range_types);
+        add_args(query.index_obj->range_types);
         auto max_results = abieos::read_raw<uint32_t>(query_bin);
         query_str += pg::sep(false) + pg::sql_str(false, std::min(max_results, query.max_results));
         query_str += ")";

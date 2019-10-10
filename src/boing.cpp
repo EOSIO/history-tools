@@ -200,9 +200,9 @@ class combined_db {
         iterator& operator=(const iterator&) = delete;
         iterator& operator=(iterator&&) = default;
 
-        friend bool operator==(const iterator& a, const iterator& b) { return combined_db::key_compare(a.get_kv(), b.get_kv()) == 0; }
-
-        friend bool operator<(const iterator& a, const iterator& b) { return combined_db::key_compare(a.get_kv(), b.get_kv()) < 0; }
+        friend int  compare(const iterator& a, const iterator& b) { return combined_db::key_compare(a.get_kv(), b.get_kv()); }
+        friend bool operator==(const iterator& a, const iterator& b) { return compare(a, b) == 0; }
+        friend bool operator<(const iterator& a, const iterator& b) { return compare(a, b) < 0; }
 
         iterator& operator++() {
             if (impl)
@@ -265,7 +265,8 @@ struct state {
         : wasm{wasm}
         , wa{wa}
         , backend{backend}
-        , args{args} {}
+        , args{args}
+        , iterators(1) {}
 };
 
 struct callbacks {
@@ -326,10 +327,10 @@ struct callbacks {
         state.db.erase({k_begin, k_end});
     }
 
-    combined_db::iterator* get_it(uint32_t index) {
-        if (index >= state.iterators.size())
+    combined_db::iterator& get_it(uint32_t index) {
+        if (index >= state.iterators.size() || !state.iterators[index])
             throw std::runtime_error("iterator does not exist");
-        return state.iterators[index].get();
+        return *state.iterators[index];
     }
 
     void check(const rocksdb::Status& status) {
@@ -342,37 +343,37 @@ struct callbacks {
         return state.iterators.size() - 1;
     }
 
-    bool kv_it_is_end(uint32_t index) { return get_it(index)->is_end(); }
+    bool kv_it_is_end(uint32_t index) { return get_it(index).is_end(); }
+
+    int kv_it_compare(uint32_t a, uint32_t b) { return compare(get_it(a), get_it(b)); }
 
     bool kv_it_set_begin(uint32_t index) {
-        auto* it = get_it(index);
-        *it      = state.db.begin(std::move(*it));
-        return !it->is_end();
+        auto& it = get_it(index);
+        it       = state.db.begin(std::move(it));
+        return !it.is_end();
     }
 
     bool kv_it_incr(uint32_t index) {
-        auto* it = get_it(index);
-        ++*it;
-        return !it->is_end();
+        auto& it = get_it(index);
+        ++it;
+        return !it.is_end();
     }
 
     bool kv_it_key(uint32_t index, uint32_t cb_alloc_data, uint32_t cb_alloc) {
-        auto* it = get_it(index);
-        auto  kv = it->get_kv();
+        auto& it = get_it(index);
+        auto  kv = it.get_kv();
         if (!kv)
             return false;
-        auto& k = kv->key;
-        set_data(cb_alloc_data, cb_alloc, k);
+        set_data(cb_alloc_data, cb_alloc, kv->key);
         return true;
     }
 
     bool kv_it_value(uint32_t index, uint32_t cb_alloc_data, uint32_t cb_alloc) {
-        auto* it = get_it(index);
-        auto  kv = it->get_kv();
+        auto& it = get_it(index);
+        auto  kv = it.get_kv();
         if (!kv)
             return false;
-        auto& v = kv->value;
-        set_data(cb_alloc_data, cb_alloc, v);
+        set_data(cb_alloc_data, cb_alloc, kv->value);
         return true;
     }
 }; // callbacks
@@ -387,6 +388,7 @@ void register_callbacks() {
     rhf_t::add<callbacks, &callbacks::kv_erase, eosio::vm::wasm_allocator>("env", "kv_erase");
     rhf_t::add<callbacks, &callbacks::kv_it_create, eosio::vm::wasm_allocator>("env", "kv_it_create");
     rhf_t::add<callbacks, &callbacks::kv_it_is_end, eosio::vm::wasm_allocator>("env", "kv_it_is_end");
+    rhf_t::add<callbacks, &callbacks::kv_it_compare, eosio::vm::wasm_allocator>("env", "kv_it_compare");
     rhf_t::add<callbacks, &callbacks::kv_it_set_begin, eosio::vm::wasm_allocator>("env", "kv_it_set_begin");
     rhf_t::add<callbacks, &callbacks::kv_it_incr, eosio::vm::wasm_allocator>("env", "kv_it_incr");
     rhf_t::add<callbacks, &callbacks::kv_it_key, eosio::vm::wasm_allocator>("env", "kv_it_key");

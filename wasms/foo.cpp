@@ -33,6 +33,84 @@ ABIEOS_REFLECT(asset) {
 
 } // namespace eosio
 
+namespace abieos {
+
+template <typename T>
+inline constexpr bool serial_reversible = std::is_signed_v<T> || std::is_unsigned_v<T>;
+
+template <>
+inline constexpr bool serial_reversible<abieos::name> = true;
+
+template <>
+inline constexpr bool serial_reversible<eosio::name> = true;
+
+template <>
+inline constexpr bool serial_reversible<abieos::uint128> = true;
+
+template <>
+inline constexpr bool serial_reversible<abieos::checksum256> = true;
+
+template <typename F>
+void reverse_bin(std::vector<char>& bin, F f) {
+    auto s = bin.size();
+    f();
+    std::reverse(bin.begin() + s, bin.end());
+}
+
+template <typename T, typename F>
+auto fixup_key(std::vector<char>& bin, F f) -> std::enable_if_t<serial_reversible<T>, void> {
+    reverse_bin(bin, f);
+}
+
+template <typename T>
+void native_to_key(const T& obj, std::vector<char>& bin);
+
+void native_to_key(const std::string& obj, std::vector<char>& bin) {
+    for (auto ch : obj) {
+        if (ch) {
+            bin.push_back(ch);
+        } else {
+            bin.push_back(0);
+            bin.push_back(0);
+        }
+    }
+    bin.push_back(0);
+    bin.push_back(1);
+}
+
+template <int i, typename... Ts>
+void native_to_key_tuple(const std::tuple<Ts...>& obj, std::vector<char>& bin) {
+    if constexpr (i < sizeof...(Ts)) {
+        native_to_key(std::get<i>(obj), bin);
+        native_to_key_tuple<i + 1>(obj, bin);
+    }
+}
+
+template <typename... Ts>
+void native_to_key(const std::tuple<Ts...>& obj, std::vector<char>& bin) {
+    native_to_key_tuple<0>(obj, bin);
+}
+
+template <typename T>
+void native_to_key(const T& obj, std::vector<char>& bin) {
+    if constexpr (serial_reversible<std::decay_t<T>>) {
+        fixup_key<T>(bin, [&] { abieos::native_to_bin(obj, bin); });
+    } else {
+        for_each_field((T*)nullptr, [&](auto* name, auto member_ptr) { //
+            native_to_key(member_from_void(member_ptr, &obj), bin);
+        });
+    }
+}
+
+template <typename T>
+std::vector<char> native_to_key(const T& obj) {
+    std::vector<char> bin;
+    native_to_key(obj, bin);
+    return bin;
+}
+
+} // namespace abieos
+
 namespace eosio {
 namespace internal_use_do_not_use {
 
@@ -43,6 +121,7 @@ IMPORT void kv_set(const char* k_begin, const char* k_end, const char* v_begin, 
 IMPORT void kv_erase(const char* k_begin, const char* k_end);
 IMPORT uint32_t kv_it_create();
 IMPORT bool     kv_it_is_end(uint32_t index);
+IMPORT int      kv_it_compare(uint32_t a, uint32_t b);
 IMPORT bool     kv_it_set_begin(uint32_t index);
 IMPORT bool     kv_it_incr(uint32_t index);
 IMPORT bool     kv_it_key(uint32_t index, void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
@@ -195,19 +274,66 @@ template <typename T>
 class table {
   public:
     class index {
-      public:
-        friend class table;
+      private:
+        abieos::name index_name                = {};
+        std::vector<char> (*get_key)(const T&) = {};
+        table*            t                    = {};
+        bool              is_primary           = false;
+        std::vector<char> prefix               = {};
 
-        template <typename F>
-        index(abieos::name index_name, F f) {
-            // todo: switch to key encoding
-            get_key = f;
+        void initialize(table* t, bool is_primary) {
+            this->t          = t;
+            this->is_primary = is_primary;
+            native_to_key(t->table_name, prefix);
+            native_to_key(index_name, prefix);
         }
 
-      private:
-        table*                                     t{};
-        std::function<std::vector<char>(const T&)> get_key; // todo: dump std::function
-    };
+      public:
+        friend table;
+
+        friend class iterator;
+        class iterator {
+            friend table;
+            friend index;
+
+          public:
+            iterator()                = default;
+            iterator(const iterator&) = delete;
+            iterator(iterator&&)      = default;
+
+            iterator& operator=(const iterator&) = delete;
+            iterator& operator=(iterator&&) = default;
+
+            friend int compare(const iterator& a, const iterator& b) {
+                bool a_end = !a.it || kv_it_is_end(a.it);
+                bool b_end = !b.it || kv_it_is_end(b.it);
+                if (a_end && b_end)
+                    return 0;
+                else if (a_end && !b_end)
+                    return 1;
+                else if (!a_end && b_end)
+                    return -1;
+                else
+                    return kv_it_compare(a.it, b.it);
+            }
+
+            friend bool operator==(const iterator& a, const iterator& b) { return compare(a, b) == 0; }
+            friend bool operator!=(const iterator& a, const iterator& b) { return compare(a, b) != 0; }
+            friend bool operator<(const iterator& a, const iterator& b) { return compare(a, b) < 0; }
+            friend bool operator<=(const iterator& a, const iterator& b) { return compare(a, b) <= 0; }
+            friend bool operator>(const iterator& a, const iterator& b) { return compare(a, b) > 0; }
+            friend bool operator>=(const iterator& a, const iterator& b) { return compare(a, b) >= 0; }
+
+          private:
+            uint32_t it = 0;
+        };
+
+        index(abieos::name index_name, std::vector<char> (*get_key)(const T&))
+            : index_name{index_name}
+            , get_key{get_key} {}
+    }; // index
+
+    using iterator = typename index::iterator;
 
     template <typename... Indexes>
     table(abieos::name table_context, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes)
@@ -216,8 +342,8 @@ class table {
         , primary_index{primary_index}
         , secondary_indexes{&secondary_indexes...} {
 
-        primary_index.t = this;
-        ((secondary_indexes.t = this), ...);
+        primary_index.initialize(this, true);
+        (secondary_indexes.initialize(this, false), ...);
     }
 
     void insert(const T& obj) {
@@ -263,23 +389,21 @@ struct my_other_struct {
 };
 
 struct my_table : table<my_struct> {
-    // todo: switch to key encoding
-    index primary_index{"primary"_n, [](const auto& obj) { return abieos::native_to_bin(obj.primary_key()); }};
-    index foo_index{"foo"_n, [](const auto& obj) { return abieos::native_to_bin(obj.foo_key()); }};
-    index bar_index{"bar"_n, [](const auto& obj) { return abieos::native_to_bin(obj.bar_key()); }};
+    index primary_index{"primary"_n, [](const auto& obj) { return abieos::native_to_key(obj.primary_key()); }};
+    index foo_index{"foo"_n, [](const auto& obj) { return abieos::native_to_key(obj.foo_key()); }};
+    index bar_index{"bar"_n, [](const auto& obj) { return abieos::native_to_key(obj.bar_key()); }};
 
     my_table()
         : table("my.context"_n, "my.table"_n, primary_index, foo_index, bar_index) {}
 };
 
 struct my_variant_table : table<std::variant<my_struct, my_other_struct>> {
-    // todo: switch to key encoding
     index primary_index{
-        "primary"_n, [](const auto& v) { return std::visit([](const auto& obj) { return abieos::native_to_bin(obj.primary_key()); }, v); }};
+        "primary"_n, [](const auto& v) { return std::visit([](const auto& obj) { return abieos::native_to_key(obj.primary_key()); }, v); }};
     index foo_index{"foo"_n,
-                    [](const auto& v) { return std::visit([](const auto& obj) { return abieos::native_to_bin(obj.foo_key()); }, v); }};
+                    [](const auto& v) { return std::visit([](const auto& obj) { return abieos::native_to_key(obj.foo_key()); }, v); }};
     index bar_index{"bar"_n,
-                    [](const auto& v) { return std::visit([](const auto& obj) { return abieos::native_to_bin(obj.bar_key()); }, v); }};
+                    [](const auto& v) { return std::visit([](const auto& obj) { return abieos::native_to_key(obj.bar_key()); }, v); }};
 
     my_variant_table()
         : table("my.context"_n, "my.vtable"_n, primary_index, foo_index, bar_index) {}
@@ -308,10 +432,9 @@ ABIEOS_REFLECT(transfer_data) {
 }
 
 struct transfer_history : table<transfer_data> {
-    // todo: switch to key encoding
-    index primary_index{"primary"_n, [](const auto& obj) { return abieos::native_to_bin(obj.primary_key()); }};
-    index from_index{"from"_n, [](const auto& obj) { return abieos::native_to_bin(obj.from_key()); }};
-    index to_index{"to"_n, [](const auto& obj) { return abieos::native_to_bin(obj.to_key()); }};
+    index primary_index{"primary"_n, [](const auto& obj) { return abieos::native_to_key(obj.primary_key()); }};
+    index from_index{"from"_n, [](const auto& obj) { return abieos::native_to_key(obj.from_key()); }};
+    index to_index{"to"_n, [](const auto& obj) { return abieos::native_to_key(obj.to_key()); }};
 
     transfer_history()
         : table("my.context"_n, "my.table"_n, primary_index, from_index, to_index) {}
@@ -328,9 +451,12 @@ eosio::handle_action token_transfer(
         xfer_hist.insert({std::get<0>(*std::get<0>(context.atrace).receipt).recv_sequence, from, to, quantity, memo});
     });
 
-// eosio::handle_action eosio_buyrex("eosio"_n, "buyrex"_n, [](const action_context& context, eosio::name from, const eosio::asset& amount) { //
-//     print("    buyrex ", from, " ", amount, "\n");
-// });
+eosio::handle_action
+    eosio_buyrex("eosio"_n, "buyrex"_n, [](const action_context& context, eosio::name from, const eosio::asset& amount) { //
+        print("    buyrex ", from, " ", amount, "\n");
+        // for (auto data : xfer_hist.primary_index) {
+        // }
+    });
 
 // eosio::handle_action eosio_sellrex("eosio"_n, "sellrex"_n, [](const action_context& context, eosio::name from, const eosio::asset& rex) { //
 //     print("    sellrex ", from, " ", rex, "\n");

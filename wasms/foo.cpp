@@ -26,6 +26,11 @@ ABIEOS_NODISCARD inline bool bin_to_native(symbol& obj, abieos::bin_to_native_st
     return true;
 }
 
+ABIEOS_NODISCARD bool json_to_native(symbol& obj, abieos::json_to_native_state& state, abieos::event_type event, bool start) {
+    check(false, "not implemented");
+    return false;
+}
+
 ABIEOS_REFLECT(asset) {
     ABIEOS_MEMBER(asset, amount);
     ABIEOS_MEMBER(asset, symbol);
@@ -124,6 +129,7 @@ IMPORT void get_bin(void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, 
 IMPORT void kv_set(const char* k_begin, const char* k_end, const char* v_begin, const char* v_end);
 IMPORT void kv_erase(const char* k_begin, const char* k_end);
 IMPORT uint32_t kv_it_create(const char* prefix, uint32_t size);
+IMPORT void     kv_it_destroy(uint32_t index);
 IMPORT bool     kv_it_is_end(uint32_t index);
 IMPORT int      kv_it_compare(uint32_t a, uint32_t b);
 IMPORT bool     kv_it_move_to_begin(uint32_t index);
@@ -342,6 +348,12 @@ class index {
 
 template <typename T>
 class table_proxy {
+  public:
+    // If object is not already in cache then read and return it. Returns existing cached object if present.
+    // Caution 1: this may return stale value if something else changed the object.
+    // Caution 2: object gets destroyed when iterator is destroyed or moved or if read_fresh() is called after this.
+    const T& get();
+
   private:
     using table    = eosio::table<T>;
     using index    = eosio::index<T>;
@@ -369,6 +381,11 @@ class table_iterator {
     table_iterator(const table_iterator&) = delete;
     table_iterator(table_iterator&&)      = default;
 
+    ~table_iterator() {
+        if (it)
+            internal_use_do_not_use::kv_it_destroy(it);
+    }
+
     table_iterator& operator=(const table_iterator&) = delete;
     table_iterator& operator=(table_iterator&&) = default;
 
@@ -395,15 +412,41 @@ class table_iterator {
     table_iterator& operator++() {
         if (it)
             internal_use_do_not_use::kv_it_incr(it);
+        obj.reset();
         return *this;
     }
 
-    proxy& operator*() { return prox; }
+    // Reads object, stores it in cache, and returns it. Use this if something else may have changed object.
+    // Caution: object gets destroyed when iterator is destroyed or moved or if read_fresh() is called again.
+    const T& read_fresh() {
+        auto size = internal_use_do_not_use::kv_it_value(it, nullptr, 0);
+        check(size >= 0, "iterator read failure");
+        std::vector<char> bin(size);
+        check(internal_use_do_not_use::kv_it_value(it, bin.data(), size) == size, "iterator read failure");
+        // todo: fetch from primary if this is secondary
+        obj = std::make_unique<T>();
+        std::string          error;
+        abieos::input_buffer b{bin.data(), bin.data() + bin.size()};
+        check(abieos::bin_to_native<T>(*obj, error, b), error);
+        return *obj;
+    }
+
+    // If object is not already in cache then read and return it. Returns existing cached object if present.
+    // Caution 1: this may return stale value if something else changed the object.
+    // Caution 2: object gets destroyed when iterator is destroyed or moved or if read_fresh() is called after this.
+    const T& get() {
+        if (!obj)
+            read_fresh();
+        return *obj;
+    }
+
+    // Shortcut for get(). See cautions on get().
+    proxy operator*() { return {*this}; }
 
   private:
-    index*   ind = {};
-    uint32_t it  = 0;
-    proxy    prox{*this};
+    index*             ind = {};
+    uint32_t           it  = 0;
+    std::unique_ptr<T> obj;
 
     table_iterator(index* ind, uint32_t it)
         : ind{ind}
@@ -427,7 +470,7 @@ void table<T>::init(abieos::name table_context, abieos::name table_name, index& 
 
 template <typename T>
 void table<T>::insert(const T& obj) {
-    // todo: handle overwrite
+    // todo: disallow overwrite
     auto pk = primary_index->get_key(obj);
     pk.insert(pk.begin(), primary_index->prefix.begin(), primary_index->prefix.end());
     internal_use_do_not_use::kv_set(pk, abieos::native_to_bin(obj));
@@ -473,6 +516,11 @@ table_iterator<T> index<T>::end() {
     check(t, "index is not in a table");
     return {this, 0};
 };
+
+template <typename T>
+const T& table_proxy<T>::get() {
+    return it.get();
+}
 
 } // namespace eosio
 
@@ -558,20 +606,33 @@ eosio::handle_action token_transfer(
         // print(
         //     "    ", std::get<0>(*std::get<0>(context.atrace).receipt).recv_sequence, " transfer ", from, " ", to, " ", quantity, " ", memo,
         //     "\n");
-        int i = 0;
-        for (auto it = xfer_hist.begin(); it != xfer_hist.end(); ++it)
-            ++i;
-        print("    ", i, " transfers\n");
-
         xfer_hist.insert({std::get<0>(*std::get<0>(context.atrace).receipt).recv_sequence, from, to, quantity, memo});
     });
 
-eosio::handle_action
-    eosio_buyrex("eosio"_n, "buyrex"_n, [](const action_context& context, eosio::name from, const eosio::asset& amount) { //
-        // print("    buyrex ", from, " ", amount, "\n");
-        // for (auto data : xfer_hist.primary_index) {
-        // }
-    });
+eosio::handle_action eosio_buyrex("eosio"_n, "buyrex"_n, [](const action_context& context, eosio::name from, const eosio::asset& amount) { //
+    print("    buyrex ", from, " ", amount, "\n");
+
+    print("    ===== sequence\n");
+    int i = 0;
+    for (auto prox : xfer_hist) {
+        print("        ", i, ": ", prox.get().recv_sequence, " ", prox.get().from, " ", prox.get().to, " ", prox.get().quantity, "\n");
+        ++i;
+    }
+
+    // print("    ===== from\n");
+    // int i2 = 0;
+    // for (auto prox : xfer_hist.from_index) {
+    //     print("        ", i2, ": ", prox.get().recv_sequence, " ", prox.get().from, " ", prox.get().to, " ", prox.get().quantity, "\n");
+    //     ++i2;
+    // }
+
+    // print("    ===== to\n");
+    // int i3 = 0;
+    // for (auto prox : xfer_hist.to_index) {
+    //     print("        ", i3, ": ", prox.get().recv_sequence, " ", prox.get().from, " ", prox.get().to, " ", prox.get().quantity, "\n");
+    //     ++i3;
+    // }
+});
 
 // eosio::handle_action eosio_sellrex("eosio"_n, "sellrex"_n, [](const action_context& context, eosio::name from, const eosio::asset& rex) { //
 //     print("    sellrex ", from, " ", rex, "\n");

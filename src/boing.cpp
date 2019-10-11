@@ -376,9 +376,15 @@ struct callbacks {
     }
 
     uint32_t kv_it_create(const char* prefix, uint32_t size) {
+        // todo: reuse destroyed slots?
         check_bounds(prefix, size);
         state.iterators.push_back(std::make_unique<combined_db::iterator>(state.db, std::vector<char>{prefix, prefix + size}));
         return state.iterators.size() - 1;
+    }
+
+    void kv_it_destroy(uint32_t index) {
+        get_it(index);
+        state.iterators[index].reset();
     }
 
     bool kv_it_is_end(uint32_t index) { return get_it(index).is_end(); }
@@ -439,6 +445,7 @@ void register_callbacks() {
     rhf_t::add<callbacks, &callbacks::kv_set, eosio::vm::wasm_allocator>("env", "kv_set");
     rhf_t::add<callbacks, &callbacks::kv_erase, eosio::vm::wasm_allocator>("env", "kv_erase");
     rhf_t::add<callbacks, &callbacks::kv_it_create, eosio::vm::wasm_allocator>("env", "kv_it_create");
+    rhf_t::add<callbacks, &callbacks::kv_it_destroy, eosio::vm::wasm_allocator>("env", "kv_it_destroy");
     rhf_t::add<callbacks, &callbacks::kv_it_is_end, eosio::vm::wasm_allocator>("env", "kv_it_is_end");
     rhf_t::add<callbacks, &callbacks::kv_it_compare, eosio::vm::wasm_allocator>("env", "kv_it_compare");
     rhf_t::add<callbacks, &callbacks::kv_it_move_to_begin, eosio::vm::wasm_allocator>("env", "kv_it_move_to_begin");
@@ -508,7 +515,7 @@ static void run(const char* wasm, const std::vector<std::string>& args) {
 const char usage[] = "usage: eosio-tester [-h or --help] [-v or --verbose] file.wasm [args for wasm]\n";
 
 int main(int argc, char* argv[]) {
-    fc::logger::get(DEFAULT_LOGGER).set_log_level(fc::log_level::off);
+    fc::logger::get(DEFAULT_LOGGER).set_log_level(fc::log_level::error);
 
     bool show_usage = false;
     bool error      = false;

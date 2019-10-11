@@ -31,6 +31,9 @@ ABIEOS_REFLECT(asset) {
     ABIEOS_MEMBER(asset, symbol);
 }
 
+// todo: symbol kv sort order
+// todo: asset kv sort order
+
 } // namespace eosio
 
 namespace abieos {
@@ -117,15 +120,17 @@ namespace internal_use_do_not_use {
 #define IMPORT extern "C" __attribute__((eosio_wasm_import))
 
 IMPORT void get_bin(void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
+
 IMPORT void kv_set(const char* k_begin, const char* k_end, const char* v_begin, const char* v_end);
 IMPORT void kv_erase(const char* k_begin, const char* k_end);
-IMPORT uint32_t kv_it_create();
+IMPORT uint32_t kv_it_create(const char* prefix, uint32_t size);
 IMPORT bool     kv_it_is_end(uint32_t index);
 IMPORT int      kv_it_compare(uint32_t a, uint32_t b);
-IMPORT bool     kv_it_set_begin(uint32_t index);
+IMPORT bool     kv_it_move_to_begin(uint32_t index);
+IMPORT bool     kv_it_move_to_end(uint32_t index);
 IMPORT bool     kv_it_incr(uint32_t index);
-IMPORT bool     kv_it_key(uint32_t index, void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
-IMPORT bool     kv_it_value(uint32_t index, void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
+IMPORT int32_t kv_it_key(uint32_t index, char* dest, uint32_t size);
+IMPORT int32_t kv_it_value(uint32_t index, char* dest, uint32_t size);
 
 template <typename Alloc_fn>
 inline void get_bin(Alloc_fn alloc_fn) {
@@ -262,108 +267,216 @@ extern "C" __attribute__((eosio_wasm_entry)) void start() {
     //     auto& d = std::get<table_delta_v0>(delta);
     //     print("    table: ", d.name, " rows: ", d.rows.size(), "\n");
     // }
-
-    auto k = abieos::native_to_bin(res.this_block->block_num);
-    auto v = get_bin();
-    internal_use_do_not_use::kv_set(k.data(), k.data() + k.size(), v.data(), v.data() + v.size());
 }
 
 /////////////////////////////////////////
 
+namespace eosio {
+
+template <typename T>
+class table;
+
+template <typename T>
+class index;
+
+template <typename T>
+class table_iterator;
+
+template <typename T>
+class table_proxy;
+
 template <typename T>
 class table {
   public:
-    class index {
-      private:
-        abieos::name index_name                = {};
-        std::vector<char> (*get_key)(const T&) = {};
-        table*            t                    = {};
-        bool              is_primary           = false;
-        std::vector<char> prefix               = {};
+    using index    = eosio::index<T>;
+    using iterator = table_iterator<T>;
+    using proxy    = table_proxy<T>;
+    friend index;
+    friend iterator;
+    friend proxy;
 
-        void initialize(table* t, bool is_primary) {
-            this->t          = t;
-            this->is_primary = is_primary;
-            native_to_key(t->table_name, prefix);
-            native_to_key(index_name, prefix);
-        }
-
-      public:
-        friend table;
-
-        friend class iterator;
-        class iterator {
-            friend table;
-            friend index;
-
-          public:
-            iterator()                = default;
-            iterator(const iterator&) = delete;
-            iterator(iterator&&)      = default;
-
-            iterator& operator=(const iterator&) = delete;
-            iterator& operator=(iterator&&) = default;
-
-            friend int compare(const iterator& a, const iterator& b) {
-                bool a_end = !a.it || kv_it_is_end(a.it);
-                bool b_end = !b.it || kv_it_is_end(b.it);
-                if (a_end && b_end)
-                    return 0;
-                else if (a_end && !b_end)
-                    return 1;
-                else if (!a_end && b_end)
-                    return -1;
-                else
-                    return kv_it_compare(a.it, b.it);
-            }
-
-            friend bool operator==(const iterator& a, const iterator& b) { return compare(a, b) == 0; }
-            friend bool operator!=(const iterator& a, const iterator& b) { return compare(a, b) != 0; }
-            friend bool operator<(const iterator& a, const iterator& b) { return compare(a, b) < 0; }
-            friend bool operator<=(const iterator& a, const iterator& b) { return compare(a, b) <= 0; }
-            friend bool operator>(const iterator& a, const iterator& b) { return compare(a, b) > 0; }
-            friend bool operator>=(const iterator& a, const iterator& b) { return compare(a, b) >= 0; }
-
-          private:
-            uint32_t it = 0;
-        };
-
-        index(abieos::name index_name, std::vector<char> (*get_key)(const T&))
-            : index_name{index_name}
-            , get_key{get_key} {}
-    }; // index
-
-    using iterator = typename index::iterator;
+    table()             = default;
+    table(const table&) = delete;
+    table(table&&)      = delete;
 
     template <typename... Indexes>
-    table(abieos::name table_context, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes)
-        : table_context{table_context}
-        , table_name{table_name}
-        , primary_index{primary_index}
-        , secondary_indexes{&secondary_indexes...} {
+    void init(abieos::name table_context, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes);
 
-        primary_index.initialize(this, true);
-        (secondary_indexes.initialize(this, false), ...);
-    }
-
-    void insert(const T& obj) {
-        // todo: handle overwrite
-        auto pk = primary_index.get_key(obj);
-        internal_use_do_not_use::kv_set(pk, abieos::native_to_bin(obj));
-        for (auto* ind : secondary_indexes) {
-            auto sk = ind->get_key(obj);
-            sk.insert(sk.end(), pk.begin(), pk.end());
-            // todo: re-encode the key to make pk extractable and make value empty
-            internal_use_do_not_use::kv_set(sk, pk);
-        }
-    }
+    void     insert(const T& obj);
+    iterator begin();
+    iterator end();
 
   private:
-    abieos::name        table_context;
-    abieos::name        table_name;
-    index&              primary_index;
-    std::vector<index*> secondary_indexes;
+    bool                initialized{};
+    std::vector<char>   prefix{};
+    index*              primary_index{};
+    std::vector<index*> secondary_indexes{};
 };
+
+template <typename T>
+class index {
+  public:
+    using table    = eosio::table<T>;
+    using iterator = table_iterator<T>;
+    using proxy    = table_proxy<T>;
+    friend table;
+    friend iterator;
+    friend proxy;
+
+    index(abieos::name index_name, std::vector<char> (*get_key)(const T&))
+        : index_name{index_name}
+        , get_key{get_key} {}
+
+    iterator begin();
+    iterator end();
+
+  private:
+    abieos::name index_name                = {};
+    std::vector<char> (*get_key)(const T&) = {};
+    table*            t                    = {};
+    bool              is_primary           = false;
+    std::vector<char> prefix               = {};
+
+    void initialize(table* t, bool is_primary);
+};
+
+template <typename T>
+class table_proxy {
+  private:
+    using table    = eosio::table<T>;
+    using index    = eosio::index<T>;
+    using iterator = table_iterator<T>;
+    friend table;
+    friend index;
+    friend iterator;
+
+    iterator& it;
+
+    table_proxy(iterator& it)
+        : it{it} {}
+};
+
+template <typename T>
+class table_iterator {
+  public:
+    using table = eosio::table<T>;
+    using index = eosio::index<T>;
+    using proxy = table_proxy<T>;
+    friend table;
+    friend index;
+    friend proxy;
+
+    table_iterator(const table_iterator&) = delete;
+    table_iterator(table_iterator&&)      = default;
+
+    table_iterator& operator=(const table_iterator&) = delete;
+    table_iterator& operator=(table_iterator&&) = default;
+
+    friend int compare(const table_iterator& a, const table_iterator& b) {
+        bool a_end = !a.it || internal_use_do_not_use::kv_it_is_end(a.it);
+        bool b_end = !b.it || internal_use_do_not_use::kv_it_is_end(b.it);
+        if (a_end && b_end)
+            return 0;
+        else if (a_end && !b_end)
+            return 1;
+        else if (!a_end && b_end)
+            return -1;
+        else
+            return internal_use_do_not_use::kv_it_compare(a.it, b.it);
+    }
+
+    friend bool operator==(const table_iterator& a, const table_iterator& b) { return compare(a, b) == 0; }
+    friend bool operator!=(const table_iterator& a, const table_iterator& b) { return compare(a, b) != 0; }
+    friend bool operator<(const table_iterator& a, const table_iterator& b) { return compare(a, b) < 0; }
+    friend bool operator<=(const table_iterator& a, const table_iterator& b) { return compare(a, b) <= 0; }
+    friend bool operator>(const table_iterator& a, const table_iterator& b) { return compare(a, b) > 0; }
+    friend bool operator>=(const table_iterator& a, const table_iterator& b) { return compare(a, b) >= 0; }
+
+    table_iterator& operator++() {
+        if (it)
+            internal_use_do_not_use::kv_it_incr(it);
+        return *this;
+    }
+
+    proxy& operator*() { return prox; }
+
+  private:
+    index*   ind = {};
+    uint32_t it  = 0;
+    proxy    prox{*this};
+
+    table_iterator(index* ind, uint32_t it)
+        : ind{ind}
+        , it{it} {}
+};
+
+template <typename T>
+template <typename... Indexes>
+void table<T>::init(abieos::name table_context, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes) {
+    check(!initialized, "table is already initialized");
+
+    this->primary_index     = &primary_index;
+    this->secondary_indexes = {&secondary_indexes...};
+
+    native_to_key(table_context, prefix);
+    native_to_key(table_name, prefix);
+    primary_index.initialize(this, true);
+    (secondary_indexes.initialize(this, false), ...);
+    initialized = true;
+}
+
+template <typename T>
+void table<T>::insert(const T& obj) {
+    // todo: handle overwrite
+    auto pk = primary_index->get_key(obj);
+    pk.insert(pk.begin(), primary_index->prefix.begin(), primary_index->prefix.end());
+    internal_use_do_not_use::kv_set(pk, abieos::native_to_bin(obj));
+    for (auto* ind : secondary_indexes) {
+        auto sk = ind->get_key(obj);
+        sk.insert(sk.begin(), ind->prefix.begin(), ind->prefix.end());
+        sk.insert(sk.end(), pk.begin(), pk.end());
+        // todo: re-encode the key to make pk extractable and make value empty
+        internal_use_do_not_use::kv_set(sk, pk);
+    }
+}
+
+template <typename T>
+table_iterator<T> table<T>::begin() {
+    check(initialized, "table is not initialized");
+    return primary_index->begin();
+}
+
+template <typename T>
+table_iterator<T> table<T>::end() {
+    check(initialized, "table is not initialized");
+    return primary_index->end();
+}
+
+template <typename T>
+void index<T>::initialize(table* t, bool is_primary) {
+    this->t          = t;
+    this->is_primary = is_primary;
+    prefix           = t->prefix;
+    native_to_key(index_name, prefix);
+}
+
+template <typename T>
+table_iterator<T> index<T>::begin() {
+    check(t, "index is not in a table");
+    iterator result{this, internal_use_do_not_use::kv_it_create(prefix.data(), prefix.size())};
+    internal_use_do_not_use::kv_it_move_to_begin(result.it);
+    return result;
+}
+
+template <typename T>
+table_iterator<T> index<T>::end() {
+    check(t, "index is not in a table");
+    return {this, 0};
+};
+
+} // namespace eosio
+
+/////////////////////////////////////////////
 
 struct my_struct {
     abieos::name n1;
@@ -393,8 +506,7 @@ struct my_table : table<my_struct> {
     index foo_index{"foo"_n, [](const auto& obj) { return abieos::native_to_key(obj.foo_key()); }};
     index bar_index{"bar"_n, [](const auto& obj) { return abieos::native_to_key(obj.bar_key()); }};
 
-    my_table()
-        : table("my.context"_n, "my.table"_n, primary_index, foo_index, bar_index) {}
+    my_table() { init("my.context"_n, "my.table"_n, primary_index, foo_index, bar_index); }
 };
 
 struct my_variant_table : table<std::variant<my_struct, my_other_struct>> {
@@ -405,8 +517,7 @@ struct my_variant_table : table<std::variant<my_struct, my_other_struct>> {
     index bar_index{"bar"_n,
                     [](const auto& v) { return std::visit([](const auto& obj) { return abieos::native_to_key(obj.bar_key()); }, v); }};
 
-    my_variant_table()
-        : table("my.context"_n, "my.vtable"_n, primary_index, foo_index, bar_index) {}
+    my_variant_table() { init("my.context"_n, "my.vtable"_n, primary_index, foo_index, bar_index); }
 };
 
 /////////////////////////////////////////
@@ -436,8 +547,7 @@ struct transfer_history : table<transfer_data> {
     index from_index{"from"_n, [](const auto& obj) { return abieos::native_to_key(obj.from_key()); }};
     index to_index{"to"_n, [](const auto& obj) { return abieos::native_to_key(obj.to_key()); }};
 
-    transfer_history()
-        : table("my.context"_n, "my.table"_n, primary_index, from_index, to_index) {}
+    transfer_history() { init("my.context"_n, "my.table"_n, primary_index, from_index, to_index); }
 };
 
 transfer_history xfer_hist;
@@ -448,12 +558,17 @@ eosio::handle_action token_transfer(
         // print(
         //     "    ", std::get<0>(*std::get<0>(context.atrace).receipt).recv_sequence, " transfer ", from, " ", to, " ", quantity, " ", memo,
         //     "\n");
+        int i = 0;
+        for (auto it = xfer_hist.begin(); it != xfer_hist.end(); ++it)
+            ++i;
+        print("    ", i, " transfers\n");
+
         xfer_hist.insert({std::get<0>(*std::get<0>(context.atrace).receipt).recv_sequence, from, to, quantity, memo});
     });
 
 eosio::handle_action
     eosio_buyrex("eosio"_n, "buyrex"_n, [](const action_context& context, eosio::name from, const eosio::asset& amount) { //
-        print("    buyrex ", from, " ", amount, "\n");
+        // print("    buyrex ", from, " ", amount, "\n");
         // for (auto data : xfer_hist.primary_index) {
         // }
     });

@@ -107,20 +107,44 @@ class combined_db {
         friend iterator;
 
         combined_db&                       combined;
+        std::vector<char>                  prefix;
         std::unique_ptr<rocksdb::Iterator> rocks_it;
         change_map::iterator               change_it;
 
-        iterator_impl(combined_db& combined)
+        iterator_impl(combined_db& combined, std::vector<char> prefix)
             : combined{combined}
+            , prefix{std::move(prefix)}
             , rocks_it{combined.db.db->NewIterator(rocksdb::ReadOptions())}
             , change_it{combined.changes.end()} {}
 
         iterator_impl(const iterator_impl&) = delete;
         iterator_impl& operator=(const iterator_impl&) = delete;
 
+        void rocks_verify_prefix() {
+            if (!rocks_it->Valid())
+                return;
+            auto k = rocks_it->key();
+            if (k.size() >= prefix.size() && !memcmp(k.data(), prefix.data(), prefix.size()))
+                return;
+            rocks_it->SeekToLast();
+            if (rocks_it->Valid())
+                rocks_it->Next();
+        }
+
+        void changed_verify_prefix() {
+            if (change_it == combined.changes.end())
+                return;
+            auto& k = change_it->first;
+            if (k.size() >= prefix.size() && !memcmp(k.data(), prefix.data(), prefix.size()))
+                return;
+            change_it = combined.changes.end();
+        }
+
         void move_to_begin() {
-            rocks_it->SeekToFirst();
-            change_it = combined.changes.begin();
+            rocks_it->Seek({prefix.data(), prefix.size()});
+            rocks_verify_prefix();
+            change_it = combined.changes.lower_bound(prefix);
+            changed_verify_prefix();
         }
 
         void move_to_end() {
@@ -145,10 +169,10 @@ class combined_db {
         bool is_end() { return !get_kv(); }
 
         iterator_impl& operator++() {
-            auto r = deref_rocks_it();
-            auto c = deref_change_it();
+            auto r   = deref_rocks_it();
+            auto c   = deref_change_it();
+            auto cmp = key_compare(r, c);
             do {
-                auto cmp = key_compare(r, c);
                 if (cmp < 0) {
                     rocks_it->Next();
                 } else if (cmp > 0) {
@@ -157,9 +181,12 @@ class combined_db {
                     rocks_it->Next();
                     ++change_it;
                 }
-                r = deref_rocks_it();
-                c = deref_change_it();
-            } while (key_compare(r, c) > 0 && !c->present);
+                r   = deref_rocks_it();
+                c   = deref_change_it();
+                cmp = key_compare(r, c);
+            } while (cmp > 0 && !c->present);
+            rocks_verify_prefix();
+            changed_verify_prefix();
             return *this;
         }
 
@@ -189,11 +216,10 @@ class combined_db {
       private:
         std::unique_ptr<iterator_impl> impl;
 
-        iterator(std::unique_ptr<iterator_impl> impl)
-            : impl(std::move(impl)) {}
-
       public:
-        iterator()                = default;
+        iterator(combined_db& combined, std::vector<char> prefix)
+            : impl{std::make_unique<iterator_impl>(combined, std::move(prefix))} {}
+
         iterator(const iterator&) = delete;
         iterator(iterator&&)      = default;
 
@@ -207,7 +233,23 @@ class combined_db {
         iterator& operator++() {
             if (impl)
                 ++*impl;
+            else
+                throw std::runtime_error("kv iterator is not initialized");
             return *this;
+        }
+
+        void move_to_begin() {
+            if (impl)
+                impl->move_to_begin();
+            else
+                throw std::runtime_error("kv iterator is not initialized");
+        }
+
+        void move_to_end() {
+            if (impl)
+                impl->move_to_end();
+            else
+                throw std::runtime_error("kv iterator is not initialized");
         }
 
         bool is_end() const { return !impl || impl->is_end(); }
@@ -231,15 +273,6 @@ class combined_db {
         db.flush(true, true);
         discard_changes();
     }
-
-    iterator begin(iterator it = {}) {
-        if (!it.impl)
-            it.impl = std::make_unique<iterator_impl>(*this);
-        it.impl->move_to_begin();
-        return it;
-    }
-
-    iterator end() { return {}; }
 
     void set(input_buffer k, input_buffer v) {
         write_batch.Put(state_history::rdb::to_slice(k), state_history::rdb::to_slice(v));
@@ -275,6 +308,10 @@ struct callbacks {
     void check_bounds(const char* begin, const char* end) {
         if (begin > end)
             throw std::runtime_error("bad memory");
+        // todo: check bounds
+    }
+
+    void check_bounds(const char* begin, uint32_t size) {
         // todo: check bounds
     }
 
@@ -338,8 +375,9 @@ struct callbacks {
             throw std::runtime_error("rocksdb error: " + status.ToString());
     }
 
-    uint32_t kv_it_create() {
-        state.iterators.push_back(std::make_unique<combined_db::iterator>(state.db.end()));
+    uint32_t kv_it_create(const char* prefix, uint32_t size) {
+        check_bounds(prefix, size);
+        state.iterators.push_back(std::make_unique<combined_db::iterator>(state.db, std::vector<char>{prefix, prefix + size}));
         return state.iterators.size() - 1;
     }
 
@@ -347,9 +385,15 @@ struct callbacks {
 
     int kv_it_compare(uint32_t a, uint32_t b) { return compare(get_it(a), get_it(b)); }
 
-    bool kv_it_set_begin(uint32_t index) {
+    bool kv_it_move_to_begin(uint32_t index) {
         auto& it = get_it(index);
-        it       = state.db.begin(std::move(it));
+        it.move_to_begin();
+        return !it.is_end();
+    }
+
+    bool kv_it_move_to_end(uint32_t index) {
+        auto& it = get_it(index);
+        it.move_to_end();
         return !it.is_end();
     }
 
@@ -359,22 +403,30 @@ struct callbacks {
         return !it.is_end();
     }
 
-    bool kv_it_key(uint32_t index, uint32_t cb_alloc_data, uint32_t cb_alloc) {
+    int32_t kv_it_key(uint32_t index, char* dest, uint32_t size) {
+        check_bounds(dest, size);
         auto& it = get_it(index);
         auto  kv = it.get_kv();
         if (!kv)
-            return false;
-        set_data(cb_alloc_data, cb_alloc, kv->key);
-        return true;
+            return -1;
+        auto actual_size = kv->key.end - kv->key.pos;
+        if (actual_size >= 0x8000'0000)
+            throw std::runtime_error("kv size is too big for wasm");
+        memcpy(dest, kv->key.pos, std::min(size, (uint32_t)actual_size));
+        return actual_size;
     }
 
-    bool kv_it_value(uint32_t index, uint32_t cb_alloc_data, uint32_t cb_alloc) {
+    int32_t kv_it_value(uint32_t index, char* dest, uint32_t size) {
+        check_bounds(dest, size);
         auto& it = get_it(index);
         auto  kv = it.get_kv();
         if (!kv)
-            return false;
-        set_data(cb_alloc_data, cb_alloc, kv->value);
-        return true;
+            return -1;
+        auto actual_size = kv->value.end - kv->value.pos;
+        if (actual_size >= 0x8000'0000)
+            throw std::runtime_error("kv size is too big for wasm");
+        memcpy(dest, kv->value.pos, std::min(size, (uint32_t)actual_size));
+        return actual_size;
     }
 }; // callbacks
 
@@ -389,7 +441,8 @@ void register_callbacks() {
     rhf_t::add<callbacks, &callbacks::kv_it_create, eosio::vm::wasm_allocator>("env", "kv_it_create");
     rhf_t::add<callbacks, &callbacks::kv_it_is_end, eosio::vm::wasm_allocator>("env", "kv_it_is_end");
     rhf_t::add<callbacks, &callbacks::kv_it_compare, eosio::vm::wasm_allocator>("env", "kv_it_compare");
-    rhf_t::add<callbacks, &callbacks::kv_it_set_begin, eosio::vm::wasm_allocator>("env", "kv_it_set_begin");
+    rhf_t::add<callbacks, &callbacks::kv_it_move_to_begin, eosio::vm::wasm_allocator>("env", "kv_it_move_to_begin");
+    rhf_t::add<callbacks, &callbacks::kv_it_move_to_end, eosio::vm::wasm_allocator>("env", "kv_it_move_to_end");
     rhf_t::add<callbacks, &callbacks::kv_it_incr, eosio::vm::wasm_allocator>("env", "kv_it_incr");
     rhf_t::add<callbacks, &callbacks::kv_it_key, eosio::vm::wasm_allocator>("env", "kv_it_key");
     rhf_t::add<callbacks, &callbacks::kv_it_value, eosio::vm::wasm_allocator>("env", "kv_it_value");
@@ -423,6 +476,7 @@ struct ship_connection_state : state_history::connection_callbacks, std::enable_
         ilog("received block ${n}", ("n", result.this_block ? result.this_block->block_num : -1));
         callbacks cb{*state};
         state->iterators.clear();
+        state->iterators.resize(1);
         state->db.discard_changes();
         state->bin = bin;
         state->backend.initialize(&cb);
@@ -440,7 +494,6 @@ static void run(const char* wasm, const std::vector<std::string>& args) {
     auto                      code = backend_t::read_wasm(wasm);
     backend_t                 backend(code);
     auto                      state = std::make_shared<::state>(wasm, wa, backend, abieos::native_to_bin(args));
-    //callbacks                 cb{*state};
     backend.set_wasm_allocator(&wa);
 
     rhf_t::resolve(backend.get_module());

@@ -133,10 +133,12 @@ IMPORT void     kv_it_destroy(uint32_t index);
 IMPORT bool     kv_it_is_end(uint32_t index);
 IMPORT int      kv_it_compare(uint32_t a, uint32_t b);
 IMPORT bool     kv_it_move_to_begin(uint32_t index);
-IMPORT bool     kv_it_move_to_end(uint32_t index);
+IMPORT void     kv_it_move_to_end(uint32_t index);
+IMPORT void     kv_it_lower_bound(uint32_t index, const char* key, uint32_t size);
+IMPORT bool     kv_it_key_matches(uint32_t index, const char* key, uint32_t size);
 IMPORT bool     kv_it_incr(uint32_t index);
-IMPORT int32_t kv_it_key(uint32_t index, char* dest, uint32_t size);
-IMPORT int32_t kv_it_value(uint32_t index, char* dest, uint32_t size);
+IMPORT int32_t kv_it_key(uint32_t index, uint32_t offset, char* dest, uint32_t size);
+IMPORT int32_t kv_it_value(uint32_t index, uint32_t offset, char* dest, uint32_t size);
 
 template <typename Alloc_fn>
 inline void get_bin(Alloc_fn alloc_fn) {
@@ -333,6 +335,11 @@ class index {
         : index_name{index_name}
         , get_key{get_key} {}
 
+    ~index() {
+        if (temp_it)
+            internal_use_do_not_use::kv_it_destroy(temp_it);
+    }
+
     iterator begin();
     iterator end();
 
@@ -342,8 +349,15 @@ class index {
     table*            t                    = {};
     bool              is_primary           = false;
     std::vector<char> prefix               = {};
+    uint32_t          temp_it              = 0;
 
     void initialize(table* t, bool is_primary);
+
+    uint32_t get_temp_it() {
+        if (!temp_it)
+            temp_it = internal_use_do_not_use::kv_it_create(prefix.data(), prefix.size());
+        return temp_it;
+    }
 };
 
 template <typename T>
@@ -416,14 +430,38 @@ class table_iterator {
         return *this;
     }
 
+    std::vector<char> get_raw_key() {
+        auto size = internal_use_do_not_use::kv_it_key(it, 0, nullptr, 0);
+        check(size >= 0, "iterator read failure");
+        std::vector<char> result(size);
+        check(internal_use_do_not_use::kv_it_key(it, 0, result.data(), size) == size, "iterator read failure");
+        return result;
+    }
+
+    std::vector<char> get_raw_value() {
+        auto size = internal_use_do_not_use::kv_it_value(it, 0, nullptr, 0);
+        check(size >= 0, "iterator read failure");
+        std::vector<char> result(size);
+        check(internal_use_do_not_use::kv_it_value(it, 0, result.data(), size) == size, "iterator read failure");
+        return result;
+    }
+
     // Reads object, stores it in cache, and returns it. Use this if something else may have changed object.
     // Caution: object gets destroyed when iterator is destroyed or moved or if read_fresh() is called again.
     const T& read_fresh() {
-        auto size = internal_use_do_not_use::kv_it_value(it, nullptr, 0);
+        auto size = internal_use_do_not_use::kv_it_value(it, 0, nullptr, 0);
         check(size >= 0, "iterator read failure");
         std::vector<char> bin(size);
-        check(internal_use_do_not_use::kv_it_value(it, bin.data(), size) == size, "iterator read failure");
-        // todo: fetch from primary if this is secondary
+        check(internal_use_do_not_use::kv_it_value(it, 0, bin.data(), size) == size, "iterator read failure");
+        if (!ind->is_primary) {
+            auto temp_it = ind->t->primary_index->get_temp_it();
+            internal_use_do_not_use::kv_it_lower_bound(temp_it, bin.data(), bin.size());
+            check(internal_use_do_not_use::kv_it_key_matches(temp_it, bin.data(), bin.size()), "iterator read failure");
+            size = internal_use_do_not_use::kv_it_value(temp_it, 0, nullptr, 0);
+            check(size >= 0, "iterator read failure");
+            bin.resize(size);
+            check(internal_use_do_not_use::kv_it_value(temp_it, 0, bin.data(), size) == size, "iterator read failure");
+        }
         obj = std::make_unique<T>();
         std::string          error;
         abieos::input_buffer b{bin.data(), bin.data() + bin.size()};
@@ -440,7 +478,6 @@ class table_iterator {
         return *obj;
     }
 
-    // Shortcut for get(). See cautions on get().
     proxy operator*() { return {*this}; }
 
   private:
@@ -609,7 +646,7 @@ eosio::handle_action token_transfer(
         xfer_hist.insert({std::get<0>(*std::get<0>(context.atrace).receipt).recv_sequence, from, to, quantity, memo});
     });
 
-eosio::handle_action eosio_buyrex("eosio"_n, "buyrex"_n, [](const action_context& context, eosio::name from, const eosio::asset& amount) { //
+eosio::handle_action eosio_buyrex("eosio"_n, "buyrex"_n, [](const action_context& context, eosio::name from, const eosio::asset& amount) {
     print("    buyrex ", from, " ", amount, "\n");
 
     print("    ===== sequence\n");
@@ -619,19 +656,19 @@ eosio::handle_action eosio_buyrex("eosio"_n, "buyrex"_n, [](const action_context
         ++i;
     }
 
-    // print("    ===== from\n");
-    // int i2 = 0;
-    // for (auto prox : xfer_hist.from_index) {
-    //     print("        ", i2, ": ", prox.get().recv_sequence, " ", prox.get().from, " ", prox.get().to, " ", prox.get().quantity, "\n");
-    //     ++i2;
-    // }
+    print("    ===== from\n");
+    int i2 = 0;
+    for (auto prox : xfer_hist.from_index) {
+        print("        ", i2, ": ", prox.get().from, " ", prox.get().to, " ", prox.get().quantity, "\n");
+        ++i2;
+    }
 
-    // print("    ===== to\n");
-    // int i3 = 0;
-    // for (auto prox : xfer_hist.to_index) {
-    //     print("        ", i3, ": ", prox.get().recv_sequence, " ", prox.get().from, " ", prox.get().to, " ", prox.get().quantity, "\n");
-    //     ++i3;
-    // }
+    print("    ===== to\n");
+    int i3 = 0;
+    for (auto prox : xfer_hist.to_index) {
+        print("        ", i3, ": ", prox.get().from, " ", prox.get().to, " ", prox.get().quantity, "\n");
+        ++i3;
+    }
 });
 
 // eosio::handle_action eosio_sellrex("eosio"_n, "sellrex"_n, [](const action_context& context, eosio::name from, const eosio::asset& rex) { //

@@ -66,20 +66,24 @@ class combined_db {
     };
 
   private:
-    using change_map = std::map<bytes, present_value>;
-
-    state_history::rdb::database db{"db.rocksdb", {}, {}, true};
-    rocksdb::WriteBatch          write_batch;
-    change_map                   changes;
-
     static int key_compare(input_buffer a, input_buffer b) {
-        if (std::lexicographical_compare(a.pos, a.end, b.pos, b.end))
-            return -1;
-        else if (std::equal(a.pos, a.end, b.pos, b.end))
-            return 0;
-        else
-            return 1;
+        auto a_size = a.end - a.pos;
+        auto b_size = b.end - b.pos;
+        int  r      = memcmp(a.pos, b.pos, std::min(a_size, b_size));
+        if (r == 0) {
+            if (a_size < b_size)
+                return -1;
+            else if (a_size > b_size)
+                return 1;
+        }
+        return r;
     }
+
+    struct vector_compare {
+        bool operator()(const std::vector<char>& a, const std::vector<char>& b) const {
+            return key_compare({a.data(), a.data() + a.size()}, {b.data(), b.data() + b.size()});
+        }
+    };
 
     template <typename T>
     static int key_compare(const std::optional<T>& a, const std::optional<T>& b) {
@@ -101,6 +105,12 @@ class combined_db {
         else
             return b;
     }
+
+    using change_map = std::map<bytes, present_value, vector_compare>;
+
+    state_history::rdb::database db{"db.rocksdb", {}, {}, true};
+    rocksdb::WriteBatch          write_batch;
+    change_map                   changes;
 
     struct iterator_impl {
         friend combined_db;
@@ -152,6 +162,15 @@ class combined_db {
             if (rocks_it->Valid())
                 rocks_it->Next();
             change_it = combined.changes.end();
+        }
+
+        void lower_bound(const char* key, size_t size) {
+            if (size < prefix.size() || memcmp(key, prefix.data(), prefix.size()))
+                throw std::runtime_error("lower_bound: prefix doesn't match");
+            rocks_it->Seek({key, size});
+            rocks_verify_prefix();
+            change_it = combined.changes.lower_bound({key, key + size});
+            changed_verify_prefix();
         }
 
         std::optional<key_value> get_kv() {
@@ -248,6 +267,13 @@ class combined_db {
         void move_to_end() {
             if (impl)
                 impl->move_to_end();
+            else
+                throw std::runtime_error("kv iterator is not initialized");
+        }
+
+        void lower_bound(const char* key, size_t size) {
+            if (impl)
+                return impl->lower_bound(key, size);
             else
                 throw std::runtime_error("kv iterator is not initialized");
         }
@@ -397,10 +423,23 @@ struct callbacks {
         return !it.is_end();
     }
 
-    bool kv_it_move_to_end(uint32_t index) {
+    void kv_it_move_to_end(uint32_t index) {
         auto& it = get_it(index);
         it.move_to_end();
-        return !it.is_end();
+    }
+
+    void kv_it_lower_bound(uint32_t index, const char* key, uint32_t size) {
+        check_bounds(key, size);
+        auto& it = get_it(index);
+        it.lower_bound(key, size);
+    }
+
+    // todo: kv_it_key_compare instead?
+    bool kv_it_key_matches(uint32_t index, const char* key, uint32_t size) {
+        check_bounds(key, size);
+        auto& it = get_it(index);
+        auto  kv = it.get_kv();
+        return kv && kv->key.end - kv->key.pos == size && !memcmp(kv->key.pos, key, size);
     }
 
     bool kv_it_incr(uint32_t index) {
@@ -409,8 +448,10 @@ struct callbacks {
         return !it.is_end();
     }
 
-    int32_t kv_it_key(uint32_t index, char* dest, uint32_t size) {
+    int32_t kv_it_key(uint32_t index, uint32_t offset, char* dest, uint32_t size) {
         check_bounds(dest, size);
+        if (offset)
+            throw std::runtime_error("offset must be 0");
         auto& it = get_it(index);
         auto  kv = it.get_kv();
         if (!kv)
@@ -422,8 +463,10 @@ struct callbacks {
         return actual_size;
     }
 
-    int32_t kv_it_value(uint32_t index, char* dest, uint32_t size) {
+    int32_t kv_it_value(uint32_t index, uint32_t offset, char* dest, uint32_t size) {
         check_bounds(dest, size);
+        if (offset)
+            throw std::runtime_error("offset must be 0");
         auto& it = get_it(index);
         auto  kv = it.get_kv();
         if (!kv)
@@ -450,6 +493,8 @@ void register_callbacks() {
     rhf_t::add<callbacks, &callbacks::kv_it_compare, eosio::vm::wasm_allocator>("env", "kv_it_compare");
     rhf_t::add<callbacks, &callbacks::kv_it_move_to_begin, eosio::vm::wasm_allocator>("env", "kv_it_move_to_begin");
     rhf_t::add<callbacks, &callbacks::kv_it_move_to_end, eosio::vm::wasm_allocator>("env", "kv_it_move_to_end");
+    rhf_t::add<callbacks, &callbacks::kv_it_lower_bound, eosio::vm::wasm_allocator>("env", "kv_it_lower_bound");
+    rhf_t::add<callbacks, &callbacks::kv_it_key_matches, eosio::vm::wasm_allocator>("env", "kv_it_key_matches");
     rhf_t::add<callbacks, &callbacks::kv_it_incr, eosio::vm::wasm_allocator>("env", "kv_it_incr");
     rhf_t::add<callbacks, &callbacks::kv_it_key, eosio::vm::wasm_allocator>("env", "kv_it_key");
     rhf_t::add<callbacks, &callbacks::kv_it_value, eosio::vm::wasm_allocator>("env", "kv_it_value");

@@ -54,20 +54,32 @@ run wget https://github.com/EOSIO/eos/releases/download/v1.8.1/eosio_1.8.1-1-ubu
 run apt-get install -y ./eosio_1.8.1-1-ubuntu-18.04_amd64.deb
 
 workdir /root
-run wget https://github.com/EOSIO/eosio.cdt/releases/download/v1.6.2/eosio.cdt_1.6.2-1-ubuntu-18.04_amd64.deb
-run apt-get install -y ./eosio.cdt_1.6.2-1-ubuntu-18.04_amd64.deb
+run git clone --depth 1 --single-branch --branch release_40 https://github.com/llvm-mirror/llvm.git llvm
+run cd llvm && \
+    mkdir build && \
+    cd build && \
+    cmake -GNinja -DLLVM_TARGETS_TO_BUILD=host -DLLVM_BUILD_TOOLS=false -DLLVM_ENABLE_RTTI=1 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local ..
+run cd llvm/build && ninja install
 
 workdir /root
-run mkdir /root/history-tools
-copy cmake /root/history-tools/cmake
-copy CMakeLists.txt /root/history-tools
-copy external /root/history-tools/external
-copy libraries /root/history-tools/libraries
-copy src /root/history-tools/src
-copy wasms /root/history-tools/wasms
+run git clone https://github.com/EOSIO/eosio.cdt.git
+workdir /root/eosio.cdt
+run git checkout tester
+run git submodule update --init --recursive
+run mkdir build && cd build && cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++-8 -DCMAKE_C_COMPILER=clang-8 -DCMAKE_INSTALL_PREFIX:PATH=/usr/local
+run cd build && CC=clang-8 CXX=clang++-8 ninja install
 
-run mkdir /root/history-tools/build
-workdir /root/history-tools/build
-run cmake -GNinja -DSKIP_SUBMODULE_CHECK=1 -DCMAKE_CXX_COMPILER=clang++-8 -DCMAKE_C_COMPILER=clang-8 ..
-run bash -c "cd ../src && npm install node-fetch"
-run ninja
+# workdir /root
+# run mkdir /root/history-tools
+# copy cmake /root/history-tools/cmake
+# copy CMakeLists.txt /root/history-tools
+# copy external /root/history-tools/external
+# copy libraries /root/history-tools/libraries
+# copy src /root/history-tools/src
+# copy wasms /root/history-tools/wasms
+# 
+# run mkdir /root/history-tools/build
+# workdir /root/history-tools/build
+# run cmake -GNinja -DSKIP_SUBMODULE_CHECK=1 -DCMAKE_CXX_COMPILER=clang++-8 -DCMAKE_C_COMPILER=clang-8 ..
+# run bash -c "cd ../src && npm install node-fetch"
+# run ninja

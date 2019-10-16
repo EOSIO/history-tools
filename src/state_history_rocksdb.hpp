@@ -1,7 +1,6 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include "state_history_kv.hpp"
 
 #include <boost/filesystem.hpp>
 #include <fc/exception/exception.hpp>
@@ -80,6 +79,7 @@ inline abieos::input_buffer to_input_buffer(rocksdb::Slice v) { return {v.data()
 
 inline abieos::input_buffer to_input_buffer(rocksdb::PinnableSlice& v) { return {v.data(), v.data() + v.size()}; }
 
+/*
 inline void put(rocksdb::WriteBatch& batch, const std::vector<char>& key, const std::vector<char>& value, bool overwrite = false) {
     // !!! remove overwrite
     batch.Put(to_slice(key), to_slice(value));
@@ -89,6 +89,7 @@ template <typename T>
 void put(rocksdb::WriteBatch& batch, const std::vector<char>& key, const T& value, bool overwrite = false) {
     put(batch, key, abieos::native_to_bin(value), overwrite);
 }
+*/
 
 inline void write(database& db, rocksdb::WriteBatch& batch) {
     // todo: verify status write order
@@ -98,6 +99,7 @@ inline void write(database& db, rocksdb::WriteBatch& batch) {
     batch.Clear();
 }
 
+/*
 inline bool exists(database& db, rocksdb::Slice key) {
     rocksdb::PinnableSlice v;
     auto                   stat = db.db->Get(rocksdb::ReadOptions(), db.db->DefaultColumnFamily(), key, &v);
@@ -198,6 +200,7 @@ void for_each_subkey(database& db, std::vector<char> lower_bound, const std::vec
     std::unique_ptr<rocksdb::Iterator> it{db.db->NewIterator(rocksdb::ReadOptions())};
     for_each_subkey(*it, std::move(lower_bound), upper_bound, f);
 }
+*/
 
 class db_view {
   public:
@@ -264,9 +267,9 @@ class db_view {
 
     using change_map = std::map<bytes, present_value, vector_compare>;
 
-    state_history::rdb::database db{"db.rocksdb", {}, {}, true};
-    rocksdb::WriteBatch          write_batch;
-    change_map                   changes;
+    database            db{"db.rocksdb", {}, {}, true};
+    rocksdb::WriteBatch write_batch;
+    change_map          changes;
 
     struct iterator_impl {
         friend db_view;
@@ -367,8 +370,7 @@ class db_view {
 
         std::optional<key_present_value> deref_rocks_it() {
             if (rocks_it->Valid())
-                return {
-                    {state_history::rdb::to_input_buffer(rocks_it->key()), true, state_history::rdb::to_input_buffer(rocks_it->value())}};
+                return {{to_input_buffer(rocks_it->key()), true, to_input_buffer(rocks_it->value())}};
             else
                 return {};
         }
@@ -450,17 +452,16 @@ class db_view {
 
     void write_changes() {
         write(db, write_batch);
-        db.flush(true, true);
         discard_changes();
     }
 
     void set(input_buffer k, input_buffer v) {
-        write_batch.Put(state_history::rdb::to_slice(k), state_history::rdb::to_slice(v));
+        write_batch.Put(to_slice(k), to_slice(v));
         changes[{k.pos, k.end}] = {true, {v.pos, v.end}};
     }
 
     void erase(input_buffer k) {
-        write_batch.Delete(state_history::rdb::to_slice(k));
+        write_batch.Delete(to_slice(k));
         changes[{k.pos, k.end}] = {false, {}};
     }
 }; // db_view
@@ -471,6 +472,16 @@ struct db_view_state {
 
     db_view_state()
         : iterators(1) {}
+
+    void reset() {
+        iterators.resize(1);
+        view.discard_changes();
+    }
+
+    void write_and_reset() {
+        iterators.resize(1);
+        view.write_changes();
+    }
 };
 
 template <typename Derived>

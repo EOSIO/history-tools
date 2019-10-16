@@ -150,14 +150,12 @@ struct ship_connection_state : state_history::connection_callbacks, std::enable_
     bool received(state_history::get_blocks_result_v0& result, abieos::input_buffer bin) override {
         ilog("received block ${n}", ("n", result.this_block ? result.this_block->block_num : -1));
         callbacks cb{*state};
-        state->view_state.iterators.clear();
-        state->view_state.iterators.resize(1);
-        state->view_state.view.discard_changes();
+        state->view_state.reset();
         state->bin = bin;
         state->backend.initialize(&cb);
         // backend(&cb, "env", "initialize"); // todo: needs change to eosio-cpp
         state->backend(&cb, "env", "start", 0);
-        state->view_state.view.write_changes();
+        state->view_state.write_and_reset();
         return true;
     }
 

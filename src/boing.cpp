@@ -8,8 +8,6 @@ struct callbacks;
 using backend_t = eosio::vm::backend<callbacks, eosio::vm::jit>;
 using rhf_t     = eosio::vm::registered_host_functions<callbacks>;
 
-using state_history::rdb::db_view;
-
 struct assert_exception : std::exception {
     std::string msg;
 
@@ -46,24 +44,26 @@ struct wasm_type_converter<T&> : linear_memory_access {
 } // namespace eosio
 
 struct state {
-    const char*                                     wasm;
-    eosio::vm::wasm_allocator&                      wa;
-    backend_t&                                      backend;
-    std::vector<char>                               args;
-    abieos::input_buffer                            bin;
-    db_view                                         view;
-    std::vector<std::shared_ptr<db_view::iterator>> iterators;
+    const char*                       wasm;
+    eosio::vm::wasm_allocator&        wa;
+    backend_t&                        backend;
+    std::vector<char>                 args;
+    abieos::input_buffer              bin;
+    state_history::rdb::db_view_state view_state;
 
     state(const char* wasm, eosio::vm::wasm_allocator& wa, backend_t& backend, std::vector<char> args)
         : wasm{wasm}
         , wa{wa}
         , backend{backend}
-        , args{args}
-        , iterators(1) {}
+        , args{args} {}
 };
 
-struct callbacks {
+struct callbacks : state_history::rdb::db_callbacks<callbacks> {
     ::state& state;
+
+    callbacks(::state& state)
+        : db_callbacks{state.view_state}
+        , state{state} {}
 
     void check_bounds(const char* begin, const char* end) {
         if (begin > end)
@@ -112,126 +112,15 @@ struct callbacks {
 
     void get_bin(uint32_t cb_alloc_data, uint32_t cb_alloc) { set_data(cb_alloc_data, cb_alloc, state.bin); }
     void get_args(uint32_t cb_alloc_data, uint32_t cb_alloc) { set_data(cb_alloc_data, cb_alloc, state.args); }
-
-    void kv_set(const char* k_begin, const char* k_end, const char* v_begin, const char* v_end) {
-        check_bounds(k_begin, k_end);
-        check_bounds(v_begin, v_end);
-        state.view.set({k_begin, k_end}, {v_begin, v_end});
-    }
-
-    void kv_erase(const char* k_begin, const char* k_end) {
-        check_bounds(k_begin, k_end);
-        state.view.erase({k_begin, k_end});
-    }
-
-    db_view::iterator& get_it(uint32_t index) {
-        if (index >= state.iterators.size() || !state.iterators[index])
-            throw std::runtime_error("iterator does not exist");
-        return *state.iterators[index];
-    }
-
-    void check(const rocksdb::Status& status) {
-        if (!status.IsNotFound() && !status.ok())
-            throw std::runtime_error("rocksdb error: " + status.ToString());
-    }
-
-    uint32_t kv_it_create(const char* prefix, uint32_t size) {
-        // todo: reuse destroyed slots?
-        check_bounds(prefix, size);
-        state.iterators.push_back(std::make_unique<db_view::iterator>(state.view, std::vector<char>{prefix, prefix + size}));
-        return state.iterators.size() - 1;
-    }
-
-    void kv_it_destroy(uint32_t index) {
-        get_it(index);
-        state.iterators[index].reset();
-    }
-
-    bool kv_it_is_end(uint32_t index) { return get_it(index).is_end(); }
-
-    int kv_it_compare(uint32_t a, uint32_t b) { return compare(get_it(a), get_it(b)); }
-
-    bool kv_it_move_to_begin(uint32_t index) {
-        auto& it = get_it(index);
-        it.move_to_begin();
-        return !it.is_end();
-    }
-
-    void kv_it_move_to_end(uint32_t index) {
-        auto& it = get_it(index);
-        it.move_to_end();
-    }
-
-    void kv_it_lower_bound(uint32_t index, const char* key, uint32_t size) {
-        check_bounds(key, size);
-        auto& it = get_it(index);
-        it.lower_bound(key, size);
-    }
-
-    // todo: kv_it_key_compare instead?
-    bool kv_it_key_matches(uint32_t index, const char* key, uint32_t size) {
-        check_bounds(key, size);
-        auto& it = get_it(index);
-        auto  kv = it.get_kv();
-        return kv && kv->key.end - kv->key.pos == size && !memcmp(kv->key.pos, key, size);
-    }
-
-    bool kv_it_incr(uint32_t index) {
-        auto& it = get_it(index);
-        ++it;
-        return !it.is_end();
-    }
-
-    int32_t kv_it_key(uint32_t index, uint32_t offset, char* dest, uint32_t size) {
-        check_bounds(dest, size);
-        if (offset)
-            throw std::runtime_error("offset must be 0");
-        auto& it = get_it(index);
-        auto  kv = it.get_kv();
-        if (!kv)
-            return -1;
-        auto actual_size = kv->key.end - kv->key.pos;
-        if (actual_size >= 0x8000'0000)
-            throw std::runtime_error("kv size is too big for wasm");
-        memcpy(dest, kv->key.pos, std::min(size, (uint32_t)actual_size));
-        return actual_size;
-    }
-
-    int32_t kv_it_value(uint32_t index, uint32_t offset, char* dest, uint32_t size) {
-        check_bounds(dest, size);
-        if (offset)
-            throw std::runtime_error("offset must be 0");
-        auto& it = get_it(index);
-        auto  kv = it.get_kv();
-        if (!kv)
-            return -1;
-        auto actual_size = kv->value.end - kv->value.pos;
-        if (actual_size >= 0x8000'0000)
-            throw std::runtime_error("kv size is too big for wasm");
-        memcpy(dest, kv->value.pos, std::min(size, (uint32_t)actual_size));
-        return actual_size;
-    }
 }; // callbacks
 
 void register_callbacks() {
+    state_history::rdb::db_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
     rhf_t::add<callbacks, &callbacks::abort, eosio::vm::wasm_allocator>("env", "abort");
     rhf_t::add<callbacks, &callbacks::eosio_assert_message, eosio::vm::wasm_allocator>("env", "eosio_assert_message");
     rhf_t::add<callbacks, &callbacks::print_range, eosio::vm::wasm_allocator>("env", "print_range");
     rhf_t::add<callbacks, &callbacks::get_bin, eosio::vm::wasm_allocator>("env", "get_bin");
     rhf_t::add<callbacks, &callbacks::get_args, eosio::vm::wasm_allocator>("env", "get_args");
-    rhf_t::add<callbacks, &callbacks::kv_set, eosio::vm::wasm_allocator>("env", "kv_set");
-    rhf_t::add<callbacks, &callbacks::kv_erase, eosio::vm::wasm_allocator>("env", "kv_erase");
-    rhf_t::add<callbacks, &callbacks::kv_it_create, eosio::vm::wasm_allocator>("env", "kv_it_create");
-    rhf_t::add<callbacks, &callbacks::kv_it_destroy, eosio::vm::wasm_allocator>("env", "kv_it_destroy");
-    rhf_t::add<callbacks, &callbacks::kv_it_is_end, eosio::vm::wasm_allocator>("env", "kv_it_is_end");
-    rhf_t::add<callbacks, &callbacks::kv_it_compare, eosio::vm::wasm_allocator>("env", "kv_it_compare");
-    rhf_t::add<callbacks, &callbacks::kv_it_move_to_begin, eosio::vm::wasm_allocator>("env", "kv_it_move_to_begin");
-    rhf_t::add<callbacks, &callbacks::kv_it_move_to_end, eosio::vm::wasm_allocator>("env", "kv_it_move_to_end");
-    rhf_t::add<callbacks, &callbacks::kv_it_lower_bound, eosio::vm::wasm_allocator>("env", "kv_it_lower_bound");
-    rhf_t::add<callbacks, &callbacks::kv_it_key_matches, eosio::vm::wasm_allocator>("env", "kv_it_key_matches");
-    rhf_t::add<callbacks, &callbacks::kv_it_incr, eosio::vm::wasm_allocator>("env", "kv_it_incr");
-    rhf_t::add<callbacks, &callbacks::kv_it_key, eosio::vm::wasm_allocator>("env", "kv_it_key");
-    rhf_t::add<callbacks, &callbacks::kv_it_value, eosio::vm::wasm_allocator>("env", "kv_it_value");
 }
 
 struct ship_connection_state : state_history::connection_callbacks, std::enable_shared_from_this<ship_connection_state> {
@@ -261,14 +150,14 @@ struct ship_connection_state : state_history::connection_callbacks, std::enable_
     bool received(state_history::get_blocks_result_v0& result, abieos::input_buffer bin) override {
         ilog("received block ${n}", ("n", result.this_block ? result.this_block->block_num : -1));
         callbacks cb{*state};
-        state->iterators.clear();
-        state->iterators.resize(1);
-        state->view.discard_changes();
+        state->view_state.iterators.clear();
+        state->view_state.iterators.resize(1);
+        state->view_state.view.discard_changes();
         state->bin = bin;
         state->backend.initialize(&cb);
         // backend(&cb, "env", "initialize"); // todo: needs change to eosio-cpp
         state->backend(&cb, "env", "start", 0);
-        state->view.write_changes();
+        state->view_state.view.write_changes();
         return true;
     }
 

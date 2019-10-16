@@ -465,5 +465,136 @@ class db_view {
     }
 }; // db_view
 
+struct db_view_state {
+    db_view                                         view;
+    std::vector<std::shared_ptr<db_view::iterator>> iterators;
+
+    db_view_state()
+        : iterators(1) {}
+};
+
+template <typename Derived>
+struct db_callbacks {
+    db_view_state& view_state;
+
+    Derived& derived() { return static_cast<Derived&>(*this); }
+
+    void kv_set(const char* k_begin, const char* k_end, const char* v_begin, const char* v_end) {
+        derived().check_bounds(k_begin, k_end);
+        derived().check_bounds(v_begin, v_end);
+        view_state.view.set({k_begin, k_end}, {v_begin, v_end});
+    }
+
+    void kv_erase(const char* k_begin, const char* k_end) {
+        derived().check_bounds(k_begin, k_end);
+        view_state.view.erase({k_begin, k_end});
+    }
+
+    db_view::iterator& get_it(uint32_t index) {
+        if (index >= view_state.iterators.size() || !view_state.iterators[index])
+            throw std::runtime_error("iterator does not exist");
+        return *view_state.iterators[index];
+    }
+
+    void check(const rocksdb::Status& status) {
+        if (!status.IsNotFound() && !status.ok())
+            throw std::runtime_error("rocksdb error: " + status.ToString());
+    }
+
+    uint32_t kv_it_create(const char* prefix, uint32_t size) {
+        // todo: reuse destroyed slots?
+        derived().check_bounds(prefix, size);
+        view_state.iterators.push_back(std::make_unique<db_view::iterator>(view_state.view, std::vector<char>{prefix, prefix + size}));
+        return view_state.iterators.size() - 1;
+    }
+
+    void kv_it_destroy(uint32_t index) {
+        get_it(index);
+        view_state.iterators[index].reset();
+    }
+
+    bool kv_it_is_end(uint32_t index) { return get_it(index).is_end(); }
+
+    int kv_it_compare(uint32_t a, uint32_t b) { return compare(get_it(a), get_it(b)); }
+
+    bool kv_it_move_to_begin(uint32_t index) {
+        auto& it = get_it(index);
+        it.move_to_begin();
+        return !it.is_end();
+    }
+
+    void kv_it_move_to_end(uint32_t index) {
+        auto& it = get_it(index);
+        it.move_to_end();
+    }
+
+    void kv_it_lower_bound(uint32_t index, const char* key, uint32_t size) {
+        derived().check_bounds(key, size);
+        auto& it = get_it(index);
+        it.lower_bound(key, size);
+    }
+
+    // todo: kv_it_key_compare instead?
+    bool kv_it_key_matches(uint32_t index, const char* key, uint32_t size) {
+        derived().check_bounds(key, size);
+        auto& it = get_it(index);
+        auto  kv = it.get_kv();
+        return kv && kv->key.end - kv->key.pos == size && !memcmp(kv->key.pos, key, size);
+    }
+
+    bool kv_it_incr(uint32_t index) {
+        auto& it = get_it(index);
+        ++it;
+        return !it.is_end();
+    }
+
+    int32_t kv_it_key(uint32_t index, uint32_t offset, char* dest, uint32_t size) {
+        derived().check_bounds(dest, size);
+        if (offset)
+            throw std::runtime_error("offset must be 0");
+        auto& it = get_it(index);
+        auto  kv = it.get_kv();
+        if (!kv)
+            return -1;
+        auto actual_size = kv->key.end - kv->key.pos;
+        if (actual_size >= 0x8000'0000)
+            throw std::runtime_error("kv size is too big for wasm");
+        memcpy(dest, kv->key.pos, std::min(size, (uint32_t)actual_size));
+        return actual_size;
+    }
+
+    int32_t kv_it_value(uint32_t index, uint32_t offset, char* dest, uint32_t size) {
+        derived().check_bounds(dest, size);
+        if (offset)
+            throw std::runtime_error("offset must be 0");
+        auto& it = get_it(index);
+        auto  kv = it.get_kv();
+        if (!kv)
+            return -1;
+        auto actual_size = kv->value.end - kv->value.pos;
+        if (actual_size >= 0x8000'0000)
+            throw std::runtime_error("kv size is too big for wasm");
+        memcpy(dest, kv->value.pos, std::min(size, (uint32_t)actual_size));
+        return actual_size;
+    }
+
+    template <typename Rft, typename Allocator>
+    static void register_callbacks() {
+        Rft::template add<Derived, &Derived::kv_set, Allocator>("env", "kv_set");
+        Rft::template add<Derived, &Derived::kv_erase, Allocator>("env", "kv_erase");
+        Rft::template add<Derived, &Derived::kv_it_create, Allocator>("env", "kv_it_create");
+        Rft::template add<Derived, &Derived::kv_it_destroy, Allocator>("env", "kv_it_destroy");
+        Rft::template add<Derived, &Derived::kv_it_is_end, Allocator>("env", "kv_it_is_end");
+        Rft::template add<Derived, &Derived::kv_it_compare, Allocator>("env", "kv_it_compare");
+        Rft::template add<Derived, &Derived::kv_it_move_to_begin, Allocator>("env", "kv_it_move_to_begin");
+        Rft::template add<Derived, &Derived::kv_it_move_to_end, Allocator>("env", "kv_it_move_to_end");
+        Rft::template add<Derived, &Derived::kv_it_lower_bound, Allocator>("env", "kv_it_lower_bound");
+        Rft::template add<Derived, &Derived::kv_it_key_matches, Allocator>("env", "kv_it_key_matches");
+        Rft::template add<Derived, &Derived::kv_it_incr, Allocator>("env", "kv_it_incr");
+        Rft::template add<Derived, &Derived::kv_it_key, Allocator>("env", "kv_it_key");
+        Rft::template add<Derived, &Derived::kv_it_value, Allocator>("env", "kv_it_value");
+    }
+}; // db_callbacks
+
 } // namespace rdb
 } // namespace state_history

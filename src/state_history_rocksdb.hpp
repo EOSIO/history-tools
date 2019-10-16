@@ -486,25 +486,24 @@ struct db_view_state {
 
 template <typename Derived>
 struct db_callbacks {
-    db_view_state& view_state;
-
     Derived& derived() { return static_cast<Derived&>(*this); }
 
     void kv_set(const char* k_begin, const char* k_end, const char* v_begin, const char* v_end) {
         derived().check_bounds(k_begin, k_end);
         derived().check_bounds(v_begin, v_end);
-        view_state.view.set({k_begin, k_end}, {v_begin, v_end});
+        derived().state.view.set({k_begin, k_end}, {v_begin, v_end});
     }
 
     void kv_erase(const char* k_begin, const char* k_end) {
         derived().check_bounds(k_begin, k_end);
-        view_state.view.erase({k_begin, k_end});
+        derived().state.view.erase({k_begin, k_end});
     }
 
     db_view::iterator& get_it(uint32_t index) {
-        if (index >= view_state.iterators.size() || !view_state.iterators[index])
+        auto& state = derived().state;
+        if (index >= state.iterators.size() || !state.iterators[index])
             throw std::runtime_error("iterator does not exist");
-        return *view_state.iterators[index];
+        return *state.iterators[index];
     }
 
     void check(const rocksdb::Status& status) {
@@ -514,14 +513,15 @@ struct db_callbacks {
 
     uint32_t kv_it_create(const char* prefix, uint32_t size) {
         // todo: reuse destroyed slots?
+        auto& state = derived().state;
         derived().check_bounds(prefix, size);
-        view_state.iterators.push_back(std::make_unique<db_view::iterator>(view_state.view, std::vector<char>{prefix, prefix + size}));
-        return view_state.iterators.size() - 1;
+        state.iterators.push_back(std::make_unique<db_view::iterator>(state.view, std::vector<char>{prefix, prefix + size}));
+        return state.iterators.size() - 1;
     }
 
     void kv_it_destroy(uint32_t index) {
         get_it(index);
-        view_state.iterators[index].reset();
+        derived().state.iterators[index].reset();
     }
 
     bool kv_it_is_end(uint32_t index) { return get_it(index).is_end(); }

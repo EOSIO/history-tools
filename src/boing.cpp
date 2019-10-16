@@ -8,6 +8,8 @@ struct callbacks;
 using backend_t = eosio::vm::backend<callbacks, eosio::vm::jit>;
 using rhf_t     = eosio::vm::registered_host_functions<callbacks>;
 
+using state_history::rdb::db_view;
+
 struct assert_exception : std::exception {
     std::string msg;
 
@@ -43,282 +45,14 @@ struct wasm_type_converter<T&> : linear_memory_access {
 } // namespace vm
 } // namespace eosio
 
-class combined_db {
-  public:
-    class iterator;
-    using bytes        = std::vector<char>;
-    using input_buffer = abieos::input_buffer;
-
-    struct key_value {
-        input_buffer key   = {};
-        input_buffer value = {};
-    };
-
-    struct key_present_value {
-        input_buffer key     = {};
-        bool         present = {};
-        input_buffer value   = {};
-    };
-
-    struct present_value {
-        bool  present = {};
-        bytes value   = {};
-    };
-
-  private:
-    static int key_compare(input_buffer a, input_buffer b) {
-        auto a_size = a.end - a.pos;
-        auto b_size = b.end - b.pos;
-        int  r      = memcmp(a.pos, b.pos, std::min(a_size, b_size));
-        if (r == 0) {
-            if (a_size < b_size)
-                return -1;
-            else if (a_size > b_size)
-                return 1;
-        }
-        return r;
-    }
-
-    struct vector_compare {
-        bool operator()(const std::vector<char>& a, const std::vector<char>& b) const {
-            return key_compare({a.data(), a.data() + a.size()}, {b.data(), b.data() + b.size()});
-        }
-    };
-
-    template <typename T>
-    static int key_compare(const std::optional<T>& a, const std::optional<T>& b) {
-        if (!a && !b)
-            return 0;
-        else if (!a && b)
-            return 1;
-        else if (a && !b)
-            return -1;
-        else
-            return key_compare(a->key, b->key);
-    }
-
-    static const std::optional<key_present_value>&
-    key_min(const std::optional<key_present_value>& a, const std::optional<key_present_value>& b) {
-        auto cmp = key_compare(a, b);
-        if (cmp <= 0)
-            return a;
-        else
-            return b;
-    }
-
-    using change_map = std::map<bytes, present_value, vector_compare>;
-
-    state_history::rdb::database db{"db.rocksdb", {}, {}, true};
-    rocksdb::WriteBatch          write_batch;
-    change_map                   changes;
-
-    struct iterator_impl {
-        friend combined_db;
-        friend iterator;
-
-        combined_db&                       combined;
-        std::vector<char>                  prefix;
-        std::unique_ptr<rocksdb::Iterator> rocks_it;
-        change_map::iterator               change_it;
-
-        iterator_impl(combined_db& combined, std::vector<char> prefix)
-            : combined{combined}
-            , prefix{std::move(prefix)}
-            , rocks_it{combined.db.db->NewIterator(rocksdb::ReadOptions())}
-            , change_it{combined.changes.end()} {}
-
-        iterator_impl(const iterator_impl&) = delete;
-        iterator_impl& operator=(const iterator_impl&) = delete;
-
-        void rocks_verify_prefix() {
-            if (!rocks_it->Valid())
-                return;
-            auto k = rocks_it->key();
-            if (k.size() >= prefix.size() && !memcmp(k.data(), prefix.data(), prefix.size()))
-                return;
-            rocks_it->SeekToLast();
-            if (rocks_it->Valid())
-                rocks_it->Next();
-        }
-
-        void changed_verify_prefix() {
-            if (change_it == combined.changes.end())
-                return;
-            auto& k = change_it->first;
-            if (k.size() >= prefix.size() && !memcmp(k.data(), prefix.data(), prefix.size()))
-                return;
-            change_it = combined.changes.end();
-        }
-
-        void move_to_begin() {
-            rocks_it->Seek({prefix.data(), prefix.size()});
-            rocks_verify_prefix();
-            change_it = combined.changes.lower_bound(prefix);
-            changed_verify_prefix();
-        }
-
-        void move_to_end() {
-            rocks_it->SeekToLast();
-            if (rocks_it->Valid())
-                rocks_it->Next();
-            change_it = combined.changes.end();
-        }
-
-        void lower_bound(const char* key, size_t size) {
-            if (size < prefix.size() || memcmp(key, prefix.data(), prefix.size()))
-                throw std::runtime_error("lower_bound: prefix doesn't match");
-            rocks_it->Seek({key, size});
-            rocks_verify_prefix();
-            change_it = combined.changes.lower_bound({key, key + size});
-            changed_verify_prefix();
-        }
-
-        std::optional<key_value> get_kv() {
-            auto r   = deref_rocks_it();
-            auto c   = deref_change_it();
-            auto min = key_min(r, c);
-            if (min) {
-                if (min->present)
-                    return key_value{min->key, min->value};
-                move_to_end(); // invalidate iterator since it is at a removed element
-            }
-            return {};
-        }
-
-        bool is_end() { return !get_kv(); }
-
-        iterator_impl& operator++() {
-            auto r   = deref_rocks_it();
-            auto c   = deref_change_it();
-            auto cmp = key_compare(r, c);
-            do {
-                if (cmp < 0) {
-                    rocks_it->Next();
-                } else if (cmp > 0) {
-                    ++change_it;
-                } else if (r && c) {
-                    rocks_it->Next();
-                    ++change_it;
-                }
-                r   = deref_rocks_it();
-                c   = deref_change_it();
-                cmp = key_compare(r, c);
-            } while (cmp > 0 && !c->present);
-            rocks_verify_prefix();
-            changed_verify_prefix();
-            return *this;
-        }
-
-        std::optional<key_present_value> deref_rocks_it() {
-            if (rocks_it->Valid())
-                return {
-                    {state_history::rdb::to_input_buffer(rocks_it->key()), true, state_history::rdb::to_input_buffer(rocks_it->value())}};
-            else
-                return {};
-        }
-
-        std::optional<key_present_value> deref_change_it() {
-            if (change_it != combined.changes.end())
-                return {{{change_it->first.data(), change_it->first.data() + change_it->first.size()},
-                         change_it->second.present,
-                         {change_it->second.value.data(), change_it->second.value.data() + change_it->second.value.size()}}};
-            else
-                return {};
-        }
-    }; // iterator_impl
-    friend iterator_impl;
-
-  public:
-    class iterator {
-        friend combined_db;
-
-      private:
-        std::unique_ptr<iterator_impl> impl;
-
-      public:
-        iterator(combined_db& combined, std::vector<char> prefix)
-            : impl{std::make_unique<iterator_impl>(combined, std::move(prefix))} {}
-
-        iterator(const iterator&) = delete;
-        iterator(iterator&&)      = default;
-
-        iterator& operator=(const iterator&) = delete;
-        iterator& operator=(iterator&&) = default;
-
-        friend int  compare(const iterator& a, const iterator& b) { return combined_db::key_compare(a.get_kv(), b.get_kv()); }
-        friend bool operator==(const iterator& a, const iterator& b) { return compare(a, b) == 0; }
-        friend bool operator<(const iterator& a, const iterator& b) { return compare(a, b) < 0; }
-
-        iterator& operator++() {
-            if (impl)
-                ++*impl;
-            else
-                throw std::runtime_error("kv iterator is not initialized");
-            return *this;
-        }
-
-        void move_to_begin() {
-            if (impl)
-                impl->move_to_begin();
-            else
-                throw std::runtime_error("kv iterator is not initialized");
-        }
-
-        void move_to_end() {
-            if (impl)
-                impl->move_to_end();
-            else
-                throw std::runtime_error("kv iterator is not initialized");
-        }
-
-        void lower_bound(const char* key, size_t size) {
-            if (impl)
-                return impl->lower_bound(key, size);
-            else
-                throw std::runtime_error("kv iterator is not initialized");
-        }
-
-        bool is_end() const { return !impl || impl->is_end(); }
-
-        std::optional<key_value> get_kv() const {
-            if (impl)
-                return impl->get_kv();
-            else
-                return {};
-        }
-    };
-    friend iterator;
-
-    void discard_changes() {
-        write_batch.Clear();
-        changes.clear();
-    }
-
-    void write_changes() {
-        write(db, write_batch);
-        db.flush(true, true);
-        discard_changes();
-    }
-
-    void set(input_buffer k, input_buffer v) {
-        write_batch.Put(state_history::rdb::to_slice(k), state_history::rdb::to_slice(v));
-        changes[{k.pos, k.end}] = {true, {v.pos, v.end}};
-    }
-
-    void erase(input_buffer k) {
-        write_batch.Delete(state_history::rdb::to_slice(k));
-        changes[{k.pos, k.end}] = {false, {}};
-    }
-}; // combined_db
-
 struct state {
-    const char*                                         wasm;
-    eosio::vm::wasm_allocator&                          wa;
-    backend_t&                                          backend;
-    std::vector<char>                                   args;
-    abieos::input_buffer                                bin;
-    combined_db                                         db;
-    std::vector<std::shared_ptr<combined_db::iterator>> iterators;
+    const char*                                     wasm;
+    eosio::vm::wasm_allocator&                      wa;
+    backend_t&                                      backend;
+    std::vector<char>                               args;
+    abieos::input_buffer                            bin;
+    db_view                                         view;
+    std::vector<std::shared_ptr<db_view::iterator>> iterators;
 
     state(const char* wasm, eosio::vm::wasm_allocator& wa, backend_t& backend, std::vector<char> args)
         : wasm{wasm}
@@ -382,15 +116,15 @@ struct callbacks {
     void kv_set(const char* k_begin, const char* k_end, const char* v_begin, const char* v_end) {
         check_bounds(k_begin, k_end);
         check_bounds(v_begin, v_end);
-        state.db.set({k_begin, k_end}, {v_begin, v_end});
+        state.view.set({k_begin, k_end}, {v_begin, v_end});
     }
 
     void kv_erase(const char* k_begin, const char* k_end) {
         check_bounds(k_begin, k_end);
-        state.db.erase({k_begin, k_end});
+        state.view.erase({k_begin, k_end});
     }
 
-    combined_db::iterator& get_it(uint32_t index) {
+    db_view::iterator& get_it(uint32_t index) {
         if (index >= state.iterators.size() || !state.iterators[index])
             throw std::runtime_error("iterator does not exist");
         return *state.iterators[index];
@@ -404,7 +138,7 @@ struct callbacks {
     uint32_t kv_it_create(const char* prefix, uint32_t size) {
         // todo: reuse destroyed slots?
         check_bounds(prefix, size);
-        state.iterators.push_back(std::make_unique<combined_db::iterator>(state.db, std::vector<char>{prefix, prefix + size}));
+        state.iterators.push_back(std::make_unique<db_view::iterator>(state.view, std::vector<char>{prefix, prefix + size}));
         return state.iterators.size() - 1;
     }
 
@@ -529,12 +263,12 @@ struct ship_connection_state : state_history::connection_callbacks, std::enable_
         callbacks cb{*state};
         state->iterators.clear();
         state->iterators.resize(1);
-        state->db.discard_changes();
+        state->view.discard_changes();
         state->bin = bin;
         state->backend.initialize(&cb);
         // backend(&cb, "env", "initialize"); // todo: needs change to eosio-cpp
         state->backend(&cb, "env", "start", 0);
-        state->db.write_changes();
+        state->view.write_changes();
         return true;
     }
 

@@ -193,7 +193,7 @@ if (FOUND_ROCKSDB)
 #     target_sources(wasm-ql-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
 #     target_sources(combo-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
 message(STATUS "    wasm_ql_plugin")
-target_sources(history-tools PRIVATE src/rocksdb_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
+target_sources(history-tools PRIVATE src/rocksdb_plugin.cpp src/wasm_plugin.cpp src/wasm_dispatcher.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
 endif()
 
 message(STATUS "Enabled apps:")

@@ -236,7 +236,16 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         create_table<permission_level>(         t, "action_trace_authorization",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<account_auth_sequence>(    t, "action_trace_auth_sequence",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<account_delta>(            t, "action_trace_ram_delta",      "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<action_trace_v0>(          t, "action_trace",                "block_num, transaction_id, action_ordinal",          "block_num bigint, \"timestamp\" timestamp, transaction_id varchar(64),                                          transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+
+
+        create_table<action_trace_v0>(          t, "action_trace",                "block_num, transaction_id, action_ordinal",          "block_num bigint, \"timestamp\" timestamp, transaction_id varchar(64), transaction_status " + t.quote_name(config->schema) + ".transaction_status_type, actor varchar(13), token_from varchar(13), token_to varchar(13), amount bigint, symbol varchar(7)");
+
+        // add supplimentary indexes to action_trace table
+        t.exec("create index act_account_index on " + t.quote_name(config->schema) + ".action_trace (act_account, receipt_global_sequence)");
+        t.exec("create index actor_index on " + t.quote_name(config->schema) + ".action_trace (actor, receipt_global_sequence)");
+        t.exec("create index from_index on " + t.quote_name(config->schema) + ".action_trace (token_from, receipt_global_sequence)");
+        t.exec("create index to_index on " + t.quote_name(config->schema) + ".action_trace (token_to, receipt_global_sequence)");
+
         create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_num, transaction_ordinal",                     "block_num bigint, transaction_ordinal integer, failed_dtrx_trace varchar(64)", "partial_signatures varchar[], partial_context_free_data bytea[]");
         // clang-format on
 
@@ -840,6 +849,24 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         std::string fields = "block_num, timestamp, transaction_id, transaction_status";
         std::string values =
             std::to_string(block_num) + sep(bulk) + sql_str(bulk, timestamp) + sep(bulk) + quote(bulk, (std::string)ttrace.id) + sep(bulk) + quote(bulk, to_string(ttrace.status));
+
+        // additional (business) fields
+        if (atrace.act.authorization.size()) {
+            fields += ", actor";
+            values += sep(bulk) + quote(bulk, std::string(atrace.act.authorization[0].actor));
+        }
+        if (atrace.act.name == abieos::name("transfer") && atrace.act.account == abieos::name("eosio.token")) {
+            abieos::input_buffer buffer = atrace.act.data; // need copy of input_buffer
+            uint64_t from = 0, to = 0, symbol = 0, amount = 0;
+            std::string error;
+            if (read_raw(buffer, error, from) &&
+                read_raw(buffer, error, to) &&
+                read_raw(buffer, error, amount) &&
+                read_raw(buffer, error, symbol)) {
+                fields += ", token_from, token_to, symbol, amount";
+                values += sep(bulk) + quote(bulk, name_to_string(from)) + sep(bulk) + quote(bulk, name_to_string(to)) + sep(bulk) + quote(bulk, symbol_code_to_string(symbol >> 8)) + sep(bulk) + std::to_string(amount);
+            }
+        }
 
         write("action_trace", block_num, atrace, fields, values, bulk, t, pipeline);
         write_action_trace_subtable(

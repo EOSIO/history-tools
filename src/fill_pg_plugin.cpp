@@ -238,7 +238,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         create_table<account_delta>(            t, "action_trace_ram_delta",      "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
 
 
-        create_table<action_trace_v0>(          t, "action_trace",                "block_num, transaction_id, action_ordinal",          "block_num bigint, \"timestamp\" timestamp, transaction_id varchar(64), transaction_status " + t.quote_name(config->schema) + ".transaction_status_type, actor varchar(13), token_from varchar(13), token_to varchar(13), amount bigint, symbol varchar(7)");
+        create_table<action_trace_v0>(          t, "action_trace",                "block_num, transaction_id, action_ordinal",          "block_num bigint, \"timestamp\" timestamp, transaction_id varchar(64), transaction_status " + t.quote_name(config->schema) + ".transaction_status_type, actor varchar(13), permission varchar(13), token_from varchar(13), token_to varchar(13), amount bigint, symbol varchar(7)");
 
         // add supplimentary indexes to action_trace table
         t.exec("create index act_account_index on " + t.quote_name(config->schema) + ".action_trace (act_account, receipt_global_sequence)");
@@ -852,8 +852,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
         // additional (business) fields
         if (atrace.act.authorization.size()) {
-            fields += ", actor";
-            values += sep(bulk) + quote(bulk, std::string(atrace.act.authorization[0].actor));
+            fields += ", actor, permission";
+            values += sep(bulk) + quote(bulk, std::string(atrace.act.authorization[0].actor)) + sep(bulk) + quote(bulk, std::string(atrace.act.authorization[0].permission));
         }
         if (atrace.act.name == abieos::name("transfer") && atrace.act.account == abieos::name("eosio.token")) {
             abieos::input_buffer buffer = atrace.act.data; // need copy of input_buffer

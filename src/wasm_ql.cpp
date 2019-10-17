@@ -1,6 +1,7 @@
 // copyright defined in LICENSE.txt
 
 #include "wasm_ql.hpp"
+#include "abieos_exception.hpp"
 
 #include <fc/log/logger.hpp>
 #include <fc/scoped_exit.hpp>
@@ -42,10 +43,12 @@ struct callbacks {
             throw std::runtime_error("assert failed");
     }
 
+    /*
     void get_database_status(uint32_t cb_alloc_data, uint32_t cb_alloc) {
         auto data = alloc(cb_alloc_data, cb_alloc, thread_state.database_status.size());
         memcpy(data, thread_state.database_status.data(), thread_state.database_status.size());
     }
+    */
 
     void get_input_data(uint32_t cb_alloc_data, uint32_t cb_alloc) {
         auto data = alloc(cb_alloc_data, cb_alloc, thread_state.request.end - thread_state.request.pos);
@@ -57,12 +60,14 @@ struct callbacks {
         thread_state.reply.assign(begin, end);
     }
 
+    /*
     void query_database(const char* req_begin, const char* req_end, uint32_t cb_alloc_data, uint32_t cb_alloc) {
         check_bounds(req_begin, req_end);
         auto result = thread_state.query_session->query_database({req_begin, req_end}, thread_state.fill_status.head);
         auto data   = alloc(cb_alloc_data, cb_alloc, result.size());
         memcpy(data, result.data(), result.size());
     }
+    */
 
     void print_range(const char* begin, const char* end) {
         check_bounds(begin, end);
@@ -72,6 +77,7 @@ struct callbacks {
 }; // callbacks
 
 void register_callbacks() {
+    /*
     rhf_t::add<callbacks, &callbacks::abort, eosio::vm::wasm_allocator>("env", "abort");
     rhf_t::add<callbacks, &callbacks::eosio_assert_message, eosio::vm::wasm_allocator>("env", "eosio_assert_message");
     rhf_t::add<callbacks, &callbacks::get_database_status, eosio::vm::wasm_allocator>("env", "get_database_status");
@@ -79,8 +85,10 @@ void register_callbacks() {
     rhf_t::add<callbacks, &callbacks::set_output_data, eosio::vm::wasm_allocator>("env", "set_output_data");
     rhf_t::add<callbacks, &callbacks::query_database, eosio::vm::wasm_allocator>("env", "query_database");
     rhf_t::add<callbacks, &callbacks::print_range, eosio::vm::wasm_allocator>("env", "print_range");
+    */
 }
 
+/*
 static void fill_context_data(wasm_ql::thread_state& thread_state) {
     thread_state.database_status.clear();
     abieos::native_to_bin(thread_state.fill_status.head, thread_state.database_status);
@@ -89,38 +97,7 @@ static void fill_context_data(wasm_ql::thread_state& thread_state) {
     abieos::native_to_bin(thread_state.fill_status.irreversible_id, thread_state.database_status);
     abieos::native_to_bin(thread_state.fill_status.first, thread_state.database_status);
 }
-
-// todo: detect thread_state.fill_status.first changing (history trim)
-static bool did_fork(wasm_ql::thread_state& thread_state) {
-    auto id = thread_state.query_session->get_block_id(thread_state.fill_status.head);
-    if (!id) {
-        ilog("fork detected (prev head not found)");
-        return true;
-    }
-    if (id->value != thread_state.fill_status.head_id.value) {
-        ilog("fork detected (head_id changed)");
-        return true;
-    }
-    return false;
-}
-
-template <typename F>
-static void retry_loop(wasm_ql::thread_state& thread_state, F f) {
-    int num_tries = 0;
-    while (true) {
-        auto exit                  = fc::make_scoped_exit([&] { thread_state.query_session.reset(); });
-        thread_state.query_session = thread_state.shared->db_iface->create_query_session();
-        thread_state.fill_status   = thread_state.query_session->get_fill_status();
-        if (!thread_state.fill_status.head)
-            throw std::runtime_error("database is empty");
-        fill_context_data(thread_state);
-        if (f())
-            return;
-        if (++num_tries >= 4)
-            throw std::runtime_error("too many fork events during request");
-        ilog("retry request");
-    }
-}
+*/
 
 static void run_query(wasm_ql::thread_state& thread_state, abieos::name short_name) {
     auto      code = backend_t::read_wasm(thread_state.shared->wasm_dir + "/" + (std::string)short_name + "-server.wasm");
@@ -135,29 +112,24 @@ static void run_query(wasm_ql::thread_state& thread_state, abieos::name short_na
 }
 
 std::vector<char> query(wasm_ql::thread_state& thread_state, const std::vector<char>& request) {
-    std::vector<char> result;
-    retry_loop(thread_state, [&]() {
-        abieos::input_buffer request_bin{request.data(), request.data() + request.size()};
-        auto                 num_requests = abieos::bin_to_native<abieos::varuint32>(request_bin).value;
-        result.clear();
-        abieos::push_varuint32(result, num_requests);
-        for (uint32_t request_index = 0; request_index < num_requests; ++request_index) {
-            thread_state.request = abieos::bin_to_native<abieos::input_buffer>(request_bin);
-            auto ns_name         = abieos::bin_to_native<abieos::name>(thread_state.request);
-            if (ns_name != "local"_n)
-                throw std::runtime_error("unknown namespace: " + (std::string)ns_name);
-            auto short_name = abieos::bin_to_native<abieos::name>(thread_state.request);
+    std::vector<char>    result;
+    abieos::input_buffer request_bin{request.data(), request.data() + request.size()};
+    auto                 num_requests = abieos::bin_to_native<abieos::varuint32>(request_bin).value;
+    result.clear();
+    abieos::push_varuint32(result, num_requests);
+    for (uint32_t request_index = 0; request_index < num_requests; ++request_index) {
+        thread_state.request = abieos::bin_to_native<abieos::input_buffer>(request_bin);
+        auto ns_name         = abieos::bin_to_native<abieos::name>(thread_state.request);
+        if (ns_name != "local"_n)
+            throw std::runtime_error("unknown namespace: " + (std::string)ns_name);
+        auto short_name = abieos::bin_to_native<abieos::name>(thread_state.request);
 
-            run_query(thread_state, short_name);
-            if (did_fork(thread_state))
-                return false;
+        run_query(thread_state, short_name);
 
-            // elog("result: ${s} ${x}", ("s", thread_state.reply.size())("x", fc::to_hex(thread_state.reply)));
-            abieos::push_varuint32(result, thread_state.reply.size());
-            result.insert(result.end(), thread_state.reply.begin(), thread_state.reply.end());
-        }
-        return true;
-    });
+        // elog("result: ${s} ${x}", ("s", thread_state.reply.size())("x", fc::to_hex(thread_state.reply)));
+        abieos::push_varuint32(result, thread_state.reply.size());
+        result.insert(result.end(), thread_state.reply.begin(), thread_state.reply.end());
+    }
     return result;
 }
 
@@ -166,10 +138,7 @@ const std::vector<char>& legacy_query(wasm_ql::thread_state& thread_state, const
     abieos::native_to_bin(target, req);
     abieos::native_to_bin(request, req);
     thread_state.request = abieos::input_buffer{req.data(), req.data() + req.size()};
-    retry_loop(thread_state, [&]() {
-        run_query(thread_state, "legacy"_n);
-        return !did_fork(thread_state);
-    });
+    run_query(thread_state, "legacy"_n);
     return thread_state.reply;
 }
 

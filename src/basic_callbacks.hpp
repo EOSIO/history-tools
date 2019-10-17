@@ -3,6 +3,32 @@
 #include <abieos_exception.hpp>
 #include <eosio/vm/backend.hpp>
 
+namespace eosio {
+namespace vm {
+
+template <>
+struct wasm_type_converter<const char*> : linear_memory_access {
+    auto from_wasm(void* ptr) { return (const char*)ptr; }
+};
+
+template <>
+struct wasm_type_converter<char*> : linear_memory_access {
+    auto from_wasm(void* ptr) { return (char*)ptr; }
+};
+
+template <typename T>
+struct wasm_type_converter<T&> : linear_memory_access {
+    auto from_wasm(uint32_t val) {
+        EOS_VM_ASSERT(val != 0, wasm_memory_exception, "references cannot be created for null pointers");
+        void* ptr = get_ptr(val);
+        validate_ptr<T>(ptr, 1);
+        return eosio::vm::aligned_ref_wrapper<T, alignof(T)>{ptr};
+    }
+};
+
+} // namespace vm
+} // namespace eosio
+
 namespace history_tools {
 
 struct assert_exception : std::exception {

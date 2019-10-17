@@ -85,11 +85,5 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
     FC_LOG_AND_RETHROW()
 }
 
-void wasm_ql_plugin::plugin_startup() {
-    if (!my->state->db_iface)
-        throw std::runtime_error("wasm_ql_plugin needs either wasm_ql_pg_plugin or wasm_ql_rocksdb_plugin");
-    my->start_http();
-}
+void wasm_ql_plugin::plugin_startup() { my->start_http(); }
 void wasm_ql_plugin::plugin_shutdown() { my->shutdown(); }
-
-void wasm_ql_plugin::set_database(std::shared_ptr<database_interface> db_iface) { my->state->db_iface = std::move(db_iface); }

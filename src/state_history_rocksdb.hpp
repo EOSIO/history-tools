@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "abieos.hpp"
 #include <boost/filesystem.hpp>
 #include <fc/exception/exception.hpp>
 #include <rocksdb/db.h>
@@ -267,7 +268,7 @@ class db_view {
 
     using change_map = std::map<bytes, present_value, vector_compare>;
 
-    database            db{"db.rocksdb", {}, {}, true};
+    database&           db;
     rocksdb::WriteBatch write_batch;
     change_map          changes;
 
@@ -445,6 +446,9 @@ class db_view {
         }
     };
 
+    db_view(database& db)
+        : db{db} {}
+
     void discard_changes() {
         write_batch.Clear();
         changes.clear();
@@ -470,8 +474,9 @@ struct db_view_state {
     db_view                                         view;
     std::vector<std::shared_ptr<db_view::iterator>> iterators;
 
-    db_view_state()
-        : iterators(1) {}
+    db_view_state(database& db)
+        : view{db}
+        , iterators(1) {}
 
     void reset() {
         iterators.resize(1);

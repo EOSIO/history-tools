@@ -7,40 +7,13 @@ struct callbacks;
 using backend_t = eosio::vm::backend<callbacks, eosio::vm::jit>;
 using rhf_t     = eosio::vm::registered_host_functions<callbacks>;
 
-namespace eosio {
-namespace vm {
-
-template <>
-struct wasm_type_converter<const char*> : linear_memory_access {
-    auto from_wasm(void* ptr) { return (const char*)ptr; }
-};
-
-template <>
-struct wasm_type_converter<char*> : linear_memory_access {
-    auto from_wasm(void* ptr) { return (char*)ptr; }
-};
-
-template <typename T>
-struct wasm_type_converter<T&> : linear_memory_access {
-    auto from_wasm(uint32_t val) {
-        EOS_VM_ASSERT(val != 0, wasm_memory_exception, "references cannot be created for null pointers");
-        void* ptr = get_ptr(val);
-        validate_ptr<T>(ptr, 1);
-        return eosio::vm::aligned_ref_wrapper<T, alignof(T)>{ptr};
-    }
-};
-
-} // namespace vm
-} // namespace eosio
-
 struct state : history_tools::wasm_state<backend_t>, state_history::rdb::db_view_state {
-    const char*          wasm;
     std::vector<char>    args;
     abieos::input_buffer bin;
 
-    state(const char* wasm, eosio::vm::wasm_allocator& wa, backend_t& backend, std::vector<char> args)
+    state(const char* wasm, eosio::vm::wasm_allocator& wa, backend_t& backend, state_history::rdb::database& db, std::vector<char> args)
         : wasm_state{wa, backend}
-        , wasm{wasm}
+        , db_view_state{db}
         , args{args} {}
 };
 
@@ -102,10 +75,12 @@ struct ship_connection_state : state_history::connection_callbacks, std::enable_
 };
 
 static void run(const char* wasm, const std::vector<std::string>& args) {
-    eosio::vm::wasm_allocator wa;
-    auto                      code = backend_t::read_wasm(wasm);
-    backend_t                 backend(code);
-    auto                      state = std::make_shared<::state>(wasm, wa, backend, abieos::native_to_bin(args));
+    eosio::vm::wasm_allocator    wa;
+    auto                         code = backend_t::read_wasm(wasm);
+    backend_t                    backend(code);
+    state_history::rdb::database db{"db.rocksdb", {}, {}, true};
+    auto                         state = std::make_shared<::state>(wasm, wa, backend, db, abieos::native_to_bin(args));
+    // todo: state: drop shared_ptr?
     backend.set_wasm_allocator(&wa);
 
     rhf_t::resolve(backend.get_module());

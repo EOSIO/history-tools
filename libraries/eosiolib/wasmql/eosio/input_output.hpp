@@ -13,7 +13,7 @@ namespace eosio {
 typedef void* cb_alloc_fn(void* cb_alloc_data, size_t size);
 
 /// \exclude
-extern "C" void get_input_data(void* cb_alloc_data, cb_alloc_fn* cb_alloc);
+extern "C" __attribute__((eosio_wasm_import)) void get_input_data(void* cb_alloc_data, cb_alloc_fn* cb_alloc);
 
 /// \exclude
 template <typename Alloc_fn>
@@ -35,7 +35,7 @@ inline std::vector<char> get_input_data() {
 
 extern "C" {
 /// Set the wasm's output data
-void set_output_data(const char* begin, const char* end);
+__attribute__((eosio_wasm_import)) void set_output_data(const char* begin, const char* end);
 }
 
 /// Set the wasm's output data

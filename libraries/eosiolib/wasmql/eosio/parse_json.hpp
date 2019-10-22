@@ -39,6 +39,14 @@ __attribute__((noinline)) inline void parse_json(std::string_view& result, const
 }
 
 /// \group parse_json_explicit Parse JSON (Explicit Types)
+/// Parse JSON and convert to `result`. These overloads handle specified types.
+__attribute__((noinline)) inline void parse_json(std::string& result, const char*& pos, const char* end) {
+    std::string_view sv;
+    parse_json(sv, pos, end);
+    result = sv;
+}
+
+/// \group parse_json_explicit Parse JSON (Explicit Types)
 __attribute__((noinline)) inline void parse_json(shared_memory<std::string_view>& result, const char*& pos, const char* end) {
     return parse_json(*result, pos, end);
 }

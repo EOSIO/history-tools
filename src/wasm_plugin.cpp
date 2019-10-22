@@ -15,7 +15,15 @@ struct wasm_plugin_impl : std::enable_shared_from_this<wasm_plugin_impl> {
     std::string                    wasm     = {};
     history_tools::wasm_dispatcher dispatcher;
 
-    void start() { dispatcher.create("eosio.hist"_n, wasm, true, {}, {}, {}, {}); }
+    void start() {
+        // todo: revisit this
+        struct sigaction sa;
+        memset(&sa, 0, sizeof(sa));
+        sa.sa_handler = SIG_DFL;
+        sigaction(SIGINT, &sa, nullptr);
+
+        dispatcher.create("eosio.hist"_n, wasm, true, {}, {}, {}, {});
+    }
 
     void shutdown() { stopping = true; }
 }; // wasm_plugin_impl

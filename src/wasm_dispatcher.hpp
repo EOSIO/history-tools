@@ -10,6 +10,7 @@ class wasm_dispatcher {
     wasm_dispatcher();
 
     static void register_callbacks();
+    void        add_ship_connection(abieos::name name, std::string host, std::string port);
 
     void create(                                           //
         abieos::name              name,                    //

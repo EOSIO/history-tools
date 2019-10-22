@@ -39,7 +39,7 @@ void wasm_dispatcher::register_callbacks() {
 }
 
 struct ship_connection_state : state_history::connection_callbacks, std::enable_shared_from_this<ship_connection_state> {
-    std::shared_ptr<run_state>                 state;
+    std::shared_ptr<run_state>                 state; // xxxxxx
     std::shared_ptr<state_history::connection> connection;
 
     ship_connection_state(const std::shared_ptr<run_state>& state)
@@ -78,6 +78,11 @@ struct ship_connection_state : state_history::connection_callbacks, std::enable_
 };
 
 struct wasm_dispatcher_impl {
+    std::mutex                                               mutex;
+    std::map<abieos::name, state_history::connection_config> ship_connections;
+
+    void add_ship_connection(abieos::name name, std::string host, std::string port);
+
     void create(                                           //
         abieos::name              name,                    //
         std::string               wasm,                    //
@@ -88,6 +93,11 @@ struct wasm_dispatcher_impl {
         std::vector<std::string>  api_handlers);
 };
 
+void wasm_dispatcher_impl::add_ship_connection(abieos::name name, std::string host, std::string port) {
+    std::lock_guard<std::mutex> lock{mutex};
+    ship_connections[name] = {host, port};
+}
+
 void wasm_dispatcher_impl::create(                     //
     abieos::name              name,                    //
     std::string               wasm,                    //
@@ -97,6 +107,7 @@ void wasm_dispatcher_impl::create(                     //
     std::vector<abieos::name> ships,                   //
     std::vector<std::string>  api_handlers) {
 
+    std::lock_guard<std::mutex>  lock{mutex};
     eosio::vm::wasm_allocator    wa;
     auto                         code = backend_t::read_wasm(wasm);
     backend_t                    backend(code);
@@ -116,6 +127,10 @@ void wasm_dispatcher_impl::create(                     //
 
 wasm_dispatcher::wasm_dispatcher()
     : my{std::make_shared<wasm_dispatcher_impl>()} {}
+
+void wasm_dispatcher::add_ship_connection(abieos::name name, std::string host, std::string port) {
+    my->add_ship_connection(name, host, port);
+}
 
 void wasm_dispatcher::create(                          //
     abieos::name              name,                    //

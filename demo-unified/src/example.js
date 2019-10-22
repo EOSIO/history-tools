@@ -25,8 +25,8 @@ const api = new Api({ rpc, signatureProvider, textDecoder: new TextDecoder(), te
                 token.actions.issue([{ actor: 'eosio', permission: 'active' }], 'eosio', '1000000.0000 TOK', 'issuing'),
                 token.actions.open([{ actor: 'a', permission: 'active' }], 'a', '4,TOK', 'a'),
                 token.actions.open([{ actor: 'b', permission: 'active' }], 'b', '4,TOK', 'b'),
-                token.actions.transfer([{ actor: 'eosio', permission: 'active' }], 'eosio', 'a', '100.0000 TOK', 'transfering'),
-                token.actions.transfer([{ actor: 'a', permission: 'active' }], 'a', 'b', '100.0000 TOK', 'transfering'),
+                token.actions.transfer([{ actor: 'eosio', permission: 'active' }], 'eosio', 'a', '100.0000 TOK', 'transferring'),
+                token.actions.transfer([{ actor: 'a', permission: 'active' }], 'a', 'b', '100.0000 TOK', 'transferring'),
             ]
         }, {
             blocksBehind: 3,

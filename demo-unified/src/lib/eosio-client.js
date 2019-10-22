@@ -103,7 +103,6 @@ const { Serialize } = require('eosjs');
             throw new Error('Required configuration or TAPOS fields are not present');
         }
 
-        const abis = await api.getTransactionAbis(transaction);
         const serializedTransaction = api.serializeTransaction(transaction);
         let pushTransactionArgs = { serializedTransaction, signatures: [] };
 
@@ -113,7 +112,7 @@ const { Serialize } = require('eosjs');
                 chainId: api.chainId,
                 requiredKeys,
                 serializedTransaction,
-                abis,
+                abis: {},
             });
         }
         if (broadcast) {

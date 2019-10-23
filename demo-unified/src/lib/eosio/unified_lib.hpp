@@ -9,41 +9,52 @@ namespace eosio {
 template <typename... Ts>
 struct type_list {};
 
-__attribute__((noinline)) inline void parse_json(asset& result, const char*& pos, const char* end) {
-    std::string s;
-    parse_json(s, pos, end);
-    abieos::asset a;
-    std::string   error;
-    if (!string_to_asset(a, error, s.c_str()))
-        check(false, error.c_str());
-    result = asset{a.amount, symbol{a.sym.value}};
+__attribute__((noinline)) inline result<void> parse_json(name& result, json_parser::token_stream& stream) {
+    auto r = stream.get_string();
+    if (!r)
+        return r.error();
+    result = name(r.value());
+    return outcome::success();
 }
 
-__attribute__((noinline)) inline void parse_json(symbol& result, const char*& pos, const char* end) {
-    std::string s;
-    parse_json(s, pos, end);
+__attribute__((noinline)) inline result<void> parse_json(asset& result, json_parser::token_stream& stream) {
+    auto r = stream.get_string();
+    if (!r)
+        return r.error();
+    abieos::asset a;
+    std::string   error;
+    if (!string_to_asset(a, error, std::string(r.value()).c_str()))
+        return json_parser::error::value_invalid;
+    result = asset{a.amount, symbol{a.sym.value}};
+    return outcome::success();
+}
+
+__attribute__((noinline)) inline result<void> parse_json(symbol& result, json_parser::token_stream& stream) {
+    auto r = stream.get_string();
+    if (!r)
+        return r.error();
     uint64_t    sym;
     std::string error;
-    if (!abieos::string_to_symbol(sym, error, s.c_str()))
-        check(false, error.c_str());
+    if (!abieos::string_to_symbol(sym, error, std::string(r.value()).c_str()))
+        return json_parser::error::value_invalid;
     result = symbol{sym};
+    return outcome::success();
 }
 
 template <typename Arg0, typename... Args>
-void action_json_to_bin(type_list<Arg0, Args...>, std::vector<char>& dest, const char*& pos, const char* end) {
-    parse_json_expect(pos, end, ',', "expected ,");
+void action_json_to_bin(type_list<Arg0, Args...>, std::vector<char>& dest, json_parser::token_stream& stream) {
     std::decay_t<Arg0> obj{};
-    parse_json(obj, pos, end);
+    check_discard(parse_json(obj, stream));
     auto bin = pack(obj);
     dest.insert(dest.end(), bin.begin(), bin.end());
-    action_json_to_bin(type_list<Args...>{}, dest, pos, end);
+    action_json_to_bin(type_list<Args...>{}, dest, stream);
 }
 
-void action_json_to_bin(type_list<>, std::vector<char>& dest, const char*& pos, const char* end) {}
+void action_json_to_bin(type_list<>, std::vector<char>& dest, json_parser::token_stream& stream) {}
 
 template <typename C, typename... Args>
-void action_json_to_bin(void (C::*)(Args...), std::vector<char>& dest, const char*& pos, const char* end) {
-    action_json_to_bin(type_list<Args...>{}, dest, pos, end);
+void action_json_to_bin(void (C::*)(Args...), std::vector<char>& dest, json_parser::token_stream& stream) {
+    action_json_to_bin(type_list<Args...>{}, dest, stream);
 }
 
 } // namespace eosio
@@ -96,24 +107,21 @@ void action_json_to_bin(void (C::*)(Args...), std::vector<char>& dest, const cha
                                                                                                                                            \
     [[eosio::wasm_entry]] void action_to_bin() {                                                                                           \
         using namespace eosio;                                                                                                             \
-        std::vector<char> result;                                                                                                          \
-        auto              json = get_input_data();                                                                                         \
-        const char*       pos  = json.data();                                                                                              \
-        const char*       end  = pos + json.size();                                                                                        \
-        parse_json_expect(pos, end, '[', "expected [");                                                                                    \
-        std::string_view action_name;                                                                                                      \
-        parse_json(action_name, pos, end);                                                                                                 \
-        name action(action_name);                                                                                                          \
+        std::vector<char>                result;                                                                                           \
+        auto                             json = get_input_data_str();                                                                      \
+        eosio::json_parser::token_stream stream(json.data());                                                                              \
+        eosio::check_discard(stream.get_start_array());                                                                                    \
+        name action(eosio::check(stream.get_string()).value());                                                                            \
         bool found = false;                                                                                                                \
         for_each_action((CLS*)nullptr, [&](name name, auto action_fn) {                                                                    \
             if (!found && action == name) {                                                                                                \
                 found = true;                                                                                                              \
-                action_json_to_bin(action_fn, result, pos, end);                                                                           \
+                action_json_to_bin(action_fn, result, stream);                                                                             \
             }                                                                                                                              \
         });                                                                                                                                \
-        check(found, "action not found");                                                                                                  \
-        parse_json_expect(pos, end, ']', "expected ]");                                                                                    \
-        parse_json_expect_end(pos, end);                                                                                                   \
+        eosio::check(found, "action not found");                                                                                           \
+        eosio::check_discard(stream.get_end_array());                                                                                      \
+        eosio::check_discard(stream.get_end());                                                                                            \
         set_output_data(result);                                                                                                           \
     }                                                                                                                                      \
     }

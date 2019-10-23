@@ -4,6 +4,7 @@
 
 #include <eosio/print.hpp>
 #include <eosio/rope.hpp>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -26,6 +27,16 @@ inline void get_input_data(Alloc_fn alloc_fn) {
 /// Get data provided to the wasm
 inline std::vector<char> get_input_data() {
     std::vector<char> result;
+    get_input_data([&result](size_t size) {
+        result.resize(size);
+        return result.data();
+    });
+    return result;
+}
+
+/// Get data provided to the wasm
+inline std::string get_input_data_str() {
+    std::string result;
     get_input_data([&result](size_t size) {
         result.resize(size);
         return result.data();

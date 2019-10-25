@@ -58,12 +58,14 @@ struct ship_connection_state : state_history::connection_callbacks, std::enable_
 
     bool received(state_history::get_status_result_v0& status, abieos::input_buffer bin) override {
         ilog("received status");
-        connection->request_blocks(status, 0, {});
+        connection->request_blocks(status, 68977476, {}); // !!!
         return true;
     }
 
     bool received(state_history::get_blocks_result_v0& result, abieos::input_buffer bin) override {
-        ilog("received block ${n}", ("n", result.this_block ? result.this_block->block_num : -1));
+        ilog(
+            "received block ${n} size ${s}",
+            ("n", result.this_block ? result.this_block->block_num : -1)("s", uint64_t(bin.end - bin.pos)));
         callbacks cb{*state};
         state->reset();
         state->bin = bin;

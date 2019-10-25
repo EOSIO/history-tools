@@ -493,15 +493,15 @@ template <typename Derived>
 struct db_callbacks {
     Derived& derived() { return static_cast<Derived&>(*this); }
 
-    void kv_set(const char* k_begin, const char* k_end, const char* v_begin, const char* v_end) {
-        derived().check_bounds(k_begin, k_end);
-        derived().check_bounds(v_begin, v_end);
-        derived().state.view.set({k_begin, k_end}, {v_begin, v_end});
+    void kv_set(const char* k_begin, uint32_t k_size, const char* v_begin, uint32_t v_size) {
+        derived().check_bounds(k_begin, k_size);
+        derived().check_bounds(v_begin, v_size);
+        derived().state.view.set({k_begin, k_begin + k_size}, {v_begin, v_begin + v_size});
     }
 
-    void kv_erase(const char* k_begin, const char* k_end) {
-        derived().check_bounds(k_begin, k_end);
-        derived().state.view.erase({k_begin, k_end});
+    void kv_erase(const char* k_begin, uint32_t k_size) {
+        derived().check_bounds(k_begin, k_size);
+        derived().state.view.erase({k_begin, k_begin + k_size});
     }
 
     db_view::iterator& get_it(uint32_t index) {

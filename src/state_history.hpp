@@ -37,6 +37,11 @@ T assert_bin_to_native(abieos::input_buffer& bin) {
 }
 
 template <typename T>
+T assert_bin_to_native(abieos::input_buffer&& bin) {
+    return assert_bin_to_native<T>(bin);
+}
+
+template <typename T>
 T assert_bin_to_native(const std::vector<char>& bin) {
     abieos::input_buffer b{bin.data(), bin.data() + bin.size()};
     return assert_bin_to_native<T>(b);

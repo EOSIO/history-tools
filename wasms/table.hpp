@@ -128,8 +128,8 @@ namespace internal_use_do_not_use {
 
 IMPORT void get_bin(void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
 
-IMPORT void kv_set(const char* k_begin, const char* k_end, const char* v_begin, const char* v_end);
-IMPORT void kv_erase(const char* k_begin, const char* k_end);
+IMPORT void kv_set(const char* k_begin, uint32_t k_size, const char* v_begin, uint32_t v_size);
+IMPORT void kv_erase(const char* k_begin, uint32_t k_size);
 IMPORT uint32_t kv_it_create(const char* prefix, uint32_t size);
 IMPORT void     kv_it_destroy(uint32_t index);
 IMPORT bool     kv_it_is_end(uint32_t index);
@@ -149,9 +149,7 @@ inline void get_bin(Alloc_fn alloc_fn) {
     });
 }
 
-void kv_set(const std::vector<char>& k, const std::vector<char>& v) {
-    kv_set(k.data(), k.data() + k.size(), v.data(), v.data() + v.size());
-}
+void kv_set(const std::vector<char>& k, const std::vector<char>& v) { kv_set(k.data(), k.size(), v.data(), v.size()); }
 
 } // namespace internal_use_do_not_use
 
@@ -263,9 +261,10 @@ class table_proxy;
 template <typename T>
 class table {
   public:
-    using index    = eosio::index<T>;
-    using iterator = table_iterator<T>;
-    using proxy    = table_proxy<T>;
+    using value_type = T;
+    using index      = eosio::index<T>;
+    using iterator   = table_iterator<T>;
+    using proxy      = table_proxy<T>;
     friend index;
     friend iterator;
     friend proxy;
@@ -278,6 +277,7 @@ class table {
     void init(abieos::name table_context, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes);
 
     void     insert(const T& obj);
+    void     erase(const T& obj);
     iterator begin();
     iterator end();
 
@@ -286,6 +286,8 @@ class table {
     std::vector<char>   prefix{};
     index*              primary_index{};
     std::vector<index*> secondary_indexes{};
+
+    void erase_pk(const std::vector<char>& pk);
 };
 
 template <typename T>
@@ -474,9 +476,9 @@ void table<T>::init(abieos::name table_context, abieos::name table_name, index& 
 
 template <typename T>
 void table<T>::insert(const T& obj) {
-    // todo: disallow overwrite
     auto pk = primary_index->get_key(obj);
     pk.insert(pk.begin(), primary_index->prefix.begin(), primary_index->prefix.end());
+    erase_pk(pk);
     internal_use_do_not_use::kv_set(pk, abieos::native_to_bin(obj));
     for (auto* ind : secondary_indexes) {
         auto sk = ind->get_key(obj);
@@ -485,6 +487,36 @@ void table<T>::insert(const T& obj) {
         // todo: re-encode the key to make pk extractable and make value empty
         internal_use_do_not_use::kv_set(sk, pk);
     }
+}
+
+template <typename T>
+void table<T>::erase(const T& obj) {
+    auto pk = primary_index->get_key(obj);
+    pk.insert(pk.begin(), primary_index->prefix.begin(), primary_index->prefix.end());
+    erase_pk(pk);
+}
+
+template <typename T>
+void table<T>::erase_pk(const std::vector<char>& pk) {
+    auto temp_it = primary_index->get_temp_it();
+    internal_use_do_not_use::kv_it_lower_bound(temp_it, pk.data(), pk.size());
+    if (!internal_use_do_not_use::kv_it_key_matches(temp_it, pk.data(), pk.size()))
+        return;
+    auto size = internal_use_do_not_use::kv_it_value(temp_it, 0, nullptr, 0);
+    check(size >= 0, "iterator read failure");
+    std::vector<char> bin(size);
+    check(internal_use_do_not_use::kv_it_value(temp_it, 0, bin.data(), size) == size, "iterator read failure");
+    T                    obj;
+    std::string          error;
+    abieos::input_buffer b{bin.data(), bin.data() + bin.size()};
+    check(abieos::bin_to_native<T>(obj, error, b), error);
+    for (auto* ind : secondary_indexes) {
+        auto sk = ind->get_key(obj);
+        sk.insert(sk.begin(), ind->prefix.begin(), ind->prefix.end());
+        sk.insert(sk.end(), pk.begin(), pk.end());
+        internal_use_do_not_use::kv_erase(sk.data(), sk.size());
+    }
+    internal_use_do_not_use::kv_erase(pk.data(), pk.size());
 }
 
 template <typename T>

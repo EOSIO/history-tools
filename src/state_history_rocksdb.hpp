@@ -80,7 +80,6 @@ inline abieos::input_buffer to_input_buffer(rocksdb::Slice v) { return {v.data()
 
 inline abieos::input_buffer to_input_buffer(rocksdb::PinnableSlice& v) { return {v.data(), v.data() + v.size()}; }
 
-/*
 inline void put(rocksdb::WriteBatch& batch, const std::vector<char>& key, const std::vector<char>& value, bool overwrite = false) {
     // !!! remove overwrite
     batch.Put(to_slice(key), to_slice(value));
@@ -90,7 +89,6 @@ template <typename T>
 void put(rocksdb::WriteBatch& batch, const std::vector<char>& key, const T& value, bool overwrite = false) {
     put(batch, key, abieos::native_to_bin(value), overwrite);
 }
-*/
 
 inline void write(database& db, rocksdb::WriteBatch& batch) {
     // todo: verify status write order
@@ -109,7 +107,7 @@ inline bool exists(database& db, rocksdb::Slice key) {
     check(stat, "exists: ");
     return true;
 }
-
+*/
 inline std::optional<abieos::input_buffer> get_raw(rocksdb::Iterator& it, const std::vector<char>& key, bool required) {
     it.Seek(to_slice(key));
     auto stat = it.status();
@@ -125,7 +123,7 @@ inline std::optional<abieos::input_buffer> get_raw(rocksdb::Iterator& it, const 
     }
     return to_input_buffer(it.value());
 }
-
+/*
 template <typename T>
 std::optional<T> get(rocksdb::Iterator& it, const std::vector<char>& key, bool required) {
     auto bin = get_raw(it, key, required);
@@ -134,7 +132,7 @@ std::optional<T> get(rocksdb::Iterator& it, const std::vector<char>& key, bool r
     else
         return {};
 }
-
+*/
 template <typename T>
 std::optional<T> get(database& db, const std::vector<char>& key, bool required) {
     rocksdb::PinnableSlice v;
@@ -145,7 +143,7 @@ std::optional<T> get(database& db, const std::vector<char>& key, bool required) 
     auto bin = to_input_buffer(v);
     return abieos::bin_to_native<T>(bin);
 }
-
+/*
 // Loop through keys in range [lower_bound, upper_bound], inclusive. lower_bound and upper_bound may
 // be partial keys (prefixes). They may be different sizes. Does not skip keys with duplicate prefixes.
 //
@@ -612,5 +610,28 @@ struct db_callbacks {
     }
 }; // db_callbacks
 
+class kv_environment : public db_callbacks<kv_environment> {
+  public:
+    using base = db_callbacks<kv_environment>;
+    db_view_state& state;
+
+    kv_environment(db_view_state& state)
+        : state{state} {}
+    kv_environment(const kv_environment&) = default;
+
+    void check_bounds(const char*, uint32_t) {}
+    void kv_set(const std::vector<char>& k, const std::vector<char>& v) { base::kv_set(k.data(), k.size(), v.data(), v.size()); }
+};
+
 } // namespace rdb
 } // namespace state_history
+
+namespace eosio {
+using state_history::rdb::kv_environment;
+
+inline void check(bool cond, const char* msg) {
+    if (!cond)
+        throw std::runtime_error(msg);
+}
+
+} // namespace eosio

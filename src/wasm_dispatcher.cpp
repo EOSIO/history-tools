@@ -4,6 +4,8 @@
 #include "state_history_connection.hpp"
 #include "state_history_rocksdb.hpp"
 
+#include "../wasms/table.hpp"
+
 namespace history_tools {
 
 struct callbacks;

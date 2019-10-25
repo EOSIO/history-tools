@@ -114,20 +114,19 @@ IMPORT int32_t kv_it_value(uint32_t index, uint32_t offset, char* dest, uint32_t
 
 } // namespace internal_use_do_not_use
 
-class kv_environment;
-
-template <typename T, typename Environment = kv_environment>
+template <typename T>
 class table;
 
-template <typename T, typename Environment = kv_environment>
+template <typename T>
 class index;
 
-template <typename T, typename Environment = kv_environment>
+template <typename T>
 class table_iterator;
 
-template <typename T, typename Environment = kv_environment>
+template <typename T>
 class table_proxy;
 
+#ifdef EOSIO_CDT_COMPILATION
 class kv_environment {
   public:
     kv_environment() {}
@@ -152,33 +151,41 @@ class kv_environment {
     int32_t  kv_it_value(uint32_t index, uint32_t offset, char* dest, uint32_t size)    {return internal_use_do_not_use::kv_it_value(index, offset, dest, size);}
     // clang-format on
 
-    template <typename T, typename Environment>
+    template <typename T>
     friend class table;
 
-    template <typename T, typename Environment>
+    template <typename T>
     friend class index;
 
-    template <typename T, typename Environment>
+    template <typename T>
     friend class table_iterator;
 
-    template <typename T, typename Environment>
+    template <typename T>
     friend class table_proxy;
 };
+#endif
 
-template <typename T, typename Environment>
+struct default_constructor_tag;
+
+template <typename T>
 class table {
   public:
     using value_type = T;
-    using index      = eosio::index<T, Environment>;
-    using iterator   = table_iterator<T, Environment>;
-    using proxy      = table_proxy<T, Environment>;
+    using index      = eosio::index<T>;
+    using iterator   = table_iterator<T>;
+    using proxy      = table_proxy<T>;
     friend index;
     friend iterator;
     friend proxy;
 
-    Environment environment;
+    kv_environment environment;
 
-    table()             = default;
+    template <typename KVE = kv_environment>
+    table(typename std::enable_if_t<std::is_constructible_v<KVE>, default_constructor_tag>* = nullptr) {}
+
+    table(kv_environment environment)
+        : environment{std::move(environment)} {}
+
     table(const table&) = delete;
     table(table&&)      = delete;
 
@@ -199,12 +206,12 @@ class table {
     void erase_pk(const std::vector<char>& pk);
 };
 
-template <typename T, typename Environment>
+template <typename T>
 class index {
   public:
-    using table    = eosio::table<T, Environment>;
-    using iterator = table_iterator<T, Environment>;
-    using proxy    = table_proxy<T, Environment>;
+    using table    = eosio::table<T>;
+    using iterator = table_iterator<T>;
+    using proxy    = table_proxy<T>;
     friend table;
     friend iterator;
     friend proxy;
@@ -238,7 +245,7 @@ class index {
     }
 };
 
-template <typename T, typename Environment>
+template <typename T>
 class table_proxy {
   public:
     // If object is not already in cache then read and return it. Returns existing cached object if present.
@@ -247,9 +254,9 @@ class table_proxy {
     const T& get();
 
   private:
-    using table    = eosio::table<T, Environment>;
-    using index    = eosio::index<T, Environment>;
-    using iterator = table_iterator<T, Environment>;
+    using table    = eosio::table<T>;
+    using index    = eosio::index<T>;
+    using iterator = table_iterator<T>;
     friend table;
     friend index;
     friend iterator;
@@ -260,12 +267,12 @@ class table_proxy {
         : it{it} {}
 };
 
-template <typename T, typename Environment>
+template <typename T>
 class table_iterator {
   public:
-    using table = eosio::table<T, Environment>;
-    using index = eosio::index<T, Environment>;
-    using proxy = table_proxy<T, Environment>;
+    using table = eosio::table<T>;
+    using index = eosio::index<T>;
+    using proxy = table_proxy<T>;
     friend table;
     friend index;
     friend proxy;
@@ -368,9 +375,9 @@ class table_iterator {
         , it{it} {}
 };
 
-template <typename T, typename Environment>
+template <typename T>
 template <typename... Indexes>
-void table<T, Environment>::init(abieos::name table_context, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes) {
+void table<T>::init(abieos::name table_context, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes) {
     check(!initialized, "table is already initialized");
 
     this->primary_index     = &primary_index;
@@ -383,8 +390,8 @@ void table<T, Environment>::init(abieos::name table_context, abieos::name table_
     initialized = true;
 }
 
-template <typename T, typename Environment>
-void table<T, Environment>::insert(const T& obj) {
+template <typename T>
+void table<T>::insert(const T& obj) {
     auto pk = primary_index->get_key(obj);
     pk.insert(pk.begin(), primary_index->prefix.begin(), primary_index->prefix.end());
     erase_pk(pk);
@@ -398,15 +405,15 @@ void table<T, Environment>::insert(const T& obj) {
     }
 }
 
-template <typename T, typename Environment>
-void table<T, Environment>::erase(const T& obj) {
+template <typename T>
+void table<T>::erase(const T& obj) {
     auto pk = primary_index->get_key(obj);
     pk.insert(pk.begin(), primary_index->prefix.begin(), primary_index->prefix.end());
     erase_pk(pk);
 }
 
-template <typename T, typename Environment>
-void table<T, Environment>::erase_pk(const std::vector<char>& pk) {
+template <typename T>
+void table<T>::erase_pk(const std::vector<char>& pk) {
     auto temp_it = primary_index->get_temp_it();
     environment.kv_it_lower_bound(temp_it, pk.data(), pk.size());
     if (!environment.kv_it_key_matches(temp_it, pk.data(), pk.size()))
@@ -428,42 +435,42 @@ void table<T, Environment>::erase_pk(const std::vector<char>& pk) {
     environment.kv_erase(pk.data(), pk.size());
 }
 
-template <typename T, typename Environment>
-table_iterator<T, Environment> table<T, Environment>::begin() {
+template <typename T>
+table_iterator<T> table<T>::begin() {
     check(initialized, "table is not initialized");
     return primary_index->begin();
 }
 
-template <typename T, typename Environment>
-table_iterator<T, Environment> table<T, Environment>::end() {
+template <typename T>
+table_iterator<T> table<T>::end() {
     check(initialized, "table is not initialized");
     return primary_index->end();
 }
 
-template <typename T, typename Environment>
-void index<T, Environment>::initialize(table* t, bool is_primary) {
+template <typename T>
+void index<T>::initialize(table* t, bool is_primary) {
     this->t          = t;
     this->is_primary = is_primary;
     prefix           = t->prefix;
     native_to_key(index_name, prefix);
 }
 
-template <typename T, typename Environment>
-table_iterator<T, Environment> index<T, Environment>::begin() {
+template <typename T>
+table_iterator<T> index<T>::begin() {
     check(t, "index is not in a table");
     iterator result{this, t->environment.kv_it_create(prefix.data(), prefix.size())};
     t->environment.kv_it_move_to_begin(result.it);
     return result;
 }
 
-template <typename T, typename Environment>
-table_iterator<T, Environment> index<T, Environment>::end() {
+template <typename T>
+table_iterator<T> index<T>::end() {
     check(t, "index is not in a table");
     return {this, 0};
 };
 
-template <typename T, typename Environment>
-const T& table_proxy<T, Environment>::get() {
+template <typename T>
+const T& table_proxy<T>::get() {
     return it.get();
 }
 

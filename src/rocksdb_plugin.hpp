@@ -2,11 +2,11 @@
 
 #pragma once
 #include "state_history_rocksdb.hpp"
-#include "wasm_plugin.hpp"
+#include <appbase/application.hpp>
 
 class rocksdb_plugin : public appbase::plugin<rocksdb_plugin> {
   public:
-    APPBASE_PLUGIN_REQUIRES((wasm_plugin))
+    APPBASE_PLUGIN_REQUIRES()
 
     rocksdb_plugin();
     virtual ~rocksdb_plugin();

@@ -90,6 +90,8 @@ std::vector<char> native_to_key(const T& obj) {
 namespace eosio {
 namespace internal_use_do_not_use {
 
+#ifdef EOSIO_CDT_COMPILATION
+
 #define IMPORT extern "C" __attribute__((eosio_wasm_import))
 
 IMPORT void kv_set(const char* k_begin, uint32_t k_size, const char* v_begin, uint32_t v_size);
@@ -108,32 +110,73 @@ IMPORT int32_t kv_it_value(uint32_t index, uint32_t offset, char* dest, uint32_t
 
 #undef IMPORT
 
-void kv_set(const std::vector<char>& k, const std::vector<char>& v) { kv_set(k.data(), k.size(), v.data(), v.size()); }
+#endif
 
 } // namespace internal_use_do_not_use
 
-template <typename T>
+class kv_environment;
+
+template <typename T, typename Environment = kv_environment>
 class table;
 
-template <typename T>
+template <typename T, typename Environment = kv_environment>
 class index;
 
-template <typename T>
+template <typename T, typename Environment = kv_environment>
 class table_iterator;
 
-template <typename T>
+template <typename T, typename Environment = kv_environment>
 class table_proxy;
 
-template <typename T>
+class kv_environment {
+  public:
+    kv_environment() {}
+
+  private:
+    void kv_set(const std::vector<char>& k, const std::vector<char>& v) {
+        internal_use_do_not_use::kv_set(k.data(), k.size(), v.data(), v.size());
+    }
+
+    // clang-format off
+    void     kv_erase(const char* k_begin, uint32_t k_size)                             {return internal_use_do_not_use::kv_erase(k_begin,  k_size);}
+    uint32_t kv_it_create(const char* prefix, uint32_t size)                            {return internal_use_do_not_use::kv_it_create(prefix, size);}
+    void     kv_it_destroy(uint32_t index)                                              {return internal_use_do_not_use::kv_it_destroy(index);}
+    bool     kv_it_is_end(uint32_t index)                                               {return internal_use_do_not_use::kv_it_is_end(index);}
+    int      kv_it_compare(uint32_t a, uint32_t b)                                      {return internal_use_do_not_use::kv_it_compare(a, b);}
+    bool     kv_it_move_to_begin(uint32_t index)                                        {return internal_use_do_not_use::kv_it_move_to_begin(index);}
+    void     kv_it_move_to_end(uint32_t index)                                          {return internal_use_do_not_use::kv_it_move_to_end(index);}
+    void     kv_it_lower_bound(uint32_t index, const char* key, uint32_t size)          {return internal_use_do_not_use::kv_it_lower_bound(index, key, size);}
+    bool     kv_it_key_matches(uint32_t index, const char* key, uint32_t size)          {return internal_use_do_not_use::kv_it_key_matches(index, key, size);}
+    bool     kv_it_incr(uint32_t index)                                                 {return internal_use_do_not_use::kv_it_incr(index);}
+    int32_t  kv_it_key(uint32_t index, uint32_t offset, char* dest, uint32_t size)      {return internal_use_do_not_use::kv_it_key(index, offset, dest, size);}
+    int32_t  kv_it_value(uint32_t index, uint32_t offset, char* dest, uint32_t size)    {return internal_use_do_not_use::kv_it_value(index, offset, dest, size);}
+    // clang-format on
+
+    template <typename T, typename Environment>
+    friend class table;
+
+    template <typename T, typename Environment>
+    friend class index;
+
+    template <typename T, typename Environment>
+    friend class table_iterator;
+
+    template <typename T, typename Environment>
+    friend class table_proxy;
+};
+
+template <typename T, typename Environment>
 class table {
   public:
     using value_type = T;
-    using index      = eosio::index<T>;
-    using iterator   = table_iterator<T>;
-    using proxy      = table_proxy<T>;
+    using index      = eosio::index<T, Environment>;
+    using iterator   = table_iterator<T, Environment>;
+    using proxy      = table_proxy<T, Environment>;
     friend index;
     friend iterator;
     friend proxy;
+
+    Environment environment;
 
     table()             = default;
     table(const table&) = delete;
@@ -156,12 +199,12 @@ class table {
     void erase_pk(const std::vector<char>& pk);
 };
 
-template <typename T>
+template <typename T, typename Environment>
 class index {
   public:
-    using table    = eosio::table<T>;
-    using iterator = table_iterator<T>;
-    using proxy    = table_proxy<T>;
+    using table    = eosio::table<T, Environment>;
+    using iterator = table_iterator<T, Environment>;
+    using proxy    = table_proxy<T, Environment>;
     friend table;
     friend iterator;
     friend proxy;
@@ -172,7 +215,7 @@ class index {
 
     ~index() {
         if (temp_it)
-            internal_use_do_not_use::kv_it_destroy(temp_it);
+            t->environment.kv_it_destroy(temp_it);
     }
 
     iterator begin();
@@ -190,12 +233,12 @@ class index {
 
     uint32_t get_temp_it() {
         if (!temp_it)
-            temp_it = internal_use_do_not_use::kv_it_create(prefix.data(), prefix.size());
+            temp_it = t->environment.kv_it_create(prefix.data(), prefix.size());
         return temp_it;
     }
 };
 
-template <typename T>
+template <typename T, typename Environment>
 class table_proxy {
   public:
     // If object is not already in cache then read and return it. Returns existing cached object if present.
@@ -204,9 +247,9 @@ class table_proxy {
     const T& get();
 
   private:
-    using table    = eosio::table<T>;
-    using index    = eosio::index<T>;
-    using iterator = table_iterator<T>;
+    using table    = eosio::table<T, Environment>;
+    using index    = eosio::index<T, Environment>;
+    using iterator = table_iterator<T, Environment>;
     friend table;
     friend index;
     friend iterator;
@@ -217,12 +260,12 @@ class table_proxy {
         : it{it} {}
 };
 
-template <typename T>
+template <typename T, typename Environment>
 class table_iterator {
   public:
-    using table = eosio::table<T>;
-    using index = eosio::index<T>;
-    using proxy = table_proxy<T>;
+    using table = eosio::table<T, Environment>;
+    using index = eosio::index<T, Environment>;
+    using proxy = table_proxy<T, Environment>;
     friend table;
     friend index;
     friend proxy;
@@ -232,15 +275,15 @@ class table_iterator {
 
     ~table_iterator() {
         if (it)
-            internal_use_do_not_use::kv_it_destroy(it);
+            ind->t->environment.kv_it_destroy(it);
     }
 
     table_iterator& operator=(const table_iterator&) = delete;
     table_iterator& operator=(table_iterator&&) = default;
 
     friend int compare(const table_iterator& a, const table_iterator& b) {
-        bool a_end = !a.it || internal_use_do_not_use::kv_it_is_end(a.it);
-        bool b_end = !b.it || internal_use_do_not_use::kv_it_is_end(b.it);
+        bool a_end = !a.it || a.ind->t->environment.kv_it_is_end(a.it);
+        bool b_end = !b.it || a.ind->t->environment.kv_it_is_end(b.it);
         if (a_end && b_end)
             return 0;
         else if (a_end && !b_end)
@@ -248,7 +291,7 @@ class table_iterator {
         else if (!a_end && b_end)
             return -1;
         else
-            return internal_use_do_not_use::kv_it_compare(a.it, b.it);
+            return a.ind->t->environment.kv_it_compare(a.it, b.it);
     }
 
     friend bool operator==(const table_iterator& a, const table_iterator& b) { return compare(a, b) == 0; }
@@ -260,42 +303,42 @@ class table_iterator {
 
     table_iterator& operator++() {
         if (it)
-            internal_use_do_not_use::kv_it_incr(it);
+            ind->t->environment.kv_it_incr(it);
         obj.reset();
         return *this;
     }
 
     std::vector<char> get_raw_key() {
-        auto size = internal_use_do_not_use::kv_it_key(it, 0, nullptr, 0);
+        auto size = ind->t->environment.kv_it_key(it, 0, nullptr, 0);
         check(size >= 0, "iterator read failure");
         std::vector<char> result(size);
-        check(internal_use_do_not_use::kv_it_key(it, 0, result.data(), size) == size, "iterator read failure");
+        check(ind->t->environment.kv_it_key(it, 0, result.data(), size) == size, "iterator read failure");
         return result;
     }
 
     std::vector<char> get_raw_value() {
-        auto size = internal_use_do_not_use::kv_it_value(it, 0, nullptr, 0);
+        auto size = ind->t->environment.kv_it_value(it, 0, nullptr, 0);
         check(size >= 0, "iterator read failure");
         std::vector<char> result(size);
-        check(internal_use_do_not_use::kv_it_value(it, 0, result.data(), size) == size, "iterator read failure");
+        check(ind->t->environment.kv_it_value(it, 0, result.data(), size) == size, "iterator read failure");
         return result;
     }
 
     // Reads object, stores it in cache, and returns it. Use this if something else may have changed object.
     // Caution: object gets destroyed when iterator is destroyed or moved or if read_fresh() is called again.
     const T& read_fresh() {
-        auto size = internal_use_do_not_use::kv_it_value(it, 0, nullptr, 0);
+        auto size = ind->t->environment.kv_it_value(it, 0, nullptr, 0);
         check(size >= 0, "iterator read failure");
         std::vector<char> bin(size);
-        check(internal_use_do_not_use::kv_it_value(it, 0, bin.data(), size) == size, "iterator read failure");
+        check(ind->t->environment.kv_it_value(it, 0, bin.data(), size) == size, "iterator read failure");
         if (!ind->is_primary) {
             auto temp_it = ind->t->primary_index->get_temp_it();
-            internal_use_do_not_use::kv_it_lower_bound(temp_it, bin.data(), bin.size());
-            check(internal_use_do_not_use::kv_it_key_matches(temp_it, bin.data(), bin.size()), "iterator read failure");
-            size = internal_use_do_not_use::kv_it_value(temp_it, 0, nullptr, 0);
+            ind->t->environment.kv_it_lower_bound(temp_it, bin.data(), bin.size());
+            check(ind->t->environment.kv_it_key_matches(temp_it, bin.data(), bin.size()), "iterator read failure");
+            size = ind->t->environment.kv_it_value(temp_it, 0, nullptr, 0);
             check(size >= 0, "iterator read failure");
             bin.resize(size);
-            check(internal_use_do_not_use::kv_it_value(temp_it, 0, bin.data(), size) == size, "iterator read failure");
+            check(ind->t->environment.kv_it_value(temp_it, 0, bin.data(), size) == size, "iterator read failure");
         }
         obj = std::make_unique<T>();
         std::string          error;
@@ -325,9 +368,9 @@ class table_iterator {
         , it{it} {}
 };
 
-template <typename T>
+template <typename T, typename Environment>
 template <typename... Indexes>
-void table<T>::init(abieos::name table_context, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes) {
+void table<T, Environment>::init(abieos::name table_context, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes) {
     check(!initialized, "table is already initialized");
 
     this->primary_index     = &primary_index;
@@ -340,38 +383,38 @@ void table<T>::init(abieos::name table_context, abieos::name table_name, index& 
     initialized = true;
 }
 
-template <typename T>
-void table<T>::insert(const T& obj) {
+template <typename T, typename Environment>
+void table<T, Environment>::insert(const T& obj) {
     auto pk = primary_index->get_key(obj);
     pk.insert(pk.begin(), primary_index->prefix.begin(), primary_index->prefix.end());
     erase_pk(pk);
-    internal_use_do_not_use::kv_set(pk, abieos::native_to_bin(obj));
+    environment.kv_set(pk, abieos::native_to_bin(obj));
     for (auto* ind : secondary_indexes) {
         auto sk = ind->get_key(obj);
         sk.insert(sk.begin(), ind->prefix.begin(), ind->prefix.end());
         sk.insert(sk.end(), pk.begin(), pk.end());
         // todo: re-encode the key to make pk extractable and make value empty
-        internal_use_do_not_use::kv_set(sk, pk);
+        environment.kv_set(sk, pk);
     }
 }
 
-template <typename T>
-void table<T>::erase(const T& obj) {
+template <typename T, typename Environment>
+void table<T, Environment>::erase(const T& obj) {
     auto pk = primary_index->get_key(obj);
     pk.insert(pk.begin(), primary_index->prefix.begin(), primary_index->prefix.end());
     erase_pk(pk);
 }
 
-template <typename T>
-void table<T>::erase_pk(const std::vector<char>& pk) {
+template <typename T, typename Environment>
+void table<T, Environment>::erase_pk(const std::vector<char>& pk) {
     auto temp_it = primary_index->get_temp_it();
-    internal_use_do_not_use::kv_it_lower_bound(temp_it, pk.data(), pk.size());
-    if (!internal_use_do_not_use::kv_it_key_matches(temp_it, pk.data(), pk.size()))
+    environment.kv_it_lower_bound(temp_it, pk.data(), pk.size());
+    if (!environment.kv_it_key_matches(temp_it, pk.data(), pk.size()))
         return;
-    auto size = internal_use_do_not_use::kv_it_value(temp_it, 0, nullptr, 0);
+    auto size = environment.kv_it_value(temp_it, 0, nullptr, 0);
     check(size >= 0, "iterator read failure");
     std::vector<char> bin(size);
-    check(internal_use_do_not_use::kv_it_value(temp_it, 0, bin.data(), size) == size, "iterator read failure");
+    check(environment.kv_it_value(temp_it, 0, bin.data(), size) == size, "iterator read failure");
     T                    obj;
     std::string          error;
     abieos::input_buffer b{bin.data(), bin.data() + bin.size()};
@@ -380,47 +423,47 @@ void table<T>::erase_pk(const std::vector<char>& pk) {
         auto sk = ind->get_key(obj);
         sk.insert(sk.begin(), ind->prefix.begin(), ind->prefix.end());
         sk.insert(sk.end(), pk.begin(), pk.end());
-        internal_use_do_not_use::kv_erase(sk.data(), sk.size());
+        environment.kv_erase(sk.data(), sk.size());
     }
-    internal_use_do_not_use::kv_erase(pk.data(), pk.size());
+    environment.kv_erase(pk.data(), pk.size());
 }
 
-template <typename T>
-table_iterator<T> table<T>::begin() {
+template <typename T, typename Environment>
+table_iterator<T, Environment> table<T, Environment>::begin() {
     check(initialized, "table is not initialized");
     return primary_index->begin();
 }
 
-template <typename T>
-table_iterator<T> table<T>::end() {
+template <typename T, typename Environment>
+table_iterator<T, Environment> table<T, Environment>::end() {
     check(initialized, "table is not initialized");
     return primary_index->end();
 }
 
-template <typename T>
-void index<T>::initialize(table* t, bool is_primary) {
+template <typename T, typename Environment>
+void index<T, Environment>::initialize(table* t, bool is_primary) {
     this->t          = t;
     this->is_primary = is_primary;
     prefix           = t->prefix;
     native_to_key(index_name, prefix);
 }
 
-template <typename T>
-table_iterator<T> index<T>::begin() {
+template <typename T, typename Environment>
+table_iterator<T, Environment> index<T, Environment>::begin() {
     check(t, "index is not in a table");
-    iterator result{this, internal_use_do_not_use::kv_it_create(prefix.data(), prefix.size())};
-    internal_use_do_not_use::kv_it_move_to_begin(result.it);
+    iterator result{this, t->environment.kv_it_create(prefix.data(), prefix.size())};
+    t->environment.kv_it_move_to_begin(result.it);
     return result;
 }
 
-template <typename T>
-table_iterator<T> index<T>::end() {
+template <typename T, typename Environment>
+table_iterator<T, Environment> index<T, Environment>::end() {
     check(t, "index is not in a table");
     return {this, 0};
 };
 
-template <typename T>
-const T& table_proxy<T>::get() {
+template <typename T, typename Environment>
+const T& table_proxy<T, Environment>::get() {
     return it.get();
 }
 

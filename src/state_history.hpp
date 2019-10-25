@@ -47,10 +47,7 @@ struct extension {
     abieos::input_buffer data = {};
 };
 
-ABIEOS_REFLECT(extension) {
-    ABIEOS_MEMBER(extension, type)
-    ABIEOS_MEMBER(extension, data)
-}
+EOSIO_REFLECT(extension, type, data)
 
 struct fill_status {
     uint32_t            head            = {};
@@ -60,13 +57,7 @@ struct fill_status {
     uint32_t            first           = {};
 };
 
-ABIEOS_REFLECT(fill_status) {
-    ABIEOS_MEMBER(fill_status, head)
-    ABIEOS_MEMBER(fill_status, head_id)
-    ABIEOS_MEMBER(fill_status, irreversible)
-    ABIEOS_MEMBER(fill_status, irreversible_id)
-    ABIEOS_MEMBER(fill_status, first)
-}
+EOSIO_REFLECT(fill_status, head, head_id, irreversible, irreversible_id, first)
 
 inline bool operator==(const fill_status& a, fill_status& b) {
     return std::tie(a.head, a.head_id, a.irreversible, a.irreversible_id, a.first) ==
@@ -125,14 +116,11 @@ struct block_position {
     abieos::checksum256 block_id  = {};
 };
 
-ABIEOS_REFLECT(block_position) {
-    ABIEOS_MEMBER(block_position, block_num)
-    ABIEOS_MEMBER(block_position, block_id)
-}
+EOSIO_REFLECT(block_position, block_num, block_id)
 
 struct get_status_request_v0 {};
 
-ABIEOS_REFLECT(get_status_request_v0) {}
+EOSIO_REFLECT_EMPTY(get_status_request_v0)
 
 struct get_blocks_request_v0 {
     uint32_t                    start_block_num        = {};
@@ -145,22 +133,15 @@ struct get_blocks_request_v0 {
     bool                        fetch_deltas           = {};
 };
 
-ABIEOS_REFLECT(get_blocks_request_v0) {
-    ABIEOS_MEMBER(get_blocks_request_v0, start_block_num);
-    ABIEOS_MEMBER(get_blocks_request_v0, end_block_num);
-    ABIEOS_MEMBER(get_blocks_request_v0, max_messages_in_flight);
-    ABIEOS_MEMBER(get_blocks_request_v0, have_positions);
-    ABIEOS_MEMBER(get_blocks_request_v0, irreversible_only);
-    ABIEOS_MEMBER(get_blocks_request_v0, fetch_block);
-    ABIEOS_MEMBER(get_blocks_request_v0, fetch_traces);
-    ABIEOS_MEMBER(get_blocks_request_v0, fetch_deltas);
-}
+EOSIO_REFLECT(
+    get_blocks_request_v0, start_block_num, end_block_num, max_messages_in_flight, have_positions, irreversible_only, fetch_block,
+    fetch_traces, fetch_deltas)
 
 struct get_blocks_ack_request_v0 {
     uint32_t num_messages = {};
 };
 
-ABIEOS_REFLECT(get_blocks_ack_request_v0) { ABIEOS_MEMBER(get_blocks_ack_request_v0, num_messages); }
+EOSIO_REFLECT(get_blocks_ack_request_v0, num_messages)
 
 using request = std::variant<get_status_request_v0, get_blocks_request_v0, get_blocks_ack_request_v0>;
 
@@ -173,14 +154,8 @@ struct get_status_result_v0 {
     uint32_t       chain_state_end_block   = {};
 };
 
-ABIEOS_REFLECT(get_status_result_v0) {
-    ABIEOS_MEMBER(get_status_result_v0, head);
-    ABIEOS_MEMBER(get_status_result_v0, last_irreversible);
-    ABIEOS_MEMBER(get_status_result_v0, trace_begin_block);
-    ABIEOS_MEMBER(get_status_result_v0, trace_end_block);
-    ABIEOS_MEMBER(get_status_result_v0, chain_state_begin_block);
-    ABIEOS_MEMBER(get_status_result_v0, chain_state_end_block);
-}
+EOSIO_REFLECT(
+    get_status_result_v0, head, last_irreversible, trace_begin_block, trace_end_block, chain_state_begin_block, chain_state_end_block)
 
 struct get_blocks_result_v0 {
     block_position                      head              = {};
@@ -192,15 +167,7 @@ struct get_blocks_result_v0 {
     std::optional<abieos::input_buffer> deltas            = {};
 };
 
-ABIEOS_REFLECT(get_blocks_result_v0) {
-    ABIEOS_MEMBER(get_blocks_result_v0, head)
-    ABIEOS_MEMBER(get_blocks_result_v0, last_irreversible)
-    ABIEOS_MEMBER(get_blocks_result_v0, this_block)
-    ABIEOS_MEMBER(get_blocks_result_v0, prev_block)
-    ABIEOS_MEMBER(get_blocks_result_v0, block)
-    ABIEOS_MEMBER(get_blocks_result_v0, traces)
-    ABIEOS_MEMBER(get_blocks_result_v0, deltas)
-}
+EOSIO_REFLECT(get_blocks_result_v0, head, last_irreversible, this_block, prev_block, block, traces, deltas)
 
 using result = std::variant<get_status_result_v0, get_blocks_result_v0>;
 
@@ -209,20 +176,14 @@ struct row {
     abieos::input_buffer data    = {};
 };
 
-ABIEOS_REFLECT(row) {
-    ABIEOS_MEMBER(row, present)
-    ABIEOS_MEMBER(row, data)
-}
+EOSIO_REFLECT(row, present, data)
 
 struct table_delta_v0 {
     std::string      name = {};
     std::vector<row> rows = {};
 };
 
-ABIEOS_REFLECT(table_delta_v0) {
-    ABIEOS_MEMBER(table_delta_v0, name)
-    ABIEOS_MEMBER(table_delta_v0, rows)
-}
+EOSIO_REFLECT(table_delta_v0, name, rows)
 
 using table_delta = std::variant<table_delta_v0>;
 
@@ -231,30 +192,21 @@ struct permission_level {
     abieos::name permission = {};
 };
 
-ABIEOS_REFLECT(permission_level) {
-    ABIEOS_MEMBER(permission_level, actor)
-    ABIEOS_MEMBER(permission_level, permission)
-}
+EOSIO_REFLECT(permission_level, actor, permission)
 
 struct account_auth_sequence {
     abieos::name account  = {};
     uint64_t     sequence = {};
 };
 
-ABIEOS_REFLECT(account_auth_sequence) {
-    ABIEOS_MEMBER(account_auth_sequence, account)
-    ABIEOS_MEMBER(account_auth_sequence, sequence)
-}
+EOSIO_REFLECT(account_auth_sequence, account, sequence)
 
 struct account_delta {
     abieos::name account = {};
     int64_t      delta   = {};
 };
 
-ABIEOS_REFLECT(account_delta) {
-    ABIEOS_MEMBER(account_delta, account)
-    ABIEOS_MEMBER(account_delta, delta)
-}
+EOSIO_REFLECT(account_delta, account, delta)
 
 struct action_receipt_v0 {
     abieos::name                       receiver        = {};
@@ -266,15 +218,7 @@ struct action_receipt_v0 {
     abieos::varuint32                  abi_sequence    = {};
 };
 
-ABIEOS_REFLECT(action_receipt_v0) {
-    ABIEOS_MEMBER(action_receipt_v0, receiver)
-    ABIEOS_MEMBER(action_receipt_v0, act_digest)
-    ABIEOS_MEMBER(action_receipt_v0, global_sequence)
-    ABIEOS_MEMBER(action_receipt_v0, recv_sequence)
-    ABIEOS_MEMBER(action_receipt_v0, auth_sequence)
-    ABIEOS_MEMBER(action_receipt_v0, code_sequence)
-    ABIEOS_MEMBER(action_receipt_v0, abi_sequence)
-}
+EOSIO_REFLECT(action_receipt_v0, receiver, act_digest, global_sequence, recv_sequence, auth_sequence, code_sequence, abi_sequence)
 
 using action_receipt = std::variant<action_receipt_v0>;
 
@@ -285,12 +229,7 @@ struct action {
     abieos::input_buffer          data          = {};
 };
 
-ABIEOS_REFLECT(action) {
-    ABIEOS_MEMBER(action, account)
-    ABIEOS_MEMBER(action, name)
-    ABIEOS_MEMBER(action, authorization)
-    ABIEOS_MEMBER(action, data)
-}
+EOSIO_REFLECT(action, account, name, authorization, data)
 
 struct action_trace_v0 {
     abieos::varuint32             action_ordinal         = {};
@@ -306,19 +245,9 @@ struct action_trace_v0 {
     std::optional<uint64_t>       error_code             = {};
 };
 
-ABIEOS_REFLECT(action_trace_v0) {
-    ABIEOS_MEMBER(action_trace_v0, action_ordinal)
-    ABIEOS_MEMBER(action_trace_v0, creator_action_ordinal)
-    ABIEOS_MEMBER(action_trace_v0, receipt)
-    ABIEOS_MEMBER(action_trace_v0, receiver)
-    ABIEOS_MEMBER(action_trace_v0, act)
-    ABIEOS_MEMBER(action_trace_v0, context_free)
-    ABIEOS_MEMBER(action_trace_v0, elapsed)
-    ABIEOS_MEMBER(action_trace_v0, console)
-    ABIEOS_MEMBER(action_trace_v0, account_ram_deltas)
-    ABIEOS_MEMBER(action_trace_v0, except)
-    ABIEOS_MEMBER(action_trace_v0, error_code)
-}
+EOSIO_REFLECT(
+    action_trace_v0, action_ordinal, creator_action_ordinal, receipt, receiver, act, context_free, elapsed, console, account_ram_deltas,
+    except, error_code)
 
 using action_trace = std::variant<action_trace_v0>;
 
@@ -334,17 +263,9 @@ struct partial_transaction_v0 {
     std::vector<abieos::input_buffer> context_free_data      = {};
 };
 
-ABIEOS_REFLECT(partial_transaction_v0) {
-    ABIEOS_MEMBER(partial_transaction_v0, expiration)
-    ABIEOS_MEMBER(partial_transaction_v0, ref_block_num)
-    ABIEOS_MEMBER(partial_transaction_v0, ref_block_prefix)
-    ABIEOS_MEMBER(partial_transaction_v0, max_net_usage_words)
-    ABIEOS_MEMBER(partial_transaction_v0, max_cpu_usage_ms)
-    ABIEOS_MEMBER(partial_transaction_v0, delay_sec)
-    ABIEOS_MEMBER(partial_transaction_v0, transaction_extensions)
-    ABIEOS_MEMBER(partial_transaction_v0, signatures)
-    ABIEOS_MEMBER(partial_transaction_v0, context_free_data)
-}
+EOSIO_REFLECT(
+    partial_transaction_v0, expiration, ref_block_num, ref_block_prefix, max_net_usage_words, max_cpu_usage_ms, delay_sec,
+    transaction_extensions, signatures, context_free_data)
 
 using partial_transaction = std::variant<partial_transaction_v0>;
 
@@ -366,21 +287,9 @@ struct transaction_trace_v0 {
     std::optional<partial_transaction>     partial           = {};
 };
 
-ABIEOS_REFLECT(transaction_trace_v0) {
-    ABIEOS_MEMBER(transaction_trace_v0, id)
-    ABIEOS_MEMBER(transaction_trace_v0, status)
-    ABIEOS_MEMBER(transaction_trace_v0, cpu_usage_us)
-    ABIEOS_MEMBER(transaction_trace_v0, net_usage_words)
-    ABIEOS_MEMBER(transaction_trace_v0, elapsed)
-    ABIEOS_MEMBER(transaction_trace_v0, net_usage)
-    ABIEOS_MEMBER(transaction_trace_v0, scheduled)
-    ABIEOS_MEMBER(transaction_trace_v0, action_traces)
-    ABIEOS_MEMBER(transaction_trace_v0, account_ram_delta)
-    ABIEOS_MEMBER(transaction_trace_v0, except)
-    ABIEOS_MEMBER(transaction_trace_v0, error_code)
-    ABIEOS_MEMBER(transaction_trace_v0, failed_dtrx_trace)
-    ABIEOS_MEMBER(transaction_trace_v0, partial)
-}
+EOSIO_REFLECT(
+    transaction_trace_v0, id, status, cpu_usage_us, net_usage_words, elapsed, net_usage, scheduled, action_traces, account_ram_delta,
+    except, error_code, failed_dtrx_trace, partial)
 
 using transaction_trace = std::variant<transaction_trace_v0>;
 
@@ -403,20 +312,14 @@ struct producer_key {
     abieos::public_key block_signing_key = {};
 };
 
-ABIEOS_REFLECT(producer_key) {
-    ABIEOS_MEMBER(producer_key, producer_name)
-    ABIEOS_MEMBER(producer_key, block_signing_key)
-}
+EOSIO_REFLECT(producer_key, producer_name, block_signing_key)
 
 struct producer_schedule {
     uint32_t                  version   = {};
     std::vector<producer_key> producers = {};
 };
 
-ABIEOS_REFLECT(producer_schedule) {
-    ABIEOS_MEMBER(producer_schedule, version)
-    ABIEOS_MEMBER(producer_schedule, producers)
-}
+EOSIO_REFLECT(producer_schedule, version, producers)
 
 struct transaction_receipt_header {
     transaction_status status          = {};
@@ -424,11 +327,7 @@ struct transaction_receipt_header {
     abieos::varuint32  net_usage_words = {};
 };
 
-ABIEOS_REFLECT(transaction_receipt_header) {
-    ABIEOS_MEMBER(transaction_receipt_header, status)
-    ABIEOS_MEMBER(transaction_receipt_header, cpu_usage_us)
-    ABIEOS_MEMBER(transaction_receipt_header, net_usage_words)
-}
+EOSIO_REFLECT(transaction_receipt_header, status, cpu_usage_us, net_usage_words)
 
 struct packed_transaction {
     std::vector<abieos::signature> signatures               = {};
@@ -437,12 +336,7 @@ struct packed_transaction {
     abieos::input_buffer           packed_trx               = {};
 };
 
-ABIEOS_REFLECT(packed_transaction) {
-    ABIEOS_MEMBER(packed_transaction, signatures)
-    ABIEOS_MEMBER(packed_transaction, compression)
-    ABIEOS_MEMBER(packed_transaction, packed_context_free_data)
-    ABIEOS_MEMBER(packed_transaction, packed_trx)
-}
+EOSIO_REFLECT(packed_transaction, signatures, compression, packed_context_free_data, packed_trx)
 
 using transaction_variant = std::variant<abieos::checksum256, packed_transaction>;
 
@@ -467,17 +361,9 @@ struct block_header {
     std::vector<extension>           header_extensions = {};
 };
 
-ABIEOS_REFLECT(block_header) {
-    ABIEOS_MEMBER(block_header, timestamp)
-    ABIEOS_MEMBER(block_header, producer)
-    ABIEOS_MEMBER(block_header, confirmed)
-    ABIEOS_MEMBER(block_header, previous)
-    ABIEOS_MEMBER(block_header, transaction_mroot)
-    ABIEOS_MEMBER(block_header, action_mroot)
-    ABIEOS_MEMBER(block_header, schedule_version)
-    ABIEOS_MEMBER(block_header, new_producers)
-    ABIEOS_MEMBER(block_header, header_extensions)
-}
+EOSIO_REFLECT(
+    block_header, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, schedule_version, new_producers,
+    header_extensions)
 
 struct signed_block_header : block_header {
     abieos::signature producer_signature = {};
@@ -498,6 +384,364 @@ ABIEOS_REFLECT(signed_block) {
     ABIEOS_MEMBER(signed_block, transactions)
     ABIEOS_MEMBER(signed_block, block_extensions)
 }
+
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+struct transaction_header {
+    abieos::time_point_sec expiration          = {};
+    uint16_t               ref_block_num       = {};
+    uint32_t               ref_block_prefix    = {};
+    abieos::varuint32      max_net_usage_words = {};
+    uint8_t                max_cpu_usage_ms    = {};
+    abieos::varuint32      delay_sec           = {};
+};
+
+EOSIO_REFLECT(transaction_header, expiration, ref_block_num, ref_block_prefix, max_net_usage_words, max_cpu_usage_ms, delay_sec)
+
+struct transaction : transaction_header {
+    std::vector<action>    context_free_actions   = {};
+    std::vector<action>    actions                = {};
+    std::vector<extension> transaction_extensions = {};
+};
+
+ABIEOS_REFLECT(transaction) {
+    ABIEOS_BASE(transaction_header);
+    ABIEOS_MEMBER(transaction, context_free_actions);
+    ABIEOS_MEMBER(transaction, actions);
+    ABIEOS_MEMBER(transaction, transaction_extensions);
+}
+
+struct code_id {
+    uint8_t             vm_type    = {};
+    uint8_t             vm_version = {};
+    abieos::checksum256 code_hash  = {};
+};
+
+EOSIO_REFLECT(code_id, vm_type, vm_version, code_hash)
+
+struct account_v0 {
+    abieos::name            name          = {};
+    abieos::block_timestamp creation_date = {};
+    abieos::input_buffer    abi           = {};
+};
+
+EOSIO_REFLECT(account_v0, name, creation_date, abi)
+
+using account = std::variant<account_v0>;
+
+struct account_metadata_v0 {
+    abieos::name           name             = {};
+    bool                   privileged       = {};
+    abieos::time_point     last_code_update = {};
+    std::optional<code_id> code             = {};
+};
+
+EOSIO_REFLECT(account_metadata_v0, name, privileged, last_code_update, code)
+
+using account_metadata = std::variant<account_metadata_v0>;
+
+struct code_v0 {
+    uint8_t              vm_type    = {};
+    uint8_t              vm_version = {};
+    abieos::checksum256  code_hash  = {};
+    abieos::input_buffer code       = {};
+};
+
+EOSIO_REFLECT(code_v0, vm_type, vm_version, code_hash, code)
+
+using code = std::variant<code_v0>;
+
+struct contract_table_v0 {
+    abieos::name code  = {};
+    abieos::name scope = {};
+    abieos::name table = {};
+    abieos::name payer = {};
+};
+
+EOSIO_REFLECT(contract_table_v0, code, scope, table, payer)
+
+using contract_table = std::variant<contract_table_v0>;
+
+struct contract_row_v0 {
+    abieos::name         code        = {};
+    abieos::name         scope       = {};
+    abieos::name         table       = {};
+    uint64_t             primary_key = {};
+    abieos::name         payer       = {};
+    abieos::input_buffer value       = {};
+};
+
+EOSIO_REFLECT(contract_row_v0, code, scope, table, primary_key, payer, value)
+
+using contract_row = std::variant<contract_row_v0>;
+
+struct contract_index64_v0 {
+    abieos::name code          = {};
+    abieos::name scope         = {};
+    abieos::name table         = {};
+    uint64_t     primary_key   = {};
+    abieos::name payer         = {};
+    uint64_t     secondary_key = {};
+};
+
+EOSIO_REFLECT(contract_index64_v0, code, scope, table, primary_key, payer, secondary_key)
+
+using contract_index64 = std::variant<contract_index64_v0>;
+
+/*
+struct contract_index128_v0 {
+    abieos::name code          = {};
+    abieos::name scope         = {};
+    abieos::name table         = {};
+    uint64_t     primary_key   = {};
+    abieos::name payer         = {};
+    uint128_t    secondary_key = {};
+};
+
+using contract_index128 = std::variant<contract_index128_v0>;
+*/
+
+struct contract_index256_v0 {
+    abieos::name        code          = {};
+    abieos::name        scope         = {};
+    abieos::name        table         = {};
+    uint64_t            primary_key   = {};
+    abieos::name        payer         = {};
+    abieos::checksum256 secondary_key = {};
+};
+
+EOSIO_REFLECT(contract_index256_v0, code, scope, table, primary_key, payer, secondary_key)
+
+using contract_index256 = std::variant<contract_index256_v0>;
+
+struct contract_index_double_v0 {
+    abieos::name code          = {};
+    abieos::name scope         = {};
+    abieos::name table         = {};
+    uint64_t     primary_key   = {};
+    abieos::name payer         = {};
+    double       secondary_key = {};
+};
+
+EOSIO_REFLECT(contract_index_double_v0, code, scope, table, primary_key, payer, secondary_key)
+
+using contract_index_double = std::variant<contract_index_double_v0>;
+
+struct contract_index_long_double_v0 {
+    abieos::name     code          = {};
+    abieos::name     scope         = {};
+    abieos::name     table         = {};
+    uint64_t         primary_key   = {};
+    abieos::name     payer         = {};
+    abieos::float128 secondary_key = {};
+};
+
+EOSIO_REFLECT(contract_index_long_double_v0, code, scope, table, primary_key, payer, secondary_key)
+
+using contract_index_long_double = std::variant<contract_index_long_double_v0>;
+
+struct key_weight {
+    abieos::public_key key    = {};
+    uint16_t           weight = {};
+};
+
+EOSIO_REFLECT(key_weight, key, weight)
+
+struct block_signing_authority_v0 {
+    uint32_t                threshold = {};
+    std::vector<key_weight> keys      = {};
+};
+
+EOSIO_REFLECT(block_signing_authority_v0, threshold, keys)
+
+using block_signing_authority = std::variant<block_signing_authority_v0>;
+
+struct producer_authority {
+    abieos::name            producer_name = {};
+    block_signing_authority authority     = {};
+};
+
+EOSIO_REFLECT(producer_authority, producer_name, authority)
+
+struct producer_authority_schedule {
+    uint32_t                        version   = {};
+    std::vector<producer_authority> producers = {};
+};
+
+EOSIO_REFLECT(producer_authority_schedule, version, producers)
+
+struct chain_config_v0 {
+    uint64_t max_block_net_usage                 = {};
+    uint32_t target_block_net_usage_pct          = {};
+    uint32_t max_transaction_net_usage           = {};
+    uint32_t base_per_transaction_net_usage      = {};
+    uint32_t net_usage_leeway                    = {};
+    uint32_t context_free_discount_net_usage_num = {};
+    uint32_t context_free_discount_net_usage_den = {};
+    uint32_t max_block_cpu_usage                 = {};
+    uint32_t target_block_cpu_usage_pct          = {};
+    uint32_t max_transaction_cpu_usage           = {};
+    uint32_t min_transaction_cpu_usage           = {};
+    uint32_t max_transaction_lifetime            = {};
+    uint32_t deferred_trx_expiration_window      = {};
+    uint32_t max_transaction_delay               = {};
+    uint32_t max_inline_action_size              = {};
+    uint16_t max_inline_action_depth             = {};
+    uint16_t max_authority_depth                 = {};
+};
+
+EOSIO_REFLECT(
+    chain_config_v0, max_block_net_usage, target_block_net_usage_pct, max_transaction_net_usage, base_per_transaction_net_usage,
+    net_usage_leeway, context_free_discount_net_usage_num, context_free_discount_net_usage_den, max_block_cpu_usage,
+    target_block_cpu_usage_pct, max_transaction_cpu_usage, min_transaction_cpu_usage, max_transaction_lifetime,
+    deferred_trx_expiration_window, max_transaction_delay, max_inline_action_size, max_inline_action_depth, max_authority_depth)
+
+using chain_config = std::variant<chain_config_v0>;
+
+struct global_property_v0 {
+    std::optional<uint32_t> proposed_schedule_block_num = {};
+    producer_schedule       proposed_schedule           = {};
+    chain_config            configuration               = {};
+};
+
+EOSIO_REFLECT(global_property_v0, proposed_schedule_block_num, proposed_schedule, configuration)
+
+struct global_property_v1 {
+    std::optional<uint32_t>     proposed_schedule_block_num = {};
+    producer_authority_schedule proposed_schedule           = {};
+    chain_config                configuration               = {};
+    abieos::checksum256         chain_id                    = {};
+};
+
+EOSIO_REFLECT(global_property_v1, proposed_schedule_block_num, proposed_schedule, configuration, chain_id)
+
+using global_property = std::variant<global_property_v0, global_property_v1>;
+
+/*
+struct generated_transaction_v0 {
+    abieos::name         sender     = {};
+    uint128_t            sender_id  = {};
+    abieos::name         payer      = {};
+    abieos::checksum256  trx_id     = {};
+    abieos::input_buffer packed_trx = {};
+};
+
+using generated_transaction = std::variant<generated_transaction_v0>;
+*/
+
+struct activated_protocol_feature_v0 {
+    abieos::checksum256 feature_digest       = {};
+    uint32_t            activation_block_num = {};
+};
+
+using activated_protocol_feature = std::variant<activated_protocol_feature_v0>;
+
+struct protocol_state_v0 {
+    std::vector<activated_protocol_feature> activated_protocol_features = {};
+};
+
+using protocol_state = std::variant<protocol_state_v0>;
+
+struct permission_level_weight {
+    permission_level permission = {};
+    uint16_t         weight     = {};
+};
+
+struct wait_weight {
+    uint32_t wait_sec = {};
+    uint16_t weight   = {};
+};
+
+struct authority {
+    uint32_t                             threshold = {};
+    std::vector<key_weight>              keys      = {};
+    std::vector<permission_level_weight> accounts  = {};
+    std::vector<wait_weight>             waits     = {};
+};
+
+struct permission_v0 {
+    abieos::name       owner        = {};
+    abieos::name       name         = {};
+    abieos::name       parent       = {};
+    abieos::time_point last_updated = {};
+    authority          auth         = {};
+};
+
+using permission = std::variant<permission_v0>;
+
+struct permission_link_v0 {
+    abieos::name account             = {};
+    abieos::name code                = {};
+    abieos::name message_type        = {};
+    abieos::name required_permission = {};
+};
+
+using permission_link = std::variant<permission_link_v0>;
+
+struct resource_limits_v0 {
+    abieos::name owner      = {};
+    int64_t      net_weight = {};
+    int64_t      cpu_weight = {};
+    int64_t      ram_bytes  = {};
+};
+
+using resource_limits = std::variant<resource_limits_v0>;
+
+struct usage_accumulator_v0 {
+    uint32_t last_ordinal = {};
+    uint64_t value_ex     = {};
+    uint64_t consumed     = {};
+};
+
+using usage_accumulator = std::variant<usage_accumulator_v0>;
+
+struct resource_usage_v0 {
+    abieos::name      owner     = {};
+    usage_accumulator net_usage = {};
+    usage_accumulator cpu_usage = {};
+    uint64_t          ram_usage = {};
+};
+
+using resource_usage = std::variant<resource_usage_v0>;
+
+struct resource_limits_state_v0 {
+    usage_accumulator average_block_net_usage = {};
+    usage_accumulator average_block_cpu_usage = {};
+    uint64_t          total_net_weight        = {};
+    uint64_t          total_cpu_weight        = {};
+    uint64_t          total_ram_bytes         = {};
+    uint64_t          virtual_net_limit       = {};
+    uint64_t          virtual_cpu_limit       = {};
+};
+
+using resource_limits_state = std::variant<resource_limits_state_v0>;
+
+struct resource_limits_ratio_v0 {
+    uint64_t numerator   = {};
+    uint64_t denominator = {};
+};
+
+using resource_limits_ratio = std::variant<resource_limits_ratio_v0>;
+
+struct elastic_limit_parameters_v0 {
+    uint64_t              target         = {};
+    uint64_t              max            = {};
+    uint32_t              periods        = {};
+    uint32_t              max_multiplier = {};
+    resource_limits_ratio contract_rate  = {};
+    resource_limits_ratio expand_rate    = {};
+};
+
+using elastic_limit_parameters = std::variant<elastic_limit_parameters_v0>;
+
+struct resource_limits_config_v0 {
+    elastic_limit_parameters cpu_limit_parameters             = {};
+    elastic_limit_parameters net_limit_parameters             = {};
+    uint32_t                 account_cpu_usage_average_window = {};
+    uint32_t                 account_net_usage_average_window = {};
+};
+
+using resource_limits_config = std::variant<resource_limits_config_v0>;
 
 #ifndef EOSIO_CDT_COMPILATION
 inline void check_variant(abieos::input_buffer& bin, const abieos::abi_type& type, uint32_t expected) {

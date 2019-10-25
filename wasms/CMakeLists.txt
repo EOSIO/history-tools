@@ -43,6 +43,7 @@ function(add_other TARGET SRC)
     target_include_directories(${TARGET}
         PUBLIC
         ${ROOT_SOURCE_DIR}/libraries/eosiolib/wasmql 
+        ${ROOT_SOURCE_DIR}/external/abieos/include
         ${ROOT_SOURCE_DIR}/external/abieos/src
         ${ROOT_SOURCE_DIR}/external/abieos/external/date/include 
         ${ROOT_SOURCE_DIR}/external/abieos/external/rapidjson/include 
@@ -57,3 +58,4 @@ endfunction()
 # add_subdirectory(token)
 
 add_other(foo foo.cpp)
+add_other(fill-system fill-system.cpp)

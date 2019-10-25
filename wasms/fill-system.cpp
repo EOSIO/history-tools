@@ -1,3 +1,4 @@
+#include "handle_action.hpp"
 #include "table.hpp"
 
 struct contract_table_kv : table<contract_table> {

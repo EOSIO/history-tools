@@ -41,7 +41,7 @@ auto fixup_key(std::vector<char>& bin, F f) -> std::enable_if_t<serial_reversibl
 template <typename T>
 void native_to_key(const T& obj, std::vector<char>& bin);
 
-void native_to_key(const std::string& obj, std::vector<char>& bin) {
+inline void native_to_key(const std::string& obj, std::vector<char>& bin) {
     for (auto ch : obj) {
         if (ch) {
             bin.push_back(ch);
@@ -192,7 +192,7 @@ class table {
     template <typename... Indexes>
     void init(abieos::name table_context, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes);
 
-    void     insert(const T& obj);
+    void     insert(const T& obj, bool bypass_preexist_check = false);
     void     erase(const T& obj);
     iterator begin();
     iterator end();
@@ -391,10 +391,11 @@ void table<T>::init(abieos::name table_context, abieos::name table_name, index& 
 }
 
 template <typename T>
-void table<T>::insert(const T& obj) {
+void table<T>::insert(const T& obj, bool bypass_preexist_check) {
     auto pk = primary_index->get_key(obj);
     pk.insert(pk.begin(), primary_index->prefix.begin(), primary_index->prefix.end());
-    erase_pk(pk);
+    if (!bypass_preexist_check)
+        erase_pk(pk);
     environment.kv_set(pk, abieos::native_to_bin(obj));
     for (auto* ind : secondary_indexes) {
         auto sk = ind->get_key(obj);

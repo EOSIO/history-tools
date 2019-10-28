@@ -469,11 +469,11 @@ class db_view {
 }; // db_view
 
 struct db_view_state {
-    db_view                                         view;
+    db_view&                                        view;
     std::vector<std::shared_ptr<db_view::iterator>> iterators;
 
-    db_view_state(database& db)
-        : view{db}
+    db_view_state(db_view& view)
+        : view{view}
         , iterators(1) {}
 
     void reset() {
@@ -630,6 +630,11 @@ namespace eosio {
 using state_history::rdb::kv_environment;
 
 inline void check(bool cond, const char* msg) {
+    if (!cond)
+        throw std::runtime_error(msg);
+}
+
+inline void check(bool cond, const std::string& msg) {
     if (!cond)
         throw std::runtime_error(msg);
 }

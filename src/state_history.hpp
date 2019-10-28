@@ -54,7 +54,7 @@ struct extension {
 
 EOSIO_REFLECT(extension, type, data)
 
-struct fill_status {
+struct fill_status_v0 {
     uint32_t            head            = {};
     abieos::checksum256 head_id         = {};
     uint32_t            irreversible    = {};
@@ -62,14 +62,16 @@ struct fill_status {
     uint32_t            first           = {};
 };
 
-EOSIO_REFLECT(fill_status, head, head_id, irreversible, irreversible_id, first)
+EOSIO_REFLECT(fill_status_v0, head, head_id, irreversible, irreversible_id, first)
 
-inline bool operator==(const fill_status& a, fill_status& b) {
+using fill_status = std::variant<fill_status_v0>;
+
+inline bool operator==(const fill_status_v0& a, fill_status_v0& b) {
     return std::tie(a.head, a.head_id, a.irreversible, a.irreversible_id, a.first) ==
            std::tie(b.head, b.head_id, b.irreversible, b.irreversible_id, b.first);
 }
 
-inline bool operator!=(const fill_status& a, fill_status& b) { return !(a == b); }
+inline bool operator!=(const fill_status_v0& a, fill_status_v0& b) { return !(a == b); }
 
 enum class transaction_status : uint8_t {
     executed  = 0, // succeed, no error handler executed

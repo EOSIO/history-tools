@@ -14,46 +14,32 @@ namespace eosio {
 typedef void* cb_alloc_fn(void* cb_alloc_data, size_t size);
 
 /// \exclude
-extern "C" __attribute__((eosio_wasm_import)) void get_input_data(void* cb_alloc_data, cb_alloc_fn* cb_alloc);
-
-/// \exclude
-template <typename Alloc_fn>
-inline void get_input_data(Alloc_fn alloc_fn) {
-    get_input_data(&alloc_fn, [](void* cb_alloc_data, size_t size) -> void* { //
-        return (*reinterpret_cast<Alloc_fn*>(cb_alloc_data))(size);
-    });
-}
+extern "C" __attribute__((eosio_wasm_import)) uint32_t get_input_data(char* dest, uint32_t size);
 
 /// Get data provided to the wasm
 inline std::vector<char> get_input_data() {
-    std::vector<char> result;
-    get_input_data([&result](size_t size) {
-        result.resize(size);
-        return result.data();
-    });
+    std::vector<char> result(get_input_data(nullptr, 0));
+    get_input_data(result.data(), result.size());
     return result;
 }
 
 /// Get data provided to the wasm
 inline std::string get_input_data_str() {
-    std::string result;
-    get_input_data([&result](size_t size) {
-        result.resize(size);
-        return result.data();
-    });
+    std::string result(get_input_data(nullptr, 0), 0);
+    get_input_data(result.data(), result.size());
     return result;
 }
 
 extern "C" {
 /// Set the wasm's output data
-__attribute__((eosio_wasm_import)) void set_output_data(const char* begin, const char* end);
+__attribute__((eosio_wasm_import)) void set_output_data(const char* data, uint32_t size);
 }
 
 /// Set the wasm's output data
-inline void set_output_data(const std::vector<char>& v) { set_output_data(v.data(), v.data() + v.size()); }
+inline void set_output_data(const std::vector<char>& v) { set_output_data(v.data(), v.size()); }
 
 /// Set the wasm's output data
-inline void set_output_data(const std::string_view& v) { set_output_data(v.data(), v.data() + v.size()); }
+inline void set_output_data(const std::string_view& v) { set_output_data(v.data(), v.size()); }
 
 /// Set the wasm's output data
 inline void set_output_data(rope v) { return set_output_data(v.sv()); }

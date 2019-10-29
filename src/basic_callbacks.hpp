@@ -60,29 +60,6 @@ struct basic_callbacks {
         // todo: check bounds
     }
 
-    char* alloc(uint32_t cb_alloc_data, uint32_t cb_alloc, uint32_t size) {
-        // todo: verify cb_alloc isn't in imports
-        auto& state = derived().state;
-        if (state.backend.get_module().tables.size() < 0 || state.backend.get_module().tables[0].table.size() < cb_alloc)
-            throw std::runtime_error("cb_alloc is out of range");
-        auto result = state.backend.get_context().execute(
-            &derived(), eosio::vm::jit_visitor(42), state.backend.get_module().tables[0].table[cb_alloc], cb_alloc_data, size);
-        if (!result || !result->template is_a<eosio::vm::i32_const_t>())
-            throw std::runtime_error("cb_alloc returned incorrect type");
-        char* begin = state.wa.template get_base_ptr<char>() + result->to_ui32();
-        check_bounds(begin, begin + size);
-        return begin;
-    }
-
-    void set_data(uint32_t cb_alloc_data, uint32_t cb_alloc, abieos::input_buffer data) {
-        memcpy(alloc(cb_alloc_data, cb_alloc, data.end - data.pos), data.pos, data.end - data.pos);
-    }
-
-    template <typename T>
-    void set_data(uint32_t cb_alloc_data, uint32_t cb_alloc, const T& data) {
-        memcpy(alloc(cb_alloc_data, cb_alloc, data.size()), data.data(), data.size());
-    }
-
     void abort() { throw std::runtime_error("called abort"); }
 
     void eosio_assert_message(bool test, const char* msg, size_t msg_len) {
@@ -91,6 +68,7 @@ struct basic_callbacks {
             throw assert_exception(std::string(msg, msg_len));
     }
 
+    // todo: replace with prints_l
     void print_range(const char* begin, const char* end) {
         check_bounds(begin, end);
         std::cerr.write(begin, end - begin);
@@ -101,6 +79,37 @@ struct basic_callbacks {
         Rft::template add<Derived, &Derived::abort, Allocator>("env", "abort");
         Rft::template add<Derived, &Derived::eosio_assert_message, Allocator>("env", "eosio_assert_message");
         Rft::template add<Derived, &Derived::print_range, Allocator>("env", "print_range");
+    }
+};
+
+template <typename Backend>
+struct data_state {
+    abieos::input_buffer input_data;
+    std::vector<char>    output_data;
+};
+
+template <typename Derived>
+struct data_callbacks {
+    Derived& derived() { return static_cast<Derived&>(*this); }
+
+    uint32_t get_input_data(char* dest, uint32_t size) {
+        derived().check_bounds(dest, size);
+        auto& input_data = derived().get_state().input_data;
+        memcpy(dest, input_data.pos, std::min(uint64_t(size), uint64_t(input_data.end - input_data.pos)));
+        return input_data.end - input_data.pos;
+    }
+
+    void set_output_data(const char* data, uint32_t size) {
+        derived().check_bounds(data, size);
+        auto& output_data = derived().get_state().output_data;
+        output_data.clear();
+        output_data.insert(output_data.end(), data, data + size);
+    }
+
+    template <typename Rft, typename Allocator>
+    static void register_callbacks() {
+        Rft::template add<Derived, &Derived::get_input_data, Allocator>("env", "get_input_data");
+        Rft::template add<Derived, &Derived::set_output_data, Allocator>("env", "set_output_data");
     }
 };
 

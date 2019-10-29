@@ -1,6 +1,8 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
+#include "basic_callbacks.hpp"
+#include "state_history_rocksdb.hpp"
 #include "wasm_ql_plugin.hpp"
 
 #include <eosio/vm/backend.hpp>
@@ -15,10 +17,10 @@ struct shared_state {
 };
 
 struct thread_state {
-    std::shared_ptr<const shared_state> shared  = {};
-    eosio::vm::wasm_allocator           wa      = {};
-    abieos::input_buffer                request = {}; // todo: rename
-    std::vector<char>                   reply   = {}; // todo: rename
+    std::shared_ptr<const shared_state> shared      = {};
+    eosio::vm::wasm_allocator           wa          = {};
+    abieos::input_buffer                input_data  = {};
+    std::vector<char>                   output_data = {};
 };
 
 void                     register_callbacks();

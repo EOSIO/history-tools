@@ -434,6 +434,7 @@ class http_session : public std::enable_shared_from_this<http_session> {
 class listener : public std::enable_shared_from_this<listener> {
     net::io_context&                    ioc_;
     tcp::acceptor                       acceptor_;
+    bool                                acceptor_ready = false;
     std::shared_ptr<const std::string>  doc_root_;
     std::shared_ptr<const shared_state> shared_state_;
     std::shared_ptr<thread_state_cache> state_cache_;
@@ -457,13 +458,6 @@ class listener : public std::enable_shared_from_this<listener> {
             return;
         }
 
-        // Allow address reuse
-        acceptor_.set_option(net::socket_base::reuse_address(true), ec);
-        if (ec) {
-            fail(ec, "set_option");
-            return;
-        }
-
         // Bind to the server address
         acceptor_.bind(endpoint, ec);
         if (ec) {
@@ -477,10 +471,15 @@ class listener : public std::enable_shared_from_this<listener> {
             fail(ec, "listen");
             return;
         }
+
+        acceptor_ready = true;
     }
 
     // Start accepting incoming connections
-    void run() { do_accept(); }
+    void run() {
+        if (acceptor_ready)
+            do_accept();
+    }
 
   private:
     void do_accept() {

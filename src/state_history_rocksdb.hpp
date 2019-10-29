@@ -6,6 +6,7 @@
 #include <boost/filesystem.hpp>
 #include <fc/exception/exception.hpp>
 #include <rocksdb/db.h>
+#include <rocksdb/table.h>
 
 namespace state_history {
 namespace rdb {
@@ -53,6 +54,12 @@ struct database {
         }
         if (max_open_files)
             options.max_open_files = *max_open_files;
+
+        rocksdb::BlockBasedTableOptions table_options;
+        table_options.format_version               = 4;
+        table_options.index_block_restart_interval = 16;
+        // table_options.data_block_index_type        = rocksdb::BlockBasedTableOptions::kDataBlockBinaryAndHash;
+        options.table_factory.reset(NewBlockBasedTableFactory(table_options));
 
         check(rocksdb::DB::Open(options, db_path, &p), "rocksdb::DB::Open: ");
         db.reset(p);

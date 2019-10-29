@@ -24,8 +24,8 @@
 #include "fill_rocksdb_plugin.hpp"
 #endif
 
-#ifdef INCLUDE_WASM_QL_ROCKSDB_PLUGIN
-#include "wasm_ql_rocksdb_plugin.hpp"
+#ifdef INCLUDE_WASM_QL_PLUGIN
+#include "wasm_ql_plugin.hpp"
 #endif
 
 using namespace appbase;

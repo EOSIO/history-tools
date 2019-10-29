@@ -21,6 +21,8 @@ class token : public eosio::contract {
 
     void close(const eosio::name& owner, const eosio::symbol& symbol);
 
+    std::vector<eosio::asset> gettoks(eosio::name owner);
+
     struct account {
         eosio::asset balance;
 
@@ -43,3 +45,4 @@ class token : public eosio::contract {
 };
 
 CONTRACT_ACTIONS(token, create, issue, retire, transfer, open, close)
+CONTRACT_QUERIES(token, gettoks)

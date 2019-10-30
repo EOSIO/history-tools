@@ -3,8 +3,10 @@
 std::vector<eosio::asset> token::gettoks(eosio::name owner) {
     accounts                  accounts(get_self(), owner.value);
     std::vector<eosio::asset> result;
-    for (auto& acc : accounts)
+    for (auto& acc : accounts) {
+        print(owner, " ", acc.balance, "\n");
         result.push_back(acc.balance);
+    }
     return result;
 }
 
@@ -16,7 +18,8 @@ extern "C" {
     eosio::set_output_data(std::string("cccc\n"));
     eosio::print("###", eosio::get_input_data_str(), "###\n");
 
-    token contr(eosio::name{}, eosio::name{}, eosio::datastream<const char*>(nullptr, 0));
+    token contr("eosio.token"_n, "eosio.token"_n, eosio::datastream<const char*>(nullptr, 0));
     contr.gettoks("eosio"_n);
+    eosio::print("dddd\n");
 }
 }

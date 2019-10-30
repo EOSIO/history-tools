@@ -105,7 +105,6 @@ inline void write(database& db, rocksdb::WriteBatch& batch) {
     batch.Clear();
 }
 
-/*
 inline bool exists(database& db, rocksdb::Slice key) {
     rocksdb::PinnableSlice v;
     auto                   stat = db.db->Get(rocksdb::ReadOptions(), db.db->DefaultColumnFamily(), key, &v);
@@ -114,7 +113,7 @@ inline bool exists(database& db, rocksdb::Slice key) {
     check(stat, "exists: ");
     return true;
 }
-*/
+
 inline std::optional<abieos::input_buffer> get_raw(rocksdb::Iterator& it, const std::vector<char>& key, bool required) {
     it.Seek(to_slice(key));
     auto stat = it.status();
@@ -210,6 +209,8 @@ void for_each_subkey(database& db, std::vector<char> lower_bound, const std::vec
 
 class db_view {
   public:
+    database& db;
+
     class iterator;
     using bytes        = std::vector<char>;
     using input_buffer = abieos::input_buffer;
@@ -273,7 +274,6 @@ class db_view {
 
     using change_map = std::map<bytes, present_value, vector_compare>;
 
-    database&           db;
     rocksdb::WriteBatch write_batch;
     change_map          changes;
 
@@ -440,6 +440,8 @@ class db_view {
             else
                 throw std::runtime_error("kv iterator is not initialized");
         }
+
+        void lower_bound(const std::vector<char>& key) { return lower_bound(key.data(), key.size()); }
 
         bool is_end() const { return !impl || impl->is_end(); }
 

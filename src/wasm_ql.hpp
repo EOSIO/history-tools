@@ -10,10 +10,14 @@
 namespace wasm_ql {
 
 struct shared_state {
-    bool        console      = {};
-    std::string allow_origin = {};
-    std::string wasm_dir     = {};
-    std::string static_dir   = {};
+    bool                                          console      = {};
+    std::string                                   allow_origin = {};
+    std::string                                   wasm_dir     = {};
+    std::string                                   static_dir   = {};
+    std::shared_ptr<state_history::rdb::database> db;
+
+    shared_state(std::shared_ptr<state_history::rdb::database> db)
+        : db(std::move(db)) {}
 };
 
 struct thread_state {

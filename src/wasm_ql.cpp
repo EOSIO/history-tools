@@ -2,6 +2,7 @@
 
 #include "wasm_ql.hpp"
 #include "abieos_exception.hpp"
+#include "chaindb_callbacks.hpp"
 
 #include <fc/log/logger.hpp>
 #include <fc/scoped_exit.hpp>
@@ -14,18 +15,28 @@ struct callbacks;
 using backend_t = eosio::vm::backend<callbacks, eosio::vm::jit>;
 using rhf_t     = eosio::vm::registered_host_functions<callbacks>;
 
-struct callbacks : history_tools::basic_callbacks<callbacks>, history_tools::data_callbacks<callbacks> {
-    wasm_ql::thread_state& thread_state;
+struct callbacks : history_tools::basic_callbacks<callbacks>,
+                   history_tools::data_callbacks<callbacks>,
+                   history_tools::chaindb_callbacks<callbacks> {
+    wasm_ql::thread_state&             thread_state;
+    history_tools::chaindb_state&      chaindb_state;
+    state_history::rdb::db_view_state& db_view_state;
+
+    callbacks(
+        wasm_ql::thread_state& thread_state, history_tools::chaindb_state& chaindb_state, state_history::rdb::db_view_state& db_view_state)
+        : thread_state{thread_state}
+        , chaindb_state{chaindb_state}
+        , db_view_state{db_view_state} {}
 
     auto& get_state() { return thread_state; }
-
-    callbacks(wasm_ql::thread_state& thread_state)
-        : thread_state{thread_state} {}
-}; // callbacks
+    auto& get_chaindb_state() { return chaindb_state; }
+    auto& get_db_view_state() { return db_view_state; }
+};
 
 void register_callbacks() {
     history_tools::basic_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
     history_tools::data_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+    history_tools::chaindb_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }
 
 /*
@@ -40,9 +51,12 @@ static void fill_context_data(wasm_ql::thread_state& thread_state) {
 */
 
 static void run_query(wasm_ql::thread_state& thread_state, abieos::name short_name) {
-    auto      code = backend_t::read_wasm(thread_state.shared->wasm_dir + "/" + (std::string)short_name + ".query.wasm");
-    backend_t backend(code);
-    callbacks cb{thread_state};
+    auto                        code = backend_t::read_wasm(thread_state.shared->wasm_dir + "/" + (std::string)short_name + ".query.wasm");
+    backend_t                   backend(code);
+    state_history::rdb::db_view view{*thread_state.shared->db};
+    state_history::rdb::db_view_state db_view_state{view};
+    history_tools::chaindb_state      chaindb_state;
+    callbacks                         cb{thread_state, chaindb_state, db_view_state};
     backend.set_wasm_allocator(&thread_state.wa);
 
     rhf_t::resolve(backend.get_module());

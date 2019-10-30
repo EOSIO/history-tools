@@ -8,7 +8,7 @@ struct fill_status_kv : eosio::table<fill_status> {
 
     fill_status_kv(eosio::kv_environment environment)
         : eosio::table<fill_status>{std::move(environment)} {
-        init(abieos::name{"system"}, abieos::name{"contract.tab"}, primary_index);
+        init(abieos::name{"system"}, abieos::name{"fill.status"}, primary_index);
     }
 };
 

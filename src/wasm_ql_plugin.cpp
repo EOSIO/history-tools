@@ -69,7 +69,7 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
         if (ip_port.find(':') == std::string::npos)
             throw std::runtime_error("invalid --wql-listen value: " + ip_port);
 
-        my->state            = std::make_shared<wasm_ql::shared_state>();
+        my->state            = std::make_shared<wasm_ql::shared_state>(app().find_plugin<rocksdb_plugin>()->get_db());
         my->state->console   = options.count("wql-console");
         my->num_threads      = options.at("wql-threads").as<int>();
         my->endpoint_port    = ip_port.substr(ip_port.find(':') + 1, ip_port.size());

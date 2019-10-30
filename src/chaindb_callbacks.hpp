@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../wasms/table.hpp"
+#include "state_history.hpp"
 
 #include <abieos_exception.hpp>
 #include <eosio/vm/backend.hpp>
@@ -32,6 +33,7 @@ class iterator_cache {
 
     struct iterator {
         std::optional<db_view::iterator> view_it;
+        std::vector<char>                value;
     };
     std::vector<iterator>      iterators;
     std::vector<iterator>      end_iterators;
@@ -75,7 +77,10 @@ class iterator_cache {
                     throw std::runtime_error("too many iterators");
                 result = iterators.size();
                 iterators.emplace_back();
-                it = &iterators.back();
+                it          = &iterators.back();
+                auto  row   = abieos::bin_to_native<state_history::contract_row>(view_it.get_kv()->value);
+                auto& value = std::get<0>(row).value;
+                it->value.insert(it->value.end(), value.pos, value.end);
             }
         }
         if (!it->view_it)
@@ -92,6 +97,15 @@ class iterator_cache {
   public:
     iterator_cache(db_view& view)
         : view{view} {}
+
+    size_t db_get_i64(int itr, char* buffer, uint32_t buffer_size) {
+        if (itr < 0)
+            throw std::runtime_error("dereference end iterator");
+        if (itr >= iterators.size())
+            throw std::runtime_error("dereference non-existing iterator");
+        auto& it = iterators[itr];
+        return copy_to_wasm(buffer, buffer_size, it.value.data(), it.value.size());
+    }
 
     int32_t lower_bound(uint64_t code, uint64_t scope, uint64_t table, uint64_t key) {
         int32_t table_index = get_table_index({code, table, scope});
@@ -140,7 +154,7 @@ struct chaindb_callbacks {
 
     int db_get_i64(int itr, char* buffer, uint32_t buffer_size) {
         derived().check_bounds(buffer, buffer_size);
-        throw std::runtime_error("unimplemented: db_get_i64");
+        return get_iterator_cache().db_get_i64(itr, buffer, buffer_size);
     }
 
     int db_next_i64(int itr, uint64_t& primary) {

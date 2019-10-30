@@ -46,6 +46,14 @@ struct wasm_state {
     Backend&                   backend;
 };
 
+inline size_t copy_to_wasm(char* dest, size_t dest_size, const char* src, size_t src_size) {
+    if (dest_size == 0)
+        return src_size;
+    auto copy_size = std::min(dest_size, src_size);
+    memcpy(dest, src, copy_size);
+    return copy_size;
+}
+
 template <typename Derived>
 struct basic_callbacks {
     Derived& derived() { return static_cast<Derived&>(*this); }
@@ -95,8 +103,7 @@ struct data_callbacks {
     uint32_t get_input_data(char* dest, uint32_t size) {
         derived().check_bounds(dest, size);
         auto& input_data = derived().get_state().input_data;
-        memcpy(dest, input_data.pos, std::min(uint64_t(size), uint64_t(input_data.end - input_data.pos)));
-        return input_data.end - input_data.pos;
+        return copy_to_wasm(dest, size, input_data.pos, size_t(input_data.end - input_data.pos));
     }
 
     void set_output_data(const char* data, uint32_t size) {

@@ -59,32 +59,20 @@ static void run_query(wasm_ql::thread_state& thread_state, abieos::name short_na
     callbacks                         cb{thread_state, chaindb_state, db_view_state};
     backend.set_wasm_allocator(&thread_state.wa);
 
+    // todo: make short_name available to wasm
     rhf_t::resolve(backend.get_module());
     backend.initialize(&cb);
     backend(&cb, "env", "initialize");
     backend(&cb, "env", "run_query");
 }
 
-std::vector<char> query(wasm_ql::thread_state& thread_state, const std::vector<char>& request) {
-    std::vector<char>    result;
-    abieos::input_buffer request_bin{request.data(), request.data() + request.size()};
-    auto                 num_requests = abieos::bin_to_native<abieos::varuint32>(request_bin).value;
-    result.clear();
-    abieos::push_varuint32(result, num_requests);
-    for (uint32_t request_index = 0; request_index < num_requests; ++request_index) {
-        thread_state.input_data = abieos::bin_to_native<abieos::input_buffer>(request_bin);
-        auto ns_name            = abieos::bin_to_native<abieos::name>(thread_state.input_data);
-        if (ns_name != "local"_n)
-            throw std::runtime_error("unknown namespace: " + (std::string)ns_name);
-        auto short_name = abieos::bin_to_native<abieos::name>(thread_state.input_data);
-
-        run_query(thread_state, short_name);
-
-        // elog("result: ${s} ${x}", ("s", thread_state.output_data.size())("x", fc::to_hex(thread_state.output_data)));
-        abieos::push_varuint32(result, thread_state.output_data.size());
-        result.insert(result.end(), thread_state.output_data.begin(), thread_state.output_data.end());
-    }
-    return result;
+const std::vector<char>& query(wasm_ql::thread_state& thread_state, std::string_view wasm, const std::vector<char>& request) {
+    abieos::name wasm_name;
+    if (!abieos::string_to_name_strict(wasm, wasm_name.value))
+        throw std::runtime_error("invalid wasm name");
+    thread_state.input_data = abieos::input_buffer{request.data(), request.data() + request.size()};
+    run_query(thread_state, wasm_name);
+    return thread_state.output_data;
 }
 
 const std::vector<char>& legacy_query(wasm_ql::thread_state& thread_state, const std::string& target, const std::vector<char>& request) {

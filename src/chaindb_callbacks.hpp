@@ -21,6 +21,7 @@ class iterator_cache {
         std::tuple<uint64_t, uint64_t, uint64_t> order() const { return {code, table, scope}; }
         friend bool                              operator<(const table_key& a, const table_key& b) { return a.order() < b.order(); }
     };
+    std::vector<table_key>       tables;
     std::map<table_key, int32_t> table_to_index;
 
     struct row_key {
@@ -32,8 +33,11 @@ class iterator_cache {
     };
 
     struct iterator {
-        std::optional<db_view::iterator> view_it;
+        int32_t                          table_index = {};
+        uint64_t                         primary     = {};
         std::vector<char>                value;
+        int32_t                          next = -1;
+        std::optional<db_view::iterator> view_it;
     };
     std::vector<iterator>      iterators;
     std::vector<iterator>      end_iterators;
@@ -48,13 +52,16 @@ class iterator_cache {
                 state_history::rdb::to_slice(abieos::native_to_key(std::make_tuple(
                     abieos::name{"system"}, abieos::name{"contract.tab"}, abieos::name{"primary"}, key.code, key.table, key.scope)))))
             return -1;
-        if (table_to_index.size() != end_iterators.size())
-            throw std::runtime_error("internal error: table_to_index.size() != end_iterators.size()");
-        auto result = table_to_index.size();
+        if (tables.size() != table_to_index.size() || tables.size() != end_iterators.size())
+            throw std::runtime_error("internal error: tables.size() mismatch");
+        auto result = tables.size();
         if (result > std::numeric_limits<int32_t>::max())
             throw std::runtime_error("too many open tables");
+        tables.push_back(key);
         table_to_index[key] = result;
         end_iterators.push_back({});
+        auto& end_it       = end_iterators.back();
+        end_it.table_index = result;
         return result;
     }
 
@@ -77,10 +84,11 @@ class iterator_cache {
                     throw std::runtime_error("too many iterators");
                 result = iterators.size();
                 iterators.emplace_back();
-                it          = &iterators.back();
-                auto  row   = abieos::bin_to_native<state_history::contract_row>(view_it.get_kv()->value);
-                auto& value = std::get<0>(row).value;
-                it->value.insert(it->value.end(), value.pos, value.end);
+                it              = &iterators.back();
+                auto row        = std::get<0>(abieos::bin_to_native<state_history::contract_row>(view_it.get_kv()->value));
+                it->table_index = rk.table_index;
+                it->primary     = row.primary_key;
+                it->value.insert(it->value.end(), row.value.pos, row.value.end);
             }
         }
         if (!it->view_it)
@@ -91,7 +99,7 @@ class iterator_cache {
     // Precondition: std::numeric_limits<int32_t>::min() < ei < -1
     // Iterator of -1 is reserved for invalid iterators (i.e. when the appropriate table has not yet been created).
     size_t end_iterator_to_index(int32_t ei) const { return (-ei - 2); }
-    // Precondition: indx < _end_iterator_to_table.size() <= std::numeric_limits<int32_t>::max()
+    // Precondition: indx < tables.size() <= std::numeric_limits<int32_t>::max()
     int32_t index_to_end_iterator(size_t indx) const { return -(indx + 2); }
 
   public:
@@ -99,12 +107,51 @@ class iterator_cache {
         : view{view} {}
 
     size_t db_get_i64(int itr, char* buffer, uint32_t buffer_size) {
+        if (itr == -1)
+            throw std::runtime_error("dereference invalid iterator");
         if (itr < 0)
             throw std::runtime_error("dereference end iterator");
         if (itr >= iterators.size())
             throw std::runtime_error("dereference non-existing iterator");
         auto& it = iterators[itr];
         return copy_to_wasm(buffer, buffer_size, it.value.data(), it.value.size());
+    }
+
+    int db_next_i64(int itr, uint64_t& primary) {
+        if (itr == -1)
+            throw std::runtime_error("increment invalid iterator");
+        if (itr < 0)
+            return -1;
+        if (itr >= iterators.size())
+            throw std::runtime_error("increment non-existing iterator");
+        auto& it = iterators[itr];
+        if (it.next >= 0) {
+            primary = iterators[it.next].primary;
+            return it.next;
+        } else if (it.next < -1) {
+            return it.next;
+        }
+        std::optional<db_view::iterator> view_it = std::move(it.view_it);
+        it.view_it.reset();
+        if (!view_it) {
+            const auto& table_key = tables[it.table_index];
+            view_it               = db_view::iterator{view, abieos::native_to_key(std::make_tuple(
+                                                  abieos::name{"system"}, abieos::name{"contract.row"}, abieos::name{"primary"},
+                                                  table_key.code, table_key.table, table_key.scope))};
+            view_it->lower_bound(abieos::native_to_key(std::make_tuple(
+                abieos::name{"system"}, abieos::name{"contract.row"}, abieos::name{"primary"}, table_key.code, table_key.table,
+                table_key.scope, it.primary)));
+        }
+        ++*view_it;
+        if (view_it->is_end()) {
+            it.next = index_to_end_iterator(itr);
+            return it.next;
+        } else {
+            auto row = std::get<0>(abieos::bin_to_native<state_history::contract_row>(view_it->get_kv()->value));
+            primary  = row.primary_key;
+            it.next  = get_iterator({it.table_index, primary}, std::move(*view_it));
+            return it.next;
+        }
     }
 
     int32_t lower_bound(uint64_t code, uint64_t scope, uint64_t table, uint64_t key) {
@@ -157,10 +204,7 @@ struct chaindb_callbacks {
         return get_iterator_cache().db_get_i64(itr, buffer, buffer_size);
     }
 
-    int db_next_i64(int itr, uint64_t& primary) {
-        //
-        throw std::runtime_error("unimplemented: db_next_i64");
-    }
+    int db_next_i64(int itr, uint64_t& primary) { return get_iterator_cache().db_next_i64(itr, primary); }
 
     int db_previous_i64(int itr, uint64_t& primary) {
         //

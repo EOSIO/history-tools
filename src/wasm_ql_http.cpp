@@ -203,11 +203,14 @@ void handle_request(
     };
 
     try {
-        if (req.target() == "/wasmql/v1/query") {
+        auto query_prefix = "/wasmql/v2/query/";
+        if (req.target().starts_with(query_prefix)) {
             if (req.method() != http::verb::post)
                 return send(error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
+            auto wasm = req.target();
+            wasm.remove_prefix(strlen(query_prefix));
             auto thread_state = state_cache->get_state();
-            send(ok(query(*thread_state, req.body()), "application/octet-stream"));
+            send(ok(query(*thread_state, {wasm.data(), wasm.size()}, req.body()), "application/octet-stream"));
             state_cache->store_state(std::move(thread_state));
             return;
         } else if (req.target().starts_with("/v1/")) {

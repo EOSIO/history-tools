@@ -10,7 +10,7 @@ namespace eosio {
 template <typename... Ts>
 struct type_list {};
 
-__attribute__((noinline)) inline result<void> parse_json(name& result, json_parser::token_stream& stream) {
+__attribute__((noinline)) inline result<void> parse_json(name& result, json_token_stream& stream) {
     auto r = stream.get_string();
     if (!r)
         return r.error();
@@ -18,33 +18,33 @@ __attribute__((noinline)) inline result<void> parse_json(name& result, json_pars
     return outcome::success();
 }
 
-__attribute__((noinline)) inline result<void> parse_json(asset& result, json_parser::token_stream& stream) {
+__attribute__((noinline)) inline result<void> parse_json(asset& result, json_token_stream& stream) {
     auto r = stream.get_string();
     if (!r)
         return r.error();
     abieos::asset a;
     std::string   error;
     if (!string_to_asset(a, error, std::string(r.value()).c_str()))
-        return json_parser::error::value_invalid;
+        return parse_json_error::value_invalid;
     result = asset{a.amount, symbol{a.sym.value}};
     return outcome::success();
 }
 
-__attribute__((noinline)) inline result<void> parse_json(symbol& result, json_parser::token_stream& stream) {
+__attribute__((noinline)) inline result<void> parse_json(symbol& result, json_token_stream& stream) {
     auto r = stream.get_string();
     if (!r)
         return r.error();
     uint64_t    sym;
     std::string error;
     if (!abieos::string_to_symbol(sym, error, std::string(r.value()).c_str()))
-        return json_parser::error::value_invalid;
+        return parse_json_error::value_invalid;
     result = symbol{sym};
     return outcome::success();
 }
 
 // todo: named-args format
 template <typename Arg0, typename... Args>
-void args_json_to_bin(type_list<Arg0, Args...>, std::vector<char>& dest, json_parser::token_stream& stream) {
+void args_json_to_bin(type_list<Arg0, Args...>, std::vector<char>& dest, json_token_stream& stream) {
     std::decay_t<Arg0> obj{};
     check_discard(parse_json(obj, stream));
     auto bin = pack(obj);
@@ -52,10 +52,10 @@ void args_json_to_bin(type_list<Arg0, Args...>, std::vector<char>& dest, json_pa
     args_json_to_bin(type_list<Args...>{}, dest, stream);
 }
 
-__attribute__((noinline)) inline void args_json_to_bin(type_list<>, std::vector<char>& dest, json_parser::token_stream& stream) {}
+__attribute__((noinline)) inline void args_json_to_bin(type_list<>, std::vector<char>& dest, json_token_stream& stream) {}
 
 template <typename C, typename R, typename... Args>
-void args_json_to_bin(R (C::*)(Args...), std::vector<char>& dest, json_parser::token_stream& stream) {
+void args_json_to_bin(R (C::*)(Args...), std::vector<char>& dest, json_token_stream& stream) {
     args_json_to_bin(type_list<Args...>{}, dest, stream);
 }
 
@@ -158,9 +158,9 @@ void execute_query(eosio::name self, eosio::name name, R (C::*f)(Args...)) {
                                                                                                                                            \
     [[eosio::wasm_entry]] void action_to_bin() {                                                                                           \
         using namespace eosio;                                                                                                             \
-        std::vector<char>                result;                                                                                           \
-        auto                             json = get_input_data_str();                                                                      \
-        eosio::json_parser::token_stream stream(json.data());                                                                              \
+        std::vector<char>        result;                                                                                                   \
+        auto                     json = get_input_data_str();                                                                              \
+        eosio::json_token_stream stream(json.data());                                                                                      \
         eosio::check_discard(stream.get_start_array());                                                                                    \
         name action(eosio::check(stream.get_string()).value());                                                                            \
         bool found = false;                                                                                                                \
@@ -196,9 +196,9 @@ void execute_query(eosio::name self, eosio::name name, R (C::*f)(Args...)) {
                                                                                                                                            \
     [[eosio::wasm_entry]] void query_to_bin() {                                                                                            \
         using namespace eosio;                                                                                                             \
-        std::vector<char>                result;                                                                                           \
-        auto                             json = get_input_data_str();                                                                      \
-        eosio::json_parser::token_stream stream(json.data());                                                                              \
+        std::vector<char>        result;                                                                                                   \
+        auto                     json = get_input_data_str();                                                                              \
+        eosio::json_token_stream stream(json.data());                                                                                      \
         eosio::check_discard(stream.get_start_array());                                                                                    \
         name query(eosio::check(stream.get_string()).value());                                                                             \
         bool found = false;                                                                                                                \

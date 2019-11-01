@@ -1,9 +1,9 @@
-#include "../../../../libraries/eosiolib/wasmql/eosio/to_json.hpp"
 #include "map_macro.h"
 #include <abieos.hpp>
 #include <eosio/contract.hpp>
 #include <eosio/input_output.hpp>
 #include <eosio/parse_json.hpp>
+#include <eosio/to_json.hpp>
 
 namespace eosio {
 
@@ -42,6 +42,11 @@ __attribute__((noinline)) inline result<void> parse_json(symbol& result, json_to
     return outcome::success();
 }
 
+template <typename S>
+result<void> to_json(const asset& a, S& stream) {
+    return to_json(a.to_string(), stream);
+}
+
 // todo: named-args format
 template <typename Arg0, typename... Args>
 void args_json_to_bin(type_list<Arg0, Args...>, std::vector<char>& dest, json_token_stream& stream) {
@@ -60,21 +65,21 @@ void args_json_to_bin(R (C::*)(Args...), std::vector<char>& dest, json_token_str
 }
 
 template <typename C, typename R, typename... Args>
-rope ret_bin_to_json(R (C::*)(Args...), datastream<const char*>& ds) {
+inline std::string ret_bin_to_json(R (C::*)(Args...), datastream<const char*>& ds) {
     R ret{};
     ds >> ret;
-    return to_json(ret);
+    return check(to_json(ret)).value();
 }
 
 template <typename C, typename R, typename... Args>
-void execute_query(eosio::name self, eosio::name name, R (C::*f)(Args...)) {
+void execute_query(name self, name name, R (C::*f)(Args...)) {
     auto                              input_data = get_input_data();
     datastream<const char*>           ds(input_data.data(), input_data.size());
     std::tuple<std::decay_t<Args>...> args;
     ds >> args;
     std::apply(
         [self, name, f, &ds](auto&... a) {
-            C                 contract{self, eosio::name(0), ds};
+            C                 contract{self, ""_n, ds};
             auto              result = (contract.*f)(a...);
             std::vector<char> result_data(pack_size(name) + pack_size(result));
             datastream<char*> result_ds(result_data.data(), result_data.size());
@@ -98,7 +103,7 @@ void execute_query(eosio::name self, eosio::name name, R (C::*f)(Args...)) {
 
 #define CONTRACT_QUERIES(CLS, ...)                                                                                                         \
     template <typename F>                                                                                                                  \
-    void for_each_query(CLS*, F f) {                                                                                                       \
+    inline void for_each_query(CLS*, F f) {                                                                                                \
         MAP_REUSE_ARG0(CONTRACT_QUERIES_INTERNAL, CLS, __VA_ARGS__)                                                                        \
     }
 
@@ -220,8 +225,8 @@ void execute_query(eosio::name self, eosio::name name, R (C::*f)(Args...)) {
         datastream<const char*> ds{bin.data(), bin.size()};                                                                                \
         eosio::name             query;                                                                                                     \
         ds >> query;                                                                                                                       \
-        rope json;                                                                                                                         \
-        bool found = false;                                                                                                                \
+        std::string json;                                                                                                                  \
+        bool        found = false;                                                                                                         \
         for_each_query((CLS*)nullptr, [&](name name, auto query_fn) {                                                                      \
             if (!found && query == name) {                                                                                                 \
                 found = true;                                                                                                              \

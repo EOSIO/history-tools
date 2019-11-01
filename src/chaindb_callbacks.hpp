@@ -134,6 +134,7 @@ class iterator_cache {
         std::optional<db_view::iterator> view_it = std::move(it.view_it);
         it.view_it.reset();
         if (!view_it) {
+            std::cout << "db_next_i64: db_view::iterator\n";
             const auto& table_key = tables[it.table_index];
             view_it               = db_view::iterator{view, abieos::native_to_key(std::make_tuple(
                                                   abieos::name{"system"}, abieos::name{"contract.row"}, abieos::name{"primary"},
@@ -166,6 +167,7 @@ class iterator_cache {
             std::cout << "...existing it (a)\n";
             return map_it->second;
         }
+        std::cout << "lower_bound: db_view::iterator\n";
         db_view::iterator it{view, abieos::native_to_key(std::make_tuple(
                                        abieos::name{"system"}, abieos::name{"contract.row"}, abieos::name{"primary"}, code, table, scope))};
         it.lower_bound(abieos::native_to_key(

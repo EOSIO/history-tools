@@ -209,8 +209,13 @@ void handle_request(
                 return send(error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
             auto wasm = req.target();
             wasm.remove_prefix(strlen(query_prefix));
+            auto sep = wasm.find('/');
+            if (sep == wasm.npos)
+                return send(error(http::status::not_found, "The resource '" + req.target().to_string() + "' is missing query name.\n"));
+            auto q            = wasm.substr(sep + 1);
+            wasm              = wasm.substr(0, sep);
             auto thread_state = state_cache->get_state();
-            send(ok(query(*thread_state, {wasm.data(), wasm.size()}, req.body()), "application/octet-stream"));
+            send(ok(query(*thread_state, {wasm.data(), wasm.size()}, {q.data(), q.size()}, req.body()), "application/octet-stream"));
             state_cache->store_state(std::move(thread_state));
             return;
         } else if (req.target().starts_with("/v1/")) {

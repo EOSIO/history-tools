@@ -41,20 +41,35 @@ __attribute__((noinline)) inline result<void> parse_json(symbol& result, json_pa
     return outcome::success();
 }
 
+// todo: named-args format
 template <typename Arg0, typename... Args>
-void action_json_to_bin(type_list<Arg0, Args...>, std::vector<char>& dest, json_parser::token_stream& stream) {
+void args_json_to_bin(type_list<Arg0, Args...>, std::vector<char>& dest, json_parser::token_stream& stream) {
     std::decay_t<Arg0> obj{};
     check_discard(parse_json(obj, stream));
     auto bin = pack(obj);
     dest.insert(dest.end(), bin.begin(), bin.end());
-    action_json_to_bin(type_list<Args...>{}, dest, stream);
+    args_json_to_bin(type_list<Args...>{}, dest, stream);
 }
 
-void action_json_to_bin(type_list<>, std::vector<char>& dest, json_parser::token_stream& stream) {}
+void args_json_to_bin(type_list<>, std::vector<char>& dest, json_parser::token_stream& stream) {}
 
-template <typename C, typename... Args>
-void action_json_to_bin(void (C::*)(Args...), std::vector<char>& dest, json_parser::token_stream& stream) {
-    action_json_to_bin(type_list<Args...>{}, dest, stream);
+template <typename C, typename R, typename... Args>
+void args_json_to_bin(R (C::*)(Args...), std::vector<char>& dest, json_parser::token_stream& stream) {
+    args_json_to_bin(type_list<Args...>{}, dest, stream);
+}
+
+template <typename C, typename R, typename... Args>
+void execute_query(eosio::name self, R (C::*f)(Args...)) {
+    auto                              data = get_input_data();
+    datastream<const char*>           ds(data.data(), data.size());
+    std::tuple<std::decay_t<Args>...> args;
+    ds >> args;
+    std::apply(
+        [self, f, &ds](auto&... a) {
+            C contract{self, eosio::name(0), ds};
+            set_output_data(pack((contract.*f)(a...)));
+        },
+        args);
 }
 
 } // namespace eosio
@@ -91,7 +106,23 @@ void action_json_to_bin(void (C::*)(Args...), std::vector<char>& dest, json_pars
     }                                                                                                                                      \
     }
 
-#define TRANSLATE_CONTRACT_ACTIONS(CLS)                                                                                                    \
+#define DISPATCH_CONTRACT_QUERIES(CLS)                                                                                                     \
+    extern "C" {                                                                                                                           \
+    [[eosio::wasm_entry]] void initialize() {}                                                                                             \
+                                                                                                                                           \
+    [[eosio::wasm_entry]] void run_query(eosio::name self, eosio::name query) {                                                            \
+        bool found = false;                                                                                                                \
+        for_each_query((CLS*)nullptr, [=, &found](eosio::name name, auto query_fn) {                                                       \
+            if (!found && query == name) {                                                                                                 \
+                found = true;                                                                                                              \
+                eosio::execute_query(self, query_fn);                                                                                      \
+            }                                                                                                                              \
+        });                                                                                                                                \
+        eosio::check(found, "unknown query");                                                                                              \
+    }                                                                                                                                      \
+    }
+
+#define TRANSLATE_CONTRACT_ACTIONS_AND_QUERIES(CLS)                                                                                        \
     extern "C" {                                                                                                                           \
     [[eosio::wasm_entry]] void initialize() {}                                                                                             \
                                                                                                                                            \
@@ -124,10 +155,48 @@ void action_json_to_bin(void (C::*)(Args...), std::vector<char>& dest, json_pars
         for_each_action((CLS*)nullptr, [&](name name, auto action_fn) {                                                                    \
             if (!found && action == name) {                                                                                                \
                 found = true;                                                                                                              \
-                action_json_to_bin(action_fn, result, stream);                                                                             \
+                args_json_to_bin(action_fn, result, stream);                                                                               \
             }                                                                                                                              \
         });                                                                                                                                \
         eosio::check(found, "action not found");                                                                                           \
+        eosio::check_discard(stream.get_end_array());                                                                                      \
+        eosio::check_discard(stream.get_end());                                                                                            \
+        set_output_data(result);                                                                                                           \
+    }                                                                                                                                      \
+                                                                                                                                           \
+    [[eosio::wasm_entry]] const char* get_queries() {                                                                                      \
+        static std::string result;                                                                                                         \
+        static bool        initialized = false;                                                                                            \
+        if (!initialized) {                                                                                                                \
+            result          = "[";                                                                                                         \
+            bool need_comma = false;                                                                                                       \
+            for_each_query((CLS*)nullptr, [&](eosio::name name, auto query_fn) {                                                           \
+                if (need_comma)                                                                                                            \
+                    result += ",";                                                                                                         \
+                need_comma = true;                                                                                                         \
+                result += "{\"name\":\"" + name.to_string() + "\"}";                                                                       \
+            });                                                                                                                            \
+            result += "]";                                                                                                                 \
+            initialized = true;                                                                                                            \
+        }                                                                                                                                  \
+        return result.c_str();                                                                                                             \
+    }                                                                                                                                      \
+                                                                                                                                           \
+    [[eosio::wasm_entry]] void query_to_bin() {                                                                                            \
+        using namespace eosio;                                                                                                             \
+        std::vector<char>                result;                                                                                           \
+        auto                             json = get_input_data_str();                                                                      \
+        eosio::json_parser::token_stream stream(json.data());                                                                              \
+        eosio::check_discard(stream.get_start_array());                                                                                    \
+        name query(eosio::check(stream.get_string()).value());                                                                             \
+        bool found = false;                                                                                                                \
+        for_each_query((CLS*)nullptr, [&](name name, auto query_fn) {                                                                      \
+            if (!found && query == name) {                                                                                                 \
+                found = true;                                                                                                              \
+                args_json_to_bin(query_fn, result, stream);                                                                                \
+            }                                                                                                                              \
+        });                                                                                                                                \
+        eosio::check(found, "query not found");                                                                                            \
         eosio::check_discard(stream.get_end_array());                                                                                      \
         eosio::check_discard(stream.get_end());                                                                                            \
         set_output_data(result);                                                                                                           \

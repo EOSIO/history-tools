@@ -21,7 +21,13 @@ class token : public eosio::contract {
 
     void close(const eosio::name& owner, const eosio::symbol& symbol);
 
-    std::vector<eosio::asset> gettoks(eosio::name owner);
+    std::vector<eosio::asset> gettoks(eosio::name owner) {
+        accounts                  accounts(get_self(), owner.value);
+        std::vector<eosio::asset> result;
+        for (auto& acc : accounts)
+            result.push_back(acc.balance);
+        return result;
+    }
 
     struct account {
         eosio::asset balance;

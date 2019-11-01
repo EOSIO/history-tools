@@ -32,15 +32,18 @@ const { Serialize } = require('eosjs');
                     if (begin !== end)
                         process.stdout.write(decoder.decode(new Uint8Array(self.inst.exports.memory.buffer, begin, end - begin)));
                 },
-                get_input_data(cb_alloc_data, cb_alloc) {
+                get_input_data(ptr, size) {
                     const input_data = self.input_data;
-                    const ptr = self.inst.exports.__indirect_function_table.get(cb_alloc)(cb_alloc_data, input_data.length);
-                    const dest = new Uint8Array(self.inst.exports.memory.buffer, ptr, input_data.length);
-                    for (let i = 0; i < input_data.length; ++i)
+                    if (!size)
+                        return input_data.length;
+                    const copy_size = Math.min(input_data.length, size);
+                    const dest = new Uint8Array(self.inst.exports.memory.buffer, ptr, copy_size);
+                    for (let i = 0; i < copy_size; ++i)
                         dest[i] = input_data[i];
+                    return copy_size;
                 },
-                set_output_data(begin, end) {
-                    self.output_data = Uint8Array.from(new Uint8Array(self.inst.exports.memory.buffer, begin, end - begin));
+                set_output_data(ptr, size) {
+                    self.output_data = Uint8Array.from(new Uint8Array(self.inst.exports.memory.buffer, ptr, size));
                 },
             };
         }
@@ -59,6 +62,23 @@ const { Serialize } = require('eosjs');
             return this.output_data;
         }
 
+        query_to_bin(query, ...args) {
+            this.input_data = this.encoder.encode(JSON.stringify([query, ...args]));
+            this.inst.exports.query_to_bin();
+            return this.output_data;
+        }
+
+        async query(fetch, url, account, query, ...args) {
+            const response = await fetch(url + '/wasmql/v2/query/' + account + '/' + query, {
+                body: this.query_to_bin(query, ...args),
+                method: 'POST',
+            });
+            if (!response.ok)
+                throw new Error(response.status + ': ' + response.statusText + ': ' + await response.text());
+            const buf = await response.arrayBuffer();
+            console.log(buf);
+        }
+
         async instantiate() {
             this.inst = await WebAssembly.instantiate(this.mod, { env: this.primitives });
             this.inst.exports.initialize();
@@ -70,6 +90,19 @@ const { Serialize } = require('eosjs');
                     name: action.name,
                     authorization,
                     data: this.action_to_bin(action.name, ...args),
+                });
+            }
+
+            console.log(this.inst.exports);
+            this.queries = {};
+            const queries = JSON.parse(this.getZStr(this.inst.exports.get_queries()));
+            for (let query of queries) {
+                console.log('...', query);
+                this.queries[query.name] = (authorization, ...args) => ({
+                    account: this.account,
+                    name: query.name,
+                    authorization,
+                    data: this.query_to_bin(query.name, ...args),
                 });
             }
         }
@@ -121,5 +154,4 @@ const { Serialize } = require('eosjs');
         return pushTransactionArgs;
     }
     exports.transact = transact;
-
 })(typeof exports === 'undefined' ? this['eosio-client'] = {} : exports);

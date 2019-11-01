@@ -27,8 +27,9 @@ struct thread_state {
     std::vector<char>                   output_data = {};
 };
 
-void                     register_callbacks();
-const std::vector<char>& query(wasm_ql::thread_state& thread_state, std::string_view wasm, const std::vector<char>& request);
+void register_callbacks();
+const std::vector<char>&
+                         query(wasm_ql::thread_state& thread_state, std::string_view wasm, std::string_view query, const std::vector<char>& request);
 const std::vector<char>& legacy_query(wasm_ql::thread_state& thread_state, const std::string& target, const std::vector<char>& request);
 
 } // namespace wasm_ql

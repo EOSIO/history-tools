@@ -1,3 +1,4 @@
+#include "../../../../libraries/eosiolib/wasmql/eosio/to_json.hpp"
 #include "map_macro.h"
 #include <abieos.hpp>
 #include <eosio/contract.hpp>
@@ -51,7 +52,7 @@ void args_json_to_bin(type_list<Arg0, Args...>, std::vector<char>& dest, json_pa
     args_json_to_bin(type_list<Args...>{}, dest, stream);
 }
 
-void args_json_to_bin(type_list<>, std::vector<char>& dest, json_parser::token_stream& stream) {}
+__attribute__((noinline)) inline void args_json_to_bin(type_list<>, std::vector<char>& dest, json_parser::token_stream& stream) {}
 
 template <typename C, typename R, typename... Args>
 void args_json_to_bin(R (C::*)(Args...), std::vector<char>& dest, json_parser::token_stream& stream) {
@@ -59,15 +60,26 @@ void args_json_to_bin(R (C::*)(Args...), std::vector<char>& dest, json_parser::t
 }
 
 template <typename C, typename R, typename... Args>
-void execute_query(eosio::name self, R (C::*f)(Args...)) {
-    auto                              data = get_input_data();
-    datastream<const char*>           ds(data.data(), data.size());
+rope ret_bin_to_json(R (C::*)(Args...), datastream<const char*>& ds) {
+    R ret{};
+    ds >> ret;
+    return to_json(ret);
+}
+
+template <typename C, typename R, typename... Args>
+void execute_query(eosio::name self, eosio::name name, R (C::*f)(Args...)) {
+    auto                              input_data = get_input_data();
+    datastream<const char*>           ds(input_data.data(), input_data.size());
     std::tuple<std::decay_t<Args>...> args;
     ds >> args;
     std::apply(
-        [self, f, &ds](auto&... a) {
-            C contract{self, eosio::name(0), ds};
-            set_output_data(pack((contract.*f)(a...)));
+        [self, name, f, &ds](auto&... a) {
+            C                 contract{self, eosio::name(0), ds};
+            auto              result = (contract.*f)(a...);
+            std::vector<char> result_data(pack_size(name) + pack_size(result));
+            datastream<char*> result_ds(result_data.data(), result_data.size());
+            result_ds << name << result;
+            set_output_data(result_data);
         },
         args);
 }
@@ -115,7 +127,7 @@ void execute_query(eosio::name self, R (C::*f)(Args...)) {
         for_each_query((CLS*)nullptr, [=, &found](eosio::name name, auto query_fn) {                                                       \
             if (!found && query == name) {                                                                                                 \
                 found = true;                                                                                                              \
-                eosio::execute_query(self, query_fn);                                                                                      \
+                eosio::execute_query(self, name, query_fn);                                                                                \
             }                                                                                                                              \
         });                                                                                                                                \
         eosio::check(found, "unknown query");                                                                                              \
@@ -200,5 +212,23 @@ void execute_query(eosio::name self, R (C::*f)(Args...)) {
         eosio::check_discard(stream.get_end_array());                                                                                      \
         eosio::check_discard(stream.get_end());                                                                                            \
         set_output_data(result);                                                                                                           \
+    }                                                                                                                                      \
+                                                                                                                                           \
+    [[eosio::wasm_entry]] void query_result_to_json() {                                                                                    \
+        using namespace eosio;                                                                                                             \
+        auto                    bin = get_input_data();                                                                                    \
+        datastream<const char*> ds{bin.data(), bin.size()};                                                                                \
+        eosio::name             query;                                                                                                     \
+        ds >> query;                                                                                                                       \
+        rope json;                                                                                                                         \
+        bool found = false;                                                                                                                \
+        for_each_query((CLS*)nullptr, [&](name name, auto query_fn) {                                                                      \
+            if (!found && query == name) {                                                                                                 \
+                found = true;                                                                                                              \
+                json  = ret_bin_to_json(query_fn, ds);                                                                                     \
+            }                                                                                                                              \
+        });                                                                                                                                \
+        eosio::check(found, "query not found");                                                                                            \
+        set_output_data(json);                                                                                                             \
     }                                                                                                                                      \
     }

@@ -4,12 +4,14 @@ const { Serialize } = require('eosjs');
 
 (function (exports) {
     class ClientWasm {
-        constructor({ mod, encoder, decoder, account }) {
+        constructor({ mod, encoder, decoder, account, fetch, queryUrl }) {
             const self = this;
             this.mod = mod;
             this.encoder = encoder;
             this.decoder = decoder;
             this.account = account;
+            this.fetch = fetch;
+            this.queryUrl = queryUrl;
             this.input_data = new Uint8Array(0);
 
             this.primitives = {
@@ -68,15 +70,21 @@ const { Serialize } = require('eosjs');
             return this.output_data;
         }
 
-        async query(fetch, url, account, query, ...args) {
-            const response = await fetch(url + '/wasmql/v2/query/' + account + '/' + query, {
+        query_result_to_json(result) {
+            this.input_data = result;
+            this.inst.exports.query_result_to_json();
+            return this.decoder.decode(this.output_data);
+        }
+
+        async query(account, query, ...args) {
+            const response = await this.fetch(this.queryUrl + '/wasmql/v2/query/' + account + '/' + query, {
                 body: this.query_to_bin(query, ...args),
                 method: 'POST',
             });
             if (!response.ok)
                 throw new Error(response.status + ': ' + response.statusText + ': ' + await response.text());
             const buf = await response.arrayBuffer();
-            console.log(buf);
+            return this.query_result_to_json(new Uint8Array(buf));
         }
 
         async instantiate() {
@@ -93,24 +101,16 @@ const { Serialize } = require('eosjs');
                 });
             }
 
-            console.log(this.inst.exports);
             this.queries = {};
             const queries = JSON.parse(this.getZStr(this.inst.exports.get_queries()));
-            for (let query of queries) {
-                console.log('...', query);
-                this.queries[query.name] = (authorization, ...args) => ({
-                    account: this.account,
-                    name: query.name,
-                    authorization,
-                    data: this.query_to_bin(query.name, ...args),
-                });
-            }
+            for (let query of queries)
+                this.queries[query.name] = (...args) => this.query(this.account, query.name, ...args);
         }
     } // ClientWasm
     exports.ClientWasm = ClientWasm;
 
-    async function createClientWasm({ mod, encoder, decoder, account }) {
-        const result = new ClientWasm({ mod, encoder, decoder, account });
+    async function createClientWasm(args) {
+        const result = new ClientWasm(args);
         await result.instantiate();
         return result;
     }

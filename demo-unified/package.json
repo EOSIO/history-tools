@@ -5,6 +5,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "commander": "^4.0.0",
     "eosjs": "^20.0.0",
     "node-fetch": "^2.6.0"
   }

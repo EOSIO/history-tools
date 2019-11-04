@@ -24,7 +24,7 @@ __attribute__((noinline)) inline result<void> parse_json(asset& result, json_tok
         return r.error();
     abieos::asset a;
     std::string   error;
-    if (!string_to_asset(a, error, std::string(r.value()).c_str()))
+    if (!string_to_asset(a, error, r.value().data(), r.value().data() + r.value().size()))
         return parse_json_error::value_invalid;
     result = asset{a.amount, symbol{a.sym.value}};
     return outcome::success();
@@ -34,9 +34,8 @@ __attribute__((noinline)) inline result<void> parse_json(symbol& result, json_to
     auto r = stream.get_string();
     if (!r)
         return r.error();
-    uint64_t    sym;
-    std::string error;
-    if (!abieos::string_to_symbol(sym, error, std::string(r.value()).c_str()))
+    uint64_t sym;
+    if (!eosio::string_to_symbol(sym, r.value().data(), r.value().data() + r.value().size()))
         return parse_json_error::value_invalid;
     result = symbol{sym};
     return outcome::success();

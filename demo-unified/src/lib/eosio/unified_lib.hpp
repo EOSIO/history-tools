@@ -1,8 +1,8 @@
 #include "map_macro.h"
 #include <abieos.hpp>
 #include <eosio/contract.hpp>
+#include <eosio/from_json.hpp>
 #include <eosio/input_output.hpp>
-#include <eosio/parse_json.hpp>
 #include <eosio/to_json.hpp>
 
 namespace eosio {
@@ -10,7 +10,8 @@ namespace eosio {
 template <typename... Ts>
 struct type_list {};
 
-__attribute__((noinline)) inline result<void> parse_json(name& result, json_token_stream& stream) {
+template <typename S>
+result<void> from_json(name& result, S& stream) {
     auto r = stream.get_string();
     if (!r)
         return r.error();
@@ -18,25 +19,27 @@ __attribute__((noinline)) inline result<void> parse_json(name& result, json_toke
     return outcome::success();
 }
 
-__attribute__((noinline)) inline result<void> parse_json(asset& result, json_token_stream& stream) {
+template <typename S>
+result<void> from_json(asset& result, S& stream) {
     auto r = stream.get_string();
     if (!r)
         return r.error();
     abieos::asset a;
     std::string   error;
     if (!string_to_asset(a, error, r.value().data(), r.value().data() + r.value().size()))
-        return parse_json_error::value_invalid;
+        return from_json_error::value_invalid;
     result = asset{a.amount, symbol{a.sym.value}};
     return outcome::success();
 }
 
-__attribute__((noinline)) inline result<void> parse_json(symbol& result, json_token_stream& stream) {
+template <typename S>
+result<void> from_json(symbol& result, S& stream) {
     auto r = stream.get_string();
     if (!r)
         return r.error();
     uint64_t sym;
     if (!eosio::string_to_symbol(sym, r.value().data(), r.value().data() + r.value().size()))
-        return parse_json_error::value_invalid;
+        return from_json_error::value_invalid;
     result = symbol{sym};
     return outcome::success();
 }
@@ -47,19 +50,20 @@ result<void> to_json(const asset& a, S& stream) {
 }
 
 // todo: named-args format
-template <typename Arg0, typename... Args>
-void args_json_to_bin(type_list<Arg0, Args...>, std::vector<char>& dest, json_token_stream& stream) {
+template <typename Arg0, typename... Args, typename S>
+void args_json_to_bin(type_list<Arg0, Args...>, std::vector<char>& dest, S& stream) {
     std::decay_t<Arg0> obj{};
-    check_discard(parse_json(obj, stream));
+    check_discard(from_json(obj, stream));
     auto bin = pack(obj);
     dest.insert(dest.end(), bin.begin(), bin.end());
     args_json_to_bin(type_list<Args...>{}, dest, stream);
 }
 
-__attribute__((noinline)) inline void args_json_to_bin(type_list<>, std::vector<char>& dest, json_token_stream& stream) {}
+template <typename S>
+void args_json_to_bin(type_list<>, std::vector<char>& dest, S& stream) {}
 
-template <typename C, typename R, typename... Args>
-void args_json_to_bin(R (C::*)(Args...), std::vector<char>& dest, json_token_stream& stream) {
+template <typename C, typename R, typename... Args, typename S>
+void args_json_to_bin(R (C::*)(Args...), std::vector<char>& dest, S& stream) {
     args_json_to_bin(type_list<Args...>{}, dest, stream);
 }
 

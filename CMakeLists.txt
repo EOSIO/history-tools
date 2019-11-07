@@ -94,6 +94,9 @@ include(VersionMacros)
 set(WITH_TESTS OFF)
 
 add_compile_options(-Wno-error=shadow)
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-copy -Wno-pessimizing-move")
+endif()
 
 add_subdirectory(external/appbase EXCLUDE_FROM_ALL)
 add_subdirectory(external/fc EXCLUDE_FROM_ALL)

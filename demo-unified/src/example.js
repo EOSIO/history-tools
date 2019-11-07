@@ -60,8 +60,8 @@ commander
             mod: new WebAssembly.Module(fs.readFileSync('../build/eosio.token.client.wasm')),
             encoder, decoder, fetch, queryUrl,
         });
-        if (commander.transact) test_transact(token);
-        if (commander.query) test_query(token);
+        if (commander.transact) await test_transact(token);
+        if (commander.query) await test_query(token);
     } catch (e) {
         if (e instanceof RpcError && e.json && e.json.error && e.json.error.details)
             console.log(e.json.error.details);

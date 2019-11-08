@@ -62,13 +62,13 @@ An `action` is an event which is part of a `transaction`. A transaction is atomi
 Action handlers may produce additional actions during their execution:
 
 ```c++
-[[eosio::handle_action]]
+[[eosio::action]]
 void foo(
    names  action_senders) {
       send_action(get_self(), "bar"_n, "arg0", 1, 2.1);
 }
 
-[[eosio::handle_action]]
+[[eosio::action]]
 void bar(
    names    action_senders,
    string   arg0,
@@ -77,7 +77,7 @@ void bar(
       send_action(get_self(), "baz"_n);
 }
 
-[[eosio::handle_action]]
+[[eosio::action]]
 void baz(
    names    action_senders) {
 }

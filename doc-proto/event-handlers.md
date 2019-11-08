@@ -14,7 +14,7 @@ class token_event_handler {
       [[eosio::action]]
       void open(
          names  action_senders,
-         name   account,
+         name   owner,
          symbol token_type) {
             // open an account
       }
@@ -26,7 +26,7 @@ class token_event_handler {
          name   to,
          asset  amount,
          string memo) {
-            // transfer tokens
+            // modify token balances
       }
 };
 ```
@@ -37,7 +37,7 @@ Event handlers don't have to be classes. The following also defines an event han
 [[eosio::action]]
 void open(
    names  action_senders,
-   name   account,
+   name   owner,
    symbol token_type) {
       // open an account
 }
@@ -49,7 +49,7 @@ void transfer(
    name   to,
    asset  amount,
    string memo) {
-      // transfer tokens
+      // modify token balances
 }
 ```
 
@@ -91,3 +91,35 @@ In this example, Action 0's handler produced Action 2 and Action 2's handler pro
 
 ## Queries
 
+![Query Handler](query-handler.svg)
+
+Query handlers receive query requests from an RPC API, query a database, and send results back to the API user. Unlike action handlers and filter handlers, query handlers may not modify databases.
+
+```c++
+[[eosio::query]]
+vector<asset> get_balances(
+   name   owner) {
+      // fetch data from database and return result
+}
+```
+
+## Filters
+
+![Filter Handler](filter-handler.svg)
+
+Filter handlers monitor actions and record additional data to their off-chain database. This
+database isn't available to action handlers; off-chain databases may be created, modified, and
+dropped without impacting chain operation. Unlike action handlers, filters may not create
+additional events.
+
+```c++
+[[eosio::filter]]
+void transfer(
+   names  action_senders,
+   name   from,
+   name   to,
+   asset  amount,
+   string memo) {
+      // record transfer history
+}
+```

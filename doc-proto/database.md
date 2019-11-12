@@ -19,8 +19,8 @@ struct my_table: table<my_struct> {
    index foo_index{    "foo"_n,       &my_struct::foo_key};
    index bar_index{    "bar"_n,       &my_struct::bar_key};
 
-   my_table() {
-      init("my.contract"_n, "my.table"_n, primary_index, foo_index, bar_index);
+   my_table(context& c) {
+      init(c, "my.contract"_n, "my.table"_n, primary_index, foo_index, bar_index);
    }
 };
 ```
@@ -48,11 +48,13 @@ struct my_other_struct {
 };
 
 struct my_table: table<my_struct, my_other_struct> {
-    index primary_index{"primary"_n,   &my_struct::primary_key,   &my_other_struct::primary_key};
-    index foo_index{    "foo"_n,       &my_struct::foo_key,       &my_other_struct::foo_key};
-    index bar_index{    "bar"_n,       &my_struct::bar_key,       &my_other_struct::bar_key};
+   index primary_index{"primary"_n,   &my_struct::primary_key,   &my_other_struct::primary_key};
+   index foo_index{    "foo"_n,       &my_struct::foo_key,       &my_other_struct::foo_key};
+   index bar_index{    "bar"_n,       &my_struct::bar_key,       &my_other_struct::bar_key};
 
-    my_table() { init("my.contract"_n, "my.table"_n, primary_index, foo_index, bar_index); }
+   my_table(context& c) {
+      init("my.contract"_n, "my.table"_n, primary_index, foo_index, bar_index);
+   }
 };
 ```
 
@@ -62,8 +64,8 @@ To add rows to a table, instantiate it then use `insert()`. This automatically r
 when they match the primary key.
 
 ```c++
-void add_a_row() {
-   my_table t;
+void add_a_row(context& c) {
+   my_table t{c};
    my_struct s{
       .n1 = "something"_n,
       .n2 = "else"_n,
@@ -76,11 +78,11 @@ void add_a_row() {
 
 ## Finding Rows
 
-To find a rows using an index, use `find()`.
+To find rows using an index, use `find()`.
 
 ```c++
-void find_a_row() {
-   my_table t;
+void find_a_row(context& c) {
+   my_table t{c};
    auto it = t.foo_index.find("a string");
    if (it != t.foo_index.end()) {
       my_struct obj = it.read();
@@ -96,8 +98,8 @@ void find_a_row() {
 This loops through a range of keys:
 
 ```c++
-void loop() {
-   my_table t;
+void loop(context& c) {
+   my_table t{c};
    for(my_struct obj: t.bar_index.range({"aa", "bb"}, {"xx", "yy"})) {
       // use obj
    }

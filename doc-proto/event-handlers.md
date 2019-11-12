@@ -1,5 +1,3 @@
-
-
 # Event Handlers
 
 ## Basic Event Hander
@@ -9,48 +7,66 @@
 An event handler receives input events, may optionally read and write to a database, and may optionally create additional events. An event handler may look like the following:
 
 ```c++
-class token_event_handler {
-   public:
-      [[eosio::action]]
-      void open(
-         names  action_senders,
-         name   owner,
-         symbol token_type) {
-            // open an account
-      }
-
-      [[eosio::action]]
-      void transfer(
-         names  action_senders,
-         name   from,
-         name   to,
-         asset  amount,
-         string memo) {
-            // modify token balances
-      }
-};
-```
-
-Event handlers don't have to be classes. The following also defines an event handler:
-
-```c++
 [[eosio::action]]
 void open(
-   names  action_senders,
-   name   owner,
-   symbol token_type) {
-      // open an account
+   context& c,
+   name     owner,
+   symbol   token_type) {
+      // create a token balance record
 }
 
 [[eosio::action]]
 void transfer(
-   names  action_senders,
-   name   from,
-   name   to,
-   asset  amount,
-   string memo) {
+   context& c,
+   name     from,
+   name     to,
+   asset    amount,
+   string   memo) {
       // modify token balances
 }
+```
+
+Event handlers may optionally live in classes or structs:
+
+```c++
+struct token_contract {
+   [[eosio::action]]
+   void open(
+      context& c,
+      name     owner,
+      symbol   token_type) {
+         // create a token balance record
+   }
+
+   [[eosio::action]]
+   void transfer(
+      context& c,
+      name     from,
+      name     to,
+      asset    amount,
+      string   memo) {
+         // modify token balances
+   }
+};
+```
+
+## Context Objects
+
+Context objects describe the environment an event handler is executing in.
+
+```c++
+struct context {
+   name self;
+   bool is_in_contract;
+   bool is_in_filter;
+   bool is_in_query;
+   bool is_action;
+   bool database_is_writable;
+   // ...
+   bool has_auth(name account);
+   name sender;
+   // ...
+};
 ```
 
 ## Actions and Transactions
@@ -63,23 +79,21 @@ Action handlers may produce additional actions during their execution:
 
 ```c++
 [[eosio::action]]
-void foo(
-   names  action_senders) {
-      send_action(get_self(), "bar"_n, "arg0", 1, 2.1);
+void foo(context& c) {
+      send_action(c.self, "bar"_n, "arg0", 1, 2.1);
 }
 
 [[eosio::action]]
 void bar(
-   names    action_senders,
+   context& c,
    string   arg0,
    uint32_t arg1,
    double   arg2) {
-      send_action(get_self(), "baz"_n);
+      send_action(c.self, "baz"_n);
 }
 
 [[eosio::action]]
-void baz(
-   names    action_senders) {
+void baz(context& c) {
 }
 ```
 
@@ -108,14 +122,14 @@ vector<asset> get_balances(
 ![Filter Handler](filter-handler.svg)
 
 Filter handlers monitor actions and record additional data to their off-chain database. This
-database isn't available to action handlers; off-chain databases may be created, modified, and
-dropped without impacting chain operation. Unlike action handlers, filters may not create
-additional events.
+additional database isn't available to action handlers; off-chain databases may be created,
+modified, and dropped without impacting chain operation. Unlike action handlers, filters may
+not create additional events.
 
 ```c++
 [[eosio::filter]]
 void transfer(
-   names  action_senders,
+   context& c,
    name   from,
    name   to,
    asset  amount,

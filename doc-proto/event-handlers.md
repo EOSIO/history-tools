@@ -4,7 +4,7 @@
 
 ![Event Handler](event-handler.svg)
 
-An event handler receives input events, may optionally read and write to a database, and may optionally create additional events. An event handler may look like the following:
+An event handler receives input events, may optionally read and write to a database, and may optionally create additional events. Here's some example handlers for actions (a type of event):
 
 ```c++
 [[eosio::action]]
@@ -80,7 +80,7 @@ Action handlers may produce additional actions during their execution:
 ```c++
 [[eosio::action]]
 void foo(context& c) {
-      send_action(c.self, "bar"_n, "arg0", 1, 2.1);
+   send_action(c.self, "bar"_n, "arg0", 1, 2.1);
 }
 
 [[eosio::action]]

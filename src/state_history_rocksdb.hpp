@@ -81,21 +81,23 @@ struct database {
 
 inline rocksdb::Slice to_slice(const std::vector<char>& v) { return {v.data(), v.size()}; }
 
-inline rocksdb::Slice to_slice(abieos::input_buffer v) { return {v.pos, size_t(v.end - v.pos)}; }
+inline rocksdb::Slice to_slice(eosio::input_stream v) { return {v.pos, size_t(v.end - v.pos)}; }
 
-inline abieos::input_buffer to_input_buffer(rocksdb::Slice v) { return {v.data(), v.data() + v.size()}; }
+inline eosio::input_stream to_input_buffer(rocksdb::Slice v) { return {v.data(), v.data() + v.size()}; }
 
-inline abieos::input_buffer to_input_buffer(rocksdb::PinnableSlice& v) { return {v.data(), v.data() + v.size()}; }
+inline eosio::input_stream to_input_buffer(rocksdb::PinnableSlice& v) { return {v.data(), v.data() + v.size()}; }
 
 inline void put(rocksdb::WriteBatch& batch, const std::vector<char>& key, const std::vector<char>& value, bool overwrite = false) {
     // !!! remove overwrite
     batch.Put(to_slice(key), to_slice(value));
 }
 
+/*
 template <typename T>
 void put(rocksdb::WriteBatch& batch, const std::vector<char>& key, const T& value, bool overwrite = false) {
     put(batch, key, abieos::native_to_bin(value), overwrite);
 }
+*/
 
 inline void write(database& db, rocksdb::WriteBatch& batch) {
     // todo: verify status write order
@@ -114,7 +116,7 @@ inline bool exists(database& db, rocksdb::Slice key) {
     return true;
 }
 
-inline std::optional<abieos::input_buffer> get_raw(rocksdb::Iterator& it, const std::vector<char>& key, bool required) {
+inline std::optional<eosio::input_stream> get_raw(rocksdb::Iterator& it, const std::vector<char>& key, bool required) {
     it.Seek(to_slice(key));
     auto stat = it.status();
     if (stat.IsNotFound() && !required)
@@ -139,6 +141,7 @@ std::optional<T> get(rocksdb::Iterator& it, const std::vector<char>& key, bool r
         return {};
 }
 */
+/*
 template <typename T>
 std::optional<T> get(database& db, const std::vector<char>& key, bool required) {
     rocksdb::PinnableSlice v;
@@ -149,6 +152,7 @@ std::optional<T> get(database& db, const std::vector<char>& key, bool required) 
     auto bin = to_input_buffer(v);
     return abieos::bin_to_native<T>(bin);
 }
+*/
 /*
 // Loop through keys in range [lower_bound, upper_bound], inclusive. lower_bound and upper_bound may
 // be partial keys (prefixes). They may be different sizes. Does not skip keys with duplicate prefixes.
@@ -213,17 +217,17 @@ class db_view {
 
     class iterator;
     using bytes        = std::vector<char>;
-    using input_buffer = abieos::input_buffer;
+    using input_stream = eosio::input_stream;
 
     struct key_value {
-        input_buffer key   = {};
-        input_buffer value = {};
+        input_stream key   = {};
+        input_stream value = {};
     };
 
     struct key_present_value {
-        input_buffer key     = {};
+        input_stream key     = {};
         bool         present = {};
-        input_buffer value   = {};
+        input_stream value   = {};
     };
 
     struct present_value {
@@ -232,7 +236,7 @@ class db_view {
     };
 
   private:
-    static int key_compare(input_buffer a, input_buffer b) {
+    static int key_compare(input_stream a, input_stream b) {
         auto a_size = a.end - a.pos;
         auto b_size = b.end - b.pos;
         int  r      = memcmp(a.pos, b.pos, std::min(a_size, b_size));
@@ -466,12 +470,22 @@ class db_view {
         discard_changes();
     }
 
-    void set(input_buffer k, input_buffer v) {
+    bool get(input_stream k, std::vector<char>& dest) {
+        rocksdb::PinnableSlice v;
+        auto                   stat = db.db->Get(rocksdb::ReadOptions(), db.db->DefaultColumnFamily(), to_slice(k), &v);
+        if (stat.IsNotFound())
+            return false;
+        check(stat, "get: ");
+        dest.assign(v.data(), v.data() + v.size());
+        return true;
+    }
+
+    void set(input_stream k, input_stream v) {
         write_batch.Put(to_slice(k), to_slice(v));
         changes[{k.pos, k.end}] = {true, {v.pos, v.end}};
     }
 
-    void erase(input_buffer k) {
+    void erase(input_stream k) {
         write_batch.Delete(to_slice(k));
         changes[{k.pos, k.end}] = {false, {}};
     }
@@ -480,6 +494,7 @@ class db_view {
 struct db_view_state {
     db_view&                                        view;
     std::vector<std::shared_ptr<db_view::iterator>> iterators;
+    std::vector<char>                               kv_get_storage;
 
     db_view_state(db_view& view)
         : view{view}
@@ -499,6 +514,20 @@ struct db_view_state {
 template <typename Derived>
 struct db_callbacks {
     Derived& derived() { return static_cast<Derived&>(*this); }
+
+    int32_t kv_get(const char* k_begin, uint32_t k_size) {
+        derived().check_bounds(k_begin, k_size);
+        if (!derived().state.view.get({k_begin, k_begin + k_size}, derived().state.kv_get_storage))
+            return -1;
+        return derived().state.kv_get_storage.size();
+    }
+
+    int32_t kv_get_data(char* v_begin, uint32_t v_size) {
+        derived().check_bounds(v_begin, v_size);
+        auto& storage = derived().state.kv_get_storage;
+        memcpy(v_begin, storage.data(), std::min((size_t)v_size, storage.size()));
+        return storage.size();
+    }
 
     void kv_set(const char* k_begin, uint32_t k_size, const char* v_begin, uint32_t v_size) {
         derived().check_bounds(k_begin, k_size);
@@ -603,6 +632,8 @@ struct db_callbacks {
 
     template <typename Rft, typename Allocator>
     static void register_callbacks() {
+        Rft::template add<Derived, &Derived::kv_get, Allocator>("env", "kv_get");
+        Rft::template add<Derived, &Derived::kv_get_data, Allocator>("env", "kv_get_data");
         Rft::template add<Derived, &Derived::kv_set, Allocator>("env", "kv_set");
         Rft::template add<Derived, &Derived::kv_erase, Allocator>("env", "kv_erase");
         Rft::template add<Derived, &Derived::kv_it_create, Allocator>("env", "kv_it_create");

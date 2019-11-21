@@ -108,7 +108,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         connection->connect();
     }
 
-    void received_abi(std::string_view abi) override {
+    void received_abi() override {
         if (config->create_schema) {
             create_tables();
             config->create_schema = false;

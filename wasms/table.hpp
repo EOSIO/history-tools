@@ -1,6 +1,7 @@
 #pragma once
 
 #include <abieos.hpp>
+#include <eosio/to_key.hpp>
 #include <type_traits>
 
 #ifdef EOSIO_CDT_COMPILATION
@@ -9,80 +10,9 @@
 
 namespace abieos {
 
-template <typename T>
-inline constexpr bool serial_reversible = std::is_signed_v<T> || std::is_unsigned_v<T>;
-
-template <>
-inline constexpr bool serial_reversible<abieos::name> = true;
-
-#ifdef EOSIO_CDT_COMPILATION
-template <>
-inline constexpr bool serial_reversible<eosio::name> = true;
-#endif
-
-template <>
-inline constexpr bool serial_reversible<abieos::uint128> = true;
-
-template <>
-inline constexpr bool serial_reversible<abieos::checksum256> = true;
-
-template <typename F>
-void reverse_bin(std::vector<char>& bin, F f) {
-    auto s = bin.size();
-    f();
-    std::reverse(bin.begin() + s, bin.end());
-}
-
-template <typename T, typename F>
-auto fixup_key(std::vector<char>& bin, F f) -> std::enable_if_t<serial_reversible<T>, void> {
-    reverse_bin(bin, f);
-}
-
-template <typename T>
-void native_to_key(const T& obj, std::vector<char>& bin);
-
-inline void native_to_key(const std::string& obj, std::vector<char>& bin) {
-    for (auto ch : obj) {
-        if (ch) {
-            bin.push_back(ch);
-        } else {
-            bin.push_back(0);
-            bin.push_back(0);
-        }
-    }
-    bin.push_back(0);
-    bin.push_back(1);
-}
-
-template <int i, typename... Ts>
-void native_to_key_tuple(const std::tuple<Ts...>& obj, std::vector<char>& bin) {
-    if constexpr (i < sizeof...(Ts)) {
-        native_to_key(std::get<i>(obj), bin);
-        native_to_key_tuple<i + 1>(obj, bin);
-    }
-}
-
-template <typename... Ts>
-void native_to_key(const std::tuple<Ts...>& obj, std::vector<char>& bin) {
-    native_to_key_tuple<0>(obj, bin);
-}
-
-template <typename T>
-void native_to_key(const T& obj, std::vector<char>& bin) {
-    if constexpr (serial_reversible<std::decay_t<T>>) {
-        fixup_key<T>(bin, [&] { abieos::native_to_bin(obj, bin); });
-    } else {
-        for_each_field((T*)nullptr, [&](auto* name, auto member_ptr) { //
-            native_to_key(member_from_void(member_ptr, &obj), bin);
-        });
-    }
-}
-
-template <typename T>
-std::vector<char> native_to_key(const T& obj) {
-    std::vector<char> bin;
-    native_to_key(obj, bin);
-    return bin;
+template <typename S>
+eosio::result<void> to_key(const name& obj, S& stream) {
+    return to_key(obj.value, stream);
 }
 
 } // namespace abieos
@@ -94,8 +24,10 @@ namespace internal_use_do_not_use {
 
 #define IMPORT extern "C" __attribute__((eosio_wasm_import))
 
-IMPORT void kv_set(const char* k_begin, uint32_t k_size, const char* v_begin, uint32_t v_size);
-IMPORT void kv_erase(const char* k_begin, uint32_t k_size);
+IMPORT int32_t kv_get(const char* k_begin, uint32_t k_size);
+IMPORT int32_t kv_get_data(char* v_begin, uint32_t v_size);
+IMPORT void    kv_set(const char* k_begin, uint32_t k_size, const char* v_begin, uint32_t v_size);
+IMPORT void    kv_erase(const char* k_begin, uint32_t k_size);
 IMPORT uint32_t kv_it_create(const char* prefix, uint32_t size);
 IMPORT void     kv_it_destroy(uint32_t index);
 IMPORT bool     kv_it_is_end(uint32_t index);
@@ -137,6 +69,8 @@ class kv_environment {
     }
 
     // clang-format off
+    int32_t  kv_get(const char* k_begin, uint32_t k_size)                               {return internal_use_do_not_use::kv_get(k_begin, k_size);}
+    int32_t  kv_get_data(char* v_begin, uint32_t v_size)                                {return internal_use_do_not_use::kv_get_data(v_begin, v_size);}
     void     kv_erase(const char* k_begin, uint32_t k_size)                             {return internal_use_do_not_use::kv_erase(k_begin,  k_size);}
     uint32_t kv_it_create(const char* prefix, uint32_t size)                            {return internal_use_do_not_use::kv_it_create(prefix, size);}
     void     kv_it_destroy(uint32_t index)                                              {return internal_use_do_not_use::kv_it_destroy(index);}
@@ -339,6 +273,7 @@ class table_iterator {
         std::vector<char> bin(size);
         check(ind->t->environment.kv_it_value(it, 0, bin.data(), size) == size, "iterator read failure");
         if (!ind->is_primary) {
+            // !!!
             auto temp_it = ind->t->primary_index->get_temp_it();
             ind->t->environment.kv_it_lower_bound(temp_it, bin.data(), bin.size());
             check(ind->t->environment.kv_it_key_matches(temp_it, bin.data(), bin.size()), "iterator read failure");
@@ -348,9 +283,7 @@ class table_iterator {
             check(ind->t->environment.kv_it_value(temp_it, 0, bin.data(), size) == size, "iterator read failure");
         }
         obj = std::make_unique<T>();
-        std::string          error;
-        abieos::input_buffer b{bin.data(), bin.data() + bin.size()};
-        check(abieos::bin_to_native<T>(*obj, error, b), error);
+        check_discard(convert_from_bin(*obj, bin));
         return *obj;
     }
 
@@ -383,8 +316,10 @@ void table<T>::init(abieos::name table_context, abieos::name table_name, index& 
     this->primary_index     = &primary_index;
     this->secondary_indexes = {&secondary_indexes...};
 
-    native_to_key(table_context, prefix);
-    native_to_key(table_name, prefix);
+    prefix.reserve(16);
+    vector_stream stream{prefix};
+    (void)to_key(table_context, stream);
+    (void)to_key(table_name, stream);
     primary_index.initialize(this, true);
     (secondary_indexes.initialize(this, false), ...);
     initialized = true;
@@ -396,7 +331,7 @@ void table<T>::insert(const T& obj, bool bypass_preexist_check) {
     pk.insert(pk.begin(), primary_index->prefix.begin(), primary_index->prefix.end());
     if (!bypass_preexist_check)
         erase_pk(pk);
-    environment.kv_set(pk, abieos::native_to_bin(obj));
+    environment.kv_set(pk, check(convert_to_bin(obj)).value());
     for (auto* ind : secondary_indexes) {
         auto sk = ind->get_key(obj);
         sk.insert(sk.begin(), ind->prefix.begin(), ind->prefix.end());
@@ -423,10 +358,8 @@ void table<T>::erase_pk(const std::vector<char>& pk) {
     check(size >= 0, "iterator read failure");
     std::vector<char> bin(size);
     check(environment.kv_it_value(temp_it, 0, bin.data(), size) == size, "iterator read failure");
-    T                    obj;
-    std::string          error;
-    abieos::input_buffer b{bin.data(), bin.data() + bin.size()};
-    check(abieos::bin_to_native<T>(obj, error, b), error);
+    T obj;
+    check_discard(convert_from_bin(obj, bin));
     for (auto* ind : secondary_indexes) {
         auto sk = ind->get_key(obj);
         sk.insert(sk.begin(), ind->prefix.begin(), ind->prefix.end());
@@ -453,7 +386,10 @@ void index<T>::initialize(table* t, bool is_primary) {
     this->t          = t;
     this->is_primary = is_primary;
     prefix           = t->prefix;
-    native_to_key(index_name, prefix);
+
+    prefix.reserve(8);
+    vector_stream stream{prefix};
+    (void)to_key(index_name, stream);
 }
 
 template <typename T>

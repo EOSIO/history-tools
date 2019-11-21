@@ -18,38 +18,9 @@ namespace state_history {
 [[noreturn]] inline void report_error(const std::string& s) { throw std::runtime_error(s); }
 #endif
 
-template <typename T>
-T read_raw(abieos::input_buffer& bin) {
-    T           result{};
-    std::string error;
-    if (!abieos::read_raw<T>(bin, error, result))
-        report_error(error);
-    return result;
-}
-
-template <typename T>
-T assert_bin_to_native(abieos::input_buffer& bin) {
-    T           result{};
-    std::string error;
-    if (!abieos::bin_to_native<T>(result, error, bin))
-        report_error(error);
-    return result;
-}
-
-template <typename T>
-T assert_bin_to_native(abieos::input_buffer&& bin) {
-    return assert_bin_to_native<T>(bin);
-}
-
-template <typename T>
-T assert_bin_to_native(const std::vector<char>& bin) {
-    abieos::input_buffer b{bin.data(), bin.data() + bin.size()};
-    return assert_bin_to_native<T>(b);
-}
-
 struct extension {
-    uint16_t             type = {};
-    abieos::input_buffer data = {};
+    uint16_t            type = {};
+    eosio::input_stream data = {};
 };
 
 EOSIO_REFLECT(extension, type, data)
@@ -106,17 +77,10 @@ inline transaction_status get_transaction_status(const std::string& s) {
     report_error("unknown status: " + s);
 }
 
-inline bool bin_to_native(transaction_status& status, abieos::bin_to_native_state& state, bool) {
-    status = transaction_status(state_history::read_raw<uint8_t>(state.bin));
-    return true;
+template <typename S>
+eosio::result<void> from_bin(transaction_status& obj, S& stream) {
+    return stream.read_raw(obj);
 }
-
-inline bool json_to_native(transaction_status&, abieos::json_to_native_state& state, abieos::event_type, bool) {
-    state.error = "json_to_native: transaction_status unsupported";
-    return false;
-}
-
-inline void native_to_bin(const transaction_status& obj, std::vector<char>& bin) { abieos::push_raw(bin, static_cast<uint8_t>(obj)); }
 
 struct block_position {
     uint32_t            block_num = {};
@@ -165,13 +129,13 @@ EOSIO_REFLECT(
     get_status_result_v0, head, last_irreversible, trace_begin_block, trace_end_block, chain_state_begin_block, chain_state_end_block)
 
 struct get_blocks_result_v0 {
-    block_position                      head              = {};
-    block_position                      last_irreversible = {};
-    std::optional<block_position>       this_block        = {};
-    std::optional<block_position>       prev_block        = {};
-    std::optional<abieos::input_buffer> block             = {};
-    std::optional<abieos::input_buffer> traces            = {};
-    std::optional<abieos::input_buffer> deltas            = {};
+    block_position                     head              = {};
+    block_position                     last_irreversible = {};
+    std::optional<block_position>      this_block        = {};
+    std::optional<block_position>      prev_block        = {};
+    std::optional<eosio::input_stream> block             = {};
+    std::optional<eosio::input_stream> traces            = {};
+    std::optional<eosio::input_stream> deltas            = {};
 };
 
 EOSIO_REFLECT(get_blocks_result_v0, head, last_irreversible, this_block, prev_block, block, traces, deltas)
@@ -179,8 +143,8 @@ EOSIO_REFLECT(get_blocks_result_v0, head, last_irreversible, this_block, prev_bl
 using result = std::variant<get_status_result_v0, get_blocks_result_v0>;
 
 struct row {
-    bool                 present = {};
-    abieos::input_buffer data    = {};
+    bool                present = {};
+    eosio::input_stream data    = {};
 };
 
 EOSIO_REFLECT(row, present, data)
@@ -233,7 +197,7 @@ struct action {
     abieos::name                  account       = {};
     abieos::name                  name          = {};
     std::vector<permission_level> authorization = {};
-    abieos::input_buffer          data          = {};
+    eosio::input_stream           data          = {};
 };
 
 EOSIO_REFLECT(action, account, name, authorization, data)
@@ -259,15 +223,15 @@ EOSIO_REFLECT(
 using action_trace = std::variant<action_trace_v0>;
 
 struct partial_transaction_v0 {
-    abieos::time_point_sec            expiration             = {};
-    uint16_t                          ref_block_num          = {};
-    uint32_t                          ref_block_prefix       = {};
-    abieos::varuint32                 max_net_usage_words    = {};
-    uint8_t                           max_cpu_usage_ms       = {};
-    abieos::varuint32                 delay_sec              = {};
-    std::vector<extension>            transaction_extensions = {};
-    std::vector<abieos::signature>    signatures             = {};
-    std::vector<abieos::input_buffer> context_free_data      = {};
+    abieos::time_point_sec           expiration             = {};
+    uint16_t                         ref_block_num          = {};
+    uint32_t                         ref_block_prefix       = {};
+    abieos::varuint32                max_net_usage_words    = {};
+    uint8_t                          max_cpu_usage_ms       = {};
+    abieos::varuint32                delay_sec              = {};
+    std::vector<extension>           transaction_extensions = {};
+    std::vector<abieos::signature>   signatures             = {};
+    std::vector<eosio::input_stream> context_free_data      = {};
 };
 
 EOSIO_REFLECT(
@@ -304,15 +268,10 @@ struct recurse_transaction_trace {
     transaction_trace recurse = {};
 };
 
-inline bool bin_to_native(recurse_transaction_trace& obj, abieos::bin_to_native_state& state, bool start) {
-    return abieos::bin_to_native(obj.recurse, state, start);
+template <typename S>
+eosio::result<void> from_bin(recurse_transaction_trace& obj, S& stream) {
+    return from_bin(obj.recurse, stream);
 }
-
-inline bool json_to_native(recurse_transaction_trace& obj, abieos::json_to_native_state& state, abieos::event_type event, bool start) {
-    return abieos::json_to_native(obj.recurse, state, event, start);
-}
-
-inline void native_to_bin(const recurse_transaction_trace& obj, std::vector<char>& bin) { abieos::native_to_bin(obj.recurse, bin); }
 
 struct producer_key {
     abieos::name       producer_name     = {};
@@ -339,8 +298,8 @@ EOSIO_REFLECT(transaction_receipt_header, status, cpu_usage_us, net_usage_words)
 struct packed_transaction {
     std::vector<abieos::signature> signatures               = {};
     uint8_t                        compression              = {};
-    abieos::input_buffer           packed_context_free_data = {};
-    abieos::input_buffer           packed_trx               = {};
+    eosio::input_stream            packed_context_free_data = {};
+    eosio::input_stream            packed_trx               = {};
 };
 
 EOSIO_REFLECT(packed_transaction, signatures, compression, packed_context_free_data, packed_trx)
@@ -429,7 +388,7 @@ EOSIO_REFLECT(code_id, vm_type, vm_version, code_hash)
 struct account_v0 {
     abieos::name            name          = {};
     abieos::block_timestamp creation_date = {};
-    abieos::input_buffer    abi           = {};
+    eosio::input_stream     abi           = {};
 };
 
 EOSIO_REFLECT(account_v0, name, creation_date, abi)
@@ -448,10 +407,10 @@ EOSIO_REFLECT(account_metadata_v0, name, privileged, last_code_update, code)
 using account_metadata = std::variant<account_metadata_v0>;
 
 struct code_v0 {
-    uint8_t              vm_type    = {};
-    uint8_t              vm_version = {};
-    abieos::checksum256  code_hash  = {};
-    abieos::input_buffer code       = {};
+    uint8_t             vm_type    = {};
+    uint8_t             vm_version = {};
+    abieos::checksum256 code_hash  = {};
+    eosio::input_stream code       = {};
 };
 
 EOSIO_REFLECT(code_v0, vm_type, vm_version, code_hash, code)
@@ -470,12 +429,12 @@ EOSIO_REFLECT(contract_table_v0, code, scope, table, payer)
 using contract_table = std::variant<contract_table_v0>;
 
 struct contract_row_v0 {
-    abieos::name         code        = {};
-    abieos::name         scope       = {};
-    abieos::name         table       = {};
-    uint64_t             primary_key = {};
-    abieos::name         payer       = {};
-    abieos::input_buffer value       = {};
+    abieos::name        code        = {};
+    abieos::name        scope       = {};
+    abieos::name        table       = {};
+    uint64_t            primary_key = {};
+    abieos::name        payer       = {};
+    eosio::input_stream value       = {};
 };
 
 EOSIO_REFLECT(contract_row_v0, code, scope, table, primary_key, payer, value)
@@ -630,7 +589,7 @@ struct generated_transaction_v0 {
     uint128_t            sender_id  = {};
     abieos::name         payer      = {};
     abieos::checksum256  trx_id     = {};
-    abieos::input_buffer packed_trx = {};
+    eosio::input_stream packed_trx = {};
 };
 
 using generated_transaction = std::variant<generated_transaction_v0>;
@@ -749,30 +708,6 @@ struct resource_limits_config_v0 {
 };
 
 using resource_limits_config = std::variant<resource_limits_config_v0>;
-
-#ifndef EOSIO_CDT_COMPILATION
-inline void check_variant(abieos::input_buffer& bin, const abieos::abi_type& type, uint32_t expected) {
-    using namespace std::literals;
-    auto index = abieos::read_varuint32(bin);
-    if (!type.filled_variant)
-        throw std::runtime_error(type.name + " is not a variant"s);
-    if (index >= type.fields.size())
-        throw std::runtime_error("expected "s + type.fields[expected].name + " got " + std::to_string(index));
-    if (index != expected)
-        throw std::runtime_error("expected "s + type.fields[expected].name + " got " + type.fields[index].name);
-}
-
-inline void check_variant(abieos::input_buffer& bin, const abieos::abi_type& type, const char* expected) {
-    using namespace std::literals;
-    auto index = abieos::read_varuint32(bin);
-    if (!type.filled_variant)
-        throw std::runtime_error(type.name + " is not a variant"s);
-    if (index >= type.fields.size())
-        throw std::runtime_error("expected "s + expected + " got " + std::to_string(index));
-    if (type.fields[index].name != expected)
-        throw std::runtime_error("expected "s + expected + " got " + type.fields[index].name);
-}
-#endif
 
 struct trx_filter {
     bool                              include     = {};

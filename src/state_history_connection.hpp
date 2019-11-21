@@ -14,9 +14,9 @@ namespace state_history {
 
 struct connection_callbacks {
     virtual ~connection_callbacks() = default;
-    virtual void received_abi(std::string_view abi) {}
-    virtual bool received(get_status_result_v0& status, abieos::input_buffer bin) { return true; }
-    virtual bool received(get_blocks_result_v0& result, abieos::input_buffer bin) { return true; }
+    virtual void received_abi() {}
+    virtual bool received(get_status_result_v0& status, eosio::input_stream bin) { return true; }
+    virtual bool received(get_blocks_result_v0& result, eosio::input_stream bin) { return true; }
     virtual void closed(bool retry) = 0;
 };
 
@@ -92,22 +92,25 @@ struct connection : std::enable_shared_from_this<connection> {
     }
 
     void receive_abi(const std::shared_ptr<flat_buffer>& p) {
-        auto data = p->data();
-        auto sv   = std::string_view{(const char*)data.data(), data.size()};
-        json_to_native(abi, sv);
+        auto                     data = p->data();
+        std::string              json{(const char*)data.data(), data.size()};
+        eosio::json_token_stream stream{json.data()};
+        eosio::check_discard(from_json(abi, stream));
         abieos::check_abi_version(abi.version);
         abi_types = abieos::create_contract(abi).abi_types;
         have_abi  = true;
         if (callbacks)
-            callbacks->received_abi(sv);
+            callbacks->received_abi();
     }
 
     bool receive_result(const std::shared_ptr<flat_buffer>& p) {
         auto                  data = p->data();
-        input_buffer          bin{(const char*)data.data(), (const char*)data.data() + data.size()};
+        eosio::input_stream   bin{(const char*)data.data(), (const char*)data.data() + data.size()};
         auto                  orig = bin;
         state_history::result result;
-        bin_to_native(result, bin);
+        auto                  r = from_bin(result, bin);
+        if (!r)
+            report_error(r.error().message());
         return callbacks && std::visit([&](auto& r) { return callbacks->received(r, orig); }, result);
     }
 
@@ -144,7 +147,9 @@ struct connection : std::enable_shared_from_this<connection> {
 
     void send(const request& req) {
         auto bin = std::make_shared<std::vector<char>>();
-        abieos::native_to_bin(req, *bin);
+        auto r   = eosio::convert_to_bin(req, *bin);
+        if (!r)
+            report_error(r.error().message());
         stream.async_write(boost::asio::buffer(*bin), [self = shared_from_this(), bin, this](error_code ec, size_t) {
             enter_callback(ec, "async_write", [&] {});
         });

@@ -148,7 +148,7 @@ function(add_app APP MAIN FLAGS LIBS)
 endfunction(add_app)
 
 add_app(history-tools main "-DDEFAULT_PLUGINS=" "${PQXX_LIBRARIES};${ROCKSDB_LIB}")
-add_app(boing boing "" "${ROCKSDB_LIB}")
+# add_app(boing boing "" "${ROCKSDB_LIB}")
 
 message(STATUS "----------------------------------------------------")
 message(STATUS "Checked libraries:")

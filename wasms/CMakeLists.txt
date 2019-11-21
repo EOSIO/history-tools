@@ -46,6 +46,7 @@ function(add_other TARGET SRC)
         ${ROOT_SOURCE_DIR}/external/abieos/include
         ${ROOT_SOURCE_DIR}/external/abieos/src
         ${ROOT_SOURCE_DIR}/external/abieos/external/date/include 
+        ${ROOT_SOURCE_DIR}/external/abieos/external/outcome/single-header
         ${ROOT_SOURCE_DIR}/external/abieos/external/rapidjson/include 
         )
     set_target_properties(${TARGET}
@@ -57,5 +58,5 @@ endfunction()
 # add_subdirectory(legacy)
 # add_subdirectory(token)
 
-add_other(foo foo.cpp)
+# add_other(foo foo.cpp)
 add_other(fill-system fill-system.cpp)

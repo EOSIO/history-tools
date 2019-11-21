@@ -18,6 +18,7 @@ ABIEOS_REFLECT(name) { //
     ABIEOS_MEMBER(name, value);
 }
 
+/*
 void native_to_bin(const symbol& obj, std::vector<char>& bin) { abieos::native_to_bin(obj.raw(), bin); }
 
 ABIEOS_NODISCARD inline bool bin_to_native(symbol& obj, abieos::bin_to_native_state& state, bool start) {
@@ -32,6 +33,7 @@ ABIEOS_NODISCARD bool json_to_native(symbol& obj, abieos::json_to_native_state& 
     check(false, "not implemented");
     return false;
 }
+*/
 
 ABIEOS_REFLECT(asset) {
     ABIEOS_MEMBER(asset, amount);
@@ -49,27 +51,18 @@ namespace internal_use_do_not_use {
 
 #define IMPORT extern "C" __attribute__((eosio_wasm_import))
 
-IMPORT void get_bin(void* cb_alloc_data, void* (*cb_alloc)(void* cb_alloc_data, size_t size));
+IMPORT uint32_t get_bin(void* data, uint32_t size);
 
 #undef IMPORT
-
-template <typename Alloc_fn>
-inline void get_bin(Alloc_fn alloc_fn) {
-    return get_bin(&alloc_fn, [](void* cb_alloc_data, size_t size) -> void* { //
-        return (*reinterpret_cast<Alloc_fn*>(cb_alloc_data))(size);
-    });
-}
 
 } // namespace internal_use_do_not_use
 
 inline const std::vector<char>& get_bin() {
     static std::optional<std::vector<char>> bytes;
     if (!bytes) {
-        internal_use_do_not_use::get_bin([&](size_t size) {
-            bytes.emplace();
-            bytes->resize(size);
-            return bytes->data();
-        });
+        bytes.emplace();
+        bytes->resize(internal_use_do_not_use::get_bin(nullptr, 0));
+        internal_use_do_not_use::get_bin(bytes->data(), bytes->size());
     }
     return *bytes;
 }

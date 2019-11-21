@@ -77,7 +77,7 @@ template <typename R, typename... Args>
 inline std::string ret_bin_to_json(R (*)(Args...), datastream<const char*>& ds) {
     R ret{};
     ds >> ret;
-    return check(to_json(ret)).value();
+    return check(convert_to_json(ret)).value();
 }
 
 template <typename... Args>

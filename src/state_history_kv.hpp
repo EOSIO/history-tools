@@ -15,6 +15,7 @@ inline void inc_key(std::vector<char>& key) {
             return;
 }
 
+/*
 template <typename F>
 void reverse_bin(std::vector<char>& bin, F f) {
     auto s = bin.size();
@@ -531,6 +532,7 @@ inline std::vector<char> extract_pk_from_index(abieos::input_buffer index, const
     fill_positions_from_index(index, index_keys, block, present_k, positions);
     return extract_pk(index, table, block, present_k, positions);
 }
+*/
 
 } // namespace kv
 } // namespace state_history

@@ -82,7 +82,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         connection->connect();
     }
 
-    void received_abi(std::string_view abi) override {
+    void received_abi() override {
         load_fill_status();
         ilog("clean up stale records");
         end_write(true);
@@ -94,7 +94,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         connection->send(get_status_request_v0{});
     }
 
-    bool received(get_status_result_v0& status, abieos::input_buffer bin) override {
+    bool received(get_status_result_v0& status, eosio::input_stream bin) override {
         ilog("request blocks");
         connection->request_blocks(status, std::max(config->skip_to, head + 1), get_positions());
         return true;
@@ -148,7 +148,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         view.write_changes();
     }
 
-    bool received(get_blocks_result_v0& result, abieos::input_buffer bin) override {
+    bool received(get_blocks_result_v0& result, eosio::input_stream bin) override {
         if (!result.this_block)
             return true;
         if (config->stop_before && result.this_block->block_num >= config->stop_before) {
@@ -197,12 +197,13 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         return true;
     } // receive_result()
 
-    void receive_deltas(uint32_t block_num, input_buffer bin) {
+    void receive_deltas(uint32_t block_num, eosio::input_stream bin) {
         rdb::db_view_state view_state{view};
-        auto               num = read_varuint32(bin);
+        uint32_t           num;
+        eosio::check_discard(eosio::varuint32_from_bin(num, bin));
         for (uint32_t i = 0; i < num; ++i) {
             state_history::table_delta delta;
-            bin_to_native(delta, bin);
+            eosio::check_discard(from_bin(delta, bin));
             auto&  delta_v0      = std::get<0>(delta);
             size_t num_processed = 0;
             store_delta({view_state}, delta_v0, head == 0, [&]() {

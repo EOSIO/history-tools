@@ -69,10 +69,10 @@ static void run_query(wasm_ql::thread_state& thread_state, abieos::name short_na
 const std::vector<char>&
 query(wasm_ql::thread_state& thread_state, std::string_view wasm, std::string_view query, const std::vector<char>& request) {
     abieos::name wasm_name;
-    if (!abieos::string_to_name_strict(wasm, wasm_name.value))
+    if (!eosio::string_to_name_strict(wasm, wasm_name.value))
         throw std::runtime_error("invalid wasm name");
     abieos::name query_name;
-    if (!abieos::string_to_name_strict(query, query_name.value))
+    if (!eosio::string_to_name_strict(query, query_name.value))
         throw std::runtime_error("invalid query name");
     thread_state.input_data = abieos::input_buffer{request.data(), request.data() + request.size()};
     run_query(thread_state, wasm_name, query_name);
@@ -81,8 +81,8 @@ query(wasm_ql::thread_state& thread_state, std::string_view wasm, std::string_vi
 
 const std::vector<char>& legacy_query(wasm_ql::thread_state& thread_state, const std::string& target, const std::vector<char>& request) {
     std::vector<char> req;
-    abieos::native_to_bin(target, req);
-    abieos::native_to_bin(request, req);
+    eosio::check_discard(eosio::convert_to_bin(target, req));
+    eosio::check_discard(eosio::convert_to_bin(request, req));
     thread_state.input_data = abieos::input_buffer{req.data(), req.data() + req.size()};
     // run_query(thread_state, "legacy"_n);
     return thread_state.output_data;

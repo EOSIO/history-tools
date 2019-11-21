@@ -1,5 +1,7 @@
 # Event Handlers
 
+![All Handlers](all-handlers.svg)
+
 ## Basic Event Hander
 
 ![Event Handler](event-handler.svg)
@@ -57,14 +59,13 @@ Context objects describe the environment an event handler is executing in.
 ```c++
 struct context {
    name self;
-   bool is_in_contract;
-   bool is_in_filter;
-   bool is_in_query;
-   bool is_action;
-   bool database_is_writable;
+   eosio::environment   environment;   // contract, filter, or query
+   bool                 is_action;
+   bool                 database_is_writable;
    // ...
-   bool has_auth(name account);
-   name sender;
+   bool                 has_auth(name account);
+   void                 require_auth(name account);
+   name                 sender;
    // ...
 };
 ```
@@ -112,6 +113,7 @@ Query handlers receive query requests from an RPC API, query a database, and sen
 ```c++
 [[eosio::query]]
 vector<asset> get_balances(
+   context& c,
    name   owner) {
       // fetch data from database and return result
 }

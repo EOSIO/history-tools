@@ -10,8 +10,7 @@ namespace history_tools {
 
 class iterator_cache {
   private:
-    using db_view = state_history::rdb::db_view;
-    db_view& view;
+    chain_kv::view& view;
 
     struct table_key {
         uint64_t code  = {};
@@ -33,11 +32,11 @@ class iterator_cache {
     };
 
     struct iterator {
-        int32_t                          table_index = {};
-        uint64_t                         primary     = {};
-        std::vector<char>                value;
-        int32_t                          next = -1;
-        std::optional<db_view::iterator> view_it;
+        int32_t                                 table_index = {};
+        uint64_t                                primary     = {};
+        std::vector<char>                       value;
+        int32_t                                 next = -1;
+        std::optional<chain_kv::view::iterator> view_it;
     };
     std::vector<iterator>      iterators;
     std::vector<iterator>      end_iterators;
@@ -47,11 +46,11 @@ class iterator_cache {
         auto map_it = table_to_index.find(key);
         if (map_it != table_to_index.end())
             return map_it->second;
-        if (!exists(
-                view.db, state_history::rdb::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
-                                                                       abieos::name{"system"}, abieos::name{"contract.tab"},
-                                                                       abieos::name{"primary"}, key.code, key.table, key.scope)))
-                                                          .value())))
+        if (!state_history::rdb::exists(
+                view.db, chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
+                                                             abieos::name{"system"}, abieos::name{"contract.tab"}, abieos::name{"primary"},
+                                                             key.code, key.table, key.scope)))
+                                                .value())))
             return -1;
         if (tables.size() != table_to_index.size() || tables.size() != end_iterators.size())
             throw std::runtime_error("internal error: tables.size() mismatch");
@@ -66,7 +65,7 @@ class iterator_cache {
         return result;
     }
 
-    int32_t get_iterator(row_key rk, db_view::iterator&& view_it) {
+    int32_t get_iterator(row_key rk, chain_kv::view::iterator&& view_it) {
         iterator* it;
         int32_t   result;
         if (view_it.is_end()) {
@@ -85,10 +84,11 @@ class iterator_cache {
                     throw std::runtime_error("too many iterators");
                 result = iterators.size();
                 iterators.emplace_back();
-                it              = &iterators.back();
-                auto row        = std::get<0>(eosio::check(eosio::from_bin<state_history::contract_row>(view_it.get_kv()->value)).value());
-                it->table_index = rk.table_index;
-                it->primary     = row.primary_key;
+                it = &iterators.back();
+                eosio::input_stream stream{view_it.get_kv()->value.data(), view_it.get_kv()->value.size()};
+                auto                row = std::get<0>(eosio::check(eosio::from_bin<state_history::contract_row>(stream)).value());
+                it->table_index         = rk.table_index;
+                it->primary             = row.primary_key;
                 it->value.insert(it->value.end(), row.value.pos, row.value.end);
             }
         }
@@ -104,7 +104,7 @@ class iterator_cache {
     int32_t index_to_end_iterator(size_t indx) const { return -(indx + 2); }
 
   public:
-    iterator_cache(db_view& view)
+    iterator_cache(chain_kv::view& view)
         : view{view} {}
 
     size_t db_get_i64(int itr, char* buffer, uint32_t buffer_size) {
@@ -132,15 +132,16 @@ class iterator_cache {
         } else if (it.next < -1) {
             return it.next;
         }
-        std::optional<db_view::iterator> view_it = std::move(it.view_it);
+        std::optional<chain_kv::view::iterator> view_it = std::move(it.view_it);
         it.view_it.reset();
         if (!view_it) {
             std::cout << "db_next_i64: db_view::iterator\n";
             const auto& table_key = tables[it.table_index];
-            view_it               = db_view::iterator{view, eosio::check(eosio::convert_to_key(std::make_tuple(
-                                                               abieos::name{"system"}, abieos::name{"contract.row"},
-                                                               abieos::name{"primary"}, table_key.code, table_key.table, table_key.scope)))
-                                                  .value()};
+            view_it =
+                chain_kv::view::iterator{view, eosio::check(eosio::convert_to_key(std::make_tuple(
+                                                                abieos::name{"system"}, abieos::name{"contract.row"},
+                                                                abieos::name{"primary"}, table_key.code, table_key.table, table_key.scope)))
+                                                   .value()};
             view_it->lower_bound(eosio::check(eosio::convert_to_key(std::make_tuple(
                                                   abieos::name{"system"}, abieos::name{"contract.row"}, abieos::name{"primary"},
                                                   table_key.code, table_key.table, table_key.scope, it.primary)))
@@ -151,9 +152,10 @@ class iterator_cache {
             it.next = index_to_end_iterator(itr);
             return it.next;
         } else {
-            auto row = std::get<0>(eosio::check(eosio::from_bin<state_history::contract_row>(view_it->get_kv()->value)).value());
-            primary  = row.primary_key;
-            it.next  = get_iterator({it.table_index, primary}, std::move(*view_it));
+            eosio::input_stream stream{view_it->get_kv()->value.data(), view_it->get_kv()->value.size()};
+            auto                row = std::get<0>(eosio::check(eosio::from_bin<state_history::contract_row>(stream)).value());
+            primary                 = row.primary_key;
+            it.next                 = get_iterator({it.table_index, primary}, std::move(*view_it));
             return it.next;
         }
     }
@@ -171,7 +173,7 @@ class iterator_cache {
             return map_it->second;
         }
         std::cout << "lower_bound: db_view::iterator\n";
-        db_view::iterator it{
+        chain_kv::view::iterator it{
             view, eosio::check(eosio::convert_to_key(std::make_tuple(
                                    abieos::name{"system"}, abieos::name{"contract.row"}, abieos::name{"primary"}, code, table, scope)))
                       .value()};

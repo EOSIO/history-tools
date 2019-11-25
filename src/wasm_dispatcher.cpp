@@ -16,10 +16,9 @@ struct run_state : history_tools::wasm_state<backend_t>, state_history::rdb::db_
     std::vector<char>   args;
     eosio::input_stream bin;
 
-    run_state(
-        const char* wasm, eosio::vm::wasm_allocator& wa, backend_t& backend, state_history::rdb::db_view& db_view, std::vector<char> args)
+    run_state(const char* wasm, eosio::vm::wasm_allocator& wa, backend_t& backend, chain_kv::view& view, std::vector<char> args)
         : wasm_state{wa, backend}
-        , db_view_state{db_view}
+        , db_view_state{view}
         , args{args} {}
 };
 
@@ -115,13 +114,13 @@ void wasm_dispatcher_impl::create(                     //
     std::vector<abieos::name> ships,                   //
     std::vector<std::string>  api_handlers) {
 
-    std::lock_guard<std::mutex>  lock{mutex};
-    eosio::vm::wasm_allocator    wa;
-    auto                         code = backend_t::read_wasm(wasm);
-    backend_t                    backend(code);
-    state_history::rdb::database db{"db.rocksdb", {}, {}, true};
-    state_history::rdb::db_view  db_view{db};
-    auto state = std::make_shared<run_state>(wasm.c_str(), wa, backend, db_view, eosio::check(eosio::convert_to_bin(args)).value());
+    std::lock_guard<std::mutex> lock{mutex};
+    eosio::vm::wasm_allocator   wa;
+    auto                        code = backend_t::read_wasm(wasm);
+    backend_t                   backend(code);
+    chain_kv::database          db{"db.rocksdb", {}, {}, true};
+    chain_kv::view              view{db};
+    auto state = std::make_shared<run_state>(wasm.c_str(), wa, backend, view, eosio::check(eosio::convert_to_bin(args)).value());
 
     // todo: state: drop shared_ptr?
     backend.set_wasm_allocator(&wa);

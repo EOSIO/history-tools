@@ -8,11 +8,11 @@ using namespace appbase;
 using namespace std::literals;
 
 struct rocksdb_plugin_impl {
-    boost::filesystem::path                       db_path        = {};
-    std::optional<uint32_t>                       threads        = {};
-    std::optional<uint32_t>                       max_open_files = {};
-    std::shared_ptr<state_history::rdb::database> database       = {};
-    std::mutex                                    mutex          = {};
+    boost::filesystem::path             db_path        = {};
+    std::optional<uint32_t>             threads        = {};
+    std::optional<uint32_t>             max_open_files = {};
+    std::shared_ptr<chain_kv::database> database       = {};
+    std::mutex                          mutex          = {};
 };
 
 static abstract_plugin& _rocksdb_plugin = app().register_plugin<rocksdb_plugin>();
@@ -48,9 +48,9 @@ void rocksdb_plugin::plugin_startup() {}
 
 void rocksdb_plugin::plugin_shutdown() {}
 
-std::shared_ptr<state_history::rdb::database> rocksdb_plugin::get_db() {
+std::shared_ptr<chain_kv::database> rocksdb_plugin::get_db() {
     std::lock_guard<std::mutex> lock(my->mutex);
     if (!my->database)
-        my->database = std::make_shared<state_history::rdb::database>(my->db_path.c_str(), my->threads, my->max_open_files, true);
+        my->database = std::make_shared<chain_kv::database>(my->db_path.c_str(), true, my->threads, my->max_open_files);
     return my->database;
 }

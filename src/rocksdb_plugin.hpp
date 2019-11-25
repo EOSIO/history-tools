@@ -16,7 +16,7 @@ class rocksdb_plugin : public appbase::plugin<rocksdb_plugin> {
     void         plugin_startup();
     void         plugin_shutdown();
 
-    std::shared_ptr<state_history::rdb::database> get_db();
+    std::shared_ptr<chain_kv::database> get_db();
 
   private:
     std::shared_ptr<struct rocksdb_plugin_impl> my;

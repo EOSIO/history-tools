@@ -61,17 +61,17 @@ struct fill_rocksdb_plugin_impl : std::enable_shared_from_this<fill_rocksdb_plug
 };
 
 struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_session> {
-    fill_rocksdb_plugin_impl*                     my = nullptr;
-    std::shared_ptr<fill_rocksdb_config>          config;
-    std::shared_ptr<state_history::rdb::database> db   = app().find_plugin<rocksdb_plugin>()->get_db();
-    state_history::rdb::db_view                   view = {*db};
-    std::shared_ptr<state_history::connection>    connection;
-    std::optional<state_history::fill_status_v0>  current_db_status = {};
-    uint32_t                                      head              = 0;
-    abieos::checksum256                           head_id           = {};
-    uint32_t                                      irreversible      = 0;
-    abieos::checksum256                           irreversible_id   = {};
-    uint32_t                                      first             = 0;
+    fill_rocksdb_plugin_impl*                    my = nullptr;
+    std::shared_ptr<fill_rocksdb_config>         config;
+    std::shared_ptr<chain_kv::database>          db   = app().find_plugin<rocksdb_plugin>()->get_db();
+    chain_kv::view                               view = {*db};
+    std::shared_ptr<state_history::connection>   connection;
+    std::optional<state_history::fill_status_v0> current_db_status = {};
+    uint32_t                                     head              = 0;
+    abieos::checksum256                          head_id           = {};
+    uint32_t                                     irreversible      = 0;
+    abieos::checksum256                          irreversible_id   = {};
+    uint32_t                                     first             = 0;
 
     flm_session(fill_rocksdb_plugin_impl* my)
         : my(my)

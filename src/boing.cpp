@@ -11,7 +11,7 @@ struct state : history_tools::wasm_state<backend_t>, state_history::rdb::db_view
     std::vector<char>    args;
     abieos::input_buffer bin;
 
-    state(const char* wasm, eosio::vm::wasm_allocator& wa, backend_t& backend, state_history::rdb::database& db, std::vector<char> args)
+    state(const char* wasm, eosio::vm::wasm_allocator& wa, backend_t& backend, chain_kv::database& db, std::vector<char> args)
         : wasm_state{wa, backend}
         , db_view_state{db}
         , args{args} {}
@@ -75,11 +75,11 @@ struct ship_connection_state : state_history::connection_callbacks, std::enable_
 };
 
 static void run(const char* wasm, const std::vector<std::string>& args) {
-    eosio::vm::wasm_allocator    wa;
-    auto                         code = backend_t::read_wasm(wasm);
-    backend_t                    backend(code);
-    state_history::rdb::database db{"db.rocksdb", {}, {}, true};
-    auto                         state = std::make_shared<::state>(wasm, wa, backend, db, abieos::native_to_bin(args));
+    eosio::vm::wasm_allocator wa;
+    auto                      code = backend_t::read_wasm(wasm);
+    backend_t                 backend(code);
+    chain_kv::database        db{"db.rocksdb", {}, {}, true};
+    auto                      state = std::make_shared<::state>(wasm, wa, backend, db, abieos::native_to_bin(args));
     // todo: state: drop shared_ptr?
     backend.set_wasm_allocator(&wa);
 

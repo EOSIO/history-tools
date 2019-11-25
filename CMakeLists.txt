@@ -119,6 +119,7 @@ function(add_app APP MAIN FLAGS LIBS)
             external/abieos/external/date/include
             external/abieos/external/rapidjson/include
             external/appbase/include
+            external/chain-kv/include
             external/eos-vm/include
             external/eos-vm/external/softfloat/source/include
             external/fc/include

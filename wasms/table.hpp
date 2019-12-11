@@ -24,21 +24,23 @@ namespace internal_use_do_not_use {
 
 #define IMPORT extern "C" __attribute__((eosio_wasm_import))
 
-IMPORT int32_t kv_get(const char* k_begin, uint32_t k_size);
-IMPORT int32_t kv_get_data(char* v_begin, uint32_t v_size);
-IMPORT void    kv_set(const char* k_begin, uint32_t k_size, const char* v_begin, uint32_t v_size);
-IMPORT void    kv_erase(const char* k_begin, uint32_t k_size);
-IMPORT uint32_t kv_it_create(const char* prefix, uint32_t size);
-IMPORT void     kv_it_destroy(uint32_t index);
-IMPORT bool     kv_it_is_end(uint32_t index);
-IMPORT int      kv_it_compare(uint32_t a, uint32_t b);
-IMPORT bool     kv_it_move_to_begin(uint32_t index);
-IMPORT void     kv_it_move_to_end(uint32_t index);
-IMPORT void     kv_it_lower_bound(uint32_t index, const char* key, uint32_t size);
-IMPORT bool     kv_it_key_matches(uint32_t index, const char* key, uint32_t size);
-IMPORT bool     kv_it_incr(uint32_t index);
-IMPORT int32_t kv_it_key(uint32_t index, uint32_t offset, char* dest, uint32_t size);
-IMPORT int32_t kv_it_value(uint32_t index, uint32_t offset, char* dest, uint32_t size);
+// clang-format off
+IMPORT void     kv_erase(uint64_t db, uint64_t contract, const char* key, uint32_t key_size);
+IMPORT void     kv_set(uint64_t db, uint64_t contract, const char* key, uint32_t key_size, const char* value, uint32_t value_size);
+IMPORT bool     kv_get(uint64_t db, uint64_t contract, const char* key, uint32_t key_size, uint32_t& value_size);
+IMPORT uint32_t kv_get_data(uint64_t db, uint32_t offset, char* data, uint32_t data_size);
+IMPORT uint32_t kv_it_create(uint64_t db, uint64_t contract, const char* prefix, uint32_t size);
+IMPORT void     kv_it_destroy(uint32_t itr);
+IMPORT it_stat  kv_it_status(uint32_t itr);
+IMPORT int      kv_it_compare(uint32_t itr_a, uint32_t itr_b);
+IMPORT int      kv_it_key_compare(uint32_t itr, const char* key, uint32_t size);
+IMPORT it_stat  kv_it_move_to_end(uint32_t itr);
+IMPORT it_stat  kv_it_next(uint32_t itr);
+IMPORT it_stat  kv_it_prev(uint32_t itr);
+IMPORT it_stat  kv_it_lower_bound(uint32_t itr, const char* key, uint32_t size);
+IMPORT it_stat  kv_it_key(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size);
+IMPORT it_stat  kv_it_value(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size);
+// clang-format on
 
 #undef IMPORT
 
@@ -69,20 +71,21 @@ class kv_environment {
     }
 
     // clang-format off
-    int32_t  kv_get(const char* k_begin, uint32_t k_size)                               {return internal_use_do_not_use::kv_get(k_begin, k_size);}
-    int32_t  kv_get_data(char* v_begin, uint32_t v_size)                                {return internal_use_do_not_use::kv_get_data(v_begin, v_size);}
-    void     kv_erase(const char* k_begin, uint32_t k_size)                             {return internal_use_do_not_use::kv_erase(k_begin,  k_size);}
-    uint32_t kv_it_create(const char* prefix, uint32_t size)                            {return internal_use_do_not_use::kv_it_create(prefix, size);}
-    void     kv_it_destroy(uint32_t index)                                              {return internal_use_do_not_use::kv_it_destroy(index);}
-    bool     kv_it_is_end(uint32_t index)                                               {return internal_use_do_not_use::kv_it_is_end(index);}
-    int      kv_it_compare(uint32_t a, uint32_t b)                                      {return internal_use_do_not_use::kv_it_compare(a, b);}
-    bool     kv_it_move_to_begin(uint32_t index)                                        {return internal_use_do_not_use::kv_it_move_to_begin(index);}
-    void     kv_it_move_to_end(uint32_t index)                                          {return internal_use_do_not_use::kv_it_move_to_end(index);}
-    void     kv_it_lower_bound(uint32_t index, const char* key, uint32_t size)          {return internal_use_do_not_use::kv_it_lower_bound(index, key, size);}
-    bool     kv_it_key_matches(uint32_t index, const char* key, uint32_t size)          {return internal_use_do_not_use::kv_it_key_matches(index, key, size);}
-    bool     kv_it_incr(uint32_t index)                                                 {return internal_use_do_not_use::kv_it_incr(index);}
-    int32_t  kv_it_key(uint32_t index, uint32_t offset, char* dest, uint32_t size)      {return internal_use_do_not_use::kv_it_key(index, offset, dest, size);}
-    int32_t  kv_it_value(uint32_t index, uint32_t offset, char* dest, uint32_t size)    {return internal_use_do_not_use::kv_it_value(index, offset, dest, size);}
+    void     kv_erase(uint64_t db, uint64_t contract, const char* key, uint32_t key_size)                                       {return internal_use_do_not_use::kv_erase(db, contract, key, key_size);}
+    void     kv_set(uint64_t db, uint64_t contract, const char* key, uint32_t key_size, const char* value, uint32_t value_size) {return internal_use_do_not_use::kv_set(db, contract, key, key_size, value, value_size);}
+    bool     kv_get(uint64_t db, uint64_t contract, const char* key, uint32_t key_size, uint32_t& value_size)                   {return internal_use_do_not_use::kv_get(db, contract, key, key_size, value_size);}
+    uint32_t kv_get_data(uint64_t db, uint32_t offset, char* data, uint32_t data_size)                                          {return internal_use_do_not_use::kv_get_data(db, offset, data, data_size);}
+    uint32_t kv_it_create(uint64_t db, uint64_t contract, const char* prefix, uint32_t size)                                    {return internal_use_do_not_use::kv_it_create(db, contract, prefix, size);}
+    void     kv_it_destroy(uint32_t itr)                                                                                        {return internal_use_do_not_use::kv_it_destroy(itr);}
+    it_stat  kv_it_status(uint32_t itr)                                                                                         {return internal_use_do_not_use::kv_it_status(itr);}
+    int      kv_it_compare(uint32_t itr_a, uint32_t itr_b)                                                                      {return internal_use_do_not_use::kv_it_compare(itr_a, itr_b);}
+    int      kv_it_key_compare(uint32_t itr, const char* key, uint32_t size)                                                    {return internal_use_do_not_use::kv_it_key_compare(itr, key, size);}
+    it_stat  kv_it_move_to_end(uint32_t itr)                                                                                    {return internal_use_do_not_use::kv_it_move_to_end(itr);}
+    it_stat  kv_it_next(uint32_t itr)                                                                                           {return internal_use_do_not_use::kv_it_next(itr);}
+    it_stat  kv_it_prev(uint32_t itr)                                                                                           {return internal_use_do_not_use::kv_it_prev(itr);}
+    it_stat  kv_it_lower_bound(uint32_t itr, const char* key, uint32_t size)                                                    {return internal_use_do_not_use::kv_it_lower_bound(itr, key, size);}
+    it_stat  kv_it_key(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size)                         {return internal_use_do_not_use::kv_it_key(itr, offset, dest, size, actual_size);}
+    it_stat  kv_it_value(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size)                       {return internal_use_do_not_use::kv_it_value(itr, offset, dest, size, actual_size);}
     // clang-format on
 
     template <typename T>
@@ -124,7 +127,7 @@ class table {
     table(table&&)      = delete;
 
     template <typename... Indexes>
-    void init(abieos::name table_context, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes);
+    void init(abieos::name database, abieos::name contract, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes);
 
     void     insert(const T& obj, bool bypass_preexist_check = false);
     void     erase(const T& obj);
@@ -133,6 +136,8 @@ class table {
 
   private:
     bool                initialized{};
+    abieos::name        database{};
+    abieos::name        contract{};
     std::vector<char>   prefix{};
     index*              primary_index{};
     std::vector<index*> secondary_indexes{};
@@ -174,7 +179,7 @@ class index {
 
     uint32_t get_temp_it() {
         if (!temp_it)
-            temp_it = t->environment.kv_it_create(prefix.data(), prefix.size());
+            temp_it = t->environment.kv_it_create(t->database.value, t->contract.value, prefix.data(), prefix.size());
         return temp_it;
     }
 };
@@ -223,13 +228,11 @@ class table_iterator {
     table_iterator& operator=(table_iterator&&) = default;
 
     friend int compare(const table_iterator& a, const table_iterator& b) {
-        bool a_end = !a.it || a.ind->t->environment.kv_it_is_end(a.it);
-        bool b_end = !b.it || a.ind->t->environment.kv_it_is_end(b.it);
-        if (a_end && b_end)
+        if (!a.it && !b.it)
             return 0;
-        else if (a_end && !b_end)
+        else if (!a.it && b.it)
             return 1;
-        else if (!a_end && b_end)
+        else if (a.it && !b.it)
             return -1;
         else
             return a.ind->t->environment.kv_it_compare(a.it, b.it);
@@ -250,37 +253,36 @@ class table_iterator {
     }
 
     std::vector<char> get_raw_key() {
-        auto size = ind->t->environment.kv_it_key(it, 0, nullptr, 0);
-        check(size >= 0, "iterator read failure");
+        uint32_t size;
+        check(!ind->t->environment.kv_it_key(it, 0, nullptr, 0, size), "iterator read failure");
         std::vector<char> result(size);
-        check(ind->t->environment.kv_it_key(it, 0, result.data(), size) == size, "iterator read failure");
+        check(!ind->t->environment.kv_it_key(it, 0, result.data(), size, size), "iterator read failure");
         return result;
     }
 
     std::vector<char> get_raw_value() {
-        auto size = ind->t->environment.kv_it_value(it, 0, nullptr, 0);
-        check(size >= 0, "iterator read failure");
+        uint32_t size;
+        check(!ind->t->environment.kv_it_value(it, 0, nullptr, 0, size), "iterator read failure");
         std::vector<char> result(size);
-        check(ind->t->environment.kv_it_value(it, 0, result.data(), size) == size, "iterator read failure");
+        check(!ind->t->environment.kv_it_value(it, 0, result.data(), size, size), "iterator read failure");
         return result;
     }
 
     // Reads object, stores it in cache, and returns it. Use this if something else may have changed object.
     // Caution: object gets destroyed when iterator is destroyed or moved or if read_fresh() is called again.
     const T& read_fresh() {
-        auto size = ind->t->environment.kv_it_value(it, 0, nullptr, 0);
-        check(size >= 0, "iterator read failure");
+        uint32_t size;
+        check(!ind->t->environment.kv_it_value(it, 0, nullptr, 0, size), "iterator read failure");
         std::vector<char> bin(size);
-        check(ind->t->environment.kv_it_value(it, 0, bin.data(), size) == size, "iterator read failure");
+        check(!ind->t->environment.kv_it_value(it, 0, bin.data(), size, size), "iterator read failure");
         if (!ind->is_primary) {
             // !!!
             auto temp_it = ind->t->primary_index->get_temp_it();
             ind->t->environment.kv_it_lower_bound(temp_it, bin.data(), bin.size());
-            check(ind->t->environment.kv_it_key_matches(temp_it, bin.data(), bin.size()), "iterator read failure");
-            size = ind->t->environment.kv_it_value(temp_it, 0, nullptr, 0);
-            check(size >= 0, "iterator read failure");
+            check(!ind->t->environment.kv_it_key_compare(temp_it, bin.data(), bin.size()), "iterator read failure");
+            check(!ind->t->environment.kv_it_value(temp_it, 0, nullptr, 0, size), "iterator read failure");
             bin.resize(size);
-            check(ind->t->environment.kv_it_value(temp_it, 0, bin.data(), size) == size, "iterator read failure");
+            check(!ind->t->environment.kv_it_value(temp_it, 0, bin.data(), size, size), "iterator read failure");
         }
         obj = std::make_unique<T>();
         check_discard(convert_from_bin(*obj, bin));
@@ -310,15 +312,18 @@ class table_iterator {
 
 template <typename T>
 template <typename... Indexes>
-void table<T>::init(abieos::name table_context, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes) {
+void table<T>::init(
+    abieos::name database, abieos::name contract, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes) {
     check(!initialized, "table is already initialized");
 
+    this->database          = database;
+    this->contract          = contract;
     this->primary_index     = &primary_index;
     this->secondary_indexes = {&secondary_indexes...};
 
     prefix.reserve(16);
     vector_stream stream{prefix};
-    (void)to_key(table_context, stream);
+    (void)to_key(contract, stream); // !!!
     (void)to_key(table_name, stream);
     primary_index.initialize(this, true);
     (secondary_indexes.initialize(this, false), ...);
@@ -331,13 +336,13 @@ void table<T>::insert(const T& obj, bool bypass_preexist_check) {
     pk.insert(pk.begin(), primary_index->prefix.begin(), primary_index->prefix.end());
     if (!bypass_preexist_check)
         erase_pk(pk);
-    environment.kv_set(pk, check(convert_to_bin(obj)).value());
+    environment.kv_set(database.value, contract.value, pk, check(convert_to_bin(obj)).value());
     for (auto* ind : secondary_indexes) {
         auto sk = ind->get_key(obj);
         sk.insert(sk.begin(), ind->prefix.begin(), ind->prefix.end());
         sk.insert(sk.end(), pk.begin(), pk.end());
         // todo: re-encode the key to make pk extractable and make value empty
-        environment.kv_set(sk, pk);
+        environment.kv_set(database.value, contract.value, sk, pk);
     }
 }
 
@@ -352,21 +357,24 @@ template <typename T>
 void table<T>::erase_pk(const std::vector<char>& pk) {
     auto temp_it = primary_index->get_temp_it();
     environment.kv_it_lower_bound(temp_it, pk.data(), pk.size());
-    if (!environment.kv_it_key_matches(temp_it, pk.data(), pk.size()))
+    if (environment.kv_it_key_compare(temp_it, pk.data(), pk.size()))
         return;
-    auto size = environment.kv_it_value(temp_it, 0, nullptr, 0);
+    uint32_t size;
+    // !!! check return value
+    environment.kv_it_value(temp_it, 0, nullptr, 0, size);
     check(size >= 0, "iterator read failure");
     std::vector<char> bin(size);
-    check(environment.kv_it_value(temp_it, 0, bin.data(), size) == size, "iterator read failure");
+    // !!! check return value
+    environment.kv_it_value(temp_it, 0, bin.data(), size, size);
     T obj;
     check_discard(convert_from_bin(obj, bin));
     for (auto* ind : secondary_indexes) {
         auto sk = ind->get_key(obj);
         sk.insert(sk.begin(), ind->prefix.begin(), ind->prefix.end());
         sk.insert(sk.end(), pk.begin(), pk.end());
-        environment.kv_erase(sk.data(), sk.size());
+        environment.kv_erase(database.value, contract.value, sk.data(), sk.size());
     }
-    environment.kv_erase(pk.data(), pk.size());
+    environment.kv_erase(database.value, contract.value, pk.data(), pk.size());
 }
 
 template <typename T>
@@ -395,8 +403,11 @@ void index<T>::initialize(table* t, bool is_primary) {
 template <typename T>
 table_iterator<T> index<T>::begin() {
     check(t, "index is not in a table");
-    iterator result{this, t->environment.kv_it_create(prefix.data(), prefix.size())};
-    t->environment.kv_it_move_to_begin(result.it);
+    iterator result{this, t->environment.kv_it_create(t->database.value, t->contract.value, prefix.data(), prefix.size())};
+    // !!! check return ???
+    t->environment.kv_it_move_to_end(result.it);
+    // !!! check return ???
+    t->environment.kv_it_next(result.it);
     return result;
 }
 

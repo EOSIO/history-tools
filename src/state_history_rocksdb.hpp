@@ -29,7 +29,7 @@ inline bool exists(chain_kv::database& db, rocksdb::Slice key) {
 struct db_view_state {
     chain_kv::view&                                        view;
     std::vector<std::shared_ptr<chain_kv::view::iterator>> iterators;
-    std::vector<char>                                      kv_get_storage;
+    std::vector<char>                                      temp_data_buffer; // !!! per db
 
     db_view_state(chain_kv::view& view)
         : view{view}
@@ -50,129 +50,156 @@ template <typename Derived>
 struct db_callbacks {
     Derived& derived() { return static_cast<Derived&>(*this); }
 
-    int32_t kv_get(const char* k_begin, uint32_t k_size) {
-        derived().check_bounds(k_begin, k_size);
-        if (!derived().state.view.get({k_begin, k_size}, derived().state.kv_get_storage))
-            return -1;
-        return derived().state.kv_get_storage.size();
+    void kv_erase(uint64_t db, uint64_t contract, const char* key, uint32_t key_size) {
+        derived().check_bounds(key, key_size);
+        derived().state.view.erase({key, key_size});
+        derived().state.temp_data_buffer.clear();
     }
 
-    int32_t kv_get_data(char* v_begin, uint32_t v_size) {
-        derived().check_bounds(v_begin, v_size);
-        auto& storage = derived().state.kv_get_storage;
-        memcpy(v_begin, storage.data(), std::min((size_t)v_size, storage.size()));
-        return storage.size();
+    void kv_set(uint64_t db, uint64_t contract, const char* key, uint32_t key_size, const char* value, uint32_t value_size) {
+        // !!! db, contract
+        // !!! limit key, value sizes
+        derived().check_bounds(key, key_size);
+        derived().check_bounds(value, value_size);
+        derived().state.view.set({key, key_size}, {value, value_size});
+        derived().state.temp_data_buffer.clear();
     }
 
-    void kv_set(const char* k_begin, uint32_t k_size, const char* v_begin, uint32_t v_size) {
-        derived().check_bounds(k_begin, k_size);
-        derived().check_bounds(v_begin, v_size);
-        derived().state.view.set({k_begin, k_size}, {v_begin, v_size});
+    bool kv_get(uint64_t db, uint64_t contract, const char* key, uint32_t key_size, uint32_t& value_size) {
+        // !!! db, contract
+        derived().check_bounds(key, key_size);
+        bool result = derived().state.view.get({key, key_size}, derived().state.temp_data_buffer);
+        value_size  = derived().state.temp_data_buffer.size();
+        return result;
     }
 
-    void kv_erase(const char* k_begin, uint32_t k_size) {
-        derived().check_bounds(k_begin, k_size);
-        derived().state.view.erase({k_begin, k_size});
+    uint32_t kv_get_data(uint64_t db, uint32_t offset, char* data, uint32_t data_size) {
+        // !!! db
+        derived().check_bounds(data, data_size);
+        auto& temp = derived().state.temp_data_buffer;
+        if (offset < temp.size())
+            memcpy(data, temp.data() + offset, std::min(data_size, temp.size() - offset));
+        return temp.size();
     }
 
-    chain_kv::view::iterator& get_it(uint32_t index) {
+    chain_kv::view::iterator& get_it(uint32_t itr) {
         auto& state = derived().state;
-        if (index >= state.iterators.size() || !state.iterators[index])
+        if (itr >= state.iterators.size() || !state.iterators[itr])
             throw std::runtime_error("iterator does not exist");
-        return *state.iterators[index];
+        return *state.iterators[itr];
     }
 
-    uint32_t kv_it_create(const char* prefix, uint32_t size) {
-        // todo: reuse destroyed slots?
+    uint32_t kv_it_create(uint64_t db, uint64_t contract, const char* prefix, uint32_t size) {
+        // !!! db, contract
+        // !!! reuse destroyed slots
+        // !!! limit # of iterators
         auto& state = derived().state;
         state.iterators.push_back(std::make_unique<chain_kv::view::iterator>(state.view, std::vector<char>{prefix, prefix + size}));
         return state.iterators.size() - 1;
     }
 
-    void kv_it_destroy(uint32_t index) {
-        get_it(index);
-        derived().state.iterators[index].reset();
+    void kv_it_destroy(uint32_t itr) {
+        get_it(itr);
+        derived().state.iterators[itr].reset();
     }
 
-    bool kv_it_is_end(uint32_t index) { return get_it(index).is_end(); }
-
-    int kv_it_compare(uint32_t a, uint32_t b) { return compare(get_it(a), get_it(b)); }
-
-    bool kv_it_move_to_begin(uint32_t index) {
-        auto& it = get_it(index);
-        it.move_to_begin();
-        return !it.is_end();
+    int32_t kv_it_status(uint32_t itr) {
+        // !!!
+        throw std::runtime_error("not implemented");
     }
 
-    void kv_it_move_to_end(uint32_t index) {
-        auto& it = get_it(index);
+    int kv_it_compare(uint32_t itr_a, uint32_t itr_b) {
+        // !!! throw if either is erased
+        // !!! throw if from different db or contracts
+        return compare(get_it(itr_a), get_it(itr_b));
+    }
+
+    int kv_it_key_compare(uint32_t itr, const char* key, uint32_t size) {
+        // !!! throw if itr is erased
+        derived().check_bounds(key, size);
+        auto& it = get_it(itr);
+        auto  kv = it.get_kv();
+        if (!kv)
+            return 1;
+        return chain_kv::compare_blob(kv->key, std::string_view{key, size});
+    }
+
+    int32_t kv_it_move_to_end(uint32_t itr) {
+        auto& it = get_it(itr);
         it.move_to_end();
+        return 0; // !!!
     }
 
-    void kv_it_lower_bound(uint32_t index, const char* key, uint32_t size) {
-        derived().check_bounds(key, size);
-        auto& it = get_it(index);
-        it.lower_bound(key, size);
-    }
-
-    // todo: kv_it_key_compare instead?
-    bool kv_it_key_matches(uint32_t index, const char* key, uint32_t size) {
-        derived().check_bounds(key, size);
-        auto& it = get_it(index);
-        auto  kv = it.get_kv();
-        return kv && kv->key.size() == size && !memcmp(kv->key.data(), key, size);
-    }
-
-    bool kv_it_incr(uint32_t index) {
-        auto& it = get_it(index);
+    int32_t kv_it_next(uint32_t itr) {
+        // !!! throw if itr is erased
+        // !!! wraparound
+        auto& it = get_it(itr);
         ++it;
-        return !it.is_end();
+        return 0; // !!!
     }
 
-    int32_t kv_it_key(uint32_t index, uint32_t offset, char* dest, uint32_t size) {
+    int32_t kv_it_prev(uint32_t itr) {
+        // !!!
+        throw std::runtime_error("not implemented");
+    }
+
+    int32_t kv_it_lower_bound(uint32_t itr, const char* key, uint32_t size) {
+        // !!! semantics change
+        derived().check_bounds(key, size);
+        auto& it = get_it(itr);
+        it.lower_bound(key, size);
+        return 0; // !!!
+    }
+
+    int32_t kv_it_key(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size) {
+        // !!! throw if itr is erased
         derived().check_bounds(dest, size);
-        if (offset)
-            throw std::runtime_error("offset must be 0");
-        auto& it = get_it(index);
+        auto& it = get_it(itr);
         auto  kv = it.get_kv();
-        if (!kv)
-            return -1;
-        auto actual_size = kv->key.size();
-        if (actual_size >= 0x8000'0000)
+        if (!kv) {
+            actual_size = 0;
+            return -1; // !!!
+        }
+        if (kv->key.size() >= 0x8000'0000)
             throw std::runtime_error("kv size is too big for wasm");
-        memcpy(dest, kv->key.data(), std::min(size, (uint32_t)actual_size));
-        return actual_size;
+        if (offset < kv->key.size())
+            memcpy(dest, kv->key.data() + offset, std::min(size, kv->key.size() - offset));
+        actual_size = kv->key.size();
+        return 0; // !!!
     }
 
-    int32_t kv_it_value(uint32_t index, uint32_t offset, char* dest, uint32_t size) {
+    int32_t kv_it_value(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size) {
+        // !!! throw if itr is erased
         derived().check_bounds(dest, size);
-        if (offset)
-            throw std::runtime_error("offset must be 0");
-        auto& it = get_it(index);
+        auto& it = get_it(itr);
         auto  kv = it.get_kv();
-        if (!kv)
-            return -1;
+        if (!kv) {
+            actual_size = 0;
+            return -1; // !!!
+        }
         if (kv->value.size() >= 0x8000'0000)
             throw std::runtime_error("kv size is too big for wasm");
-        memcpy(dest, kv->value.data(), std::min(size, (uint32_t)kv->value.size()));
-        return kv->value.size();
+        if (offset < kv->value.size())
+            memcpy(dest, kv->value.data() + offset, std::min(size, (uint32_t)kv->value.size() - offset));
+        actual_size = kv->value.size();
+        return 0; // !!!
     }
 
     template <typename Rft, typename Allocator>
     static void register_callbacks() {
+        Rft::template add<Derived, &Derived::kv_erase, Allocator>("env", "kv_erase");
+        Rft::template add<Derived, &Derived::kv_set, Allocator>("env", "kv_set");
         Rft::template add<Derived, &Derived::kv_get, Allocator>("env", "kv_get");
         Rft::template add<Derived, &Derived::kv_get_data, Allocator>("env", "kv_get_data");
-        Rft::template add<Derived, &Derived::kv_set, Allocator>("env", "kv_set");
-        Rft::template add<Derived, &Derived::kv_erase, Allocator>("env", "kv_erase");
         Rft::template add<Derived, &Derived::kv_it_create, Allocator>("env", "kv_it_create");
         Rft::template add<Derived, &Derived::kv_it_destroy, Allocator>("env", "kv_it_destroy");
-        Rft::template add<Derived, &Derived::kv_it_is_end, Allocator>("env", "kv_it_is_end");
+        Rft::template add<Derived, &Derived::kv_it_status, Allocator>("env", "kv_it_status");
         Rft::template add<Derived, &Derived::kv_it_compare, Allocator>("env", "kv_it_compare");
-        Rft::template add<Derived, &Derived::kv_it_move_to_begin, Allocator>("env", "kv_it_move_to_begin");
+        Rft::template add<Derived, &Derived::kv_it_key_compare, Allocator>("env", "kv_it_key_compare");
         Rft::template add<Derived, &Derived::kv_it_move_to_end, Allocator>("env", "kv_it_move_to_end");
+        Rft::template add<Derived, &Derived::kv_it_next, Allocator>("env", "kv_it_next");
+        Rft::template add<Derived, &Derived::kv_it_prev, Allocator>("env", "kv_it_prev");
         Rft::template add<Derived, &Derived::kv_it_lower_bound, Allocator>("env", "kv_it_lower_bound");
-        Rft::template add<Derived, &Derived::kv_it_key_matches, Allocator>("env", "kv_it_key_matches");
-        Rft::template add<Derived, &Derived::kv_it_incr, Allocator>("env", "kv_it_incr");
         Rft::template add<Derived, &Derived::kv_it_key, Allocator>("env", "kv_it_key");
         Rft::template add<Derived, &Derived::kv_it_value, Allocator>("env", "kv_it_value");
     }
@@ -188,7 +215,10 @@ class kv_environment : public db_callbacks<kv_environment> {
     kv_environment(const kv_environment&) = default;
 
     void check_bounds(const char*, uint32_t) {}
-    void kv_set(const std::vector<char>& k, const std::vector<char>& v) { base::kv_set(k.data(), k.size(), v.data(), v.size()); }
+
+    void kv_set(uint64_t db, uint64_t contract, const std::vector<char>& k, const std::vector<char>& v) {
+        base::kv_set(db, contract, k.data(), k.size(), v.data(), v.size());
+    }
 };
 
 } // namespace rdb

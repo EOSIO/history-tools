@@ -137,11 +137,12 @@ class iterator_cache {
         if (!view_it) {
             std::cout << "db_next_i64: db_view::iterator\n";
             const auto& table_key = tables[it.table_index];
-            view_it =
-                chain_kv::view::iterator{view, eosio::check(eosio::convert_to_key(std::make_tuple(
-                                                                abieos::name{"system"}, abieos::name{"contract.row"},
-                                                                abieos::name{"primary"}, table_key.code, table_key.table, table_key.scope)))
-                                                   .value()};
+            view_it               = chain_kv::view::iterator{
+                view, 0,
+                chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
+                                                    abieos::name{"system"}, abieos::name{"contract.row"}, abieos::name{"primary"},
+                                                    table_key.code, table_key.table, table_key.scope)))
+                                       .value())};
             view_it->lower_bound(eosio::check(eosio::convert_to_key(std::make_tuple(
                                                   abieos::name{"system"}, abieos::name{"contract.row"}, abieos::name{"primary"},
                                                   table_key.code, table_key.table, table_key.scope, it.primary)))
@@ -173,10 +174,11 @@ class iterator_cache {
             return map_it->second;
         }
         std::cout << "lower_bound: db_view::iterator\n";
-        chain_kv::view::iterator it{
-            view, eosio::check(eosio::convert_to_key(std::make_tuple(
-                                   abieos::name{"system"}, abieos::name{"contract.row"}, abieos::name{"primary"}, code, table, scope)))
-                      .value()};
+        chain_kv::view::iterator it{view, 0,
+                                    chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
+                                                                        abieos::name{"system"}, abieos::name{"contract.row"},
+                                                                        abieos::name{"primary"}, code, table, scope)))
+                                                           .value())};
         it.lower_bound(
             eosio::check(eosio::convert_to_key(std::make_tuple(
                              abieos::name{"system"}, abieos::name{"contract.row"}, abieos::name{"primary"}, code, table, scope, key)))

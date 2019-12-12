@@ -64,7 +64,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     fill_rocksdb_plugin_impl*                    my = nullptr;
     std::shared_ptr<fill_rocksdb_config>         config;
     std::shared_ptr<chain_kv::database>          db   = app().find_plugin<rocksdb_plugin>()->get_db();
-    chain_kv::view                               view = {*db};
+    chain_kv::view                               view = {*db, {0x12, 0x34}};
     std::shared_ptr<state_history::connection>   connection;
     std::optional<state_history::fill_status_v0> current_db_status = {};
     uint32_t                                     head              = 0;

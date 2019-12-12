@@ -51,17 +51,20 @@ struct db_callbacks {
     Derived& derived() { return static_cast<Derived&>(*this); }
 
     void kv_erase(uint64_t db, uint64_t contract, const char* key, uint32_t key_size) {
+        // !!! db
+        // !!! limit contract
         derived().check_bounds(key, key_size);
-        derived().state.view.erase({key, key_size});
+        derived().state.view.erase(contract, {key, key_size});
         derived().state.temp_data_buffer.clear();
     }
 
     void kv_set(uint64_t db, uint64_t contract, const char* key, uint32_t key_size, const char* value, uint32_t value_size) {
-        // !!! db, contract
+        // !!! db
+        // !!! limit contract
         // !!! limit key, value sizes
         derived().check_bounds(key, key_size);
         derived().check_bounds(value, value_size);
-        derived().state.view.set({key, key_size}, {value, value_size});
+        derived().state.view.set(contract, {key, key_size}, {value, value_size});
         derived().state.temp_data_buffer.clear();
     }
 
@@ -90,11 +93,11 @@ struct db_callbacks {
     }
 
     uint32_t kv_it_create(uint64_t db, uint64_t contract, const char* prefix, uint32_t size) {
-        // !!! db, contract
+        // !!! db
         // !!! reuse destroyed slots
         // !!! limit # of iterators
         auto& state = derived().state;
-        state.iterators.push_back(std::make_unique<chain_kv::view::iterator>(state.view, std::vector<char>{prefix, prefix + size}));
+        state.iterators.push_back(std::make_unique<chain_kv::view::iterator>(state.view, contract, rocksdb::Slice{prefix, size}));
         return state.iterators.size() - 1;
     }
 
@@ -153,6 +156,7 @@ struct db_callbacks {
 
     int32_t kv_it_key(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size) {
         // !!! throw if itr is erased
+        // !!! skip (view.prefix, contract)
         derived().check_bounds(dest, size);
         auto& it = get_it(itr);
         auto  kv = it.get_kv();

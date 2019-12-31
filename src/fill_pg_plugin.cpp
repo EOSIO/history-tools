@@ -247,6 +247,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         t.exec("create index to_index on " + t.quote_name(config->schema) + ".action_trace (token_to, receipt_global_sequence)");
 
         create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_num, transaction_ordinal",                     "block_num bigint, transaction_ordinal integer, failed_dtrx_trace varchar(64)", "partial_signatures varchar[], partial_context_free_data bytea[]");
+
+        t.exec("create index transaction_id_index on " + t.quote_name(config->schema) + ".transaction_trace (id, block_num)");
+
         // clang-format on
 
         for (auto& table : connection->abi.tables) {

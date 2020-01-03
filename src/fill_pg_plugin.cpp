@@ -235,6 +235,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         // clang-format on
 
         for (auto& table : connection->abi.tables) {
+            if (table.type == "global_property")
+                continue;
             auto& variant_type = get_type(table.type);
             if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
                 throw std::runtime_error("don't know how to proccess " + variant_type.name);
@@ -263,8 +265,6 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 "action_mroot" varchar(64),
                 "schedule_version" bigint,
                 "new_producers_version" bigint,
-                "new_producers" )" +
-            t.quote_name(config->schema) + R"(.producer_key[],
                 primary key("block_num")))");
 
         t.commit();
@@ -276,6 +276,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         pqxx::work t(*sql_connection);
         ilog("create_trim");
         for (auto& table : connection->abi.tables) {
+            if (table.type == "global_property")
+                continue;
             if (table.key_names.empty())
                 continue;
             std::string query = "create index if not exists " + table.type;
@@ -354,6 +356,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         };
 
         for (auto& table : connection->abi.tables) {
+            if (table.type == "global_property")
+                continue;
             if (table.key_names.empty()) {
                 query += R"(
                     for key_search in
@@ -440,8 +444,11 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         trunc("action_trace");
         trunc("transaction_trace");
         trunc("block_info");
-        for (auto& table : connection->abi.tables)
+        for (auto& table : connection->abi.tables) {
+            if (table.type == "global_property")
+                continue;
             trunc(table.type);
+        }
 
         auto result = pipeline.retrieve(pipeline.insert(
             "select block_id from " + t.quote_name(config->schema) + ".received_block where block_num=" + std::to_string(block - 1)));
@@ -667,6 +674,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                              sql_str(bulk, block.schedule_version) + sep(bulk) +                    //
                              sql_str(bulk, block.new_producers ? block.new_producers->version : 0); //
 
+        /*
         if (block.new_producers) {
             values += sep(bulk) + begin_array(bulk);
             for (auto& x : block.new_producers->producers) {
@@ -679,6 +687,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         } else {
             values += sep(bulk) + null_value(bulk);
         }
+        */
 
         write(block_num, t, pipeline, bulk, "block_info", fields, values);
     } // receive_block
@@ -690,6 +699,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             check_variant(bin, get_type("table_delta"), "table_delta_v0");
             table_delta_v0 table_delta;
             bin_to_native(table_delta, bin);
+
+            if (table_delta.name == "global_property")
+                continue;
 
             auto& variant_type = get_type(table_delta.name);
             if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)

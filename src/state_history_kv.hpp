@@ -396,12 +396,21 @@ struct defs {
     using query = query_config::query<defs>;
 
     struct field : query_config::field<defs> {
-        std::optional<uint32_t> byte_position = {};
+        uint32_t field_index = -1; // index within table::fields
     };
 
-    using key    = query_config::key<defs>;
-    using table  = query_config::table<defs>;
-    using config = query_config::config<defs>;
+    using key   = query_config::key<defs>;
+    using table = query_config::table<defs>;
+
+    struct config : query_config::config<defs> {
+        template <typename M>
+        void prepare(const M& type_map) {
+            query_config::config<defs>::prepare(type_map);
+            for (auto& table : tables)
+                for (uint32_t i = 0; i < table.fields.size(); ++i)
+                    table.fields[i].field_index = i;
+        }
+    };
 }; // defs
 
 using field  = defs::field;
@@ -411,17 +420,18 @@ using index  = defs::index;
 using query  = defs::query;
 using config = defs::config;
 
-inline void clear_positions(std::vector<field>& fields) {
-    for (auto& field : fields)
-        field.byte_position.reset();
+inline void init_positions(std::vector<std::optional<uint32_t>>& positions, size_t size) {
+    positions.clear();
+    positions.resize(size);
 }
 
 template <typename F>
-void fill_positions_impl(const char* begin, abieos::input_buffer& src, bool is_key, F for_each_field) {
+void fill_positions_impl(
+    const char* begin, abieos::input_buffer& src, bool is_key, std::vector<std::optional<uint32_t>>& positions, F for_each_field) {
     bool present = true;
     for_each_field([&](auto& field) {
         if (present)
-            field.byte_position = src.pos - begin;
+            positions.at(field.field_index) = src.pos - begin;
         if (field.begin_optional) {
             present = abieos::bin_to_native<bool>(src);
         } else {
@@ -441,65 +451,85 @@ void fill_positions_impl(const char* begin, abieos::input_buffer& src, bool is_k
     });
 }
 
-inline void fill_positions_rw(const char* begin, abieos::input_buffer& src, std::vector<field>& fields) {
-    clear_positions(fields);
-    fill_positions_impl(begin, src, false, [&](auto f) {
+inline void fill_positions_rw(
+    const char* begin, abieos::input_buffer& src, const std::vector<field>& fields, std::vector<std::optional<uint32_t>>& positions) {
+    fill_positions_impl(begin, src, false, positions, [&](auto f) {
         for (auto& field : fields)
             if (!f(field))
                 break;
     });
 }
 
-inline void fill_positions(abieos::input_buffer src, std::vector<field>& fields) { fill_positions_rw(src.pos, src, fields); }
+inline void fill_positions(abieos::input_buffer src, const std::vector<field>& fields, std::vector<std::optional<uint32_t>>& positions) {
+    fill_positions_rw(src.pos, src, fields, positions);
+}
 
-inline void fill_positions_rw(const char* begin, abieos::input_buffer& src, std::vector<key>& keys) {
-    fill_positions_impl(begin, src, true, [&](auto f) {
+inline void fill_positions_rw(
+    const char* begin, abieos::input_buffer& src, const std::vector<key>& keys, std::vector<std::optional<uint32_t>>& positions) {
+    fill_positions_impl(begin, src, true, positions, [&](auto f) {
         for (auto& key : keys)
             if (!f(*key.field))
                 break;
     });
 }
 
-inline void fill_positions(abieos::input_buffer src, std::vector<key>& fields) { fill_positions_rw(src.pos, src, fields); }
+inline void fill_positions(abieos::input_buffer src, const std::vector<key>& fields, std::vector<std::optional<uint32_t>>& positions) {
+    fill_positions_rw(src.pos, src, fields, positions);
+}
 
-inline bool keys_have_positions(const std::vector<key>& keys) {
+inline bool keys_have_positions(const std::vector<key>& keys, std::vector<std::optional<uint32_t>>& positions) {
     for (auto& key : keys)
-        if (!key.field->byte_position)
+        if (!positions.at(key.field->field_index))
             return false;
     return true;
 }
 
-inline void extract_keys_from_value(std::vector<char>& dest, abieos::input_buffer value, std::vector<kv::key>& keys) {
+inline void extract_keys(
+    std::vector<char>& dest, abieos::input_buffer value, const std::vector<kv::key>& keys,
+    std::vector<std::optional<uint32_t>>& positions) {
     for (auto& k : keys) {
-        if (!k.field->byte_position)
+        if (!positions.at(k.field->field_index))
             throw std::runtime_error("key fields are missing");
-        abieos::input_buffer b = {value.pos + *k.field->byte_position, value.end};
+        abieos::input_buffer b = {value.pos + *positions[k.field->field_index], value.end};
         k.field->type_obj->bin_to_key(dest, b);
     }
 }
 
-inline std::vector<char> extract_pk_from_index(abieos::input_buffer index, kv::table& table, std::vector<kv::key>& index_keys) {
-    auto temp = index;
-    skip_key<uint8_t>(temp);      // key_tag::index
-    skip_key<abieos::name>(temp); // table_name
-    skip_key<abieos::name>(temp); // index_name
+inline const char* fill_positions_from_index(
+    abieos::input_buffer index, const std::vector<kv::key>& index_keys, uint32_t& block, bool& present_k,
+    std::vector<std::optional<uint32_t>>& positions) {
 
-    clear_positions(table.fields);
-    fill_positions_rw(index.pos, temp, index_keys);
+    auto start = index.pos;
+    skip_key<uint8_t>(index);      // key_tag::index
+    skip_key<abieos::name>(index); // table_name
+    skip_key<abieos::name>(index); // index_name
 
-    uint32_t block;
-    bool     present_k;
-    read_index_suffix(temp, block, present_k);
+    fill_positions_rw(start, index, index_keys, positions);
+    auto suffix_pos = index.pos;
+    read_index_suffix(index, block, present_k);
+    return suffix_pos;
+}
 
+inline std::vector<char> extract_pk(
+    abieos::input_buffer index, const kv::table& table, uint32_t block, bool present_k, std::vector<std::optional<uint32_t>>& positions) {
     std::vector<char> result;
     append_table_key(result, block, present_k, table.short_name);
     for (auto& k : table.keys) {
-        if (!k.field->byte_position)
+        if (!positions.at(k.field->field_index))
             throw std::runtime_error("secondary index is missing pk fields");
-        abieos::input_buffer b = {index.pos + *k.field->byte_position, index.end};
+        abieos::input_buffer b = {index.pos + *positions[k.field->field_index], index.end};
         k.field->type_obj->key_to_key(result, b);
     }
     return result;
+}
+
+inline std::vector<char> extract_pk_from_index(abieos::input_buffer index, const kv::table& table, const std::vector<kv::key>& index_keys) {
+    std::vector<std::optional<uint32_t>> positions;
+    init_positions(positions, table.fields.size());
+    uint32_t block;
+    bool     present_k;
+    fill_positions_from_index(index, index_keys, block, present_k, positions);
+    return extract_pk(index, table, block, present_k, positions);
 }
 
 } // namespace kv

@@ -12,9 +12,8 @@ namespace pg = state_history::pg;
 static abstract_plugin& _wasm_ql_pg_plugin = app().register_plugin<wasm_ql_pg_plugin>();
 
 struct pg_database_interface : database_interface, std::enable_shared_from_this<pg_database_interface> {
-    std::string      schema         = {};
-    pqxx::connection sql_connection = {};
-    pg::config       config         = {};
+    std::string                       schema = {};
+    std::unique_ptr<const pg::config> config = {};
 
     virtual ~pg_database_interface() {}
 
@@ -25,9 +24,10 @@ struct pg_query_session : query_session {
     virtual ~pg_query_session() {}
 
     std::shared_ptr<pg_database_interface> db_iface;
+    pqxx::connection                       sql_connection = {};
 
     virtual state_history::fill_status get_fill_status() override {
-        pqxx::work t(db_iface->sql_connection);
+        pqxx::work t(sql_connection);
         auto row = t.exec("select head, head_id, irreversible, irreversible_id, first from \"" + db_iface->schema + "\".fill_status")[0];
 
         state_history::fill_status result;
@@ -40,7 +40,7 @@ struct pg_query_session : query_session {
     }
 
     virtual std::optional<abieos::checksum256> get_block_id(uint32_t block_num) override {
-        pqxx::work t(db_iface->sql_connection);
+        pqxx::work t(sql_connection);
         auto       result =
             t.exec("select block_id from \"" + db_iface->schema + "\".block_info where block_num=" + pg::sql_str(false, block_num));
         if (result.empty())
@@ -53,25 +53,25 @@ struct pg_query_session : query_session {
         abieos::bin_to_native(query_name, query_bin);
 
         // todo: check for false positives in secondary indexes
-        auto it = db_iface->config.query_map.find(query_name);
-        if (it == db_iface->config.query_map.end())
+        auto it = db_iface->config->query_map.find(query_name);
+        if (it == db_iface->config->query_map.end())
             throw std::runtime_error("query_database: unknown query: " + (std::string)query_name);
-        pg::query& query = *it->second;
+        const pg::query& query = *it->second;
 
-        uint32_t max_block_num = 0;
-        if (query.limit_block_num)
-            max_block_num = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
+        uint32_t snapshot_block_num = 0;
+        if (query.has_block_snapshot)
+            snapshot_block_num = std::min(head, abieos::bin_to_native<uint32_t>(query_bin));
         std::string query_str = "select * from \"" + db_iface->schema + "\"." + query.function + "(";
         bool        need_sep  = false;
-        if (query.limit_block_num) {
-            query_str += pg::sql_str(false, max_block_num);
+        if (query.has_block_snapshot) {
+            query_str += pg::sql_str(false, snapshot_block_num);
             need_sep = true;
         }
         auto add_args = [&](auto& args) {
             for (auto& arg : args) {
                 if (need_sep)
                     query_str += pg::sep(false);
-                query_str += arg.bin_to_sql(db_iface->sql_connection, false, query_bin);
+                query_str += arg.bin_to_sql(sql_connection, false, query_bin);
                 need_sep = true;
             }
         };
@@ -82,7 +82,7 @@ struct pg_query_session : query_session {
         query_str += pg::sep(false) + pg::sql_str(false, std::min(max_results, query.max_results));
         query_str += ")";
 
-        pqxx::work        t(db_iface->sql_connection);
+        pqxx::work        t(sql_connection);
         auto              exec_result = t.exec(query_str);
         std::vector<char> result;
         std::vector<char> row_bin;
@@ -127,7 +127,7 @@ struct wasm_ql_pg_plugin_impl {
 wasm_ql_pg_plugin::wasm_ql_pg_plugin()
     : my(std::make_shared<wasm_ql_pg_plugin_impl>()) {}
 
-wasm_ql_pg_plugin::~wasm_ql_pg_plugin() { ilog("wasm_ql_pg_plugin stopped"); }
+wasm_ql_pg_plugin::~wasm_ql_pg_plugin() {}
 
 void wasm_ql_pg_plugin::set_program_options(options_description& cli, options_description& cfg) {}
 
@@ -136,16 +136,18 @@ void wasm_ql_pg_plugin::plugin_initialize(const variables_map& options) {
         my->interface         = std::make_shared<pg_database_interface>();
         my->interface->schema = options["pg-schema"].as<std::string>();
         auto x                = read_string(options["query-config"].as<std::string>().c_str());
+        auto config           = std::make_unique<pg::config>();
         try {
-            abieos::json_to_native(my->interface->config, x);
+            abieos::json_to_native(*config, x);
         } catch (const std::exception& e) {
             throw std::runtime_error("error processing " + options["query-config"].as<std::string>() + ": " + e.what());
         }
-        my->interface->config.prepare(state_history::pg::abi_type_to_sql_type);
+        config->prepare(state_history::pg::abi_type_to_sql_type);
+        my->interface->config = std::move(config);
         app().find_plugin<wasm_ql_plugin>()->set_database(my->interface);
     }
     FC_LOG_AND_RETHROW()
 }
 
 void wasm_ql_pg_plugin::plugin_startup() {}
-void wasm_ql_pg_plugin::plugin_shutdown() {}
+void wasm_ql_pg_plugin::plugin_shutdown() { ilog("wasm_ql_pg_plugin stopped"); }

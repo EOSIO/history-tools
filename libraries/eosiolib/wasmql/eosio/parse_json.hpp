@@ -43,10 +43,12 @@ __attribute__((noinline)) inline void parse_json(shared_memory<std::string_view>
     return parse_json(*result, pos, end);
 }
 
-/// \group parse_json_explicit
-__attribute__((noinline)) inline void parse_json(uint32_t& result, const char*& pos, const char* end) {
+/// \exclude
+template <typename T>
+__attribute__((noinline)) inline void parse_json_uint(T& result, const char*& pos, const char* end) {
     bool in_str = false;
     if (pos != end && *pos == '"') {
+        ++pos;
         in_str = true;
         parse_json_skip_space(pos, end);
     }
@@ -63,6 +65,18 @@ __attribute__((noinline)) inline void parse_json(uint32_t& result, const char*& 
         parse_json_skip_space(pos, end);
     }
 }
+
+/// \group parse_json_explicit
+__attribute__((noinline)) inline void parse_json(uint8_t& result, const char*& pos, const char* end) { parse_json_uint(result, pos, end); }
+
+/// \group parse_json_explicit
+__attribute__((noinline)) inline void parse_json(uint16_t& result, const char*& pos, const char* end) { parse_json_uint(result, pos, end); }
+
+/// \group parse_json_explicit
+__attribute__((noinline)) inline void parse_json(uint32_t& result, const char*& pos, const char* end) { parse_json_uint(result, pos, end); }
+
+/// \group parse_json_explicit
+__attribute__((noinline)) inline void parse_json(uint64_t& result, const char*& pos, const char* end) { parse_json_uint(result, pos, end); }
 
 /// \group parse_json_explicit
 __attribute__((noinline)) inline void parse_json(int32_t& result, const char*& pos, const char* end) {

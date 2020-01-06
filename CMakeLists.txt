@@ -6,6 +6,12 @@ include(ExternalProject)
 cmake_minimum_required (VERSION 3.10)
 project(history-tools VERSION 0.1 LANGUAGES CXX)
 
+cmake_policy(SET CMP0077 NEW)
+set(ENABLE_INSTALL OFF cache bool "")
+set(ENABLE_TOOLS OFF cache bool "")
+set(ENABLE_TESTS OFF cache bool "")
+add_subdirectory(external/eos-vm EXCLUDE_FROM_ALL)
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
 set(default_build_type "Release")
@@ -25,14 +31,13 @@ add_definitions(-DBOOST_ASIO_DISABLE_STD_EXPERIMENTAL_STRING_VIEW)
 
 find_package(eosio.cdt)
 find_package(PostgreSQL COMPONENTS Libraries)
-find_package(Boost 1.66 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
+find_package(Boost 1.70 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(JS mozjs-64)
 
 if (PostgreSQL_INCLUDE_DIR)
   set(SKIP_PQXX_SHARED ON)
   set(SKIP_BUILD_TEST ON)
-  add_subdirectory(external/libpqxx)
+  add_subdirectory(external/libpqxx EXCLUDE_FROM_ALL)
   set(PQXX_LIBRARIES pqxx_static)
 else()
   set(PQXX_LIBRARIES "")
@@ -70,14 +75,16 @@ endif()
 
 set(SKIP_FC_TESTS ON)
 
-execute_process(COMMAND git submodule status --recursive
-                COMMAND grep -c "^[+\-]"
-                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                OUTPUT_VARIABLE submodule_status
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
-if(submodule_status GREATER 0)
-   message(FATAL_ERROR "git submodules are not up to date.
+if(NOT DEFINED SKIP_SUBMODULE_CHECK)
+    execute_process(COMMAND git submodule status --recursive
+                    COMMAND grep -c "^[+\-]"
+                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    OUTPUT_VARIABLE submodule_status
+                    OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(submodule_status GREATER 0)
+    message(FATAL_ERROR "git submodules are not up to date.
 Please run the command 'git submodule update --init --recursive'.")
+    endif()
 endif()
 
 include(SetupTargetMacros)
@@ -88,8 +95,8 @@ set(WITH_TESTS OFF)
 
 add_compile_options(-Wno-error=shadow)
 
-add_subdirectory(external/appbase)
-add_subdirectory(external/fc)
+add_subdirectory(external/appbase EXCLUDE_FROM_ALL)
+add_subdirectory(external/fc EXCLUDE_FROM_ALL)
 add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
 
 set(FOUND_ROCKSDB ON)
@@ -107,13 +114,20 @@ function(add_app APP FLAGS LIBS)
             external/abieos/external/date/include
             external/abieos/external/rapidjson/include
             external/appbase/include
+            external/eos-vm/include
+            external/eos-vm/external/softfloat/source/include
             external/fc/include
             ${Boost_INCLUDE_DIR}
             ${JS_INCLUDE_DIRS}
             ${ROCKSDB_INCLUDE_DIR}
     )
-    target_link_libraries(${APP} appbase fc ${Boost_LIBRARIES} ${LIBS} -lpthread)
-    target_compile_options(${APP} PUBLIC -DAPP_NAME="${APP}" ${JS_CFLAGS_OTHER} ${FLAGS})
+    target_link_libraries(${APP} appbase fc eos-vm Boost::date_time Boost::filesystem Boost::chrono Boost::system Boost::iostreams Boost::program_options Boost::unit_test_framework ${LIBS} -lpthread)
+
+    if(APPLE)
+    else()
+        target_link_libraries(${APP} -latomic)
+    endif()
+    target_compile_options(${APP} PUBLIC -DAPP_NAME="${APP}" ${FLAGS})
 
     string(TOLOWER ${CMAKE_BUILD_TYPE} LOWERCASE_CMAKE_BUILD_TYPE)
     if (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
@@ -121,14 +135,14 @@ function(add_app APP FLAGS LIBS)
     endif (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
 
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        target_compile_options(${APP} PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics)
+        target_compile_options(${APP} PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics -Wno-sign-compare -Wno-unused-variable -Wno-macro-redefined)
     endif()
     if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
         target_compile_options(${APP} PRIVATE -fdiagnostics-color=auto)
     endif()
 endfunction(add_app)
 
-add_app(history-tools "-DDEFAULT_PLUGINS=" "${PQXX_LIBRARIES};${JS_LIBRARIES};${ROCKSDB_LIB}")
+add_app(history-tools "-DDEFAULT_PLUGINS=" "${PQXX_LIBRARIES};${ROCKSDB_LIB}")
 
 message(STATUS "----------------------------------------------------")
 message(STATUS "Checked libraries:")
@@ -148,7 +162,6 @@ endfunction(show_found)
 
 show_found("    pq:         " "${PostgreSQL_INCLUDE_DIR}" "not found; will not build pg plugins")
 show_found("    rocksdb:    " "${FOUND_ROCKSDB}" "not found; will not build rocksdb plugins")
-show_found("    mozjs:      " "${JS_FOUND}" "not found; will not build wasm plugins")
 
 message(STATUS "Enabled plugins:")
 
@@ -157,12 +170,10 @@ if (PostgreSQL_INCLUDE_DIR)
     add_app(fill-pg "-DDEFAULT_PLUGINS=fill_pg_plugin;-DINCLUDE_FILL_PG_PLUGIN" "${PQXX_LIBRARIES}")
     target_sources(history-tools PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp)
     target_sources(fill-pg PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp)
-    if (JS_FOUND)
-        message(STATUS "    wasm_ql_pg_plugin")
-        add_app(wasm-ql-pg "-DDEFAULT_PLUGINS=wasm_ql_pg_plugin;-DINCLUDE_WASM_QL_PG_PLUGIN" "${PQXX_LIBRARIES};${JS_LIBRARIES}")
-        target_sources(history-tools PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp)
-        target_sources(wasm-ql-pg PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
-    endif ()
+    message(STATUS "    wasm_ql_pg_plugin")
+    add_app(wasm-ql-pg "-DDEFAULT_PLUGINS=wasm_ql_pg_plugin;-DINCLUDE_WASM_QL_PG_PLUGIN" "${PQXX_LIBRARIES}")
+    target_sources(history-tools PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp)
+    target_sources(wasm-ql-pg PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
 endif ()
 
 if (FOUND_ROCKSDB)
@@ -170,20 +181,16 @@ if (FOUND_ROCKSDB)
     add_app(fill-rocksdb "-DDEFAULT_PLUGINS=fill_rocksdb_plugin;-DINCLUDE_FILL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB}")
     target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp)
     target_sources(fill-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp)
-    if (JS_FOUND)
-        message(STATUS "    wasm_ql_rocksdb_plugin")
-        add_app(wasm-ql-rocksdb "-DDEFAULT_PLUGINS=wasm_ql_rocksdb_plugin;-DINCLUDE_WASM_QL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB};${JS_LIBRARIES}")
-        add_app(combo-rocksdb "-DDEFAULT_PLUGINS=fill_rocksdb_plugin,wasm_ql_rocksdb_plugin;-DINCLUDE_FILL_ROCKSDB_PLUGIN;-DINCLUDE_WASM_QL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB};${JS_LIBRARIES}")
-        target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp)
-        target_sources(wasm-ql-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
-        target_sources(combo-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
-    endif ()
+    message(STATUS "    wasm_ql_rocksdb_plugin")
+    add_app(wasm-ql-rocksdb "-DDEFAULT_PLUGINS=wasm_ql_rocksdb_plugin;-DINCLUDE_WASM_QL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB}")
+    add_app(combo-rocksdb "-DDEFAULT_PLUGINS=fill_rocksdb_plugin,wasm_ql_rocksdb_plugin;-DINCLUDE_FILL_ROCKSDB_PLUGIN;-DINCLUDE_WASM_QL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB}")
+    target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp)
+    target_sources(wasm-ql-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
+    target_sources(combo-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
 endif()
 
-if (JS_FOUND)
-    message(STATUS "    wasm_ql_plugin")
-    target_sources(history-tools PRIVATE src/wasm_interface.cpp src/wasm_ql_plugin.cpp)
-endif()
+message(STATUS "    wasm_ql_plugin")
+target_sources(history-tools PRIVATE src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
 
 message(STATUS "Enabled apps:")
 foreach(APP ${APPS})

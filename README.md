@@ -1,4 +1,6 @@
-# EOSIO History Tools
+# EOSIO History Tools ![EOSIO Alpha](https://img.shields.io/badge/EOSIO-Alpha-blue.svg)
+
+[![Software License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](./LICENSE)
 
 The history tools repo has these components:
 
@@ -7,14 +9,14 @@ The history tools repo has these components:
 * The wasm-ql library, when combined with the CDT library, provides utilities that server WASMs and client WASMs need
 * A set of example server WASMs and client WASMs
 
-| App             | Fills LMDB | wasm-ql with LMDB          | Fills PostgreSQL | wasm-ql with PostgreSQL |
-| --------------- | ---------- | -------------------------- | ---------------- | ---------------- |
-| `fill-lmdb`     | Yes        |                            |                  |                  |        
-| `wasm-ql-lmdb`  |            | Yes                        |                  |                  |            
-| `combo-lmdb`    | Yes        | Yes                        |                  |                  |            
-| `fill-pg`       |            |                            | Yes              |                  |        
-| `wasm-ql-pg`    |            |                            |                  | Yes              |            
-| `history-tools` | Yes*       | Yes*                       | Yes*             | Yes*             |            
+| App               | Fills RocksDB | wasm-ql with RocksDB       | Fills PostgreSQL | wasm-ql with PostgreSQL |
+| ----------------- | ------------- | -------------------------- | ---------------- | ---------------- |
+| `fill-rocksdb`    | Yes           |                            |                  |                  |        
+| `wasm-ql-rocksdb` |               | Yes                        |                  |                  |            
+| `combo-rocksdb`   | Yes           | Yes                        |                  |                  |            
+| `fill-pg`         |               |                            | Yes              |                  |        
+| `wasm-ql-pg`      |               |                            |                  | Yes              |            
+| `history-tools`   | Yes*          | Yes*                       | Yes*             | Yes*             |            
 
 Note: by default, `history-tools` does nothing; use the `--plugin` option to select plugins.
 
@@ -22,9 +24,9 @@ See the [documentation site](https://eosio.github.io/history-tools/)
 
 # Alpha Release
 
-This is the first alpha release of the EOSIO History Tools. It includes database fillers
-(`fill-pg`, `fill-lmdb`) which pull data from nodeos's State History Plugin, and a new
-query engine (`wasm-ql-pg`, `wasm-ql-lmdb`) which supports queries defined by wasm, along
+This is an alpha release of the EOSIO History Tools. It includes database fillers
+(`fill-pg`, `fill-rocksdb`) which pull data from nodeos's State History Plugin, and a new
+query engine (`wasm-ql-pg`, `wasm-ql-rocksdb`) which supports queries defined by wasm, along
 with an emulation of the legacy `/v1/` RPC API.
 
 This alpha release is designed to solicit community feedback. There are several potential
@@ -36,6 +38,24 @@ future. Some of these may be driven by community feedback.
 
 This release supports nodeos 1.8.x. It does not support 1.7.x or the 1.8 RC versions. This release
 includes the following:
+
+## Alpha 0.2.0
+
+* There are now 2 self-contained demonstrations in public Docker images. See [container-demos](doc/container-demos.md) for details.
+  * Talk: this demonstrates using wasm-ql to provide messages from on-chain conversations to clients in threaded order.
+  * Partial history: this demonstrates some of wasm-ql's chain and token queries on data drawn from one of the public EOSIO networks.
+* Added RocksDB and removed LMDB. This has the following advantages:
+  * Filling outperforms both PostgreSQL and LMDB by considerable margins, both for partial history
+    and for full history on large well-known chains.
+  * Database size for full history is much smaller than PostgreSQL.
+* Database fillers have a new option `--fill-trx` to filter transaction traces.
+* Database fillers no longer need `--fill-skip-to` when starting from partial history.
+* Database fillers now automatically reconnect to the State History Plugin.
+* wasm-ql now uses a thread pool to handle queries. `--wql-threads` controls the thread pool size.
+* wasm-ql now uses eos-vm instead of SpiderMonkey. This simplifies the build process.
+* wasm-ql can now serve static files. Enabled by the new `--wql-static-dir` option.
+* SHiP connection handling moved to `state_history_connection.hpp`. This file may aid users needing
+  to write custom solutions which connect to the State History Plugin.
 
 ## fill-pg
 
@@ -96,11 +116,17 @@ wasm-ql supports two kinds of queries:
 We're considering dropping client-side wasms and switching the format of the first type
 of query to JSON RPC, Graph QL, or another format. We're seeking feedback on this switch.
 
-## fill-lmdb, wasm-ql-lmdb
+## combo-rocksdb, fill-rocksdb, wasm-ql-rocksdb
 
-This pair functions identically to `fill-pg` and `wasm-ql-pg`, but stores data using lmdb
-instead of postgresql. Since lmdb is an embedded database instead of a database server,
-this option may be simpler to administer.
+These function identically to `fill-pg` and `wasm-ql-pg`, but store data using RocksDB
+instead of postgresql. Since RocksDB is an embedded database instead of a database server,
+this option may be simpler to administer. RocksDB also saves space and fills quicker.
+
+* `combo-rocksdb`: Fills the database and answers queries. Use this for queries against a live database.
+* `fill-rocksdb`: Use this when filling a database for the first time. It fills faster
+   than `combo-rocksdb` but can't answer queries. Switch to `combo-rocksdb` after the database
+   catches up with the chain.
+* `wasm-ql-rocksdb`: Rarely used. Queries a database that isn't being filled.
 
 ## Contributing
 
@@ -114,4 +140,6 @@ this option may be simpler to administer.
 
 ## Important
 
-See LICENSE for copyright and license terms.  Block.one makes its contribution on a voluntary basis as a member of the EOSIO community and is not responsible for ensuring the overall performance of the software or any related applications.  We make no representation, warranty, guarantee or undertaking in respect of the software or any related documentation, whether expressed or implied, including but not limited to the warranties or merchantability, fitness for a particular purpose and noninfringement. In no event shall we be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or documentation or the use or other dealings in the software or documentation.  Any test results or performance figures are indicative and will not reflect performance under all conditions.  Any reference to any third party or third-party product, service or other resource is not an endorsement or recommendation by Block.one.  We are not responsible, and disclaim any and all responsibility and liability, for your use of or reliance on any of these resources. Third-party resources may be updated, changed or terminated at any time, so the information here may be out of date or inaccurate.
+See [LICENSE](LICENSE) for copyright and license terms.
+
+All repositories and other materials are provided subject to the terms of this [IMPORTANT](important.md) notice and you must familiarize yourself with its terms.  The notice contains important information, limitations and restrictions relating to our software, publications, trademarks, third-party resources, and forward-looking statements.  By accessing any of our repositories and other materials, you accept and agree to the terms of the notice.

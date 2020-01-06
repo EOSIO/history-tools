@@ -84,23 +84,19 @@ function sort_key_expr(key, prefix, rename) {
     }
 }
 
-function generate_index({ table, index, sort_keys, history_keys, conditions }) {
+function generate_index({ table, index, sort_keys, history_keys }) {
     if (!index)
         return;
     indexes += `
         create index if not exists ${index} on ${schema}.${table}(
             ${sort_keys.map(x => sort_key_expr(x, '', false)).concat(history_keys.map(x => `"${x.name + (x.desc ? '" desc' : '"')}`)).join(',\n            ')}
         )`;
-    if (conditions)
-        indexes += '\n        where\n            ' + conditions.join('\n            and ');
     indexes += ';\n';
 }
 
 // todo: This likely needs reoptimization.
-// todo: perf problem with low max_block_num
-function generate_nonstate({ table, index, limit_block_num, sort_keys, conditions, ...rest }) {
-    conditions = conditions || [];
-
+// todo: perf problem with low snapshot_block_num
+function generate_nonstate({ table, index, has_block_snapshot, sort_keys, ...rest }) {
     const fn_name = schema + '.' + rest['function'];
     const fn_args = prefix => sort_keys.map(x => `${prefix}${x.name} ${x.type},`).join('\n            ');
     const sort_keys_tuple = (prefix, suffix, sep) => sort_keys.map(x => `${prefix}${x.name}${suffix}`).join(sep);
@@ -114,8 +110,7 @@ function generate_nonstate({ table, index, limit_block_num, sort_keys, condition
         ${indent}        ${schema}.${table}
         ${indent}    where
         ${indent}        (${sort_keys_tuple_expr('')}) >= (${sort_keys_tuple('"arg_first_', '"', ', ')})
-        ${indent}        ${conditions.map(x => `and ${x}\n        ${indent}        `).join('')}
-        ${indent}        ${limit_block_num ? `and ${table}.block_num <= max_block_num` : ``}
+        ${indent}        ${has_block_snapshot ? `and ${table}.block_num <= snapshot_block_num` : ``}
         ${indent}    order by
         ${indent}        ${sort_keys_tuple_expr('')}
         ${indent}    limit max_results
@@ -130,7 +125,7 @@ function generate_nonstate({ table, index, limit_block_num, sort_keys, condition
     functions += `
         drop function if exists ${fn_name};
         create function ${fn_name}(
-            ${limit_block_num ? `max_block_num bigint,` : ``}
+            ${has_block_snapshot ? `snapshot_block_num bigint,` : ``}
             ${fn_args('first_')}
             ${fn_args('last_')}
             max_results integer
@@ -147,7 +142,7 @@ function generate_nonstate({ table, index, limit_block_num, sort_keys, condition
     `;
 } // generate
 
-function generate_state({ table, index, limit_block_num, keys, sort_keys, history_keys, ordered_fields, join, join_key_values, fields_from_join, ...rest }) {
+function generate_state({ table, index, has_block_snapshot, keys, sort_keys, history_keys, ordered_fields, join, join_key_values, fields_from_join, ...rest }) {
     const fn_name = schema + '.' + rest['function'];
     const fn_args = prefix => sort_keys.map(x => `${prefix}${x.name} ${x.type},`).join('\n            ');
     const sort_keys_tuple = (prefix, suffix, sep) => sort_keys.map(x => `${prefix}${x.name}${suffix}`).join(sep);
@@ -157,7 +152,7 @@ function generate_state({ table, index, limit_block_num, keys, sort_keys, histor
     for (let key of [...keys, ...history_keys])
         keys_by_name[key.name] = key;
     let data_fields = ordered_fields.filter(f => !(f.name in keys_by_name));
-    let return_type = ordered_fields.map(f => '"' + f.name + '" ' + type_map[f.type]).join(', ') + fields_from_join.map(f => ', "' + f.new_name + '" ' + type_map[f.type]).join('');
+    let return_type = ordered_fields.map(f => '"' + f.name + '" ' + type_map[f.type]).join(', ') + fields_from_join.map(f => ', "' + f.join_new_name + '" ' + type_map[f.type]).join('');
 
     const non_joined = (compare, indent) => `
         ${indent}            ${ordered_fields.map(f => `"${f.name}" = block_search."${f.name}";`).join('\n                    ' + indent)}
@@ -173,7 +168,7 @@ function generate_state({ table, index, limit_block_num, keys, sort_keys, histor
         ${indent}                    ${schema}.${join}
         ${indent}                where
         ${indent}                    ${join_key_values.map(x => `${join}."${x.name}" = ${x.expression.replace('${table}', 'block_search')}`).join('\n                            ' + indent + 'and ')}
-        ${indent}                    ${limit_block_num ? `and ${join}.block_num <= max_block_num` : ``}
+        ${indent}                    ${has_block_snapshot ? `and ${join}.block_num <= snapshot_block_num` : ``}
         ${indent}                order by
         ${indent}                    ${join_key_values.map(x => `${join}."${x.name}"`).join(',\n                            ' + indent)},
         ${indent}                    ${history_keys.map(x => `${join}."${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                            ' + indent)}
@@ -182,13 +177,13 @@ function generate_state({ table, index, limit_block_num, keys, sort_keys, histor
         ${indent}                if join_block_search.present then
         ${indent}                    found_join_block = true;
         ${indent}                    ${ordered_fields.map(f => `"${f.name}" = block_search."${f.name}";`).join('\n                            ' + indent)}
-        ${indent}                    ${fields_from_join.map(f => `"${f.new_name}" = join_block_search."${f.name}";`).join('\n                            ' + indent)}
+        ${indent}                    ${fields_from_join.map(f => `"${f.join_new_name}" = join_block_search."${f.name}";`).join('\n                            ' + indent)}
         ${indent}                    return next;
         ${indent}                end if;
         ${indent}            end loop;
         ${indent}            if not found_join_block then
         ${indent}                ${ordered_fields.map(f => `"${f.name}" = block_search."${f.name}";`).join('\n                        ' + indent)}
-        ${indent}                ${fields_from_join.map(f => `"${f.new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                        ' + indent)}
+        ${indent}                ${fields_from_join.map(f => `"${f.join_new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                        ' + indent)}
         ${indent}                return next;
         ${indent}            end if;
     `;
@@ -219,7 +214,7 @@ function generate_state({ table, index, limit_block_num, keys, sort_keys, histor
         ${indent}            ${schema}.${table}
         ${indent}        where
         ${indent}            ${sort_keys.map(x => `${table}."${x.name}" = key_search."${x.name}"`).join('\n                    ' + indent + 'and ')}
-        ${indent}            ${limit_block_num ? `and ${table}.block_num <= max_block_num` : ``}
+        ${indent}            ${has_block_snapshot ? `and ${table}.block_num <= snapshot_block_num` : ``}
         ${indent}        order by
         ${indent}            ${sort_keys_tuple(`${table}."`, '"', ',\n                    ' + indent)},
         ${indent}            ${history_keys.map(x => `${table}."${x.name + (x.desc ? '" desc' : '"')}`).join(',\n                    ' + indent)}
@@ -232,7 +227,7 @@ function generate_state({ table, index, limit_block_num, keys, sort_keys, histor
         ${indent}            "present" = false;
         ${indent}            ${keys.map(f => `"${f.name}" = key_search."${f.name}";`).join('\n                    ' + indent)}
         ${indent}            ${data_fields.map(f => `"${f.name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                    ' + indent)}
-        ${indent}            ${fields_from_join.map(f => `"${f.new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                    ' + indent)}
+        ${indent}            ${fields_from_join.map(f => `"${f.join_new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                    ' + indent)}
         ${indent}            return next;
         ${indent}        end if;
         ${indent}        num_results = num_results + 1;
@@ -243,7 +238,7 @@ function generate_state({ table, index, limit_block_num, keys, sort_keys, histor
         ${indent}        "present" = false;
         ${indent}        ${keys.map(f => `"${f.name}" = key_search."${f.name}";`).join('\n                ' + indent)}
         ${indent}        ${data_fields.map(f => `"${f.name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                ' + indent)}
-        ${indent}        ${fields_from_join.map(f => `"${f.new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                ' + indent)}
+        ${indent}        ${fields_from_join.map(f => `"${f.join_new_name}" = ${empty_value_map[f.type] + '::' + type_map[f.type]};`).join('\n                ' + indent)}
         ${indent}        return next;
         ${indent}        num_results = num_results + 1;
         ${indent}    end if;
@@ -253,7 +248,7 @@ function generate_state({ table, index, limit_block_num, keys, sort_keys, histor
     functions += `
         drop function if exists ${fn_name};
         create function ${fn_name}(
-            ${limit_block_num ? `max_block_num bigint,` : ``}
+            ${has_block_snapshot ? `snapshot_block_num bigint,` : ``}
             ${fn_args('first_')}
             ${fn_args('last_')}
             max_results integer
@@ -342,7 +337,7 @@ for (let query of config.queries) {
         }] : [],
         ordered_fields: tables[query.table].ordered_fields,
         join_key_values: (query.join_key_values || []).map(({ name, expression }) => ({ name, expression, type: tables[query.join].fields[name].type })),
-        fields_from_join: (query.fields_from_join || []).map(({ name, new_name }) => ({ name, new_name, type: tables[query.join].fields[name].type })),
+        fields_from_join: (query.fields_from_join || []).map(({ name, join_new_name }) => ({ name, join_new_name, type: tables[query.join].fields[name].type })),
     };
     fill_types(query, query.keys);
     fill_types(query, query.sort_keys);

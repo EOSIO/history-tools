@@ -33,7 +33,6 @@ apt update && apt install -y \
     clang-8             \
     git                 \
     libgmp-dev          \
-    liblmdb-dev         \
     libpq-dev           \
     lld-8               \
     lldb-8              \
@@ -51,14 +50,14 @@ update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 100
 update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-8 100
 ```
 
-Build and install Boost 1.69. Adjust `-j10` to match your machine. Bad things will
+Build and install Boost 1.70. Adjust `-j10` to match your machine. Bad things will
 happen if you don't have enough RAM for the number of cores you use:
 
 ```
 cd ~
-wget https://dl.bintray.com/boostorg/release/1.69.0/source/boost_1_69_0.tar.gz
-tar xf boost_1_69_0.tar.gz
-cd boost_1_69_0
+wget https://dl.bintray.com/boostorg/release/1.70.0/source/boost_1_70_0.tar.gz
+tar xf boost_1_70_0.tar.gz
+cd boost_1_70_0
 ./bootstrap.sh
 ./b2 toolset=clang -j10 install
 ```
@@ -76,40 +75,6 @@ make -j10
 make -j10 install
 ```
 
-# Build SpiderMonkey 64.0 (optional)
-
-You can skip this if you're not building wasm-ql
-
-```
-cd ~
-wget https://archive.mozilla.org/pub/firefox/releases/64.0/source/firefox-64.0.source.tar.xz
-tar xf firefox-64.0.source.tar.xz
-cd firefox-64.0/js/src/
-autoconf2.13
-```
-
-Choose 1 of the following 2 options. Release runs much faster, but isn't compatible with debug builds of the history tools. Debug isn't compatible with release builds of the history tools.
-
-## SpiderMonkey Release option
-
-```
-mkdir build_REL.OBJ
-cd build_REL.OBJ
-SHELL=/bin/bash ../configure --disable-debug --enable-optimize --disable-jemalloc --disable-replace-malloc
-SHELL=/bin/bash make -j
-SHELL=/bin/bash make install
-```
-
-## SpiderMonkey Debug option
-
-```
-mkdir build_DBG.OBJ
-cd build_DBG.OBJ
-SHELL=/bin/bash ../configure --enable-debug --disable-optimize --disable-jemalloc --disable-replace-malloc
-SHELL=/bin/bash make -j
-SHELL=/bin/bash make install
-```
-
 # Install eosio 1.8.1
 
 ```
@@ -118,12 +83,12 @@ wget https://github.com/EOSIO/eos/releases/download/v1.8.1/eosio_1.8.1-1-ubuntu-
 apt install -y ./eosio_1.8.1-1-ubuntu-18.04_amd64.deb
 ```
 
-# Install CDT 1.6.1
+# Install CDT 1.6.2
 
 ```
 cd ~
-wget https://github.com/EOSIO/eosio.cdt/releases/download/v1.6.1/eosio.cdt_1.6.1-1_amd64.deb
-apt install -y ./eosio.cdt_1.6.1-1_amd64.deb
+wget https://github.com/EOSIO/eosio.cdt/releases/download/v1.6.2/eosio.cdt_1.6.2-1-ubuntu-18.04_amd64.deb
+apt install -y ./eosio.cdt_1.6.2-1-ubuntu-18.04_amd64.deb
 ```
 
 # Build History Tools

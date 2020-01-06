@@ -1,24 +1,25 @@
 # Database Fillers
 
-The database fillers connect to the nodeos state-history plugin and populate databases. 
+The database fillers connect to the nodeos state-history plugin and populate databases.
 
-## PostgreSQL vs. LMDB
+## PostgreSQL vs. RocksDB
 
 * PostgreSQL
   * Supports full history
   * Partial history can fall behind on large chains; PostgreSQL sometimes struggles to delete large numbers of rows
   * Scaling: supports wasm-ql running on multiple machines connecting to a single database
-* LMDB
-  * Supports partial history
-  * Full history not recommended for large chains
-  * Simpler setup; LMDB is an in-process database
-  * Scaling: each machine has a separate database
+* RocksDB
+  * Supports full and partial history
+  * Simpler setup; RocksDB is an in-process database
+  * Saves disk space compared to PostgreSQL
+  * Faster filling than PostgreSQL
+  * Scaling: each machine hosting wasm-ql servers has a separate database
 
 ## Running fillers
 
 When running `fill-pg` for the first time, use the `--fpg-create` option to create the schema and tables. To wipe the schema and start over, run with `--fpg-drop --fpg-create`. 
 
-`fill-lmdb` automatically creates a database if it doesn't exist; it doesn't have `drop` or `create` options.
+`fill-rocksdb` and `combo-rocksdb` automatically create a database if it doesn't exist; it doesn't have `drop` or `create` options.
 
 After starting, a filler will populate the database. It will track real-time updates from nodeos after it catches up.
 
@@ -26,12 +27,13 @@ Use SIGINT or SIGTERM to stop.
 
 ## Option matrix
 
-| LMDB fill             | PostgreSQL fill           | Default               | Description |
+| RocksDB fill          | PostgreSQL fill           | Default               | Description |
 |---------------------  |-------------------------- |--------------------   |-------------|
-| --fill-connect-to     | --fill-connect-to         | localhost:8080        | state-history-plugin endpoint to connect to |
+| --fill-connect-to     | --fill-connect-to         | 127.0.0.1:8080        | state-history-plugin endpoint to connect to |
 |                       | --pg-schema               | chain                 | schema to use |
-| --lmdb-database       |                           |                       | database path |
-| --lmdb-set-db-size-gb |                           |                       | set maximum database size |
+| --rdb-database        |                           |                       | database path |
+| --rdb-threads         |                           |                       | Increase number of background RocksDB threads. Recommend 8 for full history on large chains |
+| --rdb-max-files       |                           |                       | Limit max number of open files (default unlimited). This should be smaller than 'ulimit -n #'. # should be a very large number for full-history nodes. |
 | --query-config        |                           |                       | query configuration file |
 |                       | --fpg-drop                |                       | drop (delete) schema and tables |
 |                       | --fpg-create              |                       | create schema and tables |

@@ -37,13 +37,13 @@ eosio::checksum256 checksum256_max() {
 
 } // namespace eosio
 
-eosio::datastream<const char*> get_raw_abi(eosio::name name, uint32_t max_block) {
+eosio::datastream<const char*> get_raw_abi(eosio::name name, uint32_t snapshot_block) {
     eosio::datastream<const char*> result = {nullptr, 0};
     auto                           s      = query_database(eosio::query_account_range_name{
-        .max_block   = max_block,
-        .first       = name,
-        .last        = name,
-        .max_results = 1,
+        .snapshot_block = snapshot_block,
+        .first          = name,
+        .last           = name,
+        .max_results    = 1,
     });
     eosio::for_each_query_result<eosio::account>(s, [&](eosio::account& a) {
         if (a.present)
@@ -58,9 +58,9 @@ struct abi {
     abieos::contract contract{};
 };
 
-std::unique_ptr<abi> get_abi(eosio::name name, uint32_t max_block) {
+std::unique_ptr<abi> get_abi(eosio::name name, uint32_t snapshot_block) {
     auto result = std::make_unique<abi>();
-    auto raw    = get_raw_abi(name, max_block);
+    auto raw    = get_raw_abi(name, snapshot_block);
     if (!raw.remaining())
         return {};
     std::string error;
@@ -335,7 +335,7 @@ void get_table_rows_primary(
     auto upper_bound = convert_key(*params.key_type, *params.upper_bound, (uint64_t)0xffff'ffff'ffff'ffff);
 
     auto s = query_database(eosio::query_contract_row_range_code_table_scope_pk{
-        .max_block = status.head,
+        .snapshot_block = status.head,
         .first =
             {
                 .code        = params.code,
@@ -395,7 +395,7 @@ void get_table_rows_secondary(
     auto upper_bound = convert_key(*params.key_type, *params.upper_bound, (T)0xffff'ffff'ffff'ffff);
 
     auto s = query_database(eosio::query_contract_index64_range_code_table_scope_sk_pk{
-        .max_block = status.head,
+        .snapshot_block = status.head,
         .first =
             {
                 .code          = params.code,
@@ -477,19 +477,19 @@ void get_producer_schedule(std::string_view /*request*/, const eosio::database_s
     auto scope = guess_uint64(*params.scope, "scope");
 
     auto s = query_database(eosio::query_contract_row_range_code_table_scope_pk{
-        .max_block = status.head,
+        .snapshot_block = status.head,
         .first =
             {
-                .code  = params.code,
-                .table = params.table,
-                .scope = eosio::name{scope},
+                .code        = params.code,
+                .table       = params.table,
+                .scope       = eosio::name{scope},
                 .primary_key = 0,
             },
         .last =
             {
-                .code  = params.code,
-                .table = params.table,
-                .scope = eosio::name{scope},
+                .code        = params.code,
+                .table       = params.table,
+                .scope       = eosio::name{scope},
                 .primary_key = 0xffff'ffff'ffff'ffff,
             },
         .max_results = std::min((uint32_t)100, params.limit),
@@ -502,10 +502,9 @@ void get_producer_schedule(std::string_view /*request*/, const eosio::database_s
         producers.total_producer_weight += p->total_votes;
         return true;
     });
-    std::sort(producers.rows.begin(), producers.rows.end(),
-              [](const producer_info& lhs, const producer_info& rhs)->bool {
-                  return lhs.total_votes > rhs.total_votes;
-              });
+    std::sort(producers.rows.begin(), producers.rows.end(), [](const producer_info& lhs, const producer_info& rhs) -> bool {
+        return lhs.total_votes > rhs.total_votes;
+    });
     producers.rows.resize(producers.rows.size() > 21 ? 21 : producers.rows.size());
     result += eosio::to_json(producers).sv();
     eosio::set_output_data(result);
@@ -532,7 +531,7 @@ void get_currency_balance(std::string_view request, const eosio::database_status
     auto upper_bound = convert_key(*params.key_type, *params.upper_bound, (uint64_t)0xffff'ffff'ffff'ffff);
 
     auto s = query_database(eosio::query_contract_row_range_code_table_scope_pk{
-        .max_block = status.head,
+        .snapshot_block = status.head,
         .first =
             {
                 .code        = params.code,
@@ -564,7 +563,7 @@ void get_transaction(std::string_view request, const eosio::database_status& /*s
     auto params = eosio::parse_json<get_transaction_params>(request);
 
     auto s = query_database(eosio::query_transaction_receipt{
-        .max_block = std::numeric_limits<uint32_t>::max(),
+        .snapshot_block = std::numeric_limits<uint32_t>::max(),
         .first =
             {
                 .transaction_id = params.id,
@@ -590,8 +589,8 @@ void get_transaction(std::string_view request, const eosio::database_status& /*s
 
 void get_actions(std::string_view request, const eosio::database_status& /*status*/) {
     auto params = eosio::parse_json<get_actions_params>(request);
-    auto s = query_database(eosio::query_action_trace_receipt_receiver{
-        .max_block = std::numeric_limits<uint32_t>::max(),
+    auto s      = query_database(eosio::query_action_trace_receipt_receiver{
+        .snapshot_block = std::numeric_limits<uint32_t>::max(),
         .first =
             {
                 .receipt_receiver = params.account_name,
@@ -645,10 +644,10 @@ void get_account(std::string_view request, const eosio::database_status& /*statu
     auto params = eosio::parse_json<get_account_params>(request);
 
     auto s = query_database(eosio::query_account_range_name{
-        .max_block   = std::numeric_limits<uint32_t>::max(),
-        .first       = params.account_name,
-        .last        = params.account_name,
-        .max_results = 1,
+        .snapshot_block = std::numeric_limits<uint32_t>::max(),
+        .first          = params.account_name,
+        .last           = params.account_name,
+        .max_results    = 1,
     });
 
     std::string result;
@@ -663,10 +662,10 @@ void get_code(std::string_view request, const eosio::database_status& /*status*/
     auto params = eosio::parse_json<get_account_params>(request);
 
     auto s = query_database(eosio::query_account_range_name{
-        .max_block   = std::numeric_limits<uint32_t>::max(),
-        .first       = params.account_name,
-        .last        = params.account_name,
-        .max_results = 1,
+        .snapshot_block = std::numeric_limits<uint32_t>::max(),
+        .first          = params.account_name,
+        .last           = params.account_name,
+        .max_results    = 1,
     });
 
     std::string result;
@@ -682,10 +681,10 @@ void get_abi(std::string_view request, const eosio::database_status& /*status*/)
     auto params = eosio::parse_json<get_account_params>(request);
 
     auto s = query_database(eosio::query_account_range_name{
-        .max_block   = std::numeric_limits<uint32_t>::max(),
-        .first       = params.account_name,
-        .last        = params.account_name,
-        .max_results = 1,
+        .snapshot_block = std::numeric_limits<uint32_t>::max(),
+        .first          = params.account_name,
+        .last           = params.account_name,
+        .max_results    = 1,
     });
 
     std::string result;

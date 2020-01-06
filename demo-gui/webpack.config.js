@@ -5,7 +5,8 @@ const webpack = require('webpack');
 
 module.exports = {
     entry: {
-        client: ['./src/client.ts', 'webpack-hot-middleware/client'],
+        // client: ['./src/client.ts', 'webpack-hot-middleware/client'],
+        client: ['./src/client.ts'],
     },
     module: {
         rules: [
@@ -33,11 +34,11 @@ module.exports = {
     mode: 'development',
     plugins: [
         new HtmlWebpackPlugin({
-            hash: true,
+            // hash: true,
             template: './src/index.html',
             filename: 'index.html'
         }),
-        new webpack.HotModuleReplacementPlugin(),
+        // new webpack.HotModuleReplacementPlugin(),
         new webpack.NoEmitOnErrorsPlugin(),
         new CopyPlugin([
             { from: '../build/chain-client.wasm', to: 'chain-client.wasm' },

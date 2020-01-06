@@ -80,6 +80,8 @@ inline bool json_to_native(transaction_status&, abieos::json_to_native_state&, a
     throw abieos::error("json_to_native: transaction_status unsupported");
 }
 
+inline void native_to_bin(const transaction_status& obj, std::vector<char>& bin) { abieos::push_raw(bin, static_cast<uint8_t>(obj)); }
+
 struct block_position {
     uint32_t            block_num = {};
     abieos::checksum256 block_id  = {};
@@ -353,6 +355,8 @@ inline bool bin_to_native(recurse_transaction_trace& obj, abieos::bin_to_native_
 inline bool json_to_native(recurse_transaction_trace& obj, abieos::json_to_native_state& state, abieos::event_type event, bool start) {
     return abieos::json_to_native(obj.recurse, state, event, start);
 }
+
+inline void native_to_bin(const recurse_transaction_trace& obj, std::vector<char>& bin) { abieos::native_to_bin(obj.recurse, bin); }
 
 struct producer_key {
     abieos::name       producer_name     = {};

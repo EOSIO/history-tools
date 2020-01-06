@@ -1,0 +1,12 @@
+language: cpp
+git:
+  depth: false
+matrix:
+  include:
+  - os: linux
+    dist: xenial
+    services: docker
+script: "docker build -f ./ubuntu-18.04.dockerfile ."
+notifications:
+  webhooks:
+    secure: 0HGztaU2ayN75XWW44Zt4iMadwAerbTVm2EmjK4dkUnM/Kz4XbW25NRm0qg5yQ/oUjmsLrPO6fIv+ZUOjEkYiT2fMZ7oIRDdyPy7b84znNCN2nNCZFW1YzPakfwbTQ9FqIW3Yj7RlWxB6bRVqPgHmFvAPa8td5cTiAM+qQzHphwoAUM10sWAMXXohg8khg6EmhlfqaocH/l9TwshjcIE20mkfjiLqQNXvkxjLAwpzM0bv+tSjcDBwsikZg6bpcjMeS/Mw5tPodW7CqPCQEiQJyPTJ+6Aa7foI0bOjt53qfhRNjjYTQ85S7+0L1RhVqpg8jia0aD0qCwPLaWTyIoc7Ftvm6Z2WwaWtqhwQdF324Uayd6F2mpkIbUb+MDk9IDx6LQeIA49o623jOLANPvnj4Vz0YoH6lVuOq9cshp53yK75TnRrjG7HFGO53qeKgodHM+sGXGqLSUycfJXbPt5DsnUilyjoBKCDaxKAXM6UvnjH6RxpaP8i/HT2vmBK39InxsdVlGsW5mBKnKugsVNJ2QApWQ7uaiivqMNnQrqKDtCuhoB66EjkMD9HZFaprrTA/4aYLuv2H4XPYyu9lKW5DgW8dD1OohvdfeqVETYjEbcfgonFqa93Nw2nC/R1IawQZAXCM6pSay/fnYWLHp9zP23sTthoZSEnW9XcOreNhk=

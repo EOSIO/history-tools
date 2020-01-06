@@ -18,17 +18,17 @@ The header declares the set of available queries and responses. Here's an exampl
 
 // Parameters for a query
 struct get_my_tokens_request {
-    eosio::block_select max_block     = {};
-    eosio::name         code          = {};
-    eosio::symbol_code  sym           = {};
-    eosio::name         first_account = {};
-    eosio::name         last_account  = {};
-    uint32_t            max_results   = {};
+    eosio::block_select snapshot_block = {};
+    eosio::name         code           = {};
+    eosio::symbol_code  sym            = {};
+    eosio::name         first_account  = {};
+    eosio::name         last_account   = {};
+    uint32_t            max_results    = {};
 };
 
 // Enables JSON <> binary conversion
 STRUCT_REFLECT(get_my_tokens_request) {
-    STRUCT_MEMBER(get_my_tokens_request, max_block)
+    STRUCT_MEMBER(get_my_tokens_request, snapshot_block)
     STRUCT_MEMBER(get_my_tokens_request, code)
     STRUCT_MEMBER(get_my_tokens_request, sym)
     STRUCT_MEMBER(get_my_tokens_request, first_account)
@@ -90,7 +90,7 @@ void process(get_my_tokens_request& req, const eosio::database_status& status) {
     // ordered by (code, table, primary_key, scope)
     auto s = query_database(eosio::query_contract_row_range_code_table_pk_scope{
         // look at this point in time
-        .max_block = get_block_num(req.max_block, status),
+        .snapshot_block = get_block_num(req.snapshot_block, status),
 
         // get records with keys >= first
         .first =
@@ -244,7 +244,7 @@ const myClientWasm = await HistoryTools.createClientWasm({
 // Use this for either:
 const request = myClientWasm.createQueryRequest(JSON.stringify(
     ['get.my.toks', {
-        max_block: ['head', 0],
+        snapshot_block: ['head', 0],
         code: 'eosio.token',
         sym: 'EOS',
         first_account: 'eosio',

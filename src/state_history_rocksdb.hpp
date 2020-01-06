@@ -24,7 +24,7 @@ struct database {
     std::shared_ptr<rocksdb::Statistics> stats;
     std::unique_ptr<rocksdb::DB>         db;
 
-    database(const char* db_path, const char* ro_path, std::optional<uint32_t> threads, std::optional<uint32_t> max_open_files) {
+    database(const char* db_path, std::optional<uint32_t> threads, std::optional<uint32_t> max_open_files, bool fast_reads) {
         rocksdb::DB*     p;
         rocksdb::Options options;
         // stats = options.statistics = rocksdb::CreateDBStatistics();
@@ -44,18 +44,17 @@ struct database {
         for (auto& x : options.compression_per_level) // todo: fix snappy build
             x = rocksdb::kNoCompression;
 
-        options.memtable_factory                = std::make_shared<rocksdb::VectorRepFactory>();
-        options.allow_concurrent_memtable_write = false;
+        if (fast_reads) {
+            ilog("open ${p}: fast reader mode; writes will be slower", ("p", db_path));
+        } else {
+            ilog("open ${p}: fast writer mode", ("p", db_path));
+            options.memtable_factory                = std::make_shared<rocksdb::VectorRepFactory>();
+            options.allow_concurrent_memtable_write = false;
+        }
         if (max_open_files)
             options.max_open_files = *max_open_files;
 
-        if (ro_path) {
-            ilog("open secondary ${p} ${s}", ("p", db_path)("s", ro_path));
-            check(rocksdb::DB::OpenAsSecondary(options, db_path, ro_path, &p), "rocksdb::DB::OpenAsSecondary: ");
-        } else {
-            ilog("open primary ${p}", ("p", db_path));
-            check(rocksdb::DB::Open(options, db_path, &p), "rocksdb::DB::Open: ");
-        }
+        check(rocksdb::DB::Open(options, db_path, &p), "rocksdb::DB::Open: ");
         db.reset(p);
         ilog("database opened");
     }
@@ -108,8 +107,33 @@ inline bool exists(database& db, rocksdb::Slice key) {
     return true;
 }
 
+inline std::optional<abieos::input_buffer> get_raw(rocksdb::Iterator& it, const std::vector<char>& key, bool required) {
+    it.Seek(to_slice(key));
+    auto stat = it.status();
+    if (stat.IsNotFound() && !required)
+        return {};
+    check(stat, "Seek: ");
+    auto k = it.key();
+    if (k.size() != key.size() || memcmp(key.data(), k.data(), key.size())) {
+        if (required)
+            throw std::runtime_error("key not found");
+        else
+            return {};
+    }
+    return to_input_buffer(it.value());
+}
+
 template <typename T>
-std::optional<T> get(database& db, const std::vector<char>& key, bool required = true) {
+std::optional<T> get(rocksdb::Iterator& it, const std::vector<char>& key, bool required) {
+    auto bin = get_raw(it, key, required);
+    if (bin)
+        return abieos::bin_to_native<T>(*bin);
+    else
+        return {};
+}
+
+template <typename T>
+std::optional<T> get(database& db, const std::vector<char>& key, bool required) {
     rocksdb::PinnableSlice v;
     auto                   stat = db.db->Get(rocksdb::ReadOptions(), db.db->DefaultColumnFamily(), to_slice(key), &v);
     if (stat.IsNotFound() && !required)
@@ -126,16 +150,21 @@ std::optional<T> get(database& db, const std::vector<char>& key, bool required =
 // * return true to continue loop
 // * return false to break out of loop
 template <typename F>
-void for_each(database& db, const std::vector<char>& lower_bound, const std::vector<char>& upper_bound, F f) {
-    std::unique_ptr<rocksdb::Iterator> it{db.db->NewIterator(rocksdb::ReadOptions())};
-    for (it->Seek(to_slice(lower_bound)); it->Valid(); it->Next()) {
-        auto k = it->key();
+void for_each(rocksdb::Iterator& it, const std::vector<char>& lower_bound, const std::vector<char>& upper_bound, F f) {
+    for (it.Seek(to_slice(lower_bound)); it.Valid(); it.Next()) {
+        auto k = it.key();
         if (memcmp(k.data(), upper_bound.data(), std::min(k.size(), upper_bound.size())) > 0)
             break;
-        if (!f(to_input_buffer(k), to_input_buffer(it->value())))
+        if (!f(to_input_buffer(k), to_input_buffer(it.value())))
             return;
     }
-    check(it->status(), "for_each: ");
+    check(it.status(), "for_each: ");
+}
+
+template <typename F>
+void for_each(database& db, const std::vector<char>& lower_bound, const std::vector<char>& upper_bound, F f) {
+    std::unique_ptr<rocksdb::Iterator> it{db.db->NewIterator(rocksdb::ReadOptions())};
+    for_each(*it, lower_bound, upper_bound, f);
 }
 
 // Loop through keys in range [lower_bound, upper_bound], inclusive. Skip keys with duplicate prefix.
@@ -145,24 +174,29 @@ void for_each(database& db, const std::vector<char>& lower_bound, const std::vec
 // * return true to continue loop
 // * return false to break out of loop
 template <typename F>
-void for_each_subkey(database& db, std::vector<char> lower_bound, const std::vector<char>& upper_bound, F f) {
+void for_each_subkey(rocksdb::Iterator& it, std::vector<char> lower_bound, const std::vector<char>& upper_bound, F f) {
     if (lower_bound.size() != upper_bound.size())
         throw std::runtime_error("for_each_subkey: key sizes don't match");
-    std::unique_ptr<rocksdb::Iterator> it{db.db->NewIterator(rocksdb::ReadOptions())};
-    it->Seek(to_slice(lower_bound));
-    while (it->Valid()) {
-        auto k = it->key();
+    it.Seek(to_slice(lower_bound));
+    while (it.Valid()) {
+        auto k = it.key();
         if (memcmp(k.data(), upper_bound.data(), std::min(k.size(), upper_bound.size())) > 0)
             break;
         if (k.size() < lower_bound.size())
             throw std::runtime_error("for_each_subkey: found key with size < prefix");
         memmove(lower_bound.data(), k.data(), lower_bound.size());
-        if (!f(std::as_const(lower_bound), to_input_buffer(k), to_input_buffer(it->value())))
+        if (!f(std::as_const(lower_bound), to_input_buffer(k), to_input_buffer(it.value())))
             return;
         kv::inc_key(lower_bound);
-        it->Seek(to_slice(lower_bound));
+        it.Seek(to_slice(lower_bound));
     }
-    check(it->status(), "for_each_subkey: ");
+    check(it.status(), "for_each_subkey: ");
+}
+
+template <typename F>
+void for_each_subkey(database& db, std::vector<char> lower_bound, const std::vector<char>& upper_bound, F f) {
+    std::unique_ptr<rocksdb::Iterator> it{db.db->NewIterator(rocksdb::ReadOptions())};
+    for_each_subkey(*it, std::move(lower_bound), upper_bound, f);
 }
 
 } // namespace rdb

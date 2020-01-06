@@ -1,9 +1,22 @@
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
+import Draggable from 'react-draggable';
 import { FixedSizeList } from 'react-window';
 import * as ql from './wasm-ql';
 
 require('./style.css');
+
+function prettyPrint(x: any) {
+    return JSON.stringify(x, (k, v) => {
+        if (k === 'abi' || k === 'account_abi') {
+            if (v.length <= 66)
+                return v;
+            else
+                return v.substr(0, 64) + '... (' + (v.length / 2) + ' bytes)';
+        } else
+            return v;
+    }, 4);
+}
 
 class AppState {
     public alive = true;
@@ -13,10 +26,13 @@ class AppState {
     public tokenWasm = new ql.ClientWasm('./token-client.wasm');
     public request = 0;
     public more = null;
+    public queryInspector = false;
+    public lastQuery = [];
+    public replyInspector = false;
+    public lastReply = {} as any;
 
     private run(wasm, query, args, firstKeyName, handle) {
         this.result = [];
-        this.clientRoot.forceUpdate();
         const thisRequest = ++this.request;
         let first_key = args[firstKeyName];
         let running = false;
@@ -24,19 +40,22 @@ class AppState {
             if (running)
                 return;
             running = true;
-            const reply = await wasm.round_trip([
+            this.lastQuery = [
                 query,
-                { ...args, max_block: ['head', args.max_block], [firstKeyName]: first_key },
-            ]);
+                { ...args, snapshot_block: ['absolute', args.snapshot_block], [firstKeyName]: first_key },
+            ];
+            const reply = await wasm.round_trip(this.lastQuery);
             if (thisRequest !== this.request)
                 return;
             running = false;
+            this.lastReply = reply[1];
             handle(reply[1]);
             first_key = reply[1].more;
             if (!first_key)
                 this.more = null;
             this.clientRoot.forceUpdate();
         };
+        this.clientRoot.forceUpdate();
     }
 
     public runSelected() {
@@ -44,7 +63,7 @@ class AppState {
     }
 
     public accountsArgs = {
-        max_block: 100000000,
+        snapshot_block: 100000000,
         first: '',
         last: '',
         include_abi: true,
@@ -55,22 +74,14 @@ class AppState {
             for (let acc of reply.accounts) {
                 acc = (({ name, privileged, account_creation_date, code, last_code_update, account_abi }) =>
                     ({ name, privileged, account_creation_date, code, last_code_update, abi: account_abi }))(acc);
-                this.result.push(...JSON.stringify(acc, (k, v) => {
-                    if (k === 'abi') {
-                        if (v.length <= 66)
-                            return v;
-                        else
-                            return v.substr(0, 64) + '... (' + (v.length / 2) + ' bytes)';
-                    } else
-                        return v;
-                }, 4).split('\n'));
+                this.result.push(...prettyPrint(acc).split('\n'));
             }
         });
     }
     public accounts = { run: this.run_accounts.bind(this), form: AccountsForm };
 
     public multTokensArgs = {
-        max_block: 100000000,
+        snapshot_block: 100000000,
         account: 'b1',
         first_key: { sym: '', code: '' },
         last_key: { sym: '', code: '' },
@@ -88,7 +99,7 @@ class AppState {
     public multipleTokens = { run: this.run_mult_tokens.bind(this), form: MultipleTokensForm };
 
     public tokensMultAccArgs = {
-        max_block: 100000000,
+        snapshot_block: 100000000,
         code: 'eosio.token',
         sym: 'EOS',
         first_account: '',
@@ -104,7 +115,7 @@ class AppState {
     public tokensMultAcc = { run: this.run_tok_mul_acc.bind(this), form: TokensForMultipleAccountsForm };
 
     public transfersArgs = {
-        max_block: 100000000,
+        snapshot_block: 100000000,
         first_key: {
             receiver: '',
             account: '',
@@ -174,6 +185,39 @@ function Results({ appState }: { appState: AppState }) {
                     return <pre style={style}>{content}</pre>;
                 }}
             </FSL>
+            {appState.queryInspector &&
+                <div className='query-inspect-container'>
+                    <Draggable
+                        axis='both'
+                        handle='.handle'
+                        defaultPosition={{ x: 10, y: 10 }}
+                        position={null}
+                        scale={1}
+                    >
+                        <div className='inspect'>
+                            <div className='handle'>Query Inspector</div>
+                            <pre className='inspect-content'>{prettyPrint(appState.lastQuery)}</pre>
+                        </div>
+                    </Draggable>
+                </div>
+            }
+            {appState.replyInspector &&
+                <div className='reply-inspect-container'>
+                    <Draggable
+                        axis='both'
+                        handle='.handle'
+                        defaultPosition={{ x: 10, y: 10 }}
+                        position={null}
+                        scale={1}
+                    >
+                        <div className='inspect'>
+                            <div className='handle'>Reply Inspector</div>
+                            {console.log(appState.lastReply)}
+                            <pre className='inspect-content'>{prettyPrint({ more: appState.lastReply.more, ...appState.lastReply })}</pre>
+                        </div>
+                    </Draggable>
+                </div>
+            }
         </div>
     );
 }
@@ -184,17 +228,17 @@ function AccountsForm({ appState }: { appState: AppState }) {
             <table>
                 <tbody>
                     {/* <tr>
-                        <td>max_block</td>
+                        <td>snapshot_block  </td>
                         <td></td>
-                        <td><input type="text" value={appState.accountsArgs.max_block} onChange={e => { appState.accountsArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.accountsArgs.snapshot_block  } onChange={e => { appState.accountsArgs.snapshot_block    = +e.target.value; appState.runSelected(); }} /></td>
                     </tr> */}
                     <tr>
-                        <td>first</td>
+                        <td>min account</td>
                         <td></td>
                         <td><input type="text" value={appState.accountsArgs.first} onChange={e => { appState.accountsArgs.first = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
-                        <td>last</td>
+                        <td>max account</td>
                         <td></td>
                         <td><input type="text" value={appState.accountsArgs.last} onChange={e => { appState.accountsArgs.last = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
@@ -210,16 +254,16 @@ function MultipleTokensForm({ appState }: { appState: AppState }) {
             <table>
                 <tbody>
                     {/* <tr>
-                        <td>max_block</td>
+                        <td>snapshot_block  </td>
                         <td></td>
-                        <td><input type="text" value={appState.multTokensArgs.max_block} onChange={e => { appState.multTokensArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.multTokensArgs.snapshot_block    } onChange={e => { appState.multTokensArgs.snapshot_block    = +e.target.value; appState.runSelected(); }} /></td>
                     </tr> */}
                     <tr>
                         <td>account</td>
                         <td></td>
                         <td><input type="text" value={appState.multTokensArgs.account} onChange={e => { appState.multTokensArgs.account = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
-                    <tr>
+                    {/* <tr>
                         <td>first_key</td>
                         <td>sym</td>
                         <td><input type="text" value={appState.multTokensArgs.first_key.sym} onChange={e => { appState.multTokensArgs.first_key.sym = e.target.value; appState.runSelected(); }} /></td>
@@ -238,7 +282,7 @@ function MultipleTokensForm({ appState }: { appState: AppState }) {
                         <td></td>
                         <td>code</td>
                         <td><input type="text" value={appState.multTokensArgs.last_key.code} onChange={e => { appState.multTokensArgs.last_key.code = e.target.value; appState.runSelected(); }} /></td>
-                    </tr>
+                    </tr> */}
                 </tbody>
             </table>
         </div>
@@ -251,9 +295,9 @@ function TokensForMultipleAccountsForm({ appState }: { appState: AppState }) {
             <table>
                 <tbody>
                     {/* <tr>
-                        <td>max_block</td>
+                        <td>snapshot_block  </td>
                         <td></td>
-                        <td><input type="text" value={appState.tokensMultAccArgs.max_block} onChange={e => { appState.tokensMultAccArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.tokensMultAccArgs.snapshot_block } onChange={e => { appState.tokensMultAccArgs.snapshot_block  = +e.target.value; appState.runSelected(); }} /></td>
                     </tr> */}
                     <tr>
                         <td>code</td>
@@ -266,12 +310,12 @@ function TokensForMultipleAccountsForm({ appState }: { appState: AppState }) {
                         <td><input type="text" value={appState.tokensMultAccArgs.sym} onChange={e => { appState.tokensMultAccArgs.sym = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
-                        <td>first_account</td>
+                        <td>min account</td>
                         <td></td>
                         <td><input type="text" value={appState.tokensMultAccArgs.first_account} onChange={e => { appState.tokensMultAccArgs.first_account = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
-                        <td>last_account</td>
+                        <td>max account</td>
                         <td></td>
                         <td><input type="text" value={appState.tokensMultAccArgs.last_account} onChange={e => { appState.tokensMultAccArgs.last_account = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
@@ -287,17 +331,17 @@ function TransfersForm({ appState }: { appState: AppState }) {
             <table>
                 <tbody>
                     {/* <tr>
-                        <td>max_block</td>
+                        <td>snapshot_block  </td>
                         <td></td>
-                        <td><input type="text" value={appState.transfersArgs.max_block} onChange={e => { appState.transfersArgs.max_block = +e.target.value; appState.runSelected(); }} /></td>
+                        <td><input type="text" value={appState.transfersArgs.snapshot_block } onChange={e => { appState.transfersArgs.snapshot_block  = +e.target.value; appState.runSelected(); }} /></td>
                     </tr> */}
                     <tr>
-                        <td>first_receiver</td>
+                        <td>min receiver</td>
                         <td></td>
                         <td><input type="text" value={appState.transfersArgs.first_key.receiver} onChange={e => { appState.transfersArgs.first_key.receiver = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
                     <tr>
-                        <td>last_receiver</td>
+                        <td>max receiver</td>
                         <td></td>
                         <td><input type="text" value={appState.transfersArgs.last_key.receiver} onChange={e => { appState.transfersArgs.last_key.receiver = e.target.value; appState.runSelected(); }} /></td>
                     </tr>
@@ -352,6 +396,23 @@ function Controls({ appState }: { appState: AppState }) {
                 </input>
                 Transfers
             </label>
+            <br />
+            <label>
+                <input
+                    type='checkbox'
+                    checked={appState.queryInspector}
+                    onChange={e => { appState.queryInspector = e.target.checked; appState.clientRoot.forceUpdate(); }}>
+                </input>
+                Query Inspector
+            </label>
+            <label>
+                <input
+                    type='checkbox'
+                    checked={appState.replyInspector}
+                    onChange={e => { appState.replyInspector = e.target.checked; appState.clientRoot.forceUpdate(); }}>
+                </input>
+                Reply Inspector
+            </label>
         </div>
     );
 }
@@ -370,6 +431,14 @@ class ClientRoot extends React.Component<{ appState: AppState }> {
                 <Results appState={appState} />
                 <div className='disclaimer'>
                     <a href="https://github.com/EOSIO/history-tools">GitHub Repo...</a>
+                    <br /><br />
+                    Disclaimer: All repositories and other materials are provided subject to this
+                    &nbsp;<a href="https://block.one/important-notice/">IMPORTANT</a>&nbsp;
+                    notice and you must familiarize yourself with its terms.  The notice contains
+                    important information, limitations and restrictions relating to our software,
+                    publications, trademarks, third-party resources, and forward-looking statements.
+                    By accessing any of our repositories and other materials, you accept and agree
+                    to the terms of the notice.
                 </div>
             </div>
         );
@@ -383,5 +452,6 @@ export default function init(prev: AppState) {
         prev.alive = false;
     }
     ReactDOM.render(<ClientRoot {...{ appState }} />, document.getElementById('main'));
+    appState.runSelected();
     return appState;
 }

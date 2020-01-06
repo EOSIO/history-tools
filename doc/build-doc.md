@@ -1,7 +1,8 @@
 # Building the documentation
 
 ```
-docker build -t history-tools-docs -f ./build-docs.dockerfile --build-arg BUILD_DATE=`date +%s` .
+rm -rf _book
+docker build -t history-tools-docs -f ./build-docs.dockerfile .
 docker create --name history-tools-docs-temp history-tools-docs
 docker cp history-tools-docs-temp:/root/history-tools/_book .
 docker rm history-tools-docs-temp

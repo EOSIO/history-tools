@@ -662,7 +662,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         bin_to_native(block, bin);
 
         std::string fields = "block_num, block_id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, "
-                             "schedule_version, new_producers_version, new_producers";
+                             "schedule_version, new_producers_version";
         std::string values = sql_str(bulk, block_num) + sep(bulk) +                                 //
                              sql_str(bulk, block_id) + sep(bulk) +                                  //
                              sql_str(bulk, block.timestamp) + sep(bulk) +                           //

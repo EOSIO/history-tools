@@ -39,6 +39,16 @@ future. Some of these may be driven by community feedback.
 This release supports nodeos 1.8.x. It does not support 1.7.x or the 1.8 RC versions. This release
 includes the following:
 
+## Alpha 0.3.0
+
+This release adds temporary workarounds to `fill-pg` to support Nodeos 2.0. It also disables the remaining tools. If you would
+like to test rocksdb support or wasm-ql support, stick with Nodeos 1.8 and the Alpha 0.2.0 release of History Tools.
+
+* Temporary `fill-pg` fixes
+  * Removed the `global_property` table
+  * Removed `new_producers` from the `block_info` table
+* Temporarily disabled building everything except `fill-pg`
+
 ## Alpha 0.2.0
 
 * There are now 2 self-contained demonstrations in public Docker images. See [container-demos](doc/container-demos.md) for details.

@@ -29,7 +29,7 @@ set(Boost_USE_STATIC_LIBS ON)
 
 add_definitions(-DBOOST_ASIO_DISABLE_STD_EXPERIMENTAL_STRING_VIEW)
 
-find_package(eosio.cdt)
+#find_package(eosio.cdt)
 find_package(PostgreSQL COMPONENTS Libraries)
 find_package(Boost 1.70 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
 find_package(PkgConfig REQUIRED)
@@ -97,11 +97,11 @@ add_compile_options(-Wno-error=shadow)
 
 add_subdirectory(external/appbase EXCLUDE_FROM_ALL)
 add_subdirectory(external/fc EXCLUDE_FROM_ALL)
-add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
+#add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
 
-set(FOUND_ROCKSDB ON)
-set(ROCKSDB_LIB rocksdb)
-set(ROCKSDB_INCLUDE_DIR external/rocksdb/include)
+#set(FOUND_ROCKSDB ON)
+#set(ROCKSDB_LIB rocksdb)
+#set(ROCKSDB_INCLUDE_DIR external/rocksdb/include)
 
 set(APPS "")
 function(add_app APP FLAGS LIBS)
@@ -142,7 +142,7 @@ function(add_app APP FLAGS LIBS)
     endif()
 endfunction(add_app)
 
-add_app(history-tools "-DDEFAULT_PLUGINS=" "${PQXX_LIBRARIES};${ROCKSDB_LIB}")
+#add_app(history-tools "-DDEFAULT_PLUGINS=" "${PQXX_LIBRARIES};${ROCKSDB_LIB}")
 
 message(STATUS "----------------------------------------------------")
 message(STATUS "Checked libraries:")
@@ -161,36 +161,36 @@ function(show_found desc found missing_msg)
 endfunction(show_found)
 
 show_found("    pq:         " "${PostgreSQL_INCLUDE_DIR}" "not found; will not build pg plugins")
-show_found("    rocksdb:    " "${FOUND_ROCKSDB}" "not found; will not build rocksdb plugins")
+#show_found("    rocksdb:    " "${FOUND_ROCKSDB}" "not found; will not build rocksdb plugins")
 
 message(STATUS "Enabled plugins:")
 
 if (PostgreSQL_INCLUDE_DIR)
     message(STATUS "    fill_pg_plugin")
     add_app(fill-pg "-DDEFAULT_PLUGINS=fill_pg_plugin;-DINCLUDE_FILL_PG_PLUGIN" "${PQXX_LIBRARIES}")
-    target_sources(history-tools PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp)
+    #target_sources(history-tools PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp)
     target_sources(fill-pg PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp)
-    message(STATUS "    wasm_ql_pg_plugin")
-    add_app(wasm-ql-pg "-DDEFAULT_PLUGINS=wasm_ql_pg_plugin;-DINCLUDE_WASM_QL_PG_PLUGIN" "${PQXX_LIBRARIES}")
-    target_sources(history-tools PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp)
-    target_sources(wasm-ql-pg PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
+    #message(STATUS "    wasm_ql_pg_plugin")
+    #add_app(wasm-ql-pg "-DDEFAULT_PLUGINS=wasm_ql_pg_plugin;-DINCLUDE_WASM_QL_PG_PLUGIN" "${PQXX_LIBRARIES}")
+    #target_sources(history-tools PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp)
+    #target_sources(wasm-ql-pg PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
 endif ()
 
-if (FOUND_ROCKSDB)
-    message(STATUS "    fill_rocksdb_plugin")
-    add_app(fill-rocksdb "-DDEFAULT_PLUGINS=fill_rocksdb_plugin;-DINCLUDE_FILL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB}")
-    target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp)
-    target_sources(fill-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp)
-    message(STATUS "    wasm_ql_rocksdb_plugin")
-    add_app(wasm-ql-rocksdb "-DDEFAULT_PLUGINS=wasm_ql_rocksdb_plugin;-DINCLUDE_WASM_QL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB}")
-    add_app(combo-rocksdb "-DDEFAULT_PLUGINS=fill_rocksdb_plugin,wasm_ql_rocksdb_plugin;-DINCLUDE_FILL_ROCKSDB_PLUGIN;-DINCLUDE_WASM_QL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB}")
-    target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp)
-    target_sources(wasm-ql-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
-    target_sources(combo-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
-endif()
+#if (FOUND_ROCKSDB)
+#    message(STATUS "    fill_rocksdb_plugin")
+#    add_app(fill-rocksdb "-DDEFAULT_PLUGINS=fill_rocksdb_plugin;-DINCLUDE_FILL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB}")
+#    target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp)
+#    target_sources(fill-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp)
+#    message(STATUS "    wasm_ql_rocksdb_plugin")
+#    add_app(wasm-ql-rocksdb "-DDEFAULT_PLUGINS=wasm_ql_rocksdb_plugin;-DINCLUDE_WASM_QL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB}")
+#    add_app(combo-rocksdb "-DDEFAULT_PLUGINS=fill_rocksdb_plugin,wasm_ql_rocksdb_plugin;-DINCLUDE_FILL_ROCKSDB_PLUGIN;-DINCLUDE_WASM_QL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB}")
+#    target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp)
+#    target_sources(wasm-ql-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
+#    target_sources(combo-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
+#endif()
 
-message(STATUS "    wasm_ql_plugin")
-target_sources(history-tools PRIVATE src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
+#message(STATUS "    wasm_ql_plugin")
+#target_sources(history-tools PRIVATE src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
 
 message(STATUS "Enabled apps:")
 foreach(APP ${APPS})
@@ -199,20 +199,20 @@ endforeach()
 
 message(STATUS "----------------------------------------------------")
 
-if (NOT PostgreSQL_INCLUDE_DIR AND NOT FOUND_ROCKSDB)
-    message(WARNING "No database libraries found. Only building WASM files.")
-endif()
+#if (NOT PostgreSQL_INCLUDE_DIR AND NOT FOUND_ROCKSDB)
+#    message(WARNING "No database libraries found. Only building WASM files.")
+#endif()
 
-if (eosio.cdt_FOUND)
-    ExternalProject_Add(
-        wasms_project
-        SOURCE_DIR ${CMAKE_SOURCE_DIR}/wasms
-        BINARY_DIR ${CMAKE_BINARY_DIR}/wasms
-        CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${EOSIO_CDT_ROOT}/lib/cmake/eosio.cdt/EosioWasmToolchain.cmake
-        UPDATE_COMMAND ""
-        PATCH_COMMAND ""
-        TEST_COMMAND ""
-        INSTALL_COMMAND ""
-        BUILD_ALWAYS 1
-    )
-endif()
+#if (eosio.cdt_FOUND)
+#    ExternalProject_Add(
+#        wasms_project
+#        SOURCE_DIR ${CMAKE_SOURCE_DIR}/wasms
+#        BINARY_DIR ${CMAKE_BINARY_DIR}/wasms
+#        CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${EOSIO_CDT_ROOT}/lib/cmake/eosio.cdt/EosioWasmToolchain.cmake
+#        UPDATE_COMMAND ""
+#        PATCH_COMMAND ""
+#        TEST_COMMAND ""
+#        INSTALL_COMMAND ""
+#        BUILD_ALWAYS 1
+#    )
+#endif()

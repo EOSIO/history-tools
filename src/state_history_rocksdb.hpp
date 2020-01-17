@@ -9,41 +9,230 @@
 #include <rocksdb/db.h>
 #include <rocksdb/table.h>
 
+namespace eosio {
+
+inline void check(bool cond, const char* msg) {
+    if (!cond)
+        throw std::runtime_error(msg);
+}
+
+inline void check(bool cond, const std::string& msg) {
+    if (!cond)
+        throw std::runtime_error(msg);
+}
+
+} // namespace eosio
+
 namespace state_history {
 namespace rdb {
 
-template <typename T>
-inline T* addr(T&& x) {
-    return &x;
-}
+inline constexpr abieos::name kvram_id{"eosio.kvram"};
+inline constexpr abieos::name kvdisk_id{"eosio.kvdisk"};
 
-inline bool exists(chain_kv::database& db, rocksdb::Slice key) {
-    rocksdb::PinnableSlice v;
-    auto                   stat = db.rdb->Get(rocksdb::ReadOptions(), db.rdb->DefaultColumnFamily(), key, &v);
-    if (stat.IsNotFound())
-        return false;
-    chain_kv::check(stat, "exists: ");
-    return true;
-}
+inline const std::vector<char> undo_stack_prefix{0x40};
+inline const std::vector<char> contract_kv_prefix{0x41};
+
+enum class kv_it_stat {
+    iterator_ok     = 0,  // Iterator is positioned at a key-value pair
+    iterator_erased = -1, // The key-value pair that the iterator used to be positioned at was erased
+    iterator_end    = -2, // Iterator is out-of-bounds
+};
+
+struct kv_iterator_rocksdb {
+    uint32_t&                num_iterators;
+    chain_kv::view&          view;
+    uint64_t                 contract;
+    chain_kv::view::iterator kv_it;
+
+    kv_iterator_rocksdb(uint32_t& num_iterators, chain_kv::view& view, uint64_t contract, const char* prefix, uint32_t size)
+        : num_iterators(num_iterators)
+        , view{view}
+        , contract{contract}
+        , kv_it{view, contract, {prefix, size}} {
+        ++num_iterators;
+    }
+
+    ~kv_iterator_rocksdb() { --num_iterators; }
+
+    bool is_kv_chainbase_context_iterator() const { return false; }
+    bool is_kv_rocksdb_context_iterator() const { return true; }
+
+    kv_it_stat kv_it_status() {
+        if (kv_it.is_end())
+            return kv_it_stat::iterator_end;
+        else if (kv_it.is_erased())
+            return kv_it_stat::iterator_erased;
+        else
+            return kv_it_stat::iterator_ok;
+    }
+
+    int32_t kv_it_compare(const kv_iterator_rocksdb& rhs) {
+        eosio::check(rhs.is_kv_rocksdb_context_iterator(), "Incompatible key-value iterators");
+        auto& r = static_cast<const kv_iterator_rocksdb&>(rhs);
+        eosio::check(&view == &r.view && contract == r.contract, "Incompatible key-value iterators");
+        eosio::check(!kv_it.is_erased(), "Iterator to erased element");
+        eosio::check(!r.kv_it.is_erased(), "Iterator to erased element");
+        return compare(kv_it, r.kv_it);
+    }
+
+    int32_t kv_it_key_compare(const char* key, uint32_t size) {
+        eosio::check(!kv_it.is_erased(), "Iterator to erased element");
+        return chain_kv::compare_key(kv_it.get_kv(), chain_kv::key_value{{key, size}, {}});
+    }
+
+    kv_it_stat kv_it_move_to_end() {
+        kv_it.move_to_end();
+        return kv_it_stat::iterator_end;
+    }
+
+    kv_it_stat kv_it_next() {
+        eosio::check(!kv_it.is_erased(), "Iterator to erased element");
+        ++kv_it;
+        return kv_it_status();
+    }
+
+    kv_it_stat kv_it_prev() {
+        eosio::check(!kv_it.is_erased(), "Iterator to erased element");
+        --kv_it;
+        return kv_it_status();
+    }
+
+    kv_it_stat kv_it_lower_bound(const char* key, uint32_t size) {
+        kv_it.lower_bound(key, size);
+        return kv_it_status();
+    }
+
+    kv_it_stat kv_it_key(uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size) {
+        eosio::check(!kv_it.is_erased(), "Iterator to erased element");
+
+        std::optional<chain_kv::key_value> kv;
+        kv = kv_it.get_kv();
+
+        if (kv) {
+            if (offset < kv->key.size())
+                memcpy(dest, kv->key.data() + offset, std::min((size_t)size, kv->key.size() - offset));
+            actual_size = kv->key.size();
+            return kv_it_stat::iterator_ok;
+        } else {
+            actual_size = 0;
+            return kv_it_stat::iterator_end;
+        }
+    }
+
+    kv_it_stat kv_it_value(uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size) {
+        eosio::check(!kv_it.is_erased(), "Iterator to erased element");
+
+        std::optional<chain_kv::key_value> kv;
+        kv = kv_it.get_kv();
+
+        if (kv) {
+            if (offset < kv->value.size())
+                memcpy(dest, kv->value.data() + offset, std::min((size_t)size, kv->value.size() - offset));
+            actual_size = kv->value.size();
+            return kv_it_stat::iterator_ok;
+        } else {
+            actual_size = 0;
+            return kv_it_stat::iterator_end;
+        }
+    }
+}; // kv_iterator_rocksdb
+
+struct kv_database_config {
+    std::uint32_t max_key_size   = 1024;
+    std::uint32_t max_value_size = 256 * 1024; // Large enough to hold most contracts
+    std::uint32_t max_iterators  = 1024;
+};
+
+struct kv_context_rocksdb {
+    chain_kv::database&                      database;
+    chain_kv::undo_stack&                    undo_stack;
+    abieos::name                             database_id;
+    chain_kv::write_session                  write_session;
+    chain_kv::view                           view;
+    abieos::name                             receiver;
+    const kv_database_config&                limits;
+    uint32_t                                 num_iterators = 0;
+    std::shared_ptr<const std::vector<char>> temp_data_buffer;
+
+    kv_context_rocksdb(
+        chain_kv::database& database, chain_kv::undo_stack& undo_stack, abieos::name database_id, abieos::name receiver,
+        const kv_database_config& limits)
+        : database{database}
+        , undo_stack{undo_stack}
+        , database_id{database_id}
+        , write_session{database}
+        , view{write_session, make_prefix()}
+        , receiver{receiver}
+        , limits{limits} {}
+
+    ~kv_context_rocksdb() { write_session.write_changes(undo_stack); }
+
+    std::vector<char> make_prefix() {
+        std::vector<char> prefix = contract_kv_prefix;
+        chain_kv::append_key(prefix, database_id.value);
+        return prefix;
+    }
+
+    void kv_erase(uint64_t contract, const char* key, uint32_t key_size) {
+        eosio::check(abieos::name{contract} == receiver, "Can not write to this key");
+        temp_data_buffer = nullptr;
+        view.erase(contract, {key, key_size});
+    }
+
+    void kv_set(uint64_t contract, const char* key, uint32_t key_size, const char* value, uint32_t value_size) {
+        eosio::check(abieos::name{contract} == receiver, "Can not write to this key");
+        eosio::check(key_size <= limits.max_key_size, "Key too large");
+        eosio::check(value_size <= limits.max_value_size, "Value too large");
+        temp_data_buffer = nullptr;
+        view.set(contract, {key, key_size}, {value, value_size});
+    }
+
+    bool kv_get(uint64_t contract, const char* key, uint32_t key_size, uint32_t& value_size) {
+        temp_data_buffer = view.get(contract, {key, key_size});
+        if (temp_data_buffer) {
+            value_size = temp_data_buffer->size();
+            return true;
+        } else {
+            value_size = 0;
+            return false;
+        }
+    }
+
+    uint32_t kv_get_data(uint32_t offset, char* data, uint32_t data_size) {
+        const char* temp      = nullptr;
+        uint32_t    temp_size = 0;
+        if (temp_data_buffer) {
+            temp      = temp_data_buffer->data();
+            temp_size = temp_data_buffer->size();
+        }
+        if (offset < temp_size)
+            memcpy(data, temp + offset, std::min(data_size, temp_size - offset));
+        return temp_size;
+    }
+
+    std::unique_ptr<kv_iterator_rocksdb> kv_it_create(uint64_t contract, const char* prefix, uint32_t size) {
+        eosio::check(num_iterators < limits.max_iterators, "Too many iterators");
+        return std::make_unique<kv_iterator_rocksdb>(num_iterators, view, contract, prefix, size);
+    }
+}; // kv_context_rocksdb
 
 struct db_view_state {
-    chain_kv::view&                                        view;
-    std::vector<std::shared_ptr<chain_kv::view::iterator>> iterators;
-    std::vector<char>                                      temp_data_buffer; // !!! per db
+    abieos::name                                      receiver;
+    chain_kv::database&                               database;
+    chain_kv::undo_stack&                             undo_stack;
+    const kv_database_config                          limits;
+    kv_context_rocksdb                                kv_ram;
+    kv_context_rocksdb                                kv_disk;
+    std::vector<std::unique_ptr<kv_iterator_rocksdb>> kv_iterators;
+    std::vector<size_t>                               kv_destroyed_iterators;
 
-    db_view_state(chain_kv::view& view)
-        : view{view}
-        , iterators(1) {}
-
-    void reset() {
-        iterators.resize(1);
-        view.discard_changes();
-    }
-
-    void write_and_reset() {
-        iterators.resize(1);
-        view.write_changes();
-    }
+    db_view_state(abieos::name receiver, chain_kv::database& database, chain_kv::undo_stack& undo_stack)
+        : receiver{receiver}
+        , database{database}
+        , undo_stack{undo_stack}
+        , kv_ram{database, undo_stack, kvram_id, receiver, limits}
+        , kv_disk{database, undo_stack, kvdisk_id, receiver, limits}
+        , kv_iterators(1) {}
 };
 
 template <typename Derived>
@@ -51,142 +240,109 @@ struct db_callbacks {
     Derived& derived() { return static_cast<Derived&>(*this); }
 
     void kv_erase(uint64_t db, uint64_t contract, const char* key, uint32_t key_size) {
-        // !!! db
-        // !!! limit contract
         derived().check_bounds(key, key_size);
-        derived().state.view.erase(contract, {key, key_size});
-        derived().state.temp_data_buffer.clear();
+        return kv_get_db(db).kv_erase(contract, key, key_size);
     }
 
     void kv_set(uint64_t db, uint64_t contract, const char* key, uint32_t key_size, const char* value, uint32_t value_size) {
-        // !!! db
-        // !!! limit contract
-        // !!! limit key, value sizes
         derived().check_bounds(key, key_size);
         derived().check_bounds(value, value_size);
-        derived().state.view.set(contract, {key, key_size}, {value, value_size});
-        derived().state.temp_data_buffer.clear();
+        return kv_get_db(db).kv_set(contract, key, key_size, value, value_size);
     }
 
     bool kv_get(uint64_t db, uint64_t contract, const char* key, uint32_t key_size, uint32_t& value_size) {
-        // !!! db, contract
         derived().check_bounds(key, key_size);
-        bool result = derived().state.view.get({key, key_size}, derived().state.temp_data_buffer);
-        value_size  = derived().state.temp_data_buffer.size();
-        return result;
+        return kv_get_db(db).kv_get(contract, key, key_size, value_size);
     }
 
     uint32_t kv_get_data(uint64_t db, uint32_t offset, char* data, uint32_t data_size) {
-        // !!! db
         derived().check_bounds(data, data_size);
-        auto& temp = derived().state.temp_data_buffer;
-        if (offset < temp.size())
-            memcpy(data, temp.data() + offset, std::min(data_size, temp.size() - offset));
-        return temp.size();
-    }
-
-    chain_kv::view::iterator& get_it(uint32_t itr) {
-        auto& state = derived().state;
-        if (itr >= state.iterators.size() || !state.iterators[itr])
-            throw std::runtime_error("iterator does not exist");
-        return *state.iterators[itr];
+        return kv_get_db(db).kv_get_data(offset, data, data_size);
     }
 
     uint32_t kv_it_create(uint64_t db, uint64_t contract, const char* prefix, uint32_t size) {
-        // !!! db
-        // !!! reuse destroyed slots
-        // !!! limit # of iterators
-        auto& state = derived().state;
-        state.iterators.push_back(std::make_unique<chain_kv::view::iterator>(state.view, contract, rocksdb::Slice{prefix, size}));
-        return state.iterators.size() - 1;
+        derived().check_bounds(prefix, size);
+        auto&    kdb = kv_get_db(db);
+        uint32_t itr;
+        if (!derived().state.kv_destroyed_iterators.empty()) {
+            itr = derived().state.kv_destroyed_iterators.back();
+            derived().state.kv_destroyed_iterators.pop_back();
+        } else {
+            // Sanity check in case the per-database limits are set poorly
+            eosio::check(derived().state.kv_iterators.size() <= 0xFFFFFFFFu, "Too many iterators");
+            itr = derived().state.kv_iterators.size();
+            derived().state.kv_iterators.emplace_back();
+        }
+        derived().state.kv_iterators[itr] = kdb.kv_it_create(contract, prefix, size);
+        return itr;
     }
 
     void kv_it_destroy(uint32_t itr) {
-        get_it(itr);
-        derived().state.iterators[itr].reset();
+        kv_check_iterator(itr);
+        derived().state.kv_destroyed_iterators.push_back(itr);
+        derived().state.kv_iterators[itr].reset();
     }
 
     int32_t kv_it_status(uint32_t itr) {
-        // !!!
-        throw std::runtime_error("not implemented");
+        kv_check_iterator(itr);
+        return static_cast<int32_t>(derived().state.kv_iterators[itr]->kv_it_status());
     }
 
-    int kv_it_compare(uint32_t itr_a, uint32_t itr_b) {
-        // !!! throw if either is erased
-        // !!! throw if from different db or contracts
-        return compare(get_it(itr_a), get_it(itr_b));
+    int32_t kv_it_compare(uint32_t itr_a, uint32_t itr_b) {
+        kv_check_iterator(itr_a);
+        kv_check_iterator(itr_b);
+        return derived().state.kv_iterators[itr_a]->kv_it_compare(*derived().state.kv_iterators[itr_b]);
     }
 
-    int kv_it_key_compare(uint32_t itr, const char* key, uint32_t size) {
-        // !!! throw if itr is erased
+    int32_t kv_it_key_compare(uint32_t itr, const char* key, uint32_t size) {
         derived().check_bounds(key, size);
-        auto& it = get_it(itr);
-        auto  kv = it.get_kv();
-        if (!kv)
-            return 1;
-        return chain_kv::compare_blob(kv->key, std::string_view{key, size});
+        kv_check_iterator(itr);
+        return derived().state.kv_iterators[itr]->kv_it_key_compare(key, size);
     }
 
     int32_t kv_it_move_to_end(uint32_t itr) {
-        auto& it = get_it(itr);
-        it.move_to_end();
-        return 0; // !!!
+        kv_check_iterator(itr);
+        return static_cast<int32_t>(derived().state.kv_iterators[itr]->kv_it_move_to_end());
     }
 
     int32_t kv_it_next(uint32_t itr) {
-        // !!! throw if itr is erased
-        // !!! wraparound
-        auto& it = get_it(itr);
-        ++it;
-        return 0; // !!!
+        kv_check_iterator(itr);
+        return static_cast<int32_t>(derived().state.kv_iterators[itr]->kv_it_next());
     }
 
     int32_t kv_it_prev(uint32_t itr) {
-        // !!!
-        throw std::runtime_error("not implemented");
+        kv_check_iterator(itr);
+        return static_cast<int32_t>(derived().state.kv_iterators[itr]->kv_it_prev());
     }
 
     int32_t kv_it_lower_bound(uint32_t itr, const char* key, uint32_t size) {
-        // !!! semantics change
         derived().check_bounds(key, size);
-        auto& it = get_it(itr);
-        it.lower_bound(key, size);
-        return 0; // !!!
+        kv_check_iterator(itr);
+        return static_cast<int32_t>(derived().state.kv_iterators[itr]->kv_it_lower_bound(key, size));
     }
 
     int32_t kv_it_key(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size) {
-        // !!! throw if itr is erased
-        // !!! skip (view.prefix, contract)
         derived().check_bounds(dest, size);
-        auto& it = get_it(itr);
-        auto  kv = it.get_kv();
-        if (!kv) {
-            actual_size = 0;
-            return -1; // !!!
-        }
-        if (kv->key.size() >= 0x8000'0000)
-            throw std::runtime_error("kv size is too big for wasm");
-        if (offset < kv->key.size())
-            memcpy(dest, kv->key.data() + offset, std::min(size, kv->key.size() - offset));
-        actual_size = kv->key.size();
-        return 0; // !!!
+        kv_check_iterator(itr);
+        return static_cast<int32_t>(derived().state.kv_iterators[itr]->kv_it_key(offset, dest, size, actual_size));
     }
 
     int32_t kv_it_value(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size) {
-        // !!! throw if itr is erased
         derived().check_bounds(dest, size);
-        auto& it = get_it(itr);
-        auto  kv = it.get_kv();
-        if (!kv) {
-            actual_size = 0;
-            return -1; // !!!
-        }
-        if (kv->value.size() >= 0x8000'0000)
-            throw std::runtime_error("kv size is too big for wasm");
-        if (offset < kv->value.size())
-            memcpy(dest, kv->value.data() + offset, std::min(size, (uint32_t)kv->value.size() - offset));
-        actual_size = kv->value.size();
-        return 0; // !!!
+        kv_check_iterator(itr);
+        return static_cast<int32_t>(derived().state.kv_iterators[itr]->kv_it_value(offset, dest, size, actual_size));
+    }
+
+    kv_context_rocksdb& kv_get_db(uint64_t db) {
+        if (db == kvram_id.value)
+            return derived().state.kv_ram;
+        else if (db == kvdisk_id.value)
+            return derived().state.kv_disk;
+        throw std::runtime_error("Bad key-value database ID");
+    }
+
+    void kv_check_iterator(uint32_t itr) {
+        eosio::check(itr < derived().state.kv_iterators.size() && derived().state.kv_iterators[itr], "Bad key-value iterator");
     }
 
     template <typename Rft, typename Allocator>
@@ -227,18 +383,3 @@ class kv_environment : public db_callbacks<kv_environment> {
 
 } // namespace rdb
 } // namespace state_history
-
-namespace eosio {
-using state_history::rdb::kv_environment;
-
-inline void check(bool cond, const char* msg) {
-    if (!cond)
-        throw std::runtime_error(msg);
-}
-
-inline void check(bool cond, const std::string& msg) {
-    if (!cond)
-        throw std::runtime_error(msg);
-}
-
-} // namespace eosio

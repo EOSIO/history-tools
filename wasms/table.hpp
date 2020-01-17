@@ -31,15 +31,15 @@ IMPORT bool     kv_get(uint64_t db, uint64_t contract, const char* key, uint32_t
 IMPORT uint32_t kv_get_data(uint64_t db, uint32_t offset, char* data, uint32_t data_size);
 IMPORT uint32_t kv_it_create(uint64_t db, uint64_t contract, const char* prefix, uint32_t size);
 IMPORT void     kv_it_destroy(uint32_t itr);
-IMPORT it_stat  kv_it_status(uint32_t itr);
-IMPORT int      kv_it_compare(uint32_t itr_a, uint32_t itr_b);
-IMPORT int      kv_it_key_compare(uint32_t itr, const char* key, uint32_t size);
-IMPORT it_stat  kv_it_move_to_end(uint32_t itr);
-IMPORT it_stat  kv_it_next(uint32_t itr);
-IMPORT it_stat  kv_it_prev(uint32_t itr);
-IMPORT it_stat  kv_it_lower_bound(uint32_t itr, const char* key, uint32_t size);
-IMPORT it_stat  kv_it_key(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size);
-IMPORT it_stat  kv_it_value(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size);
+IMPORT int32_t  kv_it_status(uint32_t itr);
+IMPORT int32_t  kv_it_compare(uint32_t itr_a, uint32_t itr_b);
+IMPORT int32_t  kv_it_key_compare(uint32_t itr, const char* key, uint32_t size);
+IMPORT int32_t  kv_it_move_to_end(uint32_t itr);
+IMPORT int32_t  kv_it_next(uint32_t itr);
+IMPORT int32_t  kv_it_prev(uint32_t itr);
+IMPORT int32_t  kv_it_lower_bound(uint32_t itr, const char* key, uint32_t size);
+IMPORT int32_t  kv_it_key(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size);
+IMPORT int32_t  kv_it_value(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size);
 // clang-format on
 
 #undef IMPORT
@@ -77,15 +77,15 @@ class kv_environment {
     uint32_t kv_get_data(uint64_t db, uint32_t offset, char* data, uint32_t data_size)                                          {return internal_use_do_not_use::kv_get_data(db, offset, data, data_size);}
     uint32_t kv_it_create(uint64_t db, uint64_t contract, const char* prefix, uint32_t size)                                    {return internal_use_do_not_use::kv_it_create(db, contract, prefix, size);}
     void     kv_it_destroy(uint32_t itr)                                                                                        {return internal_use_do_not_use::kv_it_destroy(itr);}
-    it_stat  kv_it_status(uint32_t itr)                                                                                         {return internal_use_do_not_use::kv_it_status(itr);}
-    int      kv_it_compare(uint32_t itr_a, uint32_t itr_b)                                                                      {return internal_use_do_not_use::kv_it_compare(itr_a, itr_b);}
-    int      kv_it_key_compare(uint32_t itr, const char* key, uint32_t size)                                                    {return internal_use_do_not_use::kv_it_key_compare(itr, key, size);}
-    it_stat  kv_it_move_to_end(uint32_t itr)                                                                                    {return internal_use_do_not_use::kv_it_move_to_end(itr);}
-    it_stat  kv_it_next(uint32_t itr)                                                                                           {return internal_use_do_not_use::kv_it_next(itr);}
-    it_stat  kv_it_prev(uint32_t itr)                                                                                           {return internal_use_do_not_use::kv_it_prev(itr);}
-    it_stat  kv_it_lower_bound(uint32_t itr, const char* key, uint32_t size)                                                    {return internal_use_do_not_use::kv_it_lower_bound(itr, key, size);}
-    it_stat  kv_it_key(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size)                         {return internal_use_do_not_use::kv_it_key(itr, offset, dest, size, actual_size);}
-    it_stat  kv_it_value(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size)                       {return internal_use_do_not_use::kv_it_value(itr, offset, dest, size, actual_size);}
+    int32_t  kv_it_status(uint32_t itr)                                                                                         {return internal_use_do_not_use::kv_it_status(itr);}
+    int32_t  kv_it_compare(uint32_t itr_a, uint32_t itr_b)                                                                      {return internal_use_do_not_use::kv_it_compare(itr_a, itr_b);}
+    int32_t  kv_it_key_compare(uint32_t itr, const char* key, uint32_t size)                                                    {return internal_use_do_not_use::kv_it_key_compare(itr, key, size);}
+    int32_t  kv_it_move_to_end(uint32_t itr)                                                                                    {return internal_use_do_not_use::kv_it_move_to_end(itr);}
+    int32_t  kv_it_next(uint32_t itr)                                                                                           {return internal_use_do_not_use::kv_it_next(itr);}
+    int32_t  kv_it_prev(uint32_t itr)                                                                                           {return internal_use_do_not_use::kv_it_prev(itr);}
+    int32_t  kv_it_lower_bound(uint32_t itr, const char* key, uint32_t size)                                                    {return internal_use_do_not_use::kv_it_lower_bound(itr, key, size);}
+    int32_t  kv_it_key(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size)                         {return internal_use_do_not_use::kv_it_key(itr, offset, dest, size, actual_size);}
+    int32_t  kv_it_value(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size)                       {return internal_use_do_not_use::kv_it_value(itr, offset, dest, size, actual_size);}
     // clang-format on
 
     template <typename T>

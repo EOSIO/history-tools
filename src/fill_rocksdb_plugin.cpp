@@ -1,7 +1,12 @@
 // copyright defined in LICENSE.txt
 
 #include "fill_rocksdb_plugin.hpp"
+
+namespace eosio {
+using state_history::rdb::kv_environment;
+}
 #include "../wasms/state_history_kv_tables.hpp" // todo: move
+
 #include "state_history_connection.hpp"
 #include "state_history_kv.hpp"
 #include "state_history_rocksdb.hpp"
@@ -63,8 +68,9 @@ struct fill_rocksdb_plugin_impl : std::enable_shared_from_this<fill_rocksdb_plug
 struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_session> {
     fill_rocksdb_plugin_impl*                    my = nullptr;
     std::shared_ptr<fill_rocksdb_config>         config;
-    std::shared_ptr<chain_kv::database>          db   = app().find_plugin<rocksdb_plugin>()->get_db();
-    chain_kv::view                               view = {*db, {0x12, 0x34}};
+    std::shared_ptr<chain_kv::database>          db = app().find_plugin<rocksdb_plugin>()->get_db();
+    chain_kv::write_session                      write_session{*db};
+    chain_kv::undo_stack                         undo_stack{*db, chain_kv::bytes{state_history::rdb::undo_stack_prefix}};
     std::shared_ptr<state_history::connection>   connection;
     std::optional<state_history::fill_status_v0> current_db_status = {};
     uint32_t                                     head              = 0;
@@ -101,7 +107,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     }
 
     void load_fill_status() {
-        rdb::db_view_state view_state{view};
+        rdb::db_view_state view_state{abieos::name{"fill"}, *db, undo_stack};
         fill_status_kv     table{{view_state}};
         auto               it = table.begin();
         if (it == table.end())
@@ -137,7 +143,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             current_db_status = state_history::fill_status_v0{
                 .head = head, .head_id = head_id, .irreversible = head, .irreversible_id = head_id, .first = first};
 
-        rdb::db_view_state view_state{view};
+        rdb::db_view_state view_state{abieos::name{"fill"}, *db, undo_stack};
         fill_status_kv     table{{view_state}};
         table.insert(*current_db_status);
     }
@@ -145,7 +151,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     void end_write(bool write_fill) {
         if (write_fill)
             write_fill_status();
-        view.write_changes();
+        // write_session.write_changes();
     }
 
     bool received(get_blocks_result_v0& result, eosio::input_stream bin) override {
@@ -198,7 +204,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     } // receive_result()
 
     void receive_deltas(uint32_t block_num, eosio::input_stream bin) {
-        rdb::db_view_state view_state{view};
+        rdb::db_view_state view_state{abieos::name{"fill"}, *db, undo_stack};
         uint32_t           num;
         eosio::check_discard(eosio::varuint32_from_bin(num, bin));
         for (uint32_t i = 0; i < num; ++i) {

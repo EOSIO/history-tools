@@ -13,9 +13,6 @@
 [submodule "external/libpqxx"]
 	path = external/libpqxx
 	url = https://github.com/jtv/libpqxx.git
-[submodule "external/rocksdb"]
-	path = external/rocksdb
-	url = https://github.com/facebook/rocksdb.git
 [submodule "external/chain-kv"]
 	path = external/chain-kv
 	url = git@github.com:EOSIO/chain-kv.git

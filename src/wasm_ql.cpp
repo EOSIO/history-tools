@@ -51,9 +51,10 @@ static void fill_context_data(wasm_ql::thread_state& thread_state) {
 */
 
 static void run_query(wasm_ql::thread_state& thread_state, abieos::name short_name, abieos::name query_name) {
-    auto           code = backend_t::read_wasm(thread_state.shared->wasm_dir + "/" + (std::string)short_name + ".query.wasm");
-    backend_t      backend(code);
-    chain_kv::view view{*thread_state.shared->db, {0x12, 0x34}};
+    auto                    code = backend_t::read_wasm(thread_state.shared->wasm_dir + "/" + (std::string)short_name + ".query.wasm");
+    backend_t               backend(code);
+    chain_kv::write_session write_session{*thread_state.shared->db};
+    chain_kv::view          view{write_session, {0x12, 0x34}};
     state_history::rdb::db_view_state db_view_state{view};
     history_tools::chaindb_state      chaindb_state;
     callbacks                         cb{thread_state, chaindb_state, db_view_state};

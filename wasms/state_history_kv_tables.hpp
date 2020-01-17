@@ -9,7 +9,7 @@ struct fill_status_kv : eosio::table<fill_status> {
 
     fill_status_kv(eosio::kv_environment environment)
         : eosio::table<fill_status>{std::move(environment)} {
-        init(abieos::name{""}, abieos::name{"system"}, abieos::name{"fill.status"}, primary_index);
+        init(abieos::name{"eosio.kvdisk"}, abieos::name{"system"}, abieos::name{"fill.status"}, primary_index);
     }
 };
 
@@ -22,7 +22,7 @@ struct contract_table_kv : eosio::table<contract_table> {
 
     contract_table_kv(eosio::kv_environment environment)
         : eosio::table<contract_table>{std::move(environment)} {
-        init(abieos::name{""}, abieos::name{"system"}, abieos::name{"contract.tab"}, primary_index);
+        init(abieos::name{"eosio.kvdisk"}, abieos::name{"system"}, abieos::name{"contract.tab"}, primary_index);
     }
 };
 
@@ -38,7 +38,7 @@ struct contract_row_kv : eosio::table<contract_row> {
 
     contract_row_kv(eosio::kv_environment environment)
         : eosio::table<contract_row>{std::move(environment)} {
-        init(abieos::name{""}, abieos::name{"system"}, abieos::name{"contract.row"}, primary_index);
+        init(abieos::name{"eosio.kvdisk"}, abieos::name{"system"}, abieos::name{"contract.row"}, primary_index);
     }
 };
 

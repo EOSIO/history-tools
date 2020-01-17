@@ -47,10 +47,10 @@ class iterator_cache {
         if (map_it != table_to_index.end())
             return map_it->second;
         if (!state_history::rdb::exists(
-                view.db, chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
-                                                             abieos::name{"system"}, abieos::name{"contract.tab"}, abieos::name{"primary"},
-                                                             key.code, key.table, key.scope)))
-                                                .value())))
+                view.write_session.db, chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
+                                                                           abieos::name{"system"}, abieos::name{"contract.tab"},
+                                                                           abieos::name{"primary"}, key.code, key.table, key.scope)))
+                                                              .value())))
             return -1;
         if (tables.size() != table_to_index.size() || tables.size() != end_iterators.size())
             throw std::runtime_error("internal error: tables.size() mismatch");

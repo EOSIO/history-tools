@@ -101,11 +101,9 @@ add_compile_options(-Wno-error=shadow)
 
 add_subdirectory(external/appbase EXCLUDE_FROM_ALL)
 add_subdirectory(external/fc EXCLUDE_FROM_ALL)
-add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
 
 set(FOUND_ROCKSDB ON)
 set(ROCKSDB_LIB rocksdb)
-set(ROCKSDB_INCLUDE_DIR external/rocksdb/include)
 
 set(APPS "")
 function(add_app APP MAIN FLAGS LIBS)
@@ -117,6 +115,7 @@ function(add_app APP MAIN FLAGS LIBS)
             external/abieos/include
             external/abieos/src
             external/abieos/external/date/include
+            external/abieos/external/outcome/single-header
             external/abieos/external/rapidjson/include
             external/appbase/include
             external/chain-kv/include

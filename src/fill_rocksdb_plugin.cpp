@@ -8,7 +8,6 @@ using state_history::rdb::kv_environment;
 #include "../wasms/state_history_kv_tables.hpp" // todo: move
 
 #include "state_history_connection.hpp"
-#include "state_history_kv.hpp"
 #include "state_history_rocksdb.hpp"
 #include "util.hpp"
 
@@ -24,7 +23,6 @@ using namespace state_history;
 
 namespace asio      = boost::asio;
 namespace bpo       = boost::program_options;
-namespace kv        = state_history::kv;
 namespace rdb       = state_history::rdb;
 namespace websocket = boost::beast::websocket;
 

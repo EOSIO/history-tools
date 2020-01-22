@@ -166,11 +166,6 @@ class index {
         : index_name{index_name}
         , get_key{get_key} {}
 
-    ~index() {
-        if (temp_it)
-            t->environment.kv_it_destroy(temp_it);
-    }
-
     iterator begin();
     iterator end();
 
@@ -180,7 +175,6 @@ class index {
     table*            t                    = {};
     bool              is_primary           = false;
     std::vector<char> prefix               = {};
-    uint32_t          temp_it              = 0;
 
     void initialize(table* t, bool is_primary);
 };

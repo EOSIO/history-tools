@@ -232,6 +232,12 @@ struct db_view_state {
         , kv_ram{database, undo_stack, write_session, kvram_id, receiver, limits}
         , kv_disk{database, undo_stack, write_session, kvdisk_id, receiver, limits}
         , kv_iterators(1) {}
+
+    void reset() {
+        eosio::check(kv_iterators.size() == kv_destroyed_iterators.size() + 1, "iterators are still alive");
+        kv_iterators.resize(1);
+        kv_destroyed_iterators.clear();
+    }
 };
 
 template <typename Derived>

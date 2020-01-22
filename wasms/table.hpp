@@ -18,6 +18,13 @@ eosio::result<void> to_key(const name& obj, S& stream) {
 } // namespace abieos
 
 namespace eosio {
+
+enum class it_stat {
+    ok     = 0,
+    erased = -1,
+    end    = -2,
+};
+
 namespace internal_use_do_not_use {
 
 #ifdef EOSIO_CDT_COMPILATION
@@ -176,12 +183,6 @@ class index {
     uint32_t          temp_it              = 0;
 
     void initialize(table* t, bool is_primary);
-
-    uint32_t get_temp_it() {
-        if (!temp_it)
-            temp_it = t->environment.kv_it_create(t->database.value, t->contract.value, prefix.data(), prefix.size());
-        return temp_it;
-    }
 };
 
 template <typename T>
@@ -228,11 +229,14 @@ class table_iterator {
     table_iterator& operator=(table_iterator&&) = default;
 
     friend int compare(const table_iterator& a, const table_iterator& b) {
-        if (!a.it && !b.it)
+        check(a.ind == b.ind, "compare incompatible iterators");
+        bool a_is_end = !a.it || a.ind->t->environment.kv_it_status(a.it) == (int32_t)it_stat::end;
+        bool b_is_end = !b.it || b.ind->t->environment.kv_it_status(b.it) == (int32_t)it_stat::end;
+        if (a_is_end && b_is_end)
             return 0;
-        else if (!a.it && b.it)
+        else if (a_is_end && b.it)
             return 1;
-        else if (a.it && !b.it)
+        else if (a.it && b_is_end)
             return -1;
         else
             return a.ind->t->environment.kv_it_compare(a.it, b.it);
@@ -276,13 +280,11 @@ class table_iterator {
         std::vector<char> bin(size);
         check(!ind->t->environment.kv_it_value(it, 0, bin.data(), size, size), "iterator read failure");
         if (!ind->is_primary) {
-            // !!!
-            auto temp_it = ind->t->primary_index->get_temp_it();
-            ind->t->environment.kv_it_lower_bound(temp_it, bin.data(), bin.size());
-            check(!ind->t->environment.kv_it_key_compare(temp_it, bin.data(), bin.size()), "iterator read failure");
-            check(!ind->t->environment.kv_it_value(temp_it, 0, nullptr, 0, size), "iterator read failure");
+            check(
+                ind->t->environment.kv_get(ind->t->database.value, ind->t->contract.value, bin.data(), bin.size(), size),
+                "iterator read failure");
             bin.resize(size);
-            check(!ind->t->environment.kv_it_value(temp_it, 0, bin.data(), size, size), "iterator read failure");
+            ind->t->environment.kv_get_data(ind->t->database.value, 0, bin.data(), bin.size());
         }
         obj = std::make_unique<T>();
         check_discard(convert_from_bin(*obj, bin));
@@ -355,17 +357,11 @@ void table<T>::erase(const T& obj) {
 
 template <typename T>
 void table<T>::erase_pk(const std::vector<char>& pk) {
-    auto temp_it = primary_index->get_temp_it();
-    environment.kv_it_lower_bound(temp_it, pk.data(), pk.size());
-    if (environment.kv_it_key_compare(temp_it, pk.data(), pk.size()))
-        return;
     uint32_t size;
-    // !!! check return value
-    environment.kv_it_value(temp_it, 0, nullptr, 0, size);
-    check(size >= 0, "iterator read failure");
+    if (!environment.kv_get(database.value, contract.value, pk.data(), pk.size(), size))
+        return;
     std::vector<char> bin(size);
-    // !!! check return value
-    environment.kv_it_value(temp_it, 0, bin.data(), size, size);
+    environment.kv_get_data(database.value, 0, bin.data(), bin.size());
     T obj;
     check_discard(convert_from_bin(obj, bin));
     for (auto* ind : secondary_indexes) {

@@ -69,8 +69,8 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     fill_rocksdb_plugin_impl*                    my = nullptr;
     std::shared_ptr<fill_rocksdb_config>         config;
     std::shared_ptr<chain_kv::database>          db = app().find_plugin<rocksdb_plugin>()->get_db();
-    chain_kv::write_session                      write_session{*db};
     chain_kv::undo_stack                         undo_stack{*db, chain_kv::bytes{state_history::rdb::undo_stack_prefix}};
+    std::unique_ptr<chain_kv::write_session>     write_session;
     std::shared_ptr<state_history::connection>   connection;
     std::optional<state_history::fill_status_v0> current_db_status = {};
     uint32_t                                     head              = 0;
@@ -81,7 +81,9 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
 
     flm_session(fill_rocksdb_plugin_impl* my)
         : my(my)
-        , config(my->config) {}
+        , config(my->config) {
+        write_session = std::make_unique<chain_kv::write_session>(*db);
+    }
 
     void connect(asio::io_context& ioc) {
         connection = std::make_shared<state_history::connection>(ioc, *config, shared_from_this());
@@ -107,7 +109,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     }
 
     void load_fill_status() {
-        rdb::db_view_state view_state{abieos::name{"fill"}, *db, undo_stack};
+        rdb::db_view_state view_state{abieos::name{"system"}, *db, undo_stack, *write_session};
         fill_status_kv     table{{view_state}};
         auto               it = table.begin();
         if (it == table.end())
@@ -143,7 +145,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             current_db_status = state_history::fill_status_v0{
                 .head = head, .head_id = head_id, .irreversible = head, .irreversible_id = head_id, .first = first};
 
-        rdb::db_view_state view_state{abieos::name{"fill"}, *db, undo_stack};
+        rdb::db_view_state view_state{abieos::name{"system"}, *db, undo_stack, *write_session};
         fill_status_kv     table{{view_state}};
         table.insert(*current_db_status);
     }
@@ -151,7 +153,9 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     void end_write(bool write_fill) {
         if (write_fill)
             write_fill_status();
-        // write_session.write_changes();
+        auto new_session = std::make_unique<chain_kv::write_session>(*db);
+        write_session->write_changes(undo_stack);
+        write_session = std::move(new_session);
     }
 
     bool received(get_blocks_result_v0& result, eosio::input_stream bin) override {
@@ -204,7 +208,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     } // receive_result()
 
     void receive_deltas(uint32_t block_num, eosio::input_stream bin) {
-        rdb::db_view_state view_state{abieos::name{"fill"}, *db, undo_stack};
+        rdb::db_view_state view_state{abieos::name{"system"}, *db, undo_stack, *write_session};
         uint32_t           num;
         eosio::check_discard(eosio::varuint32_from_bin(num, bin));
         for (uint32_t i = 0; i < num; ++i) {

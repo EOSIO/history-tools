@@ -103,7 +103,7 @@ add_compile_options(-Wno-error=shadow)
 add_subdirectory(external/appbase EXCLUDE_FROM_ALL)
 add_subdirectory(external/fc EXCLUDE_FROM_ALL)
 
-set(FOUND_ROCKSDB ON)
+#set(FOUND_ROCKSDB ON)
 set(ROCKSDB_LIB rocksdb)
 
 set(APPS "")
@@ -198,6 +198,8 @@ if (FOUND_ROCKSDB)
     #target_sources(history-tools PRIVATE src/rocksdb_plugin.cpp src/wasm_plugin.cpp src/wasm_dispatcher.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
 endif()
 
+add_app(dump-info dump-info "" "")
+
 message(STATUS "Enabled apps:")
 foreach(APP ${APPS})
     message(STATUS "    ${APP}")
@@ -205,9 +207,9 @@ endforeach()
 
 message(STATUS "----------------------------------------------------")
 
-if (NOT PostgreSQL_INCLUDE_DIR AND NOT FOUND_ROCKSDB)
-    message(WARNING "No database libraries found. Only building WASM files.")
-endif()
+#if (NOT PostgreSQL_INCLUDE_DIR AND NOT FOUND_ROCKSDB)
+#    message(WARNING "No database libraries found. Only building WASM files.")
+#endif()
 
 if (eosio.cdt_FOUND)
     ExternalProject_Add(

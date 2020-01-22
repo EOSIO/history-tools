@@ -34,14 +34,22 @@ struct state : state_history::connection_callbacks {
         if (!result.this_block || !result.traces)
             return false;
         auto     bin = *result.traces;
-        uint32_t num_ttraces;
-        eosio::check_discard(eosio::varuint32_from_bin(num_ttraces, bin));
+        uint32_t num;
+        eosio::check_discard(eosio::varuint32_from_bin(num, bin));
 
+        uint64_t num_ttraces = 0;
         uint64_t num_atraces = 0;
-        for (uint32_t i = 0; i < num_ttraces; ++i) {
+        for (uint32_t i = 0; i < num; ++i) {
             state_history::transaction_trace trace;
             eosio::check_discard(from_bin(trace, bin));
-            std::visit([&](auto& trace) { num_atraces += trace.action_traces.size(); }, trace);
+            std::visit(
+                [&](auto& trace) {
+                    if (trace.status != state_history::transaction_status::executed)
+                        return;
+                    ++num_ttraces;
+                    num_atraces += trace.action_traces.size();
+                },
+                trace);
         }
 
         ilog("block: ${b}, transactions: ${t}, actions: ${a}", ("b", result.this_block->block_num)("t", num_ttraces)("a", num_atraces));

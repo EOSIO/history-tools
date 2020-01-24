@@ -1,5 +1,8 @@
 #pragma once
 
+namespace eosio {
+using state_history::rdb::kv_environment;
+}
 #include "../wasms/table.hpp"
 #include "state_history.hpp"
 
@@ -46,11 +49,11 @@ class iterator_cache {
         auto map_it = table_to_index.find(key);
         if (map_it != table_to_index.end())
             return map_it->second;
-        if (!state_history::rdb::exists(
-                view.write_session.db, chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
-                                                                           abieos::name{"system"}, abieos::name{"contract.tab"},
-                                                                           abieos::name{"primary"}, key.code, key.table, key.scope)))
-                                                              .value())))
+        if (!view.get(
+                abieos::name{"system"}.value,
+                chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
+                                                    abieos::name{"contract.tab"}, abieos::name{"primary"}, key.code, key.table, key.scope)))
+                                       .value())))
             return -1;
         if (tables.size() != table_to_index.size() || tables.size() != end_iterators.size())
             throw std::runtime_error("internal error: tables.size() mismatch");
@@ -198,7 +201,7 @@ struct chaindb_callbacks {
     history_tools::iterator_cache& get_iterator_cache() {
         auto& chaindb_state = derived().get_chaindb_state();
         if (!chaindb_state.iterator_cache)
-            chaindb_state.iterator_cache = std::make_unique<iterator_cache>(derived().get_db_view_state().view);
+            chaindb_state.iterator_cache = std::make_unique<iterator_cache>(derived().get_db_view_state().kv_disk.view);
         return *chaindb_state.iterator_cache;
     }
 

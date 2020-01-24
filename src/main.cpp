@@ -111,9 +111,6 @@ int main(int argc, char** argv) {
     } catch (const boost::exception& e) {
         elog("${e}", ("e", boost::diagnostic_information(e)));
         return other_fail;
-    } catch (const std::runtime_error& e) {
-        elog("${e}", ("e", e.what()));
-        return other_fail;
     } catch (const std::exception& e) {
         elog("${e}", ("e", e.what()));
         return other_fail;

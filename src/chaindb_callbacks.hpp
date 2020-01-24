@@ -72,17 +72,17 @@ class iterator_cache {
         iterator* it;
         int32_t   result;
         if (view_it.is_end()) {
-            std::cout << "...end\n";
+            // std::cout << "...end\n";
             it     = &end_iterators[rk.table_index];
             result = index_to_end_iterator(rk.table_index);
         } else {
             auto map_it = key_to_iterator_index.find(rk);
             if (map_it != key_to_iterator_index.end()) {
-                std::cout << "...existing it (b)\n";
+                // std::cout << "...existing it (b)\n";
                 it     = &iterators[map_it->second];
                 result = map_it->second;
             } else {
-                std::cout << "...new it\n";
+                // std::cout << "...new it\n";
                 if (iterators.size() > std::numeric_limits<int32_t>::max())
                     throw std::runtime_error("too many iterators");
                 result = iterators.size();
@@ -138,17 +138,16 @@ class iterator_cache {
         std::optional<chain_kv::view::iterator> view_it = std::move(it.view_it);
         it.view_it.reset();
         if (!view_it) {
-            std::cout << "db_next_i64: db_view::iterator\n";
+            // std::cout << "db_next_i64: db_view::iterator\n";
             const auto& table_key = tables[it.table_index];
-            view_it               = chain_kv::view::iterator{
-                view, 0,
-                chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
-                                                    abieos::name{"system"}, abieos::name{"contract.row"}, abieos::name{"primary"},
-                                                    table_key.code, table_key.table, table_key.scope)))
-                                       .value())};
+            view_it               = chain_kv::view::iterator{view, abieos::name{"system"}.value,
+                                               chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
+                                                                                   abieos::name{"contract.row"}, abieos::name{"primary"},
+                                                                                   table_key.code, table_key.table, table_key.scope)))
+                                                                      .value())};
             view_it->lower_bound(eosio::check(eosio::convert_to_key(std::make_tuple(
-                                                  abieos::name{"system"}, abieos::name{"contract.row"}, abieos::name{"primary"},
-                                                  table_key.code, table_key.table, table_key.scope, it.primary)))
+                                                  abieos::name{"contract.row"}, abieos::name{"primary"}, table_key.code, table_key.table,
+                                                  table_key.scope, it.primary)))
                                      .value());
         }
         ++*view_it;
@@ -167,25 +166,24 @@ class iterator_cache {
     int32_t lower_bound(uint64_t code, uint64_t scope, uint64_t table, uint64_t key) {
         int32_t table_index = get_table_index({code, table, scope});
         if (table_index < 0) {
-            std::cout << "...no table\n";
+            // std::cout << "...no table\n";
             return -1;
         }
         row_key rk{table_index, key};
         auto    map_it = key_to_iterator_index.find(rk);
         if (map_it != key_to_iterator_index.end()) {
-            std::cout << "...existing it (a)\n";
+            // std::cout << "...existing it (a)\n";
             return map_it->second;
         }
-        std::cout << "lower_bound: db_view::iterator\n";
-        chain_kv::view::iterator it{view, 0,
-                                    chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
-                                                                        abieos::name{"system"}, abieos::name{"contract.row"},
-                                                                        abieos::name{"primary"}, code, table, scope)))
-                                                           .value())};
-        it.lower_bound(
-            eosio::check(eosio::convert_to_key(std::make_tuple(
-                             abieos::name{"system"}, abieos::name{"contract.row"}, abieos::name{"primary"}, code, table, scope, key)))
-                .value());
+        // std::cout << "lower_bound: db_view::iterator\n";
+        chain_kv::view::iterator it{
+            view, abieos::name{"system"}.value,
+            chain_kv::to_slice(eosio::check(eosio::convert_to_key(
+                                                std::make_tuple(abieos::name{"contract.row"}, abieos::name{"primary"}, code, table, scope)))
+                                   .value())};
+        it.lower_bound(eosio::check(eosio::convert_to_key(
+                                        std::make_tuple(abieos::name{"contract.row"}, abieos::name{"primary"}, code, table, scope, key)))
+                           .value());
         return get_iterator(rk, std::move(it));
     }
 }; // iterator_cache

@@ -319,7 +319,6 @@ void table<T>::init(
 
     prefix.reserve(16);
     vector_stream stream{prefix};
-    (void)to_key(contract, stream); // !!!
     (void)to_key(table_name, stream);
     primary_index.initialize(this, true);
     (secondary_indexes.initialize(this, false), ...);

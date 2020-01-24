@@ -70,7 +70,7 @@ struct basic_callbacks {
 
     void abort() { throw std::runtime_error("called abort"); }
 
-    void eosio_assert_message(bool test, const char* msg, size_t msg_len) {
+    void eosio_assert_message(bool test, const char* msg, uint32_t msg_len) {
         check_bounds(msg, msg + msg_len);
         if (!test)
             throw assert_exception(std::string(msg, msg_len));

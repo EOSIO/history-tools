@@ -105,7 +105,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     }
 
     void load_fill_status() {
-        rdb::db_view_state view_state{abieos::name{"system"}, *db, undo_stack, write_session};
+        rdb::db_view_state view_state{abieos::name{"system"}, *db, write_session};
         fill_status_kv     table{{view_state}};
         auto               it = table.begin();
         if (it == table.end())
@@ -141,7 +141,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             current_db_status = state_history::fill_status_v0{
                 .head = head, .head_id = head_id, .irreversible = head, .irreversible_id = head_id, .first = first};
 
-        rdb::db_view_state view_state{abieos::name{"system"}, *db, undo_stack, write_session};
+        rdb::db_view_state view_state{abieos::name{"system"}, *db, write_session};
         fill_status_kv     table{{view_state}};
         table.insert(*current_db_status);
     }
@@ -202,7 +202,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     } // receive_result()
 
     void receive_deltas(uint32_t block_num, eosio::input_stream bin) {
-        rdb::db_view_state view_state{abieos::name{"system"}, *db, undo_stack, write_session};
+        rdb::db_view_state view_state{abieos::name{"system"}, *db, write_session};
         uint32_t           num;
         eosio::check_discard(eosio::varuint32_from_bin(num, bin));
         for (uint32_t i = 0; i < num; ++i) {

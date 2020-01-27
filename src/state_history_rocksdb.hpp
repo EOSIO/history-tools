@@ -145,7 +145,6 @@ struct kv_database_config {
 
 struct kv_context_rocksdb {
     chain_kv::database&                      database;
-    chain_kv::undo_stack&                    undo_stack;
     chain_kv::write_session&                 write_session;
     abieos::name                             database_id;
     chain_kv::view                           view;
@@ -155,10 +154,9 @@ struct kv_context_rocksdb {
     std::shared_ptr<const std::vector<char>> temp_data_buffer;
 
     kv_context_rocksdb(
-        chain_kv::database& database, chain_kv::undo_stack& undo_stack, chain_kv::write_session& write_session, abieos::name database_id,
-        abieos::name receiver, const kv_database_config& limits)
+        chain_kv::database& database, chain_kv::write_session& write_session, abieos::name database_id, abieos::name receiver,
+        const kv_database_config& limits)
         : database{database}
-        , undo_stack{undo_stack}
         , write_session{write_session}
         , database_id{database_id}
         , view{write_session, make_prefix()}
@@ -217,20 +215,17 @@ struct kv_context_rocksdb {
 struct db_view_state {
     abieos::name                                      receiver;
     chain_kv::database&                               database;
-    chain_kv::undo_stack&                             undo_stack;
     const kv_database_config                          limits;
     kv_context_rocksdb                                kv_ram;
     kv_context_rocksdb                                kv_disk;
     std::vector<std::unique_ptr<kv_iterator_rocksdb>> kv_iterators;
     std::vector<size_t>                               kv_destroyed_iterators;
 
-    db_view_state(
-        abieos::name receiver, chain_kv::database& database, chain_kv::undo_stack& undo_stack, chain_kv::write_session& write_session)
+    db_view_state(abieos::name receiver, chain_kv::database& database, chain_kv::write_session& write_session)
         : receiver{receiver}
         , database{database}
-        , undo_stack{undo_stack}
-        , kv_ram{database, undo_stack, write_session, kvram_id, receiver, limits}
-        , kv_disk{database, undo_stack, write_session, kvdisk_id, receiver, limits}
+        , kv_ram{database, write_session, kvram_id, receiver, limits}
+        , kv_disk{database, write_session, kvdisk_id, receiver, limits}
         , kv_iterators(1) {}
 
     void reset() {

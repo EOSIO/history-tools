@@ -26,8 +26,9 @@ inline void check(bool cond, const std::string& msg) {
 namespace state_history {
 namespace rdb {
 
-inline constexpr abieos::name kvram_id{"eosio.kvram"};
-inline constexpr abieos::name kvdisk_id{"eosio.kvdisk"};
+inline constexpr abieos::name kvram_db_id{"eosio.kvram"};
+inline constexpr abieos::name kvdisk_db_id{"eosio.kvdisk"};
+inline constexpr abieos::name state_db_id{"eosio.state"};
 
 inline const std::vector<char> undo_stack_prefix{0x40};
 inline const std::vector<char> contract_kv_prefix{0x41};
@@ -218,14 +219,16 @@ struct db_view_state {
     const kv_database_config                          limits;
     kv_context_rocksdb                                kv_ram;
     kv_context_rocksdb                                kv_disk;
+    kv_context_rocksdb                                kv_state;
     std::vector<std::unique_ptr<kv_iterator_rocksdb>> kv_iterators;
     std::vector<size_t>                               kv_destroyed_iterators;
 
     db_view_state(abieos::name receiver, chain_kv::database& database, chain_kv::write_session& write_session)
         : receiver{receiver}
         , database{database}
-        , kv_ram{database, write_session, kvram_id, receiver, limits}
-        , kv_disk{database, write_session, kvdisk_id, receiver, limits}
+        , kv_ram{database, write_session, kvram_db_id, receiver, limits}
+        , kv_disk{database, write_session, kvdisk_db_id, receiver, limits}
+        , kv_state{database, write_session, state_db_id, receiver, limits}
         , kv_iterators(1) {}
 
     void reset() {
@@ -334,10 +337,12 @@ struct db_callbacks {
     }
 
     kv_context_rocksdb& kv_get_db(uint64_t db) {
-        if (db == kvram_id.value)
+        if (db == kvram_db_id.value)
             return derived().state.kv_ram;
-        else if (db == kvdisk_id.value)
+        else if (db == kvdisk_db_id.value)
             return derived().state.kv_disk;
+        else if (db == state_db_id.value)
+            return derived().state.kv_state;
         throw std::runtime_error("Bad key-value database ID");
     }
 

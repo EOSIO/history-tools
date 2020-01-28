@@ -50,7 +50,7 @@ class iterator_cache {
         if (map_it != table_to_index.end())
             return map_it->second;
         if (!view.get(
-                abieos::name{"system"}.value,
+                abieos::name{"state"}.value,
                 chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
                                                     abieos::name{"contract.tab"}, abieos::name{"primary"}, key.code, key.table, key.scope)))
                                        .value())))
@@ -140,7 +140,7 @@ class iterator_cache {
         if (!view_it) {
             // std::cout << "db_next_i64: db_view::iterator\n";
             const auto& table_key = tables[it.table_index];
-            view_it               = chain_kv::view::iterator{view, abieos::name{"system"}.value,
+            view_it               = chain_kv::view::iterator{view, abieos::name{"state"}.value,
                                                chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
                                                                                    abieos::name{"contract.row"}, abieos::name{"primary"},
                                                                                    table_key.code, table_key.table, table_key.scope)))
@@ -177,7 +177,7 @@ class iterator_cache {
         }
         // std::cout << "lower_bound: db_view::iterator\n";
         chain_kv::view::iterator it{
-            view, abieos::name{"system"}.value,
+            view, abieos::name{"state"}.value,
             chain_kv::to_slice(eosio::check(eosio::convert_to_key(
                                                 std::make_tuple(abieos::name{"contract.row"}, abieos::name{"primary"}, code, table, scope)))
                                    .value())};
@@ -199,7 +199,7 @@ struct chaindb_callbacks {
     history_tools::iterator_cache& get_iterator_cache() {
         auto& chaindb_state = derived().get_chaindb_state();
         if (!chaindb_state.iterator_cache)
-            chaindb_state.iterator_cache = std::make_unique<iterator_cache>(derived().get_db_view_state().kv_disk.view);
+            chaindb_state.iterator_cache = std::make_unique<iterator_cache>(derived().get_db_view_state().kv_state.view);
         return *chaindb_state.iterator_cache;
     }
 

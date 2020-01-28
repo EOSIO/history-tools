@@ -55,7 +55,7 @@ static void run_query(wasm_ql::thread_state& thread_state, abieos::name short_na
     backend_t                backend(code);
     rocksdb::ManagedSnapshot snapshot{thread_state.shared->db->rdb.get()};
     chain_kv::write_session  write_session{*thread_state.shared->db, snapshot.snapshot()};
-    state_history::rdb::db_view_state db_view_state{abieos::name{"system"}, *thread_state.shared->db, write_session};
+    state_history::rdb::db_view_state db_view_state{abieos::name{"state"}, *thread_state.shared->db, write_session};
     history_tools::chaindb_state      chaindb_state;
     callbacks                         cb{thread_state, chaindb_state, db_view_state};
     backend.set_wasm_allocator(&thread_state.wa);

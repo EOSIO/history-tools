@@ -9,6 +9,8 @@
 
 namespace state_history {
 
+typedef __uint128_t uint128_t;
+
 #ifdef EOSIO_CDT_COMPILATION
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Winvalid-noreturn"
@@ -454,7 +456,6 @@ EOSIO_REFLECT(contract_index64_v0, code, scope, table, primary_key, payer, secon
 
 using contract_index64 = std::variant<contract_index64_v0>;
 
-/*
 struct contract_index128_v0 {
     abieos::name code          = {};
     abieos::name scope         = {};
@@ -464,8 +465,9 @@ struct contract_index128_v0 {
     uint128_t    secondary_key = {};
 };
 
+EOSIO_REFLECT(contract_index128_v0, code, scope, table, primary_key, payer, secondary_key)
+
 using contract_index128 = std::variant<contract_index128_v0>;
-*/
 
 struct contract_index256_v0 {
     abieos::name        code          = {};

@@ -42,6 +42,54 @@ struct contract_row_kv : eosio::table<contract_row> {
     }
 };
 
+struct contract_index64_kv : eosio::table<contract_index64> {
+    index primary_index{
+        abieos::name{"primary"}, [](const auto& var) {
+            return std::visit(
+                [](const auto& obj) {
+                    return eosio::check(eosio::convert_to_key(std::tie(obj.code, obj.table, obj.scope, obj.primary_key))).value();
+                },
+                var);
+        }};
+    index secondary_index{
+        abieos::name{"secondary"}, [](const auto& var) {
+            return std::visit(
+                [](const auto& obj) {
+                    return eosio::check(eosio::convert_to_key(std::tie(obj.code, obj.table, obj.scope, obj.secondary_key))).value();
+                },
+                var);
+        }};
+
+    contract_index64_kv(eosio::kv_environment environment)
+        : eosio::table<contract_index64>{std::move(environment)} {
+        init(abieos::name{"eosio.kvdisk"}, abieos::name{"system"}, abieos::name{"contract.i1"}, primary_index, secondary_index);
+    }
+};
+
+struct contract_index128_kv : eosio::table<contract_index128> {
+    index primary_index{
+        abieos::name{"primary"}, [](const auto& var) {
+            return std::visit(
+                [](const auto& obj) {
+                    return eosio::check(eosio::convert_to_key(std::tie(obj.code, obj.table, obj.scope, obj.primary_key))).value();
+                },
+                var);
+        }};
+    index secondary_index{
+        abieos::name{"secondary"}, [](const auto& var) {
+            return std::visit(
+                [](const auto& obj) {
+                    return eosio::check(eosio::convert_to_key(std::tie(obj.code, obj.table, obj.scope, obj.secondary_key))).value();
+                },
+                var);
+        }};
+
+    contract_index128_kv(eosio::kv_environment environment)
+        : eosio::table<contract_index128>{std::move(environment)} {
+        init(abieos::name{"eosio.kvdisk"}, abieos::name{"system"}, abieos::name{"contract.i2"}, primary_index, secondary_index);
+    }
+};
+
 template <typename Table, typename F>
 void store_delta_typed(eosio::kv_environment environment, table_delta_v0& delta, bool bypass_preexist_check, F f) {
     Table table{environment};
@@ -61,6 +109,10 @@ inline void store_delta(eosio::kv_environment environment, table_delta_v0& delta
         store_delta_typed<contract_table_kv>(environment, delta, bypass_preexist_check, f);
     if (delta.name == "contract_row")
         store_delta_typed<contract_row_kv>(environment, delta, bypass_preexist_check, f);
+    if (delta.name == "contract_index64")
+        store_delta_typed<contract_index64_kv>(environment, delta, bypass_preexist_check, f);
+    if (delta.name == "contract_index128")
+        store_delta_typed<contract_index128_kv>(environment, delta, bypass_preexist_check, f);
 }
 
 inline void store_deltas(eosio::kv_environment environment, std::vector<table_delta>& deltas, bool bypass_preexist_check) {

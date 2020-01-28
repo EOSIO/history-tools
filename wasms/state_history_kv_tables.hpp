@@ -4,6 +4,25 @@
 
 namespace state_history {
 
+struct fill_status_v0 {
+    uint32_t            head            = {};
+    abieos::checksum256 head_id         = {};
+    uint32_t            irreversible    = {};
+    abieos::checksum256 irreversible_id = {};
+    uint32_t            first           = {};
+};
+
+EOSIO_REFLECT(fill_status_v0, head, head_id, irreversible, irreversible_id, first)
+
+using fill_status = std::variant<fill_status_v0>;
+
+inline bool operator==(const fill_status_v0& a, fill_status_v0& b) {
+    return std::tie(a.head, a.head_id, a.irreversible, a.irreversible_id, a.first) ==
+           std::tie(b.head, b.head_id, b.irreversible, b.irreversible_id, b.first);
+}
+
+inline bool operator!=(const fill_status_v0& a, fill_status_v0& b) { return !(a == b); }
+
 struct fill_status_kv : eosio::table<fill_status> {
     index primary_index{abieos::name{"primary"}, [](const auto& var) { return std::vector<char>{}; }};
 

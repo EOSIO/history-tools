@@ -34,7 +34,7 @@ using abieos::abi_type;
 using abieos::checksum256;
 using abieos::input_buffer;
 
-struct flm_session;
+struct fill_rdb_session;
 
 struct fill_rocksdb_config : connection_config {
     uint32_t                skip_to     = 0;
@@ -44,7 +44,7 @@ struct fill_rocksdb_config : connection_config {
 
 struct fill_rocksdb_plugin_impl : std::enable_shared_from_this<fill_rocksdb_plugin_impl> {
     std::shared_ptr<fill_rocksdb_config> config = std::make_shared<fill_rocksdb_config>();
-    std::shared_ptr<::flm_session>       session;
+    std::shared_ptr<::fill_rdb_session>  session;
     boost::asio::deadline_timer          timer;
 
     fill_rocksdb_plugin_impl()
@@ -63,21 +63,20 @@ struct fill_rocksdb_plugin_impl : std::enable_shared_from_this<fill_rocksdb_plug
     void start();
 };
 
-struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_session> {
-    fill_rocksdb_plugin_impl*                    my = nullptr;
-    std::shared_ptr<fill_rocksdb_config>         config;
-    std::shared_ptr<chain_kv::database>          db = app().find_plugin<rocksdb_plugin>()->get_db();
-    chain_kv::undo_stack                         undo_stack{*db, chain_kv::bytes{state_history::rdb::undo_stack_prefix}};
-    chain_kv::write_session                      write_session{*db};
-    std::shared_ptr<state_history::connection>   connection;
-    std::optional<state_history::fill_status_v0> current_db_status = {};
-    uint32_t                                     head              = 0;
-    abieos::checksum256                          head_id           = {};
-    uint32_t                                     irreversible      = 0;
-    abieos::checksum256                          irreversible_id   = {};
-    uint32_t                                     first             = 0;
+struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fill_rdb_session> {
+    fill_rocksdb_plugin_impl*                  my = nullptr;
+    std::shared_ptr<fill_rocksdb_config>       config;
+    std::shared_ptr<chain_kv::database>        db = app().find_plugin<rocksdb_plugin>()->get_db();
+    chain_kv::undo_stack                       undo_stack{*db, chain_kv::bytes{state_history::rdb::undo_stack_prefix}};
+    chain_kv::write_session                    write_session{*db};
+    std::shared_ptr<state_history::connection> connection;
+    uint32_t                                   head            = 0;
+    abieos::checksum256                        head_id         = {};
+    uint32_t                                   irreversible    = 0;
+    abieos::checksum256                        irreversible_id = {};
+    uint32_t                                   first           = 0;
 
-    flm_session(fill_rocksdb_plugin_impl* my)
+    fill_rdb_session(fill_rocksdb_plugin_impl* my)
         : my(my)
         , config(my->config) {}
 
@@ -110,14 +109,12 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         auto               it = table.begin();
         if (it == table.end())
             return;
-        current_db_status = std::get<0>(it.get());
-        if (!current_db_status)
-            return;
-        head            = current_db_status->head;
-        head_id         = current_db_status->head_id;
-        irreversible    = current_db_status->irreversible;
-        irreversible_id = current_db_status->irreversible_id;
-        first           = current_db_status->first;
+        auto status     = std::get<0>(it.get());
+        head            = status.head;
+        head_id         = status.head_id;
+        irreversible    = status.irreversible;
+        irreversible_id = status.irreversible_id;
+        first           = status.first;
     }
 
     std::vector<block_position> get_positions() {
@@ -134,16 +131,17 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
     }
 
     void write_fill_status() {
+        state_history::fill_status status;
         if (irreversible < head)
-            current_db_status = state_history::fill_status_v0{
+            status = state_history::fill_status_v0{
                 .head = head, .head_id = head_id, .irreversible = irreversible, .irreversible_id = irreversible_id, .first = first};
         else
-            current_db_status = state_history::fill_status_v0{
+            status = state_history::fill_status_v0{
                 .head = head, .head_id = head_id, .irreversible = head, .irreversible_id = head_id, .first = first};
 
         rdb::db_view_state view_state{abieos::name{"state"}, *db, write_session};
         fill_status_kv     table{{view_state}};
-        table.insert(*current_db_status);
+        table.insert(status);
     }
 
     void end_write(bool write_fill) {
@@ -182,7 +180,7 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
             head_id         = result.this_block->block_id;
             irreversible    = result.last_irreversible.block_num;
             irreversible_id = result.last_irreversible.block_id;
-            if (!first)
+            if (!first || head < first)
                 first = head;
 
             // rdb::put(
@@ -235,8 +233,8 @@ struct flm_session : connection_callbacks, std::enable_shared_from_this<flm_sess
         }
     }
 
-    ~flm_session() {}
-}; // flm_session
+    ~fill_rdb_session() {}
+}; // fill_rdb_session
 
 static abstract_plugin& _fill_rocksdb_plugin = app().register_plugin<fill_rocksdb_plugin>();
 
@@ -246,7 +244,7 @@ fill_rocksdb_plugin_impl::~fill_rocksdb_plugin_impl() {
 }
 
 void fill_rocksdb_plugin_impl::start() {
-    session = std::make_shared<flm_session>(this);
+    session = std::make_shared<fill_rdb_session>(this);
     session->connect(app().get_io_service());
 }
 

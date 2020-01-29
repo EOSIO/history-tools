@@ -1,5 +1,6 @@
 #pragma once
 
+// todo: remove check and exception
 #ifdef EOSIO_CDT_COMPILATION
 #include <abieos.hpp>
 #include <eosio/check.hpp>
@@ -7,10 +8,20 @@
 #include <abieos_exception.hpp>
 #endif
 
+// todo: remove
+#define TEMP_REFLECT_BASE(STRUCT, BASE, ...)                                                                                               \
+    inline const char* get_type_name(STRUCT*) { return #STRUCT; }                                                                          \
+    template <typename F>                                                                                                                  \
+    constexpr void for_each_field(STRUCT*, F f) {                                                                                          \
+        for_each_field((BASE*)nullptr, f);                                                                                                 \
+        MAP_REUSE_ARG0(EOSIO_REFLECT_INTERNAL, STRUCT, __VA_ARGS__)                                                                        \
+    }
+
 namespace state_history {
 
 typedef __uint128_t uint128_t;
 
+// todo: remove report_error
 #ifdef EOSIO_CDT_COMPILATION
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Winvalid-noreturn"
@@ -35,6 +46,7 @@ enum class transaction_status : uint8_t {
     expired   = 4, // transaction expired and storage space refunded to user
 };
 
+// todo: switch to eosio::result. switch to new serializer string support.
 inline std::string to_string(transaction_status status) {
     switch (status) {
     case transaction_status::executed: return "executed";
@@ -46,6 +58,7 @@ inline std::string to_string(transaction_status status) {
     report_error("unknown status: " + std::to_string((uint8_t)status));
 }
 
+// todo: switch to eosio::result. switch to new serializer string support.
 inline transaction_status get_transaction_status(const std::string& s) {
     if (s == "executed")
         return transaction_status::executed;
@@ -65,6 +78,10 @@ eosio::result<void> from_bin(transaction_status& obj, S& stream) {
     return stream.read_raw(obj);
 }
 
+struct get_status_request_v0 {};
+
+EOSIO_REFLECT_EMPTY(get_status_request_v0)
+
 struct block_position {
     uint32_t            block_num = {};
     abieos::checksum256 block_id  = {};
@@ -72,9 +89,17 @@ struct block_position {
 
 EOSIO_REFLECT(block_position, block_num, block_id)
 
-struct get_status_request_v0 {};
+struct get_status_result_v0 {
+    block_position head                    = {};
+    block_position last_irreversible       = {};
+    uint32_t       trace_begin_block       = {};
+    uint32_t       trace_end_block         = {};
+    uint32_t       chain_state_begin_block = {};
+    uint32_t       chain_state_end_block   = {};
+};
 
-EOSIO_REFLECT_EMPTY(get_status_request_v0)
+EOSIO_REFLECT(
+    get_status_result_v0, head, last_irreversible, trace_begin_block, trace_end_block, chain_state_begin_block, chain_state_end_block)
 
 struct get_blocks_request_v0 {
     uint32_t                    start_block_num        = {};
@@ -98,18 +123,6 @@ struct get_blocks_ack_request_v0 {
 EOSIO_REFLECT(get_blocks_ack_request_v0, num_messages)
 
 using request = std::variant<get_status_request_v0, get_blocks_request_v0, get_blocks_ack_request_v0>;
-
-struct get_status_result_v0 {
-    block_position head                    = {};
-    block_position last_irreversible       = {};
-    uint32_t       trace_begin_block       = {};
-    uint32_t       trace_end_block         = {};
-    uint32_t       chain_state_begin_block = {};
-    uint32_t       chain_state_end_block   = {};
-};
-
-EOSIO_REFLECT(
-    get_status_result_v0, head, last_irreversible, trace_begin_block, trace_end_block, chain_state_begin_block, chain_state_end_block)
 
 struct get_blocks_result_v0 {
     block_position                     head              = {};
@@ -148,19 +161,21 @@ struct permission_level {
 
 EOSIO_REFLECT(permission_level, actor, permission)
 
+struct action {
+    abieos::name                  account       = {};
+    abieos::name                  name          = {};
+    std::vector<permission_level> authorization = {};
+    eosio::input_stream           data          = {};
+};
+
+EOSIO_REFLECT(action, account, name, authorization, data)
+
 struct account_auth_sequence {
     abieos::name account  = {};
     uint64_t     sequence = {};
 };
 
 EOSIO_REFLECT(account_auth_sequence, account, sequence)
-
-struct account_delta {
-    abieos::name account = {};
-    int64_t      delta   = {};
-};
-
-EOSIO_REFLECT(account_delta, account, delta)
 
 struct action_receipt_v0 {
     abieos::name                       receiver        = {};
@@ -176,14 +191,12 @@ EOSIO_REFLECT(action_receipt_v0, receiver, act_digest, global_sequence, recv_seq
 
 using action_receipt = std::variant<action_receipt_v0>;
 
-struct action {
-    abieos::name                  account       = {};
-    abieos::name                  name          = {};
-    std::vector<permission_level> authorization = {};
-    eosio::input_stream           data          = {};
+struct account_delta {
+    abieos::name account = {};
+    int64_t      delta   = {};
 };
 
-EOSIO_REFLECT(action, account, name, authorization, data)
+EOSIO_REFLECT(account_delta, account, delta)
 
 struct action_trace_v0 {
     abieos::varuint32             action_ordinal         = {};
@@ -293,10 +306,7 @@ struct transaction_receipt : transaction_receipt_header {
     transaction_variant trx = {};
 };
 
-ABIEOS_REFLECT(transaction_receipt) {
-    ABIEOS_BASE(transaction_receipt_header)
-    ABIEOS_MEMBER(transaction_receipt, trx)
-}
+TEMP_REFLECT_BASE(transaction_receipt, transaction_receipt_header, trx)
 
 struct block_header {
     abieos::block_timestamp          timestamp         = {};
@@ -318,23 +328,14 @@ struct signed_block_header : block_header {
     abieos::signature producer_signature = {};
 };
 
-ABIEOS_REFLECT(signed_block_header) {
-    ABIEOS_BASE(block_header)
-    ABIEOS_MEMBER(signed_block_header, producer_signature)
-}
+TEMP_REFLECT_BASE(signed_block_header, block_header, producer_signature)
 
 struct signed_block : signed_block_header {
     std::vector<transaction_receipt> transactions     = {};
     std::vector<extension>           block_extensions = {};
 };
 
-ABIEOS_REFLECT(signed_block) {
-    ABIEOS_BASE(signed_block_header)
-    ABIEOS_MEMBER(signed_block, transactions)
-    ABIEOS_MEMBER(signed_block, block_extensions)
-}
-
-// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+TEMP_REFLECT_BASE(signed_block, signed_block_header, transactions, block_extensions)
 
 struct transaction_header {
     abieos::time_point_sec expiration          = {};
@@ -353,12 +354,7 @@ struct transaction : transaction_header {
     std::vector<extension> transaction_extensions = {};
 };
 
-ABIEOS_REFLECT(transaction) {
-    ABIEOS_BASE(transaction_header);
-    ABIEOS_MEMBER(transaction, context_free_actions);
-    ABIEOS_MEMBER(transaction, actions);
-    ABIEOS_MEMBER(transaction, transaction_extensions);
-}
+TEMP_REFLECT_BASE(transaction, transaction_header, context_free_actions, actions, transaction_extensions)
 
 struct code_id {
     uint8_t             vm_type    = {};
@@ -566,28 +562,32 @@ EOSIO_REFLECT(global_property_v1, proposed_schedule_block_num, proposed_schedule
 
 using global_property = std::variant<global_property_v0, global_property_v1>;
 
-/*
 struct generated_transaction_v0 {
-    abieos::name         sender     = {};
-    uint128_t            sender_id  = {};
-    abieos::name         payer      = {};
-    abieos::checksum256  trx_id     = {};
+    abieos::name        sender     = {};
+    uint128_t           sender_id  = {};
+    abieos::name        payer      = {};
+    abieos::checksum256 trx_id     = {};
     eosio::input_stream packed_trx = {};
 };
 
+EOSIO_REFLECT(generated_transaction_v0, sender, sender_id, payer, trx_id, packed_trx)
+
 using generated_transaction = std::variant<generated_transaction_v0>;
-*/
 
 struct activated_protocol_feature_v0 {
     abieos::checksum256 feature_digest       = {};
     uint32_t            activation_block_num = {};
 };
 
+EOSIO_REFLECT(activated_protocol_feature_v0, feature_digest, activation_block_num)
+
 using activated_protocol_feature = std::variant<activated_protocol_feature_v0>;
 
 struct protocol_state_v0 {
     std::vector<activated_protocol_feature> activated_protocol_features = {};
 };
+
+EOSIO_REFLECT(protocol_state_v0, activated_protocol_features)
 
 using protocol_state = std::variant<protocol_state_v0>;
 
@@ -596,10 +596,14 @@ struct permission_level_weight {
     uint16_t         weight     = {};
 };
 
+EOSIO_REFLECT(permission_level_weight, permission, weight)
+
 struct wait_weight {
     uint32_t wait_sec = {};
     uint16_t weight   = {};
 };
+
+EOSIO_REFLECT(wait_weight, wait_sec, weight)
 
 struct authority {
     uint32_t                             threshold = {};
@@ -608,6 +612,8 @@ struct authority {
     std::vector<wait_weight>             waits     = {};
 };
 
+EOSIO_REFLECT(authority, threshold, keys, accounts, waits)
+
 struct permission_v0 {
     abieos::name       owner        = {};
     abieos::name       name         = {};
@@ -615,6 +621,8 @@ struct permission_v0 {
     abieos::time_point last_updated = {};
     authority          auth         = {};
 };
+
+EOSIO_REFLECT(permission_v0, owner, name, parent, last_updated, auth)
 
 using permission = std::variant<permission_v0>;
 
@@ -625,6 +633,8 @@ struct permission_link_v0 {
     abieos::name required_permission = {};
 };
 
+EOSIO_REFLECT(permission_link_v0, account, code, message_type, required_permission)
+
 using permission_link = std::variant<permission_link_v0>;
 
 struct resource_limits_v0 {
@@ -634,6 +644,8 @@ struct resource_limits_v0 {
     int64_t      ram_bytes  = {};
 };
 
+EOSIO_REFLECT(resource_limits_v0, owner, net_weight, cpu_weight, ram_bytes)
+
 using resource_limits = std::variant<resource_limits_v0>;
 
 struct usage_accumulator_v0 {
@@ -641,6 +653,8 @@ struct usage_accumulator_v0 {
     uint64_t value_ex     = {};
     uint64_t consumed     = {};
 };
+
+EOSIO_REFLECT(usage_accumulator_v0, last_ordinal, value_ex, consumed)
 
 using usage_accumulator = std::variant<usage_accumulator_v0>;
 
@@ -650,6 +664,8 @@ struct resource_usage_v0 {
     usage_accumulator cpu_usage = {};
     uint64_t          ram_usage = {};
 };
+
+EOSIO_REFLECT(resource_usage_v0, owner, net_usage, cpu_usage, ram_usage)
 
 using resource_usage = std::variant<resource_usage_v0>;
 
@@ -663,12 +679,18 @@ struct resource_limits_state_v0 {
     uint64_t          virtual_cpu_limit       = {};
 };
 
+EOSIO_REFLECT(
+    resource_limits_state_v0, average_block_net_usage, average_block_cpu_usage, total_net_weight, total_cpu_weight, total_ram_bytes,
+    virtual_net_limit, virtual_cpu_limit)
+
 using resource_limits_state = std::variant<resource_limits_state_v0>;
 
 struct resource_limits_ratio_v0 {
     uint64_t numerator   = {};
     uint64_t denominator = {};
 };
+
+EOSIO_REFLECT(resource_limits_ratio_v0, numerator, denominator)
 
 using resource_limits_ratio = std::variant<resource_limits_ratio_v0>;
 
@@ -681,6 +703,8 @@ struct elastic_limit_parameters_v0 {
     resource_limits_ratio expand_rate    = {};
 };
 
+EOSIO_REFLECT(elastic_limit_parameters_v0, target, max, periods, max_multiplier, contract_rate, expand_rate)
+
 using elastic_limit_parameters = std::variant<elastic_limit_parameters_v0>;
 
 struct resource_limits_config_v0 {
@@ -690,45 +714,10 @@ struct resource_limits_config_v0 {
     uint32_t                 account_net_usage_average_window = {};
 };
 
+EOSIO_REFLECT(
+    resource_limits_config_v0, cpu_limit_parameters, net_limit_parameters, account_cpu_usage_average_window,
+    account_net_usage_average_window)
+
 using resource_limits_config = std::variant<resource_limits_config_v0>;
-
-struct trx_filter {
-    bool                              include     = {};
-    std::optional<transaction_status> status      = {};
-    std::optional<abieos::name>       receiver    = {};
-    std::optional<abieos::name>       act_account = {};
-    std::optional<abieos::name>       act_name    = {};
-};
-
-inline bool matches(const trx_filter& filter, const transaction_trace_v0& ttrace, const action_trace_v0& atrace) {
-    if (filter.status && ttrace.status != *filter.status)
-        return false;
-    if (filter.receiver && atrace.receiver != *filter.receiver)
-        return false;
-    if (filter.act_account && atrace.act.account != *filter.act_account)
-        return false;
-    if (filter.act_name && atrace.act.name != *filter.act_name)
-        return false;
-    return true;
-}
-
-inline bool filter(const std::vector<trx_filter>& filters, const transaction_trace_v0& ttrace, const action_trace_v0& atrace) {
-    for (auto& filt : filters) {
-        if (matches(filt, ttrace, atrace)) {
-            if (filt.include)
-                return true;
-            else
-                return false;
-        }
-    }
-    return false;
-}
-
-inline bool filter(const std::vector<trx_filter>& filters, const transaction_trace_v0& ttrace) {
-    for (auto& atrace : ttrace.action_traces)
-        if (filter(filters, ttrace, std::get<0>(atrace)))
-            return true;
-    return false;
-}
 
 } // namespace state_history

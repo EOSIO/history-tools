@@ -81,18 +81,15 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
         , config(my->config) {}
 
     void connect(asio::io_context& ioc) {
+        load_fill_status();
+        end_write(true);
+        db->flush(true, true);
+
         connection = std::make_shared<state_history::connection>(ioc, *config, shared_from_this());
         connection->connect();
     }
 
     void received_abi() override {
-        load_fill_status();
-        ilog("clean up stale records");
-        end_write(true);
-        // truncate(head + 1);
-        end_write(true);
-        db->flush(true, true);
-
         ilog("request status");
         connection->send(get_status_request_v0{});
     }
@@ -104,17 +101,21 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
     }
 
     void load_fill_status() {
+        write_session.wipe_cache();
         rdb::db_view_state view_state{abieos::name{"state"}, *db, write_session};
         fill_status_kv     table{{view_state}};
         auto               it = table.begin();
-        if (it == table.end())
-            return;
-        auto status     = std::get<0>(it.get());
-        head            = status.head;
-        head_id         = status.head_id;
-        irreversible    = status.irreversible;
-        irreversible_id = status.irreversible_id;
-        first           = status.first;
+        if (it != table.end()) {
+            auto status     = std::get<0>(it.get());
+            head            = status.head;
+            head_id         = status.head_id;
+            irreversible    = status.irreversible;
+            irreversible_id = status.irreversible_id;
+            first           = status.first;
+        }
+        ilog("filler status:");
+        ilog("    head:         ${a} ${b}", ("a", head)("b", (std::string)head_id));
+        ilog("    irreversible: ${a} ${b}", ("a", irreversible)("b", (std::string)irreversible_id));
     }
 
     std::vector<block_position> get_positions() {
@@ -187,9 +188,8 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
             //     active_content_batch, kv::make_received_block_key(result.this_block->block_num),
             //     kv::received_block{result.this_block->block_num, result.this_block->block_id});
 
-            if (commit_now) {
+            if (commit_now)
                 end_write(true);
-            }
             if (near)
                 db->flush(false, false);
         } catch (...) {

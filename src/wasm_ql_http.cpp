@@ -9,6 +9,8 @@
 
 #include "wasm_ql_http.hpp"
 
+#include <eosio/from_json.hpp>
+
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/strand.hpp>
@@ -36,6 +38,25 @@ namespace net   = boost::asio;          // from <boost/asio.hpp>
 using tcp       = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 
 using namespace std::literals;
+
+// todo: replace
+struct hex_bytes {
+    std::vector<char> data = {};
+};
+
+template <typename S>
+eosio::result<void> from_json(hex_bytes& obj, S& stream) {
+    return from_json_hex(obj.data, stream);
+}
+
+struct json_packed_transaction {
+    std::vector<abieos::signature> signatures               = {};
+    uint8_t                        compression              = {};
+    hex_bytes                      packed_context_free_data = {};
+    hex_bytes                      packed_trx               = {};
+};
+
+EOSIO_REFLECT(json_packed_transaction, signatures, compression, packed_context_free_data)
 
 namespace wasm_ql {
 
@@ -204,7 +225,29 @@ void handle_request(
 
     try {
         auto query_prefix = "/wasmql/v2/query/";
-        if (req.target().starts_with(query_prefix)) {
+        if (req.target() == "/v1/chain/get_info") {
+            auto thread_state = state_cache->get_state();
+            send(ok(query_get_info(*thread_state), "application/json"));
+            state_cache->store_state(std::move(thread_state));
+            return;
+        } else if (req.target() == "/v1/chain/send_transaction") { // todo: replace with /v1/chain/send_transaction2
+            if (req.method() != http::verb::post)
+                return send(error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
+            json_packed_transaction  trx;
+            std::string              s{req.body().begin(), req.body().end()};
+            eosio::json_token_stream stream{s.data()};
+            auto                     r = from_json(trx, stream);
+            if (!r)
+                return send(error(
+                    http::status::internal_server_error,
+                    "An error occurred deserializing json_packed_transaction: "s + r.error().message()));
+            if (!trx.signatures.empty())
+                return send(error(http::status::internal_server_error, "Signatures must be empty"));
+            if (trx.compression)
+                return send(error(http::status::internal_server_error, "Compression must be 0"));
+            // todo: verify transaction extension is present
+        } else if (req.target().starts_with(query_prefix)) {
+            // todo: remove
             if (req.method() != http::verb::post)
                 return send(error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
             auto wasm = req.target();
@@ -383,6 +426,7 @@ class http_session : public std::enable_shared_from_this<http_session> {
 
         // Apply a reasonable limit to the allowed size
         // of the body in bytes to prevent abuse.
+        // todo: make configurable
         parser_->body_limit(10000);
 
         // Set the timeout.

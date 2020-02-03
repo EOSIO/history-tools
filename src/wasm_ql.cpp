@@ -3,6 +3,12 @@
 #include "wasm_ql.hpp"
 #include "abieos_exception.hpp"
 #include "chaindb_callbacks.hpp"
+#include "state_history_rocksdb.hpp"
+
+namespace eosio {
+using state_history::rdb::kv_environment;
+}
+#include "../wasms/state_history_kv_tables.hpp" // todo: move
 
 #include <fc/log/logger.hpp>
 #include <fc/scoped_exit.hpp>
@@ -65,6 +71,48 @@ static void run_query(wasm_ql::thread_state& thread_state, abieos::name short_na
     backend.initialize(&cb);
     backend(&cb, "env", "initialize");
     backend(&cb, "env", "run_query", short_name.value, query_name.value);
+}
+
+const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {
+    rocksdb::ManagedSnapshot          snapshot{thread_state.shared->db->rdb.get()};
+    chain_kv::write_session           write_session{*thread_state.shared->db, snapshot.snapshot()};
+    state_history::rdb::db_view_state db_view_state{abieos::name{"state"}, *thread_state.shared->db, write_session};
+
+    std::string result = "{\"server-type\":\"wasm-ql\"";
+
+    {
+        state_history::global_property_kv table{{db_view_state}};
+        bool                              found = false;
+        if (table.begin() != table.end()) {
+            auto record = table.begin().get();
+            if (auto* obj = std::get_if<state_history::global_property_v1>(&record)) {
+                found = true;
+                result += ",\"chain_id\":\"" + (std::string)obj->chain_id + "\"";
+            }
+        }
+        if (!found)
+            throw std::runtime_error("No global_property_v1 records found; is filler running?");
+    }
+
+    {
+        state_history::fill_status_kv table{{db_view_state}};
+        if (table.begin() != table.end()) {
+            std::visit(
+                [&](auto& obj) {
+                    result += ",\"head_block_num\":\"" + std::to_string(obj.head) + "\"";
+                    result += ",\"head_block_id\":\"" + (std::string)obj.head_id + "\"";
+                    result += ",\"last_irreversible_block_num\":\"" + std::to_string(obj.irreversible) + "\"";
+                    result += ",\"last_irreversible_block_id\":\"" + (std::string)obj.irreversible_id + "\"";
+                },
+                table.begin().get());
+        } else
+            throw std::runtime_error("No fill_status records found; is filler running?");
+    }
+
+    result += "}";
+
+    thread_state.output_data.assign(result.data(), result.data() + result.size());
+    return thread_state.output_data;
 }
 
 const std::vector<char>&

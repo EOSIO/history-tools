@@ -32,6 +32,15 @@ struct fill_status_kv : eosio::table<fill_status> {
     }
 };
 
+struct global_property_kv : eosio::table<global_property> {
+    index primary_index{abieos::name{"primary"}, [](const auto& var) { return std::vector<char>{}; }};
+
+    global_property_kv(eosio::kv_environment environment)
+        : eosio::table<global_property>{std::move(environment)} {
+        init(abieos::name{"eosio.state"}, abieos::name{"state"}, abieos::name{"global.prop"}, primary_index);
+    }
+};
+
 struct contract_table_kv : eosio::table<contract_table> {
     index primary_index{
         abieos::name{"primary"}, [](const auto& var) {
@@ -124,6 +133,8 @@ void store_delta_typed(eosio::kv_environment environment, table_delta_v0& delta,
 
 template <typename F>
 inline void store_delta(eosio::kv_environment environment, table_delta_v0& delta, bool bypass_preexist_check, F f) {
+    if (delta.name == "global_property")
+        store_delta_typed<global_property_kv>(environment, delta, bypass_preexist_check, f);
     if (delta.name == "contract_table")
         store_delta_typed<contract_table_kv>(environment, delta, bypass_preexist_check, f);
     if (delta.name == "contract_row")

@@ -153,7 +153,7 @@ inline void action_close(name owner, const symbol& symbol) {
     acnts.erase(it);
 }
 
-inline std::vector<eosio::asset> query_gettoks(eosio::name owner) {
+inline std::vector<eosio::asset> action_gettoks(eosio::name owner) {
     accounts                  accounts(get_self(), owner.value);
     std::vector<eosio::asset> result;
     for (auto& acc : accounts)
@@ -161,7 +161,12 @@ inline std::vector<eosio::asset> query_gettoks(eosio::name owner) {
     return result;
 }
 
-CONTRACT_ACTIONS(create, issue, retire, transfer, open, close)
-CONTRACT_QUERIES(gettoks)
+CONTRACT_ACTIONS(create, issue, retire, transfer, open, close, gettoks)
+
+// !!!
+template <typename F>
+inline void for_each_query(F f) {
+    f("gettoks"_n, action_gettoks);
+}
 
 DISPATCH()

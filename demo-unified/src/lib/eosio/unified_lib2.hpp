@@ -7,6 +7,10 @@
 
 namespace eosio {
 
+namespace internal_use_do_not_use {
+extern "C" void set_action_return_value(char* return_value, size_t size);
+}
+
 namespace globals {
 extern name self;
 }
@@ -80,8 +84,8 @@ inline std::string ret_bin_to_json(R (*)(Args...), datastream<const char*>& ds) 
     return check(convert_to_json(ret)).value();
 }
 
-template <typename... Args>
-void execute_action2(name self, name code, void (*f)(Args...)) {
+template <typename Ret, typename... Args>
+void execute_action2(name self, name code, Ret (*f)(Args...)) {
     size_t size   = action_data_size();
     char*  buffer = nullptr;
     if (size) {
@@ -91,7 +95,12 @@ void execute_action2(name self, name code, void (*f)(Args...)) {
     datastream<const char*>           ds(buffer, size);
     std::tuple<std::decay_t<Args>...> args;
     ds >> args;
-    std::apply(f, args);
+    if constexpr (std::is_same_v<Ret, void>) {
+        std::apply(f, args);
+    } else {
+        auto result = pack(std::apply(f, args));
+        internal_use_do_not_use::set_action_return_value(result.data(), result.size());
+    }
 }
 
 template <typename R, typename... Args>

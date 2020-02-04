@@ -39,25 +39,6 @@ using tcp       = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 
 using namespace std::literals;
 
-// todo: replace
-struct hex_bytes {
-    std::vector<char> data = {};
-};
-
-template <typename S>
-eosio::result<void> from_json(hex_bytes& obj, S& stream) {
-    return from_json_hex(obj.data, stream);
-}
-
-struct json_packed_transaction {
-    std::vector<abieos::signature> signatures               = {};
-    uint8_t                        compression              = {};
-    hex_bytes                      packed_context_free_data = {};
-    hex_bytes                      packed_trx               = {};
-};
-
-EOSIO_REFLECT(json_packed_transaction, signatures, compression, packed_context_free_data)
-
 namespace wasm_ql {
 
 class thread_state_cache {
@@ -238,7 +219,9 @@ void handle_request(
             send(ok(query_get_block(*thread_state, std::string_view{req.body().data(), req.body().size()}), "application/json"));
             state_cache->store_state(std::move(thread_state));
             return;
-        } else if (req.target() == "/v1/chain/send_transaction") { // todo: replace with /v1/chain/send_transaction2
+        } else if (req.target() == "/v1/chain/send_transaction") {
+            // todo: replace with /v1/chain/send_transaction2?
+            // or:   change nodeos to not do abi deserialization if transaction extension present?
             if (req.method() != http::verb::post)
                 return send(error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
             auto thread_state = state_cache->get_state();
@@ -246,6 +229,7 @@ void handle_request(
             state_cache->store_state(std::move(thread_state));
             return;
         } else if (req.target().starts_with("/v1/") || doc_root.empty()) {
+            // todo: redirect if /v1/?
             return send(error(http::status::not_found, "The resource '" + req.target().to_string() + "' was not found.\n"));
         } else {
             // Make sure we can handle the method

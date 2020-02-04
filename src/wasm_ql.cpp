@@ -171,20 +171,49 @@ struct send_transaction_params {
     hex_bytes                      packed_trx               = {};
 };
 
-EOSIO_REFLECT(send_transaction_params, signatures, compression, packed_context_free_data)
+EOSIO_REFLECT(send_transaction_params, signatures, compression, packed_context_free_data, packed_trx)
+
+struct send_transaction_results {
+    abieos::checksum256              transaction_id;
+    state_history::transaction_trace processed;
+};
+
+EOSIO_REFLECT(send_transaction_results, transaction_id, processed)
 
 const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_state, std::string_view body) {
-    send_transaction_params  trx;
-    std::string              s{body.begin(), body.end()};
-    eosio::json_token_stream stream{s.data()};
-    auto                     r = from_json(trx, stream);
+    send_transaction_params trx;
+    {
+        std::string              s{body.begin(), body.end()};
+        eosio::json_token_stream stream{s.data()};
+        if (auto r = from_json(trx, stream); !r)
+            throw std::runtime_error("An error occurred deserializing send_transaction_params: "s + r.error().message());
+    }
+    eosio::input_stream s{trx.packed_trx.data};
+    auto                r = eosio::from_bin<state_history::transaction>(s);
     if (!r)
-        throw std::runtime_error("An error occurred deserializing json_packed_transaction: "s + r.error().message());
+        throw std::runtime_error("An error occurred deserializing packed_trx: "s + r.error().message());
+    if (s.end != s.pos)
+        throw std::runtime_error("Extra data in packed_trx");
+    state_history::transaction& unpacked = r.value();
+
     if (!trx.signatures.empty())
         throw std::runtime_error("Signatures must be empty"); // todo
     if (trx.compression)
         throw std::runtime_error("Compression must be 0"); // todo
-    // todo: verify transaction extension is present
+    if (!trx.packed_context_free_data.data.empty())
+        throw std::runtime_error("packed_context_free_data must be empty"); // todo
+    // todo: verify query transaction extension is present, but no others
+    // todo: redirect if transaction extension not present?
+    if (!unpacked.transaction_extensions.empty())
+        throw std::runtime_error("transaction_extensions must be empty");
+    if (!unpacked.context_free_actions.empty())
+        throw std::runtime_error("context_free_actions must be empty"); // todo
+
+    // todo: timeout
+    for (auto& action : unpacked.actions) {
+        if (!action.authorization.empty())
+            throw std::runtime_error("authorization must be empty"); // todo
+    }
 
     throw std::runtime_error("nananananananana");
 } // query_send_transaction

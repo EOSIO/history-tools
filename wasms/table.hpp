@@ -245,7 +245,7 @@ class table_iterator {
 
     table_iterator& operator++() {
         if (it)
-            ind->t->environment.kv_it_incr(it);
+            ind->t->environment.kv_it_next(it);
         obj.reset();
         return *this;
     }

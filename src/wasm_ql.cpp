@@ -115,6 +115,55 @@ const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {
     return thread_state.output_data;
 }
 
+struct get_block_params {
+    uint32_t block_num_or_id = {};
+};
+
+EOSIO_REFLECT(get_block_params, block_num_or_id)
+
+const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, std::string_view body) {
+    get_block_params         params;
+    std::string              s{body.begin(), body.end()};
+    eosio::json_token_stream stream{s.data()};
+    auto                     r = from_json(params, stream);
+    if (!r)
+        throw std::runtime_error("An error occurred deserializing get_block_params: " + r.error().message());
+
+    rocksdb::ManagedSnapshot          snapshot{thread_state.shared->db->rdb.get()};
+    chain_kv::write_session           write_session{*thread_state.shared->db, snapshot.snapshot()};
+    state_history::rdb::db_view_state db_view_state{abieos::name{"state"}, *thread_state.shared->db, write_session};
+    state_history::block_info_kv      table{{db_view_state}};
+
+    // !!!! todo: use index
+    // todo: look up by id? rename block_num_or_id?
+    for (auto it = table.begin(); it != table.end(); ++it) {
+        auto obj = std::get<0>(it.get());
+        if (obj.num == params.block_num_or_id) {
+            uint32_t ref_block_prefix;
+            memcpy(&ref_block_prefix, obj.id.value.begin() + 8, sizeof(ref_block_prefix));
+
+            std::string result = "{";
+            result += "\"block_num\":" + std::to_string(obj.num);
+            result += ",\"id\":\"" + (std::string)obj.id + "\"";
+            result += ",\"timestamp\":\"" + (std::string)obj.timestamp + "\"";
+            result += ",\"producer\":\"" + (std::string)obj.producer + "\"";
+            result += ",\"confirmed\":" + std::to_string(obj.confirmed);
+            result += ",\"previous\":\"" + (std::string)obj.previous + "\"";
+            result += ",\"transaction_mroot\":\"" + (std::string)obj.transaction_mroot + "\"";
+            result += ",\"action_mroot\":\"" + (std::string)obj.action_mroot + "\"";
+            result += ",\"schedule_version\":" + std::to_string(obj.schedule_version);
+            result += ",\"producer_signature\":\"" + abieos::signature_to_string(obj.producer_signature) + "\"";
+            result += ",\"ref_block_prefix\":" + std::to_string(ref_block_prefix);
+            result += "}";
+
+            thread_state.output_data.assign(result.data(), result.data() + result.size());
+            return thread_state.output_data;
+        }
+    }
+
+    throw std::runtime_error("block " + std::to_string(params.block_num_or_id) + " not found");
+} // query_get_block
+
 const std::vector<char>&
 query(wasm_ql::thread_state& thread_state, std::string_view wasm, std::string_view query, const std::vector<char>& request) {
     abieos::name wasm_name;

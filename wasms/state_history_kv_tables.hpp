@@ -32,6 +32,43 @@ struct fill_status_kv : eosio::table<fill_status> {
     }
 };
 
+struct block_info_v0 {
+    uint32_t                         num                = {};
+    abieos::checksum256              id                 = {};
+    abieos::block_timestamp          timestamp          = {};
+    abieos::name                     producer           = {};
+    uint16_t                         confirmed          = {};
+    abieos::checksum256              previous           = {};
+    abieos::checksum256              transaction_mroot  = {};
+    abieos::checksum256              action_mroot       = {};
+    uint32_t                         schedule_version   = {};
+    std::optional<producer_schedule> new_producers      = {};
+    abieos::signature                producer_signature = {};
+};
+
+EOSIO_REFLECT(
+    block_info_v0, num, id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, schedule_version, new_producers,
+    producer_signature)
+
+using block_info = std::variant<block_info_v0>;
+
+// todo: move out of "state"?
+struct block_info_kv : eosio::table<block_info> {
+    index primary_index{abieos::name{"primary"}, [](const auto& var) {
+                            return std::visit([](const auto& obj) { return eosio::check(eosio::convert_to_key(obj.num)).value(); }, var);
+                        }};
+
+    // todo
+    // index id_index{abieos::name{"id"}, [](const auto& var) {
+    //                    return std::visit([](const auto& obj) { return eosio::check(eosio::convert_to_key(obj.id)).value(); }, var);
+    //                }};
+
+    block_info_kv(eosio::kv_environment environment)
+        : eosio::table<block_info>{std::move(environment)} {
+        init(abieos::name{"eosio.state"}, abieos::name{"state"}, abieos::name{"contract.tab"}, primary_index);
+    }
+};
+
 struct global_property_kv : eosio::table<global_property> {
     index primary_index{abieos::name{"primary"}, [](const auto& var) { return std::vector<char>{}; }};
 

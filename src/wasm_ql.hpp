@@ -30,6 +30,7 @@ struct thread_state {
 void register_callbacks();
 
 const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state);
+const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, std::string_view body);
 const std::vector<char>&
                          query(wasm_ql::thread_state& thread_state, std::string_view wasm, std::string_view query, const std::vector<char>& request);
 const std::vector<char>& legacy_query(wasm_ql::thread_state& thread_state, const std::string& target, const std::vector<char>& request);

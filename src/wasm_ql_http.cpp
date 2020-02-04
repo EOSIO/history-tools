@@ -230,6 +230,13 @@ void handle_request(
             send(ok(query_get_info(*thread_state), "application/json"));
             state_cache->store_state(std::move(thread_state));
             return;
+        } else if (req.target() == "/v1/chain/get_block") { // todo: replace with /v1/chain/get_block_header
+            if (req.method() != http::verb::post)
+                return send(error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
+            auto thread_state = state_cache->get_state();
+            send(ok(query_get_block(*thread_state, std::string_view{req.body().data(), req.body().size()}), "application/json"));
+            state_cache->store_state(std::move(thread_state));
+            return;
         } else if (req.target() == "/v1/chain/send_transaction") { // todo: replace with /v1/chain/send_transaction2
             if (req.method() != http::verb::post)
                 return send(error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));

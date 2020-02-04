@@ -174,6 +174,8 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
 
             if (head_id != abieos::checksum256{} && (!result.prev_block || result.prev_block->block_id != head_id))
                 throw std::runtime_error("prev_block does not match");
+            if (result.block)
+                receive_block(result.this_block->block_num, result.this_block->block_id, *result.block);
             if (result.deltas)
                 receive_deltas(result.this_block->block_num, *result.deltas);
 
@@ -223,7 +225,27 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
         }
     } // receive_deltas
 
-    const abi_type& get_type(const std::string& name) { return connection->get_type(name); }
+    void receive_block(uint32_t block_num, const abieos::checksum256& block_id, eosio::input_stream bin) {
+        signed_block block;
+        eosio::check_discard(from_bin(block, bin));
+
+        state_history::block_info_v0 info;
+        info.num                = block_num;
+        info.id                 = block_id;
+        info.timestamp          = block.timestamp;
+        info.producer           = block.producer;
+        info.confirmed          = block.confirmed;
+        info.previous           = block.previous;
+        info.transaction_mroot  = block.transaction_mroot;
+        info.action_mroot       = block.action_mroot;
+        info.schedule_version   = block.schedule_version;
+        info.new_producers      = block.new_producers;
+        info.producer_signature = block.producer_signature;
+
+        rdb::db_view_state view_state{abieos::name{"state"}, *db, write_session};
+        block_info_kv      table{{view_state}};
+        table.insert(info);
+    }
 
     void closed(bool retry) override {
         if (my) {

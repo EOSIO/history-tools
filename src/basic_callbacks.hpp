@@ -1,6 +1,6 @@
 #pragma once
 
-#include <abieos_exception.hpp>
+#include <abieos.hpp>
 #include <eosio/vm/backend.hpp>
 
 namespace eosio {

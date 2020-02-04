@@ -1,21 +1,11 @@
 #pragma once
 
-// todo: remove check and exception
-#ifdef EOSIO_CDT_COMPILATION
 #include <abieos.hpp>
-#include <eosio/check.hpp>
-#else
-#include <abieos_exception.hpp>
-#endif
 
-// todo: remove
-#define TEMP_REFLECT_BASE(STRUCT, BASE, ...)                                                                                               \
-    inline const char* get_type_name(STRUCT*) { return #STRUCT; }                                                                          \
-    template <typename F>                                                                                                                  \
-    constexpr void for_each_field(STRUCT*, F f) {                                                                                          \
-        for_each_field((BASE*)nullptr, f);                                                                                                 \
-        MAP_REUSE_ARG0(EOSIO_REFLECT_INTERNAL, STRUCT, __VA_ARGS__)                                                                        \
-    }
+// todo: remove check
+#ifdef EOSIO_CDT_COMPILATION
+#include <eosio/check.hpp>
+#endif
 
 namespace state_history {
 
@@ -80,7 +70,7 @@ eosio::result<void> from_bin(transaction_status& obj, S& stream) {
 
 struct get_status_request_v0 {};
 
-EOSIO_REFLECT_EMPTY(get_status_request_v0)
+EOSIO_REFLECT(get_status_request_v0)
 
 struct block_position {
     uint32_t            block_num = {};
@@ -306,7 +296,7 @@ struct transaction_receipt : transaction_receipt_header {
     transaction_variant trx = {};
 };
 
-TEMP_REFLECT_BASE(transaction_receipt, transaction_receipt_header, trx)
+EOSIO_REFLECT(transaction_receipt, base transaction_receipt_header, trx)
 
 struct block_header {
     abieos::block_timestamp          timestamp         = {};
@@ -328,14 +318,14 @@ struct signed_block_header : block_header {
     abieos::signature producer_signature = {};
 };
 
-TEMP_REFLECT_BASE(signed_block_header, block_header, producer_signature)
+EOSIO_REFLECT(signed_block_header, base block_header, producer_signature)
 
 struct signed_block : signed_block_header {
     std::vector<transaction_receipt> transactions     = {};
     std::vector<extension>           block_extensions = {};
 };
 
-TEMP_REFLECT_BASE(signed_block, signed_block_header, transactions, block_extensions)
+EOSIO_REFLECT(signed_block, base signed_block_header, transactions, block_extensions)
 
 struct transaction_header {
     abieos::time_point_sec expiration          = {};
@@ -354,7 +344,7 @@ struct transaction : transaction_header {
     std::vector<extension> transaction_extensions = {};
 };
 
-TEMP_REFLECT_BASE(transaction, transaction_header, context_free_actions, actions, transaction_extensions)
+EOSIO_REFLECT(transaction, base transaction_header, context_free_actions, actions, transaction_extensions)
 
 struct code_id {
     uint8_t             vm_type    = {};

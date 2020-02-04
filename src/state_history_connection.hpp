@@ -8,6 +8,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
+#include <eosio/abi.hpp>
 #include <fc/exception/exception.hpp>
 
 namespace state_history {
@@ -96,8 +97,12 @@ struct connection : std::enable_shared_from_this<connection> {
         std::string              json{(const char*)data.data(), data.size()};
         eosio::json_token_stream stream{json.data()};
         eosio::check_discard(from_json(abi, stream));
-        abieos::check_abi_version(abi.version);
-        abi_types = abieos::create_contract(abi).abi_types;
+        std::string error;
+        if (!abieos::check_abi_version(abi.version, error))
+            throw std::runtime_error(error);
+        eosio::abi a;
+        eosio::check_discard(convert(abi, a));
+        abi_types = std::move(a.abi_types);
         have_abi  = true;
         if (callbacks)
             callbacks->received_abi();

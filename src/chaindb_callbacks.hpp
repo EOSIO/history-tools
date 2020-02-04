@@ -6,7 +6,6 @@ using state_history::rdb::kv_environment;
 #include "../wasms/table.hpp"
 #include "state_history.hpp"
 
-#include <abieos_exception.hpp>
 #include <eosio/vm/backend.hpp>
 
 namespace history_tools {

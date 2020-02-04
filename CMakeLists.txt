@@ -4,7 +4,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET 10.14)
 include(ExternalProject)
 
 cmake_minimum_required (VERSION 3.10)
-project(history-tools VERSION 0.1 LANGUAGES CXX)
+project(history-tools VERSION 0.1 LANGUAGES CXX C)
 
 cmake_policy(SET CMP0077 NEW)
 set(ENABLE_INSTALL OFF cache bool "")
@@ -99,7 +99,7 @@ set(ROCKSDB_LIB rocksdb)
 set(APPS "")
 function(add_app APP MAIN FLAGS LIBS)
     set(APPS ${APPS} ${APP} PARENT_SCOPE)
-    add_executable(${APP} src/${MAIN}.cpp)
+    add_executable(${APP} src/${MAIN}.cpp external/abieos/src/abi.cpp external/abieos/include/eosio/fpconv.c)
 
     target_include_directories(${APP}
         PRIVATE

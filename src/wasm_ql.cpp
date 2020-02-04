@@ -1,7 +1,6 @@
 // copyright defined in LICENSE.txt
 
 #include "wasm_ql.hpp"
-#include "abieos_exception.hpp"
 #include "chaindb_callbacks.hpp"
 #include "state_history_rocksdb.hpp"
 
@@ -142,6 +141,10 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
             uint32_t ref_block_prefix;
             memcpy(&ref_block_prefix, obj.id.value.begin() + 8, sizeof(ref_block_prefix));
 
+            std::string sig, error;
+            if (!abieos::signature_to_string(sig, error, obj.producer_signature))
+                throw std::runtime_error("producer_signature: " + error);
+
             std::string result = "{";
             result += "\"block_num\":" + std::to_string(obj.num);
             result += ",\"id\":\"" + (std::string)obj.id + "\"";
@@ -152,7 +155,7 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
             result += ",\"transaction_mroot\":\"" + (std::string)obj.transaction_mroot + "\"";
             result += ",\"action_mroot\":\"" + (std::string)obj.action_mroot + "\"";
             result += ",\"schedule_version\":" + std::to_string(obj.schedule_version);
-            result += ",\"producer_signature\":\"" + abieos::signature_to_string(obj.producer_signature) + "\"";
+            result += ",\"producer_signature\":\"" + sig + "\"";
             result += ",\"ref_block_prefix\":" + std::to_string(ref_block_prefix);
             result += "}";
 

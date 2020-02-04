@@ -1,7 +1,5 @@
 #pragma once
 
-#include "abieos_exception.hpp"
-
 #include <boost/iostreams/device/back_inserter.hpp>
 #include <boost/iostreams/filter/zlib.hpp>
 #include <boost/iostreams/filtering_stream.hpp>

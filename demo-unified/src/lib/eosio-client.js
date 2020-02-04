@@ -149,7 +149,7 @@ const { Serialize } = require('eosjs');
             });
         }
         if (broadcast) {
-            return api.pushSignedTransaction(pushTransactionArgs);
+            return api.rpc.send_transaction(pushTransactionArgs);
         }
         return pushTransactionArgs;
     }

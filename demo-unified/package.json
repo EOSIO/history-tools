@@ -6,7 +6,7 @@
   },
   "dependencies": {
     "commander": "^4.0.0",
-    "eosjs": "^20.0.0",
+    "eosjs": "^21.0.1-rc1",
     "node-fetch": "^2.6.0"
   }
 }

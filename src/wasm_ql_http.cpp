@@ -223,8 +223,9 @@ void handle_request(
         return res;
     };
 
+    // todo: pack error messages in json
+    // todo: replace "query failed"
     try {
-        auto query_prefix = "/wasmql/v2/query/";
         if (req.target() == "/v1/chain/get_info") {
             auto thread_state = state_cache->get_state();
             send(ok(query_get_info(*thread_state), "application/json"));
@@ -240,42 +241,11 @@ void handle_request(
         } else if (req.target() == "/v1/chain/send_transaction") { // todo: replace with /v1/chain/send_transaction2
             if (req.method() != http::verb::post)
                 return send(error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
-            json_packed_transaction  trx;
-            std::string              s{req.body().begin(), req.body().end()};
-            eosio::json_token_stream stream{s.data()};
-            auto                     r = from_json(trx, stream);
-            if (!r)
-                return send(error(
-                    http::status::internal_server_error,
-                    "An error occurred deserializing json_packed_transaction: "s + r.error().message()));
-            if (!trx.signatures.empty())
-                return send(error(http::status::internal_server_error, "Signatures must be empty"));
-            if (trx.compression)
-                return send(error(http::status::internal_server_error, "Compression must be 0"));
-            // todo: verify transaction extension is present
-        } else if (req.target().starts_with(query_prefix)) {
-            // todo: remove
-            if (req.method() != http::verb::post)
-                return send(error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
-            auto wasm = req.target();
-            wasm.remove_prefix(strlen(query_prefix));
-            auto sep = wasm.find('/');
-            if (sep == wasm.npos)
-                return send(error(http::status::not_found, "The resource '" + req.target().to_string() + "' is missing query name.\n"));
-            auto q            = wasm.substr(sep + 1);
-            wasm              = wasm.substr(0, sep);
             auto thread_state = state_cache->get_state();
-            send(ok(query(*thread_state, {wasm.data(), wasm.size()}, {q.data(), q.size()}, req.body()), "application/octet-stream"));
+            send(ok(query_send_transaction(*thread_state, std::string_view{req.body().data(), req.body().size()}), "application/json"));
             state_cache->store_state(std::move(thread_state));
             return;
-        } else if (req.target().starts_with("/v1/")) {
-            if (req.method() != http::verb::post)
-                return send(error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
-            auto thread_state = state_cache->get_state();
-            send(ok(legacy_query(*thread_state, req.target().to_string(), req.body()), "application/octet-stream"));
-            state_cache->store_state(std::move(thread_state));
-            return;
-        } else if (doc_root.empty()) {
+        } else if (req.target().starts_with("/v1/") || doc_root.empty()) {
             return send(error(http::status::not_found, "The resource '" + req.target().to_string() + "' was not found.\n"));
         } else {
             // Make sure we can handle the method

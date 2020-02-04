@@ -14,8 +14,19 @@ using state_history::rdb::kv_environment;
 #include <fc/scoped_exit.hpp>
 
 using namespace abieos::literals;
+using namespace std::literals;
 
 namespace wasm_ql {
+
+// todo: replace
+struct hex_bytes {
+    std::vector<char> data = {};
+};
+
+template <typename S>
+eosio::result<void> from_json(hex_bytes& obj, S& stream) {
+    return from_json_hex(obj.data, stream);
+}
 
 struct callbacks;
 using backend_t = eosio::vm::backend<callbacks, eosio::vm::jit>;
@@ -45,19 +56,8 @@ void register_callbacks() {
     history_tools::chaindb_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }
 
-/*
-static void fill_context_data(wasm_ql::thread_state& thread_state) {
-    thread_state.database_status.clear();
-    abieos::native_to_bin(thread_state.fill_status.head, thread_state.database_status);
-    abieos::native_to_bin(thread_state.fill_status.head_id, thread_state.database_status);
-    abieos::native_to_bin(thread_state.fill_status.irreversible, thread_state.database_status);
-    abieos::native_to_bin(thread_state.fill_status.irreversible_id, thread_state.database_status);
-    abieos::native_to_bin(thread_state.fill_status.first, thread_state.database_status);
-}
-*/
-
 static void run_query(wasm_ql::thread_state& thread_state, abieos::name short_name, abieos::name query_name) {
-    auto                     code = backend_t::read_wasm(thread_state.shared->wasm_dir + "/" + (std::string)short_name + ".query.wasm");
+    auto                     code = backend_t::read_wasm(thread_state.shared->contract_dir + "/" + (std::string)short_name + ".query.wasm");
     backend_t                backend(code);
     rocksdb::ManagedSnapshot snapshot{thread_state.shared->db->rdb.get()};
     chain_kv::write_session  write_session{*thread_state.shared->db, snapshot.snapshot()};
@@ -164,26 +164,29 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
     throw std::runtime_error("block " + std::to_string(params.block_num_or_id) + " not found");
 } // query_get_block
 
-const std::vector<char>&
-query(wasm_ql::thread_state& thread_state, std::string_view wasm, std::string_view query, const std::vector<char>& request) {
-    abieos::name wasm_name;
-    if (!eosio::string_to_name_strict(wasm, wasm_name.value))
-        throw std::runtime_error("invalid wasm name");
-    abieos::name query_name;
-    if (!eosio::string_to_name_strict(query, query_name.value))
-        throw std::runtime_error("invalid query name");
-    thread_state.input_data = abieos::input_buffer{request.data(), request.data() + request.size()};
-    run_query(thread_state, wasm_name, query_name);
-    return thread_state.output_data;
-}
+struct send_transaction_params {
+    std::vector<abieos::signature> signatures               = {};
+    uint8_t                        compression              = {};
+    hex_bytes                      packed_context_free_data = {};
+    hex_bytes                      packed_trx               = {};
+};
 
-const std::vector<char>& legacy_query(wasm_ql::thread_state& thread_state, const std::string& target, const std::vector<char>& request) {
-    std::vector<char> req;
-    eosio::check_discard(eosio::convert_to_bin(target, req));
-    eosio::check_discard(eosio::convert_to_bin(request, req));
-    thread_state.input_data = abieos::input_buffer{req.data(), req.data() + req.size()};
-    // run_query(thread_state, "legacy"_n);
-    return thread_state.output_data;
-}
+EOSIO_REFLECT(send_transaction_params, signatures, compression, packed_context_free_data)
+
+const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_state, std::string_view body) {
+    send_transaction_params  trx;
+    std::string              s{body.begin(), body.end()};
+    eosio::json_token_stream stream{s.data()};
+    auto                     r = from_json(trx, stream);
+    if (!r)
+        throw std::runtime_error("An error occurred deserializing json_packed_transaction: "s + r.error().message());
+    if (!trx.signatures.empty())
+        throw std::runtime_error("Signatures must be empty"); // todo
+    if (trx.compression)
+        throw std::runtime_error("Compression must be 0"); // todo
+    // todo: verify transaction extension is present
+
+    throw std::runtime_error("nananananananana");
+} // query_send_transaction
 
 } // namespace wasm_ql

@@ -12,7 +12,7 @@ namespace wasm_ql {
 struct shared_state {
     bool                                console      = {};
     std::string                         allow_origin = {};
-    std::string                         wasm_dir     = {};
+    std::string                         contract_dir = {};
     std::string                         static_dir   = {};
     std::shared_ptr<chain_kv::database> db;
 
@@ -31,8 +31,6 @@ void register_callbacks();
 
 const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state);
 const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, std::string_view body);
-const std::vector<char>&
-                         query(wasm_ql::thread_state& thread_state, std::string_view wasm, std::string_view query, const std::vector<char>& request);
-const std::vector<char>& legacy_query(wasm_ql::thread_state& thread_state, const std::string& target, const std::vector<char>& request);
+const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_state, std::string_view body);
 
 } // namespace wasm_ql

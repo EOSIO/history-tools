@@ -1,5 +1,39 @@
-#include "map_macro.h"
+#pragma once
+
+#ifdef EOSIO_CDT_COMPILATION
+#include <cwchar>
+namespace std {
+using ::wcslen;
+}
+#endif
+
+#define name og_name
+#include <../core/eosio/name.hpp>
+#undef name
+#include <eosio/name.hpp>
+#include <eosio/print.hpp>
+
+namespace eosio {
+
+template <typename DataStream>
+DataStream& operator<<(DataStream& ds, const name& v) {
+    ds << v.value;
+    return ds;
+}
+
+template <typename DataStream>
+DataStream& operator>>(DataStream& ds, name& v) {
+    ds >> v.value;
+    return ds;
+}
+
+inline void print(const name& n) { print((std::string)n); }
+
+} // namespace eosio
+
 #include <abieos.hpp>
+#include <eosio/action.hpp>
+#include <eosio/asset.hpp>
 #include <eosio/contract.hpp>
 #include <eosio/from_json.hpp>
 #include <eosio/input_output.hpp>
@@ -21,22 +55,12 @@ template <typename... Ts>
 struct type_list {};
 
 template <typename S>
-result<void> from_json(name& result, S& stream) {
-    auto r = stream.get_string();
-    if (!r)
-        return r.error();
-    result = name(r.value());
-    return outcome::success();
-}
-
-template <typename S>
 result<void> from_json(asset& result, S& stream) {
     auto r = stream.get_string();
     if (!r)
         return r.error();
     abieos::asset a;
-    std::string   error;
-    if (!string_to_asset(a, error, r.value().data(), r.value().data() + r.value().size()))
+    if (!string_to_asset(a, r.value().data(), r.value().data() + r.value().size()))
         return from_json_error::value_invalid;
     result = asset{a.amount, symbol{a.sym.value}};
     return outcome::success();
@@ -122,20 +146,20 @@ void execute_query(name self, name name, R (*f)(Args...)) {
 
 } // namespace eosio
 
-#define CONTRACT_ACTIONS_INTERNAL(ACT) f(eosio::name(#ACT), action_##ACT);
+#define CONTRACT_ACTIONS_INTERNAL(DUMMY, ACT) f(eosio::name(#ACT), action_##ACT);
 
 #define CONTRACT_ACTIONS(...)                                                                                                              \
     template <typename F>                                                                                                                  \
     void for_each_action(F f) {                                                                                                            \
-        MAP(CONTRACT_ACTIONS_INTERNAL, __VA_ARGS__)                                                                                        \
+        EOSIO_MAP_REUSE_ARG0(CONTRACT_ACTIONS_INTERNAL, dummy, __VA_ARGS__)                                                                \
     }
 
-#define CONTRACT_QUERIES_INTERNAL(QUERY) f(eosio::name(#QUERY), query_##QUERY);
+#define CONTRACT_QUERIES_INTERNAL(DUMMY, QUERY) f(eosio::name(#QUERY), query_##QUERY);
 
 #define CONTRACT_QUERIES(...)                                                                                                              \
     template <typename F>                                                                                                                  \
     inline void for_each_query(F f) {                                                                                                      \
-        MAP(CONTRACT_QUERIES_INTERNAL, __VA_ARGS__)                                                                                        \
+        EOSIO_MAP_REUSE_ARG0(CONTRACT_QUERIES_INTERNAL, dummy, __VA_ARGS__)                                                                \
     }
 
 #define DISPATCH_CONTRACT_ACTIONS()                                                                                                        \
@@ -194,7 +218,7 @@ void execute_query(name self, name name, R (*f)(Args...)) {
                 if (need_comma)                                                                                                            \
                     result += ",";                                                                                                         \
                 need_comma = true;                                                                                                         \
-                result += "{\"name\":\"" + name.to_string() + "\"}";                                                                       \
+                result += "{\"name\":\"" + (std::string)name + "\"}";                                                                      \
             });                                                                                                                            \
             result += "]";                                                                                                                 \
             initialized = true;                                                                                                            \
@@ -232,7 +256,7 @@ void execute_query(name self, name name, R (*f)(Args...)) {
                 if (need_comma)                                                                                                            \
                     result += ",";                                                                                                         \
                 need_comma = true;                                                                                                         \
-                result += "{\"name\":\"" + name.to_string() + "\"}";                                                                       \
+                result += "{\"name\":\"" + (std::string)name + "\"}";                                                                      \
             });                                                                                                                            \
             result += "]";                                                                                                                 \
             initialized = true;                                                                                                            \

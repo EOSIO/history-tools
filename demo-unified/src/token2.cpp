@@ -1,6 +1,7 @@
+#include <eosio/unified_lib2.hpp>
+
 #include <eosio/asset.hpp>
 #include <eosio/eosio.hpp>
-#include <eosio/unified_lib2.hpp>
 #include <string>
 
 using namespace std;
@@ -20,8 +21,8 @@ struct currency_stats {
     uint64_t primary_key() const { return supply.symbol.code().raw(); }
 };
 
-typedef multi_index<"accounts"_n, account>    accounts;
-typedef multi_index<"stat"_n, currency_stats> stats;
+typedef multi_index<(eosio::name::raw)eosio::name("accounts"), account>    accounts;
+typedef multi_index<(eosio::name::raw)eosio::name("stat"), currency_stats> stats;
 
 inline void sub_balance(name owner, asset value) {
     accounts from_acnts(get_self(), owner.value);
@@ -166,7 +167,7 @@ CONTRACT_ACTIONS(create, issue, retire, transfer, open, close, gettoks)
 // !!!
 template <typename F>
 inline void for_each_query(F f) {
-    f("gettoks"_n, action_gettoks);
+    f(eosio::name("gettoks"), action_gettoks);
 }
 
 DISPATCH()

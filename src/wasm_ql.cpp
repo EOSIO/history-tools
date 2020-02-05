@@ -3,6 +3,7 @@
 #include "wasm_ql.hpp"
 #include "chaindb_callbacks.hpp"
 #include "state_history_rocksdb.hpp"
+#include "unimplemented_callbacks.hpp"
 
 namespace eosio {
 using state_history::rdb::kv_environment;
@@ -33,6 +34,7 @@ using rhf_t     = eosio::vm::registered_host_functions<callbacks>;
 
 struct callbacks : history_tools::basic_callbacks<callbacks>,
                    history_tools::data_callbacks<callbacks>,
+                   history_tools::unimplemented_callbacks<callbacks>,
                    history_tools::chaindb_callbacks<callbacks> {
     wasm_ql::thread_state&             thread_state;
     history_tools::chaindb_state&      chaindb_state;
@@ -52,6 +54,7 @@ struct callbacks : history_tools::basic_callbacks<callbacks>,
 void register_callbacks() {
     history_tools::basic_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
     history_tools::data_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+    history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
     history_tools::chaindb_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }
 

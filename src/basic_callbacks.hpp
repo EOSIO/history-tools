@@ -9,11 +9,13 @@ namespace vm {
 template <>
 struct wasm_type_converter<const char*> : linear_memory_access {
     auto from_wasm(void* ptr) { return (const char*)ptr; }
+    auto to_wasm(const char* ptr) { return (void*)ptr; }
 };
 
 template <>
 struct wasm_type_converter<char*> : linear_memory_access {
     auto from_wasm(void* ptr) { return (char*)ptr; }
+    auto to_wasm(char* ptr) { return (void*)ptr; }
 };
 
 template <typename T>

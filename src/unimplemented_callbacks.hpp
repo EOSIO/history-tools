@@ -173,12 +173,6 @@ struct unimplemented_callbacks {
     // context_free_api
     int get_context_free_data(int, int, int) { return unimplemented<int>("get_context_free_data"); }
 
-    // memory_api
-    int memcpy(int, int, int) { return unimplemented<int>("memcpy"); }
-    int memmove(int, int, int) { return unimplemented<int>("memmove"); }
-    int memcmp(int, int, int) { return unimplemented<int>("memcmp"); }
-    int memset(int, int, int) { return unimplemented<int>("memset"); }
-
     template <typename Rft, typename Allocator>
     static void register_callbacks() {
         // compiler_builtins
@@ -340,12 +334,6 @@ struct unimplemented_callbacks {
 
         // context_free_api
         Rft::template add<Derived, &Derived::get_context_free_data, Allocator>("env", "get_context_free_data");
-
-        // memory_api
-        Rft::template add<Derived, &Derived::memcpy, Allocator>("env", "memcpy");
-        Rft::template add<Derived, &Derived::memmove, Allocator>("env", "memmove");
-        Rft::template add<Derived, &Derived::memcmp, Allocator>("env", "memcmp");
-        Rft::template add<Derived, &Derived::memset, Allocator>("env", "memset");
     } // register_callbacks()
 };    // unimplemented_callbacks
 

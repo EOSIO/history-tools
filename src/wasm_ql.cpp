@@ -2,6 +2,7 @@
 
 #include "wasm_ql.hpp"
 #include "chaindb_callbacks.hpp"
+#include "memory_callbacks.hpp"
 #include "state_history_rocksdb.hpp"
 #include "unimplemented_callbacks.hpp"
 
@@ -33,10 +34,11 @@ using backend_t = eosio::vm::backend<callbacks, eosio::vm::jit>;
 using rhf_t     = eosio::vm::registered_host_functions<callbacks>;
 
 // todo: remove basic_callbacks
-struct callbacks : history_tools::basic_callbacks<callbacks>,
-                   history_tools::unimplemented_callbacks<callbacks>,
-                   history_tools::action_callbacks<callbacks>,
-                   history_tools::chaindb_callbacks<callbacks> {
+struct callbacks : history_tools::action_callbacks<callbacks>,
+                   history_tools::basic_callbacks<callbacks>,
+                   history_tools::chaindb_callbacks<callbacks>,
+                   history_tools::memory_callbacks<callbacks>,
+                   history_tools::unimplemented_callbacks<callbacks> {
     wasm_ql::thread_state&             thread_state;
     history_tools::chaindb_state&      chaindb_state;
     state_history::rdb::db_view_state& db_view_state;
@@ -53,10 +55,11 @@ struct callbacks : history_tools::basic_callbacks<callbacks>,
 };
 
 void register_callbacks() {
-    history_tools::basic_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
-    history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
     history_tools::action_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+    history_tools::basic_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
     history_tools::chaindb_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+    history_tools::memory_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+    history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }
 
 // todo: timeout

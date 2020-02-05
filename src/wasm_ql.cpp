@@ -32,9 +32,10 @@ struct callbacks;
 using backend_t = eosio::vm::backend<callbacks, eosio::vm::jit>;
 using rhf_t     = eosio::vm::registered_host_functions<callbacks>;
 
+// todo: remove basic_callbacks
 struct callbacks : history_tools::basic_callbacks<callbacks>,
-                   history_tools::data_callbacks<callbacks>,
                    history_tools::unimplemented_callbacks<callbacks>,
+                   history_tools::action_callbacks<callbacks>,
                    history_tools::chaindb_callbacks<callbacks> {
     wasm_ql::thread_state&             thread_state;
     history_tools::chaindb_state&      chaindb_state;
@@ -53,13 +54,17 @@ struct callbacks : history_tools::basic_callbacks<callbacks>,
 
 void register_callbacks() {
     history_tools::basic_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
-    history_tools::data_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
     history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+    history_tools::action_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
     history_tools::chaindb_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }
 
-static void run_query(wasm_ql::thread_state& thread_state, abieos::name short_name, abieos::name query_name) {
-    auto                     code = backend_t::read_wasm(thread_state.shared->contract_dir + "/" + (std::string)short_name + ".query.wasm");
+// todo: timeout
+// todo: limit WASM memory size
+static void run_query(wasm_ql::thread_state& thread_state, state_history::action& action) {
+    if (thread_state.shared->contract_dir.empty())
+        throw std::runtime_error("contract_dir is empty"); // todo
+    auto                     code = backend_t::read_wasm(thread_state.shared->contract_dir + "/" + (std::string)action.account + ".wasm");
     backend_t                backend(code);
     rocksdb::ManagedSnapshot snapshot{thread_state.shared->db->rdb.get()};
     chain_kv::write_session  write_session{*thread_state.shared->db, snapshot.snapshot()};
@@ -67,12 +72,13 @@ static void run_query(wasm_ql::thread_state& thread_state, abieos::name short_na
     history_tools::chaindb_state      chaindb_state;
     callbacks                         cb{thread_state, chaindb_state, db_view_state};
     backend.set_wasm_allocator(&thread_state.wa);
+    thread_state.receiver    = action.account;
+    thread_state.action_data = action.data;
+    thread_state.action_return_value.clear();
 
-    // todo: make short_name available to wasm
     rhf_t::resolve(backend.get_module());
     backend.initialize(&cb);
-    backend(&cb, "env", "initialize");
-    backend(&cb, "env", "run_query", short_name.value, query_name.value);
+    backend(&cb, "env", "apply", action.account.value, action.account.value, action.name.value);
 }
 
 const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {
@@ -113,8 +119,8 @@ const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {
 
     result += "}";
 
-    thread_state.output_data.assign(result.data(), result.data() + result.size());
-    return thread_state.output_data;
+    thread_state.action_return_value.assign(result.data(), result.data() + result.size());
+    return thread_state.action_return_value;
 }
 
 struct get_block_params {
@@ -162,8 +168,8 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
             result += ",\"ref_block_prefix\":" + std::to_string(ref_block_prefix);
             result += "}";
 
-            thread_state.output_data.assign(result.data(), result.data() + result.size());
-            return thread_state.output_data;
+            thread_state.action_return_value.assign(result.data(), result.data() + result.size());
+            return thread_state.action_return_value;
         }
     }
 
@@ -207,18 +213,22 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
     if (trx.compression)
         throw std::runtime_error("Compression must be 0"); // todo
     if (!trx.packed_context_free_data.data.empty())
-        throw std::runtime_error("packed_context_free_data must be empty"); // todo
+        throw std::runtime_error("packed_context_free_data must be empty");
     // todo: verify query transaction extension is present, but no others
     // todo: redirect if transaction extension not present?
     if (!unpacked.transaction_extensions.empty())
         throw std::runtime_error("transaction_extensions must be empty");
+    // todo: check expiration, ref_block_num, ref_block_prefix
+    if (unpacked.delay_sec.value)
+        throw std::runtime_error("delay_sec must be 0"); // queries can't be deferred
     if (!unpacked.context_free_actions.empty())
-        throw std::runtime_error("context_free_actions must be empty"); // todo
+        throw std::runtime_error("context_free_actions must be empty"); // todo: is there a case where CFA makes sense?
 
     // todo: timeout
     for (auto& action : unpacked.actions) {
         if (!action.authorization.empty())
             throw std::runtime_error("authorization must be empty"); // todo
+        run_query(thread_state, action);
     }
 
     throw std::runtime_error("nananananananana");

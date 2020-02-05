@@ -58,8 +58,8 @@ void wasm_ql_plugin::set_program_options(options_description& cli, options_descr
     op("wql-threads", bpo::value<int>()->default_value(8), "Number of threads to process requests");
     op("wql-listen", bpo::value<std::string>()->default_value("127.0.0.1:8880"), "Endpoint to listen on");
     op("wql-allow-origin", bpo::value<std::string>(), "Access-Control-Allow-Origin header. Use \"*\" to allow any.");
-    op("wql-contract-dir", bpo::value<std::string>()->default_value("."),
-       "Directory to fetch contracts from. These override contracts on the chain.");
+    op("wql-contract-dir", bpo::value<std::string>(),
+       "Directory to fetch contracts from. These override contracts on the chain. (default: disabled)");
     op("wql-static-dir", bpo::value<std::string>(), "Directory to serve static files from (default: disabled)");
     op("wql-console", "Show console output");
 }
@@ -70,12 +70,13 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
         if (ip_port.find(':') == std::string::npos)
             throw std::runtime_error("invalid --wql-listen value: " + ip_port);
 
-        my->state               = std::make_shared<wasm_ql::shared_state>(app().find_plugin<rocksdb_plugin>()->get_db());
-        my->state->console      = options.count("wql-console");
-        my->num_threads         = options.at("wql-threads").as<int>();
-        my->endpoint_port       = ip_port.substr(ip_port.find(':') + 1, ip_port.size());
-        my->endpoint_address    = ip_port.substr(0, ip_port.find(':'));
-        my->state->contract_dir = options.at("wql-contract-dir").as<std::string>();
+        my->state            = std::make_shared<wasm_ql::shared_state>(app().find_plugin<rocksdb_plugin>()->get_db());
+        my->state->console   = options.count("wql-console");
+        my->num_threads      = options.at("wql-threads").as<int>();
+        my->endpoint_port    = ip_port.substr(ip_port.find(':') + 1, ip_port.size());
+        my->endpoint_address = ip_port.substr(0, ip_port.find(':'));
+        if (options.count("wql-contract-dir"))
+            my->state->contract_dir = options.at("wql-contract-dir").as<std::string>();
         if (options.count("wql-allow-origin"))
             my->state->allow_origin = options.at("wql-allow-origin").as<std::string>();
         if (options.count("wql-static-dir"))

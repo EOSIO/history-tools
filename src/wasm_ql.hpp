@@ -1,7 +1,7 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include "basic_callbacks.hpp"
+#include "action_callbacks.hpp"
 #include "state_history_rocksdb.hpp"
 #include "wasm_ql_plugin.hpp"
 
@@ -20,11 +20,9 @@ struct shared_state {
         : db(std::move(db)) {}
 };
 
-struct thread_state {
-    std::shared_ptr<const shared_state> shared      = {};
-    eosio::vm::wasm_allocator           wa          = {};
-    abieos::input_buffer                input_data  = {};
-    std::vector<char>                   output_data = {};
+struct thread_state : history_tools::action_state {
+    std::shared_ptr<const shared_state> shared = {};
+    eosio::vm::wasm_allocator           wa     = {};
 };
 
 void register_callbacks();

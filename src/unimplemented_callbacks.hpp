@@ -6,10 +6,9 @@ namespace history_tools {
 
 template <typename Derived>
 struct unimplemented_callbacks {
-
     template <typename T>
     T unimplemented(const char* name) {
-        throw std::runtime_error(std::string(name) + " is unimplemented");
+        throw std::runtime_error("wasm called " + std::string(name) + ", which is unimplemented");
     }
 
     // compiler_builtins
@@ -136,11 +135,6 @@ struct unimplemented_callbacks {
     void eosio_assert(int, int) { return unimplemented<void>("eosio_assert"); }
     void eosio_assert_code(int, int64_t) { return unimplemented<void>("eosio_assert_code"); }
     void eosio_exit(int) { return unimplemented<void>("eosio_exit"); }
-
-    // action_api
-    int     read_action_data(int, int) { return unimplemented<int>("read_action_data"); }
-    int     action_data_size() { return unimplemented<int>("action_data_size"); }
-    int64_t current_receiver() { return unimplemented<int64_t>("current_receiver"); }
 
     // authorization_api
     void require_recipient(int64_t) { return unimplemented<void>("require_recipient"); }
@@ -309,11 +303,6 @@ struct unimplemented_callbacks {
         Rft::template add<Derived, &Derived::eosio_assert, Allocator>("env", "eosio_assert");
         Rft::template add<Derived, &Derived::eosio_assert_code, Allocator>("env", "eosio_assert_code");
         Rft::template add<Derived, &Derived::eosio_exit, Allocator>("env", "eosio_exit");
-
-        // action_api
-        Rft::template add<Derived, &Derived::read_action_data, Allocator>("env", "read_action_data");
-        Rft::template add<Derived, &Derived::action_data_size, Allocator>("env", "action_data_size");
-        Rft::template add<Derived, &Derived::current_receiver, Allocator>("env", "current_receiver");
 
         // authorization_api
         Rft::template add<Derived, &Derived::require_recipient, Allocator>("env", "require_recipient");

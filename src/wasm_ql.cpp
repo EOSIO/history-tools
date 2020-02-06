@@ -47,11 +47,12 @@ struct result_action_trace {
     std::vector<dummy_type>    account_ram_deltas     = {};
     std::optional<std::string> except                 = {};
     std::optional<uint64_t>    error_code             = {};
+    abieos::bytes              return_value           = {};
 };
 
 EOSIO_REFLECT(
     result_action_trace, action_ordinal, creator_action_ordinal, receipt, receiver, act, context_free, elapsed, console, account_ram_deltas,
-    except, error_code)
+    except, error_code, return_value)
 
 // todo: replace
 struct result_transaction_trace {
@@ -108,7 +109,7 @@ void register_callbacks() {
 
 // todo: timeout
 // todo: limit WASM memory size
-static void run_query(wasm_ql::thread_state& thread_state, state_history::action& action) {
+static void run_query(wasm_ql::thread_state& thread_state, state_history::action& action, result_action_trace& atrace) {
     if (thread_state.shared->contract_dir.empty())
         throw std::runtime_error("contract_dir is empty"); // todo
     auto                     code = backend_t::read_wasm(thread_state.shared->contract_dir + "/" + (std::string)action.account + ".wasm");
@@ -126,6 +127,7 @@ static void run_query(wasm_ql::thread_state& thread_state, state_history::action
     rhf_t::resolve(backend.get_module());
     backend.initialize(&cb);
     backend(&cb, "env", "apply", action.account.value, action.account.value, action.name.value);
+    atrace.return_value.data = std::move(thread_state.action_return_value);
 }
 
 const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {
@@ -270,6 +272,9 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
         throw std::runtime_error("delay_sec must be 0"); // queries can't be deferred
     if (!unpacked.context_free_actions.empty())
         throw std::runtime_error("context_free_actions must be empty"); // todo: is there a case where CFA makes sense?
+    for (auto& action : unpacked.actions)
+        if (!action.authorization.empty())
+            throw std::runtime_error("authorization must be empty"); // todo
 
     // todo: fill transaction_id
     send_transaction_results results;
@@ -284,10 +289,14 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
         at.receiver             = action.account;
         at.act                  = action;
 
-        // todo: store exceptions
-        if (!action.authorization.empty())
-            throw std::runtime_error("authorization must be empty"); // todo
-        run_query(thread_state, action);
+        try {
+            run_query(thread_state, action, at);
+        } catch (std::exception& e) {
+            // todo: errorcode
+            at.except = tt.except = e.what();
+            tt.status             = state_history::transaction_status::soft_fail;
+            break;
+        }
     }
 
     // todo: avoid the extra copy

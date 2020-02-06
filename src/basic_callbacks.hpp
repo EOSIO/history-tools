@@ -70,6 +70,11 @@ struct basic_callbacks {
         // todo: check bounds
     }
 
+    uint32_t check_bounds_get_len(const char* str) {
+        // todo: check bounds
+        return strlen(str);
+    }
+
     void abort() { throw std::runtime_error("called abort"); }
 
     void eosio_assert_message(bool test, const char* msg, uint32_t msg_len) {

@@ -143,19 +143,6 @@ struct unimplemented_callbacks {
     int  has_auth(int64_t) { return unimplemented<int>("has_auth"); }
     int  is_account(int64_t) { return unimplemented<int>("is_account"); }
 
-    // console_api
-    void prints(int) { return unimplemented<void>("prints"); }
-    void prints_l(int, int) { return unimplemented<void>("prints_l"); }
-    void printi(int64_t) { return unimplemented<void>("printi"); }
-    void printui(int64_t) { return unimplemented<void>("printui"); }
-    void printi128(int) { return unimplemented<void>("printi128"); }
-    void printui128(int) { return unimplemented<void>("printui128"); }
-    void printsf(float) { return unimplemented<void>("printsf"); }
-    void printdf(double) { return unimplemented<void>("printdf"); }
-    void printqf(int) { return unimplemented<void>("printqf"); }
-    void printn(int64_t) { return unimplemented<void>("printn"); }
-    void printhex(int, int) { return unimplemented<void>("printhex"); }
-
     // context_free_transaction_api
     int read_transaction(int, int) { return unimplemented<int>("read_transaction"); }
     int transaction_size() { return unimplemented<int>("transaction_size"); }
@@ -304,19 +291,6 @@ struct unimplemented_callbacks {
         Rft::template add<Derived, &Derived::require_auth2, Allocator>("env", "require_auth2");
         Rft::template add<Derived, &Derived::has_auth, Allocator>("env", "has_auth");
         Rft::template add<Derived, &Derived::is_account, Allocator>("env", "is_account");
-
-        // console_api
-        Rft::template add<Derived, &Derived::prints, Allocator>("env", "prints");
-        Rft::template add<Derived, &Derived::prints_l, Allocator>("env", "prints_l");
-        Rft::template add<Derived, &Derived::printi, Allocator>("env", "printi");
-        Rft::template add<Derived, &Derived::printui, Allocator>("env", "printui");
-        Rft::template add<Derived, &Derived::printi128, Allocator>("env", "printi128");
-        Rft::template add<Derived, &Derived::printui128, Allocator>("env", "printui128");
-        Rft::template add<Derived, &Derived::printsf, Allocator>("env", "printsf");
-        Rft::template add<Derived, &Derived::printdf, Allocator>("env", "printdf");
-        Rft::template add<Derived, &Derived::printqf, Allocator>("env", "printqf");
-        Rft::template add<Derived, &Derived::printn, Allocator>("env", "printn");
-        Rft::template add<Derived, &Derived::printhex, Allocator>("env", "printhex");
 
         // context_free_transaction_api
         Rft::template add<Derived, &Derived::read_transaction, Allocator>("env", "read_transaction");

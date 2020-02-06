@@ -2,6 +2,7 @@
 
 #include "wasm_ql.hpp"
 #include "chaindb_callbacks.hpp"
+#include "console_callbacks.hpp"
 #include "memory_callbacks.hpp"
 #include "state_history_rocksdb.hpp"
 #include "unimplemented_callbacks.hpp"
@@ -82,6 +83,7 @@ using rhf_t     = eosio::vm::registered_host_functions<callbacks>;
 struct callbacks : history_tools::action_callbacks<callbacks>,
                    history_tools::basic_callbacks<callbacks>,
                    history_tools::chaindb_callbacks<callbacks>,
+                   history_tools::console_callbacks<callbacks>,
                    history_tools::memory_callbacks<callbacks>,
                    history_tools::unimplemented_callbacks<callbacks> {
     wasm_ql::thread_state&             thread_state;
@@ -103,6 +105,7 @@ void register_callbacks() {
     history_tools::action_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
     history_tools::basic_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
     history_tools::chaindb_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+    history_tools::console_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
     history_tools::memory_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
     history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }
@@ -120,13 +123,15 @@ static void run_query(wasm_ql::thread_state& thread_state, state_history::action
     history_tools::chaindb_state      chaindb_state;
     callbacks                         cb{thread_state, chaindb_state, db_view_state};
     backend.set_wasm_allocator(&thread_state.wa);
-    thread_state.receiver    = action.account;
-    thread_state.action_data = action.data;
+    thread_state.max_console_size = thread_state.shared->max_console_size;
+    thread_state.receiver         = action.account;
+    thread_state.action_data      = action.data;
     thread_state.action_return_value.clear();
 
     rhf_t::resolve(backend.get_module());
     backend.initialize(&cb);
     backend(&cb, "env", "apply", action.account.value, action.account.value, action.name.value);
+    atrace.console           = std::move(thread_state.console);
     atrace.return_value.data = std::move(thread_state.action_return_value);
 }
 

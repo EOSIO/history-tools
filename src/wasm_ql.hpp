@@ -2,6 +2,7 @@
 
 #pragma once
 #include "action_callbacks.hpp"
+#include "console_callbacks.hpp"
 #include "state_history_rocksdb.hpp"
 #include "wasm_ql_plugin.hpp"
 
@@ -10,17 +11,17 @@
 namespace wasm_ql {
 
 struct shared_state {
-    bool                                console      = {};
-    std::string                         allow_origin = {};
-    std::string                         contract_dir = {};
-    std::string                         static_dir   = {};
+    uint32_t                            max_console_size = {};
+    std::string                         allow_origin     = {};
+    std::string                         contract_dir     = {};
+    std::string                         static_dir       = {};
     std::shared_ptr<chain_kv::database> db;
 
     shared_state(std::shared_ptr<chain_kv::database> db)
         : db(std::move(db)) {}
 };
 
-struct thread_state : history_tools::action_state {
+struct thread_state : history_tools::action_state, history_tools::console_state {
     std::shared_ptr<const shared_state> shared = {};
     eosio::vm::wasm_allocator           wa     = {};
 };

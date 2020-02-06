@@ -61,7 +61,7 @@ void wasm_ql_plugin::set_program_options(options_description& cli, options_descr
     op("wql-contract-dir", bpo::value<std::string>(),
        "Directory to fetch contracts from. These override contracts on the chain. (default: disabled)");
     op("wql-static-dir", bpo::value<std::string>(), "Directory to serve static files from (default: disabled)");
-    op("wql-console", "Show console output");
+    op("wql-console-size", bpo::value<uint32_t>()->default_value(0), "Maximum size of console data");
 }
 
 void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
@@ -70,11 +70,11 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
         if (ip_port.find(':') == std::string::npos)
             throw std::runtime_error("invalid --wql-listen value: " + ip_port);
 
-        my->state            = std::make_shared<wasm_ql::shared_state>(app().find_plugin<rocksdb_plugin>()->get_db());
-        my->state->console   = options.count("wql-console");
-        my->num_threads      = options.at("wql-threads").as<int>();
-        my->endpoint_port    = ip_port.substr(ip_port.find(':') + 1, ip_port.size());
-        my->endpoint_address = ip_port.substr(0, ip_port.find(':'));
+        my->state                   = std::make_shared<wasm_ql::shared_state>(app().find_plugin<rocksdb_plugin>()->get_db());
+        my->num_threads             = options.at("wql-threads").as<int>();
+        my->endpoint_port           = ip_port.substr(ip_port.find(':') + 1, ip_port.size());
+        my->endpoint_address        = ip_port.substr(0, ip_port.find(':'));
+        my->state->max_console_size = options.at("wql-console-size").as<uint32_t>();
         if (options.count("wql-contract-dir"))
             my->state->contract_dir = options.at("wql-contract-dir").as<std::string>();
         if (options.count("wql-allow-origin"))

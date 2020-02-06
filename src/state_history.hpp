@@ -7,6 +7,14 @@
 #include <eosio/check.hpp>
 #endif
 
+// todo: move
+namespace eosio {
+template <typename S>
+result<void> to_json(const input_stream& data, S& stream) {
+    return to_json_hex(data.pos, data.end - data.pos, stream);
+}
+} // namespace eosio
+
 namespace state_history {
 
 typedef __uint128_t uint128_t;
@@ -66,6 +74,12 @@ inline transaction_status get_transaction_status(const std::string& s) {
 template <typename S>
 eosio::result<void> from_bin(transaction_status& obj, S& stream) {
     return stream.read_raw(obj);
+}
+
+template <typename S>
+eosio::result<void> to_json(const transaction_status& status, S& stream) {
+    // todo: switch to new serializer string support.
+    return eosio::to_json(to_string(status), stream);
 }
 
 struct get_status_request_v0 {};
@@ -257,6 +271,11 @@ struct recurse_transaction_trace {
 template <typename S>
 eosio::result<void> from_bin(recurse_transaction_trace& obj, S& stream) {
     return from_bin(obj.recurse, stream);
+}
+
+template <typename S>
+eosio::result<void> to_json(const recurse_transaction_trace& obj, S& stream) {
+    return to_json(obj.recurse, stream);
 }
 
 struct producer_key {

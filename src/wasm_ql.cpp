@@ -29,6 +29,50 @@ eosio::result<void> from_json(hex_bytes& obj, S& stream) {
     return from_json_hex(obj.data, stream);
 }
 
+// todo: remove
+struct dummy_type {};
+
+EOSIO_REFLECT(dummy_type)
+
+// todo: replace
+struct result_action_trace {
+    abieos::varuint32          action_ordinal         = {};
+    abieos::varuint32          creator_action_ordinal = {};
+    std::optional<dummy_type>  receipt                = {};
+    abieos::name               receiver               = {};
+    state_history::action      act                    = {};
+    bool                       context_free           = {};
+    int64_t                    elapsed                = {};
+    std::string                console                = {};
+    std::vector<dummy_type>    account_ram_deltas     = {};
+    std::optional<std::string> except                 = {};
+    std::optional<uint64_t>    error_code             = {};
+};
+
+EOSIO_REFLECT(
+    result_action_trace, action_ordinal, creator_action_ordinal, receipt, receiver, act, context_free, elapsed, console, account_ram_deltas,
+    except, error_code)
+
+// todo: replace
+struct result_transaction_trace {
+    abieos::checksum256               id                = {};
+    state_history::transaction_status status            = {};
+    uint32_t                          cpu_usage_us      = {};
+    abieos::varuint32                 net_usage_words   = {};
+    int64_t                           elapsed           = {};
+    uint64_t                          net_usage         = {};
+    bool                              scheduled         = {};
+    std::vector<result_action_trace>  action_traces     = {};
+    std::optional<dummy_type>         account_ram_delta = {};
+    std::optional<std::string>        except            = {};
+    std::optional<uint64_t>           error_code        = {};
+    std::vector<dummy_type>           failed_dtrx_trace = {};
+};
+
+EOSIO_REFLECT(
+    result_transaction_trace, id, status, cpu_usage_us, net_usage_words, elapsed, net_usage, scheduled, action_traces, account_ram_delta,
+    except, error_code, failed_dtrx_trace)
+
 struct callbacks;
 using backend_t = eosio::vm::backend<callbacks, eosio::vm::jit>;
 using rhf_t     = eosio::vm::registered_host_functions<callbacks>;
@@ -189,8 +233,8 @@ struct send_transaction_params {
 EOSIO_REFLECT(send_transaction_params, signatures, compression, packed_context_free_data, packed_trx)
 
 struct send_transaction_results {
-    abieos::checksum256              transaction_id;
-    state_history::transaction_trace processed;
+    abieos::checksum256      transaction_id; // todo: redundant with processed.id
+    result_transaction_trace processed;
 };
 
 EOSIO_REFLECT(send_transaction_results, transaction_id, processed)
@@ -227,14 +271,29 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
     if (!unpacked.context_free_actions.empty())
         throw std::runtime_error("context_free_actions must be empty"); // todo: is there a case where CFA makes sense?
 
+    // todo: fill transaction_id
+    send_transaction_results results;
+    auto&                    tt = results.processed;
+    tt.action_traces.reserve(unpacked.actions.size());
+
     // todo: timeout
     for (auto& action : unpacked.actions) {
+        tt.action_traces.emplace_back();
+        auto& at                = tt.action_traces.back();
+        at.action_ordinal.value = tt.action_traces.size(); // starts at 1
+        at.receiver             = action.account;
+        at.act                  = action;
+
+        // todo: store exceptions
         if (!action.authorization.empty())
             throw std::runtime_error("authorization must be empty"); // todo
         run_query(thread_state, action);
     }
 
-    throw std::runtime_error("nananananananana");
+    // todo: avoid the extra copy
+    auto json = eosio::check(eosio::convert_to_json(results));
+    thread_state.action_return_value.assign(json.value().begin(), json.value().end());
+    return thread_state.action_return_value;
 } // query_send_transaction
 
 } // namespace wasm_ql

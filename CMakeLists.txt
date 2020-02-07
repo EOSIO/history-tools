@@ -25,7 +25,7 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 if (UNIX AND APPLE)
-   add_compile_options(-fvisibility=hidden)
+   #add_compile_options(-fvisibility=hidden)
 endif()
 
 set(EOSIO_WASM_OLD_BEHAVIOR "Off")
@@ -92,9 +92,11 @@ add_compile_options(-Wno-error=shadow)
 
 add_subdirectory(external/appbase EXCLUDE_FROM_ALL)
 add_subdirectory(external/fc EXCLUDE_FROM_ALL)
+add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
 
 set(FOUND_ROCKSDB ON)
 set(ROCKSDB_LIB rocksdb)
+set(ROCKSDB_INCLUDE_DIR external/rocksdb/include)
 
 set(APPS "")
 function(add_app APP MAIN FLAGS LIBS)
@@ -172,7 +174,6 @@ if (FOUND_ROCKSDB)
     #target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp)
     target_sources(wasm-ql PRIVATE src/rocksdb_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
     target_sources(combo-rocksdb PRIVATE src/rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
-    message(STATUS "    wasm_ql_plugin")
     #target_sources(history-tools PRIVATE src/rocksdb_plugin.cpp src/wasm_plugin.cpp src/wasm_dispatcher.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
 endif()
 

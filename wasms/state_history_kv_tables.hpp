@@ -78,6 +78,18 @@ struct global_property_kv : eosio::table<global_property> {
     }
 };
 
+struct account_kv : eosio::table<account> {
+    index primary_index{abieos::name{"primary"}, [](const auto& var) {
+                            return std::visit(
+                                [](const auto& obj) { return eosio::check(eosio::convert_to_key(std::tie(obj.name))).value(); }, var);
+                        }};
+
+    account_kv(eosio::kv_environment environment)
+        : eosio::table<account>{std::move(environment)} {
+        init(abieos::name{"eosio.state"}, abieos::name{"state"}, abieos::name{"account"}, primary_index);
+    }
+};
+
 struct contract_table_kv : eosio::table<contract_table> {
     index primary_index{
         abieos::name{"primary"}, [](const auto& var) {
@@ -172,6 +184,8 @@ template <typename F>
 inline void store_delta(eosio::kv_environment environment, table_delta_v0& delta, bool bypass_preexist_check, F f) {
     if (delta.name == "global_property")
         store_delta_typed<global_property_kv>(environment, delta, bypass_preexist_check, f);
+    if (delta.name == "account")
+        store_delta_typed<account_kv>(environment, delta, bypass_preexist_check, f);
     if (delta.name == "contract_table")
         store_delta_typed<contract_table_kv>(environment, delta, bypass_preexist_check, f);
     if (delta.name == "contract_row")

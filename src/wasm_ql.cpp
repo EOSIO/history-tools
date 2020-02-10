@@ -7,6 +7,8 @@
 #include "state_history_rocksdb.hpp"
 #include "unimplemented_callbacks.hpp"
 
+#include <eosio/abi.hpp>
+
 namespace eosio {
 using state_history::rdb::kv_environment;
 }
@@ -17,6 +19,22 @@ using state_history::rdb::kv_environment;
 
 using namespace abieos::literals;
 using namespace std::literals;
+
+namespace eosio {
+
+// todo: move to abieos
+template <typename T, typename S>
+result<void> to_json(const might_not_exist<T>& val, S& stream) {
+    return to_json(val.value, stream);
+}
+
+// todo: abieos support for pair. Used by extensions_type.
+template <typename S>
+result<void> to_json(const std::pair<uint16_t, std::vector<char>>&, S& stream) {
+    return stream_error::bad_variant_index;
+}
+
+}; // namespace eosio
 
 namespace wasm_ql {
 
@@ -229,6 +247,56 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
 
     throw std::runtime_error("block " + std::to_string(params.block_num_or_id) + " not found");
 } // query_get_block
+
+struct get_abi_params {
+    abieos::name account_name = {};
+};
+
+EOSIO_REFLECT(get_abi_params, account_name)
+
+struct get_abi_result {
+    abieos::name                  account_name;
+    std::optional<eosio::abi_def> abi;
+};
+
+EOSIO_REFLECT(get_abi_result, account_name, abi)
+
+const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, std::string_view body) {
+    get_abi_params           params;
+    std::string              s{body.begin(), body.end()};
+    eosio::json_token_stream stream{s.data()};
+    if (auto r = from_json(params, stream); !r)
+        throw std::runtime_error("An error occurred deserializing get_abi_params: " + r.error().message());
+
+    rocksdb::ManagedSnapshot          snapshot{thread_state.shared->db->rdb.get()};
+    chain_kv::write_session           write_session{*thread_state.shared->db, snapshot.snapshot()};
+    state_history::rdb::db_view_state db_view_state{abieos::name{"state"}, *thread_state.shared->db, write_session};
+
+    auto bytes = db_view_state.kv_state.view.get(
+        abieos::name{"state"}.value,
+        chain_kv::to_slice(
+            eosio::check(eosio::convert_to_key(std::make_tuple(abieos::name{"account"}, abieos::name{"primary"}, params.account_name)))
+                .value()));
+    if (!bytes)
+        throw std::runtime_error("account " + (std::string)params.account_name + " not found");
+    eosio::input_stream    account_stream{*bytes};
+    state_history::account acc;
+    if (auto r = from_bin(acc, account_stream); !r)
+        throw std::runtime_error("An error occurred deserializing account: " + r.error().message());
+    auto& acc0 = std::get<state_history::account_v0>(acc);
+
+    get_abi_result result;
+    result.account_name = acc0.name;
+    if (acc0.abi.pos != acc0.abi.end) {
+        result.abi.emplace();
+        eosio::check_discard(eosio::from_bin(*result.abi, acc0.abi));
+    }
+
+    // todo: avoid the extra copy
+    auto json = eosio::check(eosio::convert_to_json(result));
+    thread_state.action_return_value.assign(json.value().begin(), json.value().end());
+    return thread_state.action_return_value;
+} // query_get_abi
 
 struct send_transaction_params {
     std::vector<abieos::signature> signatures               = {};

@@ -358,7 +358,7 @@ const std::vector<char>& query_get_required_keys(wasm_ql::thread_state& thread_s
 
 struct send_transaction_params {
     std::vector<abieos::signature> signatures               = {};
-    uint8_t                        compression              = {};
+    std::string                    compression              = {};
     hex_bytes                      packed_context_free_data = {};
     hex_bytes                      packed_trx               = {};
 };
@@ -390,8 +390,8 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
 
     if (!trx.signatures.empty())
         throw std::runtime_error("Signatures must be empty"); // todo
-    if (trx.compression)
-        throw std::runtime_error("Compression must be 0"); // todo
+    if (trx.compression != "0" && trx.compression != "none")
+        throw std::runtime_error("Compression must be 0 or none"); // todo
     if (!trx.packed_context_free_data.data.empty())
         throw std::runtime_error("packed_context_free_data must be empty");
     // todo: verify query transaction extension is present, but no others

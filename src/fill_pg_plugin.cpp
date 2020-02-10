@@ -239,7 +239,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 continue;
             auto& variant_type = get_type(table.type);
             if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
-                throw std::runtime_error("don't know how to proccess " + variant_type.name);
+                throw std::runtime_error("don't know how to process " + variant_type.name);
             auto&       type   = *variant_type.fields[0].type;
             std::string fields = "block_num bigint, present bool";
             for (auto& field : type.fields)
@@ -266,6 +266,16 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 "schedule_version" bigint,
                 "new_producers_version" bigint,
                 primary key("block_num")))");
+
+        t.exec(
+            "create table " + t.quote_name(config->schema) +
+            R"(.producer_schedule(
+                "version" bigint not null,
+                "producer_name" varchar(13) not null,
+                "threshold" bigint,
+                "weight" integer,
+                "public_key" varchar,
+                primary key(version, producer_name)))");
 
         t.commit();
     } // create_tables()
@@ -690,6 +700,34 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         */
 
         write(block_num, t, pipeline, bulk, "block_info", fields, values);
+
+        if (block.new_producers) {
+            std::string fields = "version, producer_name, threshold, weight, public_key";
+            for (auto&x : block.new_producers->producers) {
+                std::string values = sql_str(bulk, block.new_producers->version) + sep(bulk) + //
+                                     sql_str(bulk, x.producer_name) + sep(bulk) +              //
+                                     sql_str(bulk, 1) + sep(bulk) +                            //
+                                     sql_str(bulk, 1) + sep(bulk) +                            //
+                                     quote(bulk, public_key_to_string(x.block_signing_key));   //
+                write(block_num, t, pipeline, bulk, "producer_schedule", fields, values);
+            }
+        }
+
+        const auto& extensions = block.validate_and_extract_header_extensions();
+        const auto& schedule = extensions.find(producer_schedule_change_extension::extension_id());
+        if (schedule != extensions.end()) {
+            std::string fields = "version, producer_name, threshold, weight, public_key";
+            for (auto& x : schedule->second.get<producer_schedule_change_extension>().producers) {
+                for (auto& y : x.authority.keys) {
+                    std::string values = sql_str(bulk, block.new_producers->version) + sep(bulk) + //
+                                         sql_str(bulk, x.producer_name) + sep(bulk) +              //
+                                         sql_str(bulk, x.authority.threshold) + sep(bulk) +        //
+                                         sql_str(bulk, y.weight) + sep(bulk) +                     //
+                                         quote(bulk, public_key_to_string(y.key));                 //
+                    write(block_num, t, pipeline, bulk, "producer_schedule", fields, values);
+                }
+            }
+        }
     } // receive_block
 
     void receive_deltas(uint32_t block_num, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {

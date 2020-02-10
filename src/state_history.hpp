@@ -2,12 +2,16 @@
 
 #pragma once
 #include "abieos_exception.hpp"
+#include <fc/io/raw.hpp>
+#include <fc/container/flat.hpp>
+#include <fc/crypto/sha256.hpp>
+#include <fc/static_variant.hpp>
 
 namespace state_history {
 
 struct extension {
     uint16_t             type = {};
-    abieos::input_buffer data = {};
+    std::vector<char>    data = {};
 };
 
 ABIEOS_REFLECT(extension) {
@@ -368,6 +372,36 @@ ABIEOS_REFLECT(producer_key) {
     ABIEOS_MEMBER(producer_key, block_signing_key)
 }
 
+struct key_weight {
+    abieos::public_key key = {};
+    uint16_t weight = {};
+};
+
+ABIEOS_REFLECT(key_weight) {
+    ABIEOS_MEMBER(key_weight, key)
+    ABIEOS_MEMBER(key_weight, weight)
+}
+
+struct block_signing_authority {
+    uint32_t threshold = {};
+    std::vector<key_weight> keys = {};
+};
+
+ABIEOS_REFLECT(block_signing_authority) {
+    ABIEOS_MEMBER(block_signing_authority, threshold)
+    ABIEOS_MEMBER(block_signing_authority, keys)
+}
+
+struct producer_authority {
+    abieos::name producer_name = {};
+    block_signing_authority authority = {};
+};
+
+ABIEOS_REFLECT(producer_authority) {
+    ABIEOS_MEMBER(producer_authority, producer_name)
+    ABIEOS_MEMBER(producer_authority, authority)
+}
+
 struct producer_schedule {
     uint32_t                  version   = {};
     std::vector<producer_key> producers = {};
@@ -377,6 +411,108 @@ ABIEOS_REFLECT(producer_schedule) {
     ABIEOS_MEMBER(producer_schedule, version)
     ABIEOS_MEMBER(producer_schedule, producers)
 }
+
+struct producer_authority_schedule {
+    uint32_t                        version   = {};
+    std::vector<producer_authority> producers = {};
+};
+
+ABIEOS_REFLECT(producer_authority_schedule) {
+    ABIEOS_MEMBER(producer_authority_schedule, version)
+    ABIEOS_MEMBER(producer_authority_schedule, producers)
+}
+
+struct producer_schedule_change_extension : producer_authority_schedule {
+
+    static constexpr uint16_t extension_id() { return 1; }
+    static constexpr bool     enforce_unique() { return true; }
+
+    producer_schedule_change_extension() = default;
+    producer_schedule_change_extension(const producer_schedule_change_extension&) = default;
+    producer_schedule_change_extension( producer_schedule_change_extension&& ) = default;
+
+    producer_schedule_change_extension( const producer_authority_schedule& sched )
+    :producer_authority_schedule(sched) {}
+ };
+
+using checksum_type       = fc::sha256;
+using digest_type         = checksum_type;
+
+ABIEOS_REFLECT(producer_schedule_change_extension) {
+    ABIEOS_BASE(producer_authority_schedule)
+}
+
+struct protocol_feature_activation {
+   static constexpr uint16_t extension_id() { return 0; }
+   static constexpr bool     enforce_unique() { return true; }
+
+   protocol_feature_activation() = default;
+
+   protocol_feature_activation( const std::vector<digest_type>& pf )
+   :protocol_features( pf )
+   {}
+
+   protocol_feature_activation( std::vector<digest_type>&& pf )
+   :protocol_features( std::move(pf) )
+   {}
+
+   std::vector<digest_type> protocol_features;
+};
+
+ABIEOS_REFLECT(protocol_feature_activation) {
+    ABIEOS_MEMBER(protocol_feature_activation, protocol_features)
+}
+
+namespace detail {
+   struct extract_match {
+      bool enforce_unique = false;
+   };
+
+   template<typename... Ts>
+   struct decompose;
+
+   template<>
+   struct decompose<> {
+      template<typename ResultVariant>
+      static auto extract( uint16_t id, const std::vector<char>& data, ResultVariant& result )
+      -> fc::optional<extract_match>
+      {
+         return {};
+      }
+   };
+
+   template<typename T, typename... Rest>
+   struct decompose<T, Rest...> {
+      using head_t = T;
+      using tail_t = decompose< Rest... >;
+
+      template<typename ResultVariant>
+      static auto extract( uint16_t id, const std::vector<char>& data, ResultVariant& result )
+      -> fc::optional<extract_match>
+      {
+         if( id == head_t::extension_id() ) {
+            //result = fc::raw::unpack<head_t>( data );
+             bin_to_native(v, state, true);
+            return { extract_match{ head_t::enforce_unique() } };
+         }
+
+         return tail_t::template extract<ResultVariant>( id, data, result );
+      }
+   };
+
+   template<typename... Ts>
+   struct block_header_extension_types {
+      using block_header_extension_t = fc::static_variant< Ts... >;
+      using decompose_t = decompose< Ts... >;
+   };
+}
+
+using block_header_extension_types = detail::block_header_extension_types<
+   protocol_feature_activation,
+   producer_schedule_change_extension
+>;
+
+using block_header_extension = block_header_extension_types::block_header_extension_t;
 
 struct transaction_receipt_header {
     transaction_status status          = {};
@@ -449,6 +585,7 @@ ABIEOS_REFLECT(signed_block_header) {
 }
 
 struct signed_block : signed_block_header {
+    boost::container::flat_multimap<uint16_t, block_header_extension> validate_and_extract_header_extensions() const;
     std::vector<transaction_receipt> transactions     = {};
     std::vector<extension>           block_extensions = {};
 };
@@ -518,6 +655,38 @@ inline bool filter(const std::vector<trx_filter>& filters, const transaction_tra
         if (filter(filters, ttrace, std::get<0>(atrace)))
             return true;
     return false;
+}
+
+inline boost::container::flat_multimap<uint16_t, block_header_extension> signed_block::validate_and_extract_header_extensions() const {
+   using decompose_t = block_header_extension_types::decompose_t;
+
+   boost::container::flat_multimap<uint16_t, block_header_extension> results;
+
+   uint16_t id_type_lower_bound = 0;
+
+   for( size_t i = 0; i < header_extensions.size(); ++i ) {
+      const auto& e = header_extensions[i];
+      auto id = e.type;
+
+      if( !(id >= id_type_lower_bound) )
+         throw std::runtime_error("Block extensions are not in the correct order (ascending id types required)");
+
+      auto iter = results.emplace(std::piecewise_construct,
+         std::forward_as_tuple(id),
+         std::forward_as_tuple()
+      );
+
+      auto match = decompose_t::extract<block_header_extension>( id, e.data, iter->second );
+      if( !match )
+         throw std::runtime_error("Block extension with id type " + std::to_string(id) + " is not supported");
+
+      if( match->enforce_unique ) {
+         if( !(i == 0 || id > id_type_lower_bound) )
+                throw std::runtime_error("Block extension with id type " + std::to_string(id) + " is not allowed to repeat");
+      }
+      id_type_lower_bound = id;
+   }
+   return results;
 }
 
 } // namespace state_history

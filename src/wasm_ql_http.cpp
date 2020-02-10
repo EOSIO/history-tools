@@ -226,6 +226,13 @@ void handle_request(
             send(ok(query_get_abi(*thread_state, std::string_view{req.body().data(), req.body().size()}), "application/json"));
             state_cache->store_state(std::move(thread_state));
             return;
+        } else if (req.target() == "/v1/chain/get_required_keys") { // todo: replace with a binary endpoint?
+            if (req.method() != http::verb::post)
+                return send(error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
+            auto thread_state = state_cache->get_state();
+            send(ok(query_get_required_keys(*thread_state, std::string_view{req.body().data(), req.body().size()}), "application/json"));
+            state_cache->store_state(std::move(thread_state));
+            return;
         } else if (req.target() == "/v1/chain/send_transaction") {
             // todo: replace with /v1/chain/send_transaction2?
             // or:   change nodeos to not do abi deserialization if transaction extension present?

@@ -31,6 +31,7 @@ void register_callbacks();
 const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state);
 const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, std::string_view body);
 const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, std::string_view body);
+const std::vector<char>& query_get_required_keys(wasm_ql::thread_state& thread_state, std::string_view body);
 const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_state, std::string_view body);
 
 } // namespace wasm_ql

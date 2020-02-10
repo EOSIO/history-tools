@@ -298,6 +298,64 @@ const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, std:
     return thread_state.action_return_value;
 } // query_get_abi
 
+// Ignores data field
+struct action_no_data {
+    abieos::name                                 account       = {};
+    abieos::name                                 name          = {};
+    std::vector<state_history::permission_level> authorization = {};
+};
+
+struct extension_hex_data {
+    uint16_t  type = {};
+    hex_bytes data = {};
+};
+
+EOSIO_REFLECT(extension_hex_data, type, data)
+
+EOSIO_REFLECT(action_no_data, account, name, authorization)
+
+struct transaction_for_get_keys : state_history::transaction_header {
+    std::vector<action_no_data>     context_free_actions   = {};
+    std::vector<action_no_data>     actions                = {};
+    std::vector<extension_hex_data> transaction_extensions = {};
+};
+
+EOSIO_REFLECT(transaction_for_get_keys, base state_history::transaction_header, context_free_actions, actions, transaction_extensions)
+
+struct get_required_keys_params {
+    transaction_for_get_keys        transaction    = {};
+    std::vector<abieos::public_key> available_keys = {};
+};
+
+EOSIO_REFLECT(get_required_keys_params, transaction, available_keys)
+
+struct get_required_keys_result {
+    std::vector<abieos::public_key> required_keys = {};
+};
+
+EOSIO_REFLECT(get_required_keys_result, required_keys)
+
+const std::vector<char>& query_get_required_keys(wasm_ql::thread_state& thread_state, std::string_view body) {
+    get_required_keys_params params;
+    std::string              s{body.begin(), body.end()};
+    eosio::json_token_stream stream{s.data()};
+    if (auto r = from_json(params, stream); !r)
+        throw std::runtime_error("An error occurred deserializing get_required_keys_params: " + r.error().message());
+
+    get_required_keys_result result;
+    for (auto& action : params.transaction.context_free_actions)
+        if (!action.authorization.empty())
+            throw std::runtime_error("Context-free actions may not have authorizations");
+    for (auto& action : params.transaction.actions)
+        if (!action.authorization.empty())
+            throw std::runtime_error("Actions may not have authorizations"); // todo
+
+    // todo: avoid the extra copy
+    auto json = eosio::check(eosio::convert_to_json(result));
+    thread_state.action_return_value.assign(json.value().begin(), json.value().end());
+    return thread_state.action_return_value;
+} // query_get_required_keys
+
 struct send_transaction_params {
     std::vector<abieos::signature> signatures               = {};
     uint8_t                        compression              = {};

@@ -1,7 +1,6 @@
 // copyright defined in LICENSE.txt
 
 #include "fill_plugin.hpp"
-#include "util.hpp"
 
 #include <boost/algorithm/string.hpp>
 #include <fc/exception/exception.hpp>
@@ -22,13 +21,14 @@ void fill_plugin::set_program_options(options_description& cli, options_descript
     clop("fill-skip-to,k", bpo::value<uint32_t>(), "Skip blocks before [arg]");
     clop("fill-stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
     // todo: remove? implement in rdb?
-    clop("fill-trx", bpo::value<std::vector<std::string>>(), "Filter transactions 'include:status:receiver:act_account:act_name'");
+    // clop("fill-trx", bpo::value<std::vector<std::string>>(), "Filter transactions 'include:status:receiver:act_account:act_name'");
 }
 
 void fill_plugin::plugin_initialize(const variables_map& options) {}
 void fill_plugin::plugin_startup() {}
 void fill_plugin::plugin_shutdown() {}
 
+/*
 std::vector<state_history::trx_filter> fill_plugin::get_trx_filters(const variables_map& options) {
     try {
         std::vector<state_history::trx_filter> result;
@@ -66,3 +66,4 @@ std::vector<state_history::trx_filter> fill_plugin::get_trx_filters(const variab
         throw std::runtime_error("--fill-trx: "s + e.what());
     }
 }
+*/

@@ -2,7 +2,6 @@
 
 #pragma once
 #include "state_history.hpp"
-#include "trx_filter.hpp"
 #include <appbase/application.hpp>
 
 class fill_plugin : public appbase::plugin<fill_plugin> {
@@ -16,6 +15,4 @@ class fill_plugin : public appbase::plugin<fill_plugin> {
     void         plugin_initialize(const appbase::variables_map& options);
     void         plugin_startup();
     void         plugin_shutdown();
-
-    static std::vector<state_history::trx_filter> get_trx_filters(const appbase::variables_map& options);
 };

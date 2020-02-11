@@ -9,7 +9,6 @@ using state_history::rdb::kv_environment;
 
 #include "state_history_connection.hpp"
 #include "state_history_rocksdb.hpp"
-#include "util.hpp"
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -37,9 +36,9 @@ using abieos::input_buffer;
 struct fill_rdb_session;
 
 struct fill_rocksdb_config : connection_config {
-    uint32_t                skip_to     = 0;
-    uint32_t                stop_before = 0;
-    std::vector<trx_filter> trx_filters = {};
+    uint32_t skip_to     = 0;
+    uint32_t stop_before = 0;
+    // std::vector<trx_filter> trx_filters = {};
 };
 
 struct fill_rocksdb_plugin_impl : std::enable_shared_from_this<fill_rocksdb_plugin_impl> {
@@ -289,7 +288,7 @@ void fill_rocksdb_plugin::plugin_initialize(const variables_map& options) {
         my->config->port        = port;
         my->config->skip_to     = options.count("fill-skip-to") ? options["fill-skip-to"].as<uint32_t>() : 0;
         my->config->stop_before = options.count("fill-stop") ? options["fill-stop"].as<uint32_t>() : 0;
-        my->config->trx_filters = fill_plugin::get_trx_filters(options);
+        // my->config->trx_filters = fill_plugin::get_trx_filters(options);
     }
     FC_LOG_AND_RETHROW()
 }

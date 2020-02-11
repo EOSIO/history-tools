@@ -16,9 +16,15 @@ struct memory_callbacks {
         return (char*)::memcpy(dest, src, length);
     }
 
-    char* memmove(char* dest, const char* src, uint32_t length) { return (char*)::memmove(dest, src, length); }
+    char* memmove(char* dest, const char* src, uint32_t length) {
+        derived().check_bounds(dest, length);
+        derived().check_bounds(src, length);
+        return (char*)::memmove(dest, src, length);
+    }
 
     int memcmp(const char* dest, const char* src, uint32_t length) {
+        derived().check_bounds(dest, length);
+        derived().check_bounds(src, length);
         int ret = ::memcmp(dest, src, length);
         if (ret < 0)
             return -1;
@@ -27,7 +33,10 @@ struct memory_callbacks {
         return 0;
     }
 
-    char* memset(char* dest, int value, uint32_t length) { return (char*)::memset(dest, value, length); }
+    char* memset(char* dest, int value, uint32_t length) {
+        derived().check_bounds(dest, length);
+        return (char*)::memset(dest, value, length);
+    }
 
     template <typename Rft, typename Allocator>
     static void register_callbacks() {

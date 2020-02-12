@@ -2,6 +2,16 @@
 #include "table.hpp"
 #include <eosio/to_key.hpp>
 
+namespace abieos {
+
+// todo: abieos support for fixed_binary
+template <typename S>
+eosio::result<void> to_key(const checksum256& obj, S& stream) {
+    return stream.write(obj.value.data(), obj.value.size());
+}
+
+} // namespace abieos
+
 namespace state_history {
 
 struct fill_status_v0 {
@@ -87,6 +97,34 @@ struct account_kv : eosio::table<account> {
     account_kv(eosio::kv_environment environment)
         : eosio::table<account>{std::move(environment)} {
         init(abieos::name{"eosio.state"}, abieos::name{"state"}, abieos::name{"account"}, primary_index);
+    }
+};
+
+struct account_metadata_kv : eosio::table<account_metadata> {
+    index primary_index{abieos::name{"primary"}, [](const auto& var) {
+                            return std::visit(
+                                [](const auto& obj) { return eosio::check(eosio::convert_to_key(std::tie(obj.name))).value(); }, var);
+                        }};
+
+    account_metadata_kv(eosio::kv_environment environment)
+        : eosio::table<account_metadata>{std::move(environment)} {
+        init(abieos::name{"eosio.state"}, abieos::name{"state"}, abieos::name{"account.meta"}, primary_index);
+    }
+};
+
+struct code_kv : eosio::table<code> {
+    index primary_index{
+        abieos::name{"primary"}, [](const auto& var) {
+            return std::visit(
+                [](const auto& obj) {
+                    return eosio::check(eosio::convert_to_key(std::tie(obj.vm_type, obj.vm_version, obj.code_hash))).value();
+                },
+                var);
+        }};
+
+    code_kv(eosio::kv_environment environment)
+        : eosio::table<code>{std::move(environment)} {
+        init(abieos::name{"eosio.state"}, abieos::name{"state"}, abieos::name{"code"}, primary_index);
     }
 };
 
@@ -186,6 +224,10 @@ inline void store_delta(eosio::kv_environment environment, table_delta_v0& delta
         store_delta_typed<global_property_kv>(environment, delta, bypass_preexist_check, f);
     if (delta.name == "account")
         store_delta_typed<account_kv>(environment, delta, bypass_preexist_check, f);
+    if (delta.name == "account_metadata")
+        store_delta_typed<account_metadata_kv>(environment, delta, bypass_preexist_check, f);
+    if (delta.name == "code")
+        store_delta_typed<code_kv>(environment, delta, bypass_preexist_check, f);
     if (delta.name == "contract_table")
         store_delta_typed<contract_table_kv>(environment, delta, bypass_preexist_check, f);
     if (delta.name == "contract_row")

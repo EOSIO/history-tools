@@ -128,18 +128,81 @@ void register_callbacks() {
     history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }
 
+template <typename T, typename K>
+std::optional<std::pair<std::shared_ptr<const chain_kv::bytes>, T>> get_state_row(chain_kv::view& view, const K& key) {
+    std::optional<std::pair<std::shared_ptr<const chain_kv::bytes>, T>> result;
+    result.emplace();
+    result->first = view.get(abieos::name{"state"}.value, chain_kv::to_slice(eosio::check(eosio::convert_to_key(key)).value()));
+    if (!result->first) {
+        result.reset();
+        return result;
+    }
+    eosio::input_stream account_metadata_stream{*result->first};
+    if (auto r = from_bin(result->second, account_metadata_stream); !r)
+        throw std::runtime_error("An error occurred deserializing state: " + r.error().message());
+    return result;
+}
+
+std::optional<std::vector<uint8_t>> read_code(wasm_ql::thread_state& thread_state, abieos::name account) {
+    std::optional<std::vector<uint8_t>> code;
+    if (!thread_state.shared->contract_dir.empty()) {
+        std::ifstream wasm_file(thread_state.shared->contract_dir + "/" + (std::string)account + ".wasm", std::ios::binary);
+        if (wasm_file.is_open()) {
+            wasm_file.seekg(0, std::ios::end);
+            int len = wasm_file.tellg();
+            if (len < 0)
+                throw std::runtime_error("wasm file length is -1");
+            code.emplace(len);
+            wasm_file.seekg(0, std::ios::beg);
+            wasm_file.read((char*)code->data(), code->size());
+            wasm_file.close();
+        }
+    }
+    return code;
+}
+
+std::optional<std::vector<uint8_t>>
+read_contract(wasm_ql::thread_state& thread_state, abieos::name account, state_history::rdb::db_view_state& db_view_state) {
+    std::optional<std::vector<uint8_t>> code;
+    auto                                meta = get_state_row<state_history::account_metadata>(
+        db_view_state.kv_state.view, std::make_tuple(abieos::name{"account.meta"}, abieos::name{"primary"}, account));
+    if (!meta)
+        return code;
+    auto& meta0 = std::get<state_history::account_metadata_v0>(meta->second);
+    if (!meta0.code || meta0.code->vm_type || meta0.code->vm_version)
+        return code;
+
+    auto code_row = get_state_row<state_history::code>(
+        db_view_state.kv_state.view,
+        std::make_tuple(abieos::name{"code"}, abieos::name{"primary"}, meta0.code->vm_type, meta0.code->vm_version, meta0.code->code_hash));
+    if (!code_row)
+        return code;
+    auto& code0 = std::get<state_history::code_v0>(code_row->second);
+
+    // todo: avoid copy
+    code.emplace(code0.code.pos, code0.code.end);
+    return code;
+}
+
 // todo: timeout
 // todo: limit WASM memory size
+// todo: cache compiled wasms
 static void run_query(wasm_ql::thread_state& thread_state, state_history::action& action, result_action_trace& atrace) {
-    if (thread_state.shared->contract_dir.empty())
-        throw std::runtime_error("contract_dir is empty"); // todo
-    auto                     code = backend_t::read_wasm(thread_state.shared->contract_dir + "/" + (std::string)action.account + ".wasm");
-    backend_t                backend(code);
-    rocksdb::ManagedSnapshot snapshot{thread_state.shared->db->rdb.get()};
-    chain_kv::write_session  write_session{*thread_state.shared->db, snapshot.snapshot()};
+    rocksdb::ManagedSnapshot          snapshot{thread_state.shared->db->rdb.get()};
+    chain_kv::write_session           write_session{*thread_state.shared->db, snapshot.snapshot()};
     state_history::rdb::db_view_state db_view_state{abieos::name{"state"}, *thread_state.shared->db, write_session};
-    history_tools::chaindb_state      chaindb_state;
-    callbacks                         cb{thread_state, chaindb_state, db_view_state};
+
+    auto code = read_code(thread_state, action.account);
+    if (!code)
+        code = read_contract(thread_state, action.account, db_view_state);
+
+    // todo: fail? silent success like normal transactions?
+    if (!code)
+        throw std::runtime_error("account " + (std::string)action.account + " has no code");
+
+    history_tools::chaindb_state chaindb_state;
+    callbacks                    cb{thread_state, chaindb_state, db_view_state};
+    backend_t                    backend(*code);
     backend.set_wasm_allocator(&thread_state.wa);
     thread_state.max_console_size = thread_state.shared->max_console_size;
     thread_state.receiver         = action.account;
@@ -272,18 +335,11 @@ const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, std:
     chain_kv::write_session           write_session{*thread_state.shared->db, snapshot.snapshot()};
     state_history::rdb::db_view_state db_view_state{abieos::name{"state"}, *thread_state.shared->db, write_session};
 
-    auto bytes = db_view_state.kv_state.view.get(
-        abieos::name{"state"}.value,
-        chain_kv::to_slice(
-            eosio::check(eosio::convert_to_key(std::make_tuple(abieos::name{"account"}, abieos::name{"primary"}, params.account_name)))
-                .value()));
-    if (!bytes)
+    auto acc = get_state_row<state_history::account>(
+        db_view_state.kv_state.view, std::make_tuple(abieos::name{"account"}, abieos::name{"primary"}, params.account_name));
+    if (!acc)
         throw std::runtime_error("account " + (std::string)params.account_name + " not found");
-    eosio::input_stream    account_stream{*bytes};
-    state_history::account acc;
-    if (auto r = from_bin(acc, account_stream); !r)
-        throw std::runtime_error("An error occurred deserializing account: " + r.error().message());
-    auto& acc0 = std::get<state_history::account_v0>(acc);
+    auto& acc0 = std::get<state_history::account_v0>(acc->second);
 
     get_abi_result result;
     result.account_name = acc0.name;

@@ -17,7 +17,6 @@ using state_history::rdb::kv_environment;
 #include <fc/log/logger.hpp>
 #include <fc/scoped_exit.hpp>
 
-using namespace abieos::literals;
 using namespace std::literals;
 
 namespace eosio {
@@ -230,7 +229,7 @@ const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {
             auto record = table.begin().get();
             if (auto* obj = std::get_if<state_history::global_property_v1>(&record)) {
                 found = true;
-                result += ",\"chain_id\":\"" + (std::string)obj->chain_id + "\"";
+                result += ",\"chain_id\":" + eosio::check(eosio::convert_to_json(obj->chain_id)).value();
             }
         }
         if (!found)
@@ -243,9 +242,9 @@ const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {
             std::visit(
                 [&](auto& obj) {
                     result += ",\"head_block_num\":\"" + std::to_string(obj.head) + "\"";
-                    result += ",\"head_block_id\":\"" + (std::string)obj.head_id + "\"";
+                    result += ",\"head_block_id\":" + eosio::check(eosio::convert_to_json(obj.head_id)).value();
                     result += ",\"last_irreversible_block_num\":\"" + std::to_string(obj.irreversible) + "\"";
-                    result += ",\"last_irreversible_block_id\":\"" + (std::string)obj.irreversible_id + "\"";
+                    result += ",\"last_irreversible_block_id\":" + eosio::check(eosio::convert_to_json(obj.irreversible_id)).value();
                 },
                 table.begin().get());
         } else
@@ -285,22 +284,18 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
             uint32_t ref_block_prefix;
             memcpy(&ref_block_prefix, obj.id.value.begin() + 8, sizeof(ref_block_prefix));
 
-            std::string sig, error;
-            if (!abieos::signature_to_string(sig, error, obj.producer_signature))
-                throw std::runtime_error("producer_signature: " + error);
-
             std::string result = "{";
-            result += "\"block_num\":" + std::to_string(obj.num);
-            result += ",\"id\":\"" + (std::string)obj.id + "\"";
-            result += ",\"timestamp\":\"" + (std::string)obj.timestamp + "\"";
-            result += ",\"producer\":\"" + (std::string)obj.producer + "\"";
-            result += ",\"confirmed\":" + std::to_string(obj.confirmed);
-            result += ",\"previous\":\"" + (std::string)obj.previous + "\"";
-            result += ",\"transaction_mroot\":\"" + (std::string)obj.transaction_mroot + "\"";
-            result += ",\"action_mroot\":\"" + (std::string)obj.action_mroot + "\"";
-            result += ",\"schedule_version\":" + std::to_string(obj.schedule_version);
-            result += ",\"producer_signature\":\"" + sig + "\"";
-            result += ",\"ref_block_prefix\":" + std::to_string(ref_block_prefix);
+            result += "\"block_num\":" + eosio::check(eosio::convert_to_json(obj.num)).value();
+            result += ",\"id\":" + eosio::check(eosio::convert_to_json(obj.id)).value();
+            result += ",\"timestamp\":" + eosio::check(eosio::convert_to_json(obj.timestamp)).value();
+            result += ",\"producer\":" + eosio::check(eosio::convert_to_json(obj.producer)).value();
+            result += ",\"confirmed\":" + eosio::check(eosio::convert_to_json(obj.confirmed)).value();
+            result += ",\"previous\":" + eosio::check(eosio::convert_to_json(obj.previous)).value();
+            result += ",\"transaction_mroot\":" + eosio::check(eosio::convert_to_json(obj.transaction_mroot)).value();
+            result += ",\"action_mroot\":" + eosio::check(eosio::convert_to_json(obj.action_mroot)).value();
+            result += ",\"schedule_version\":" + eosio::check(eosio::convert_to_json(obj.schedule_version)).value();
+            result += ",\"producer_signature\":" + eosio::check(eosio::convert_to_json(obj.producer_signature)).value();
+            result += ",\"ref_block_prefix\":" + eosio::check(eosio::convert_to_json(ref_block_prefix)).value();
             result += "}";
 
             thread_state.action_return_value.assign(result.data(), result.data() + result.size());

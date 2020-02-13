@@ -101,7 +101,7 @@ set(ROCKSDB_INCLUDE_DIR external/rocksdb/include)
 set(APPS "")
 function(add_app APP MAIN FLAGS LIBS)
     set(APPS ${APPS} ${APP} PARENT_SCOPE)
-    add_executable(${APP} src/${MAIN}.cpp external/abieos/src/abi.cpp external/abieos/include/eosio/fpconv.c)
+    add_executable(${APP} src/${MAIN}.cpp external/abieos/src/abi.cpp external/abieos/src/crypto.cpp external/abieos/include/eosio/fpconv.c)
 
     target_include_directories(${APP}
         PRIVATE

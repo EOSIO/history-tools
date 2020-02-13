@@ -9,20 +9,6 @@
 #include <rocksdb/db.h>
 #include <rocksdb/table.h>
 
-namespace eosio {
-
-inline void check(bool cond, const char* msg) {
-    if (!cond)
-        throw std::runtime_error(msg);
-}
-
-inline void check(bool cond, const std::string& msg) {
-    if (!cond)
-        throw std::runtime_error(msg);
-}
-
-} // namespace eosio
-
 namespace state_history {
 namespace rdb {
 

@@ -7,10 +7,42 @@ using ::wcslen;
 }
 #endif
 
+#include <eosio/datastream.hpp>
+#include <eosio/stream.hpp>
+
+#define asset og_asset
+#define extended_asset og_extended_asset
+#define extended_symbol og_extended_symbol
 #define name og_name
+#define public_key og_public_key
+#define signature og_signature
+#define symbol og_symbol
+#define symbol_code og_symbol_code
+#define webauthn_public_key og_webauthn_public_key
+#define webauthn_signature og_webauthn_signature
+
+#include <../core/eosio/asset.hpp>
+#include <../core/eosio/crypto.hpp>
 #include <../core/eosio/name.hpp>
+#include <../core/eosio/symbol.hpp>
+
+#undef asset
+#undef extended_asset
+#undef extended_symbol
 #undef name
-#include <eosio/name.hpp>
+#undef public_key
+#undef signature
+#undef symbol
+#undef symbol_code
+#undef webauthn_public_key
+#undef webauthn_signature
+
+#include <../../abieos/include/eosio/name.hpp>
+#include <../../abieos/include/eosio/symbol.hpp>
+
+#include <../../abieos/include/eosio/asset.hpp>
+#include <../../abieos/include/eosio/crypto.hpp>
+
 #include <eosio/print.hpp>
 
 namespace eosio {
@@ -31,12 +63,13 @@ inline void print(const name& n) { print((std::string)n); }
 
 } // namespace eosio
 
-#include <abieos.hpp>
 #include <eosio/action.hpp>
 #include <eosio/asset.hpp>
 #include <eosio/contract.hpp>
+#include <eosio/from_bin.hpp>
 #include <eosio/from_json.hpp>
 #include <eosio/input_output.hpp>
+#include <eosio/to_bin.hpp>
 #include <eosio/to_json.hpp>
 
 namespace eosio {
@@ -54,41 +87,43 @@ inline name get_self() { return globals::self; }
 template <typename... Ts>
 struct type_list {};
 
-template <typename S>
-result<void> from_json(asset& result, S& stream) {
-    auto r = stream.get_string();
-    if (!r)
-        return r.error();
-    abieos::asset a;
-    if (!string_to_asset(a, r.value().data(), r.value().data() + r.value().size()))
-        return from_json_error::value_invalid;
-    result = asset{a.amount, symbol{a.sym.value}};
-    return outcome::success();
-}
+// template <typename S>
+// result<void> from_json(asset& result, S& stream) {
+//     auto r = stream.get_string();
+//     if (!r)
+//         return r.error();
+//     eosio::asset a;
+//     if (!string_to_asset(a, r.value().data(), r.value().data() + r.value().size()))
+//         return from_json_error::value_invalid;
+//     result = asset{a.amount, symbol{a.symbol}};
+//     return outcome::success();
+// }
 
-template <typename S>
-result<void> from_json(symbol& result, S& stream) {
-    auto r = stream.get_string();
-    if (!r)
-        return r.error();
-    uint64_t sym;
-    if (!eosio::string_to_symbol(sym, r.value().data(), r.value().data() + r.value().size()))
-        return from_json_error::value_invalid;
-    result = symbol{sym};
-    return outcome::success();
-}
+// template <typename S>
+// result<void> from_json(symbol& result, S& stream) {
+//     auto r = stream.get_string();
+//     if (!r)
+//         return r.error();
+//     uint64_t sym;
+//     if (!eosio::string_to_symbol(sym, r.value().data(), r.value().data() + r.value().size()))
+//         return from_json_error::value_invalid;
+//     result = symbol{sym};
+//     return outcome::success();
+// }
 
-template <typename S>
-result<void> to_json(const asset& a, S& stream) {
-    return to_json(a.to_string(), stream);
-}
+// template <typename S>
+// result<void> to_json(const asset& a, S& stream) {
+//     return to_json(a.to_string(), stream);
+// }
 
 // todo: named-args format
 template <typename Arg0, typename... Args, typename S>
 void args_json_to_bin(type_list<Arg0, Args...>, std::vector<char>& dest, S& stream) {
     std::decay_t<Arg0> obj{};
     check_discard(from_json(obj, stream));
-    auto bin = pack(obj);
+    std::vector<char>    bin;
+    eosio::vector_stream bin_stream{bin};
+    eosio::check_discard(to_bin(obj, bin_stream));
     dest.insert(dest.end(), bin.begin(), bin.end());
     args_json_to_bin(type_list<Args...>{}, dest, stream);
 }
@@ -103,8 +138,9 @@ void args_json_to_bin(R (*)(Args...), std::vector<char>& dest, S& stream) {
 
 template <typename R, typename... Args>
 inline std::string ret_bin_to_json(R (*)(Args...), datastream<const char*>& ds) {
-    R ret{};
-    ds >> ret;
+    R                   ret{};
+    eosio::input_stream is{ds.pos(), ds.pos() + ds.remaining()};
+    eosio::check_discard(from_bin(ret, is));
     return check(convert_to_json(ret)).value();
 }
 

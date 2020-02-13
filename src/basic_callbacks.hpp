@@ -99,8 +99,8 @@ struct basic_callbacks {
 
 template <typename Backend>
 struct data_state {
-    abieos::input_buffer input_data;
-    std::vector<char>    output_data;
+    eosio::input_stream input_data;
+    std::vector<char>   output_data;
 };
 
 template <typename Derived>

@@ -29,10 +29,6 @@ using asio::ip::tcp;
 using boost::beast::flat_buffer;
 using boost::system::error_code;
 
-using abieos::abi_type;
-using abieos::checksum256;
-using abieos::input_buffer;
-
 struct fill_rdb_session;
 
 struct fill_rocksdb_config : connection_config {
@@ -70,9 +66,9 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
     chain_kv::write_session                    write_session{*db};
     std::shared_ptr<state_history::connection> connection;
     uint32_t                                   head            = 0;
-    abieos::checksum256                        head_id         = {};
+    eosio::checksum256                         head_id         = {};
     uint32_t                                   irreversible    = 0;
-    abieos::checksum256                        irreversible_id = {};
+    eosio::checksum256                         irreversible_id = {};
     uint32_t                                   first           = 0;
 
     fill_rdb_session(fill_rocksdb_plugin_impl* my)
@@ -101,7 +97,7 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
 
     void load_fill_status() {
         write_session.wipe_cache();
-        rdb::db_view_state view_state{abieos::name{"state"}, *db, write_session};
+        rdb::db_view_state view_state{eosio::name{"state"}, *db, write_session};
         fill_status_kv     table{{view_state}};
         auto               it = table.begin();
         if (it != table.end()) {
@@ -113,8 +109,8 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
             first           = status.first;
         }
         ilog("filler status:");
-        ilog("    head:         ${a} ${b}", ("a", head)("b", (std::string)head_id));
-        ilog("    irreversible: ${a} ${b}", ("a", irreversible)("b", (std::string)irreversible_id));
+        ilog("    head:         ${a} ${b}", ("a", head)("b", eosio::check(eosio::convert_to_json(head_id)).value()));
+        ilog("    irreversible: ${a} ${b}", ("a", irreversible)("b", eosio::check(eosio::convert_to_json(irreversible_id)).value()));
     }
 
     std::vector<block_position> get_positions() {
@@ -139,7 +135,7 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
             status = state_history::fill_status_v0{
                 .head = head, .head_id = head_id, .irreversible = head, .irreversible_id = head_id, .first = first};
 
-        rdb::db_view_state view_state{abieos::name{"state"}, *db, write_session};
+        rdb::db_view_state view_state{eosio::name{"state"}, *db, write_session};
         fill_status_kv     table{{view_state}};
         table.insert(status);
     }
@@ -171,7 +167,7 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
             if (commit_now)
                 ilog("block ${b}", ("b", result.this_block->block_num));
 
-            if (head_id != abieos::checksum256{} && (!result.prev_block || result.prev_block->block_id != head_id))
+            if (head_id != eosio::checksum256{} && (!result.prev_block || result.prev_block->block_id != head_id))
                 throw std::runtime_error("prev_block does not match");
             if (result.block)
                 receive_block(result.this_block->block_num, result.this_block->block_id, *result.block);
@@ -201,7 +197,7 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
     } // receive_result()
 
     void receive_deltas(uint32_t block_num, eosio::input_stream bin) {
-        rdb::db_view_state view_state{abieos::name{"state"}, *db, write_session};
+        rdb::db_view_state view_state{eosio::name{"state"}, *db, write_session};
         uint32_t           num;
         eosio::check_discard(eosio::varuint32_from_bin(num, bin));
         for (uint32_t i = 0; i < num; ++i) {
@@ -224,7 +220,7 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
         }
     } // receive_deltas
 
-    void receive_block(uint32_t block_num, const abieos::checksum256& block_id, eosio::input_stream bin) {
+    void receive_block(uint32_t block_num, const eosio::checksum256& block_id, eosio::input_stream bin) {
         signed_block block;
         eosio::check_discard(from_bin(block, bin));
 
@@ -241,7 +237,7 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
         info.new_producers      = block.new_producers;
         info.producer_signature = block.producer_signature;
 
-        rdb::db_view_state view_state{abieos::name{"state"}, *db, write_session};
+        rdb::db_view_state view_state{eosio::name{"state"}, *db, write_session};
         block_info_kv      table{{view_state}};
         table.insert(info);
     }

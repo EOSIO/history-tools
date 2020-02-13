@@ -26,24 +26,22 @@ struct connection_config {
     std::string port;
 };
 
+struct abi_def_skip_table : eosio::abi_def {};
+
+EOSIO_REFLECT(abi_def_skip_table, version, types, structs, actions, ricardian_clauses, error_messages, abi_extensions, variants);
+
 struct connection : std::enable_shared_from_this<connection> {
     using error_code  = boost::system::error_code;
     using flat_buffer = boost::beast::flat_buffer;
     using tcp         = boost::asio::ip::tcp;
-
-    using abi_def      = abieos::abi_def;
-    using abi_type     = abieos::abi_type;
-    using input_buffer = abieos::input_buffer;
-    using jarray       = abieos::jarray;
-    using jobject      = abieos::jobject;
-    using jvalue       = abieos::jvalue;
+    using abi_type    = eosio::abi_type;
 
     connection_config                            config;
     std::shared_ptr<connection_callbacks>        callbacks;
     tcp::resolver                                resolver;
     boost::beast::websocket::stream<tcp::socket> stream;
     bool                                         have_abi  = false;
-    abi_def                                      abi       = {};
+    abi_def_skip_table                           abi       = {};
     std::map<std::string, abi_type>              abi_types = {};
 
     connection(boost::asio::io_context& ioc, const connection_config& config, std::shared_ptr<connection_callbacks> callbacks)

@@ -1,6 +1,5 @@
 #include <eosio/unified_lib2.hpp>
 
-#include <eosio/asset.hpp>
 #include <eosio/eosio.hpp>
 #include <string>
 
@@ -8,17 +7,17 @@ using namespace std;
 using namespace eosio;
 
 struct account {
-    asset balance;
+    og_asset balance;
 
-    uint64_t primary_key() const { return balance.symbol.code().raw(); }
+    uint64_t primary_key() const { return balance.og_symbol.code().raw(); }
 };
 
 struct currency_stats {
-    asset supply;
-    asset max_supply;
-    name  issuer;
+    og_asset supply;
+    og_asset max_supply;
+    name     issuer;
 
-    uint64_t primary_key() const { return supply.symbol.code().raw(); }
+    uint64_t primary_key() const { return supply.og_symbol.code().raw(); }
 };
 
 typedef multi_index<(eosio::name::raw)eosio::name("accounts"), account>    accounts;
@@ -30,16 +29,16 @@ inline void sub_balance(name owner, asset value) {
     const auto& from = from_acnts.get(value.symbol.code().raw(), "no balance object found");
     check(from.balance.amount >= value.amount, "overdrawn balance");
 
-    from_acnts.modify(from, owner, [&](auto& a) { a.balance -= value; });
+    from_acnts.modify(from, owner, [&](auto& a) { a.balance.amount -= value.amount; });
 }
 
 inline void add_balance(name owner, asset value, name ram_payer) {
     accounts to_acnts(get_self(), owner.value);
     auto     to = to_acnts.find(value.symbol.code().raw());
     if (to == to_acnts.end()) {
-        to_acnts.emplace(ram_payer, [&](auto& a) { a.balance = value; });
+        to_acnts.emplace(ram_payer, [&](auto& a) { a.balance = og_asset{value.amount, og_symbol{value.symbol.raw()}}; });
     } else {
-        to_acnts.modify(to, same_payer, [&](auto& a) { a.balance += value; });
+        to_acnts.modify(to, same_payer, [&](auto& a) { a.balance += og_asset{value.amount, og_symbol{value.symbol.raw()}}; });
     }
 }
 
@@ -56,9 +55,9 @@ inline void action_create(name issuer, asset maximum_supply) {
     check(existing == statstable.end(), "token with symbol already exists");
 
     statstable.emplace(get_self(), [&](auto& s) {
-        s.supply.symbol = maximum_supply.symbol;
-        s.max_supply    = maximum_supply;
-        s.issuer        = issuer;
+        s.supply.og_symbol = og_symbol{maximum_supply.symbol.raw()};
+        s.max_supply       = og_asset{maximum_supply.amount, og_symbol{maximum_supply.symbol.raw()}};
+        s.issuer           = issuer;
     });
 }
 
@@ -77,10 +76,10 @@ inline void action_issue(name to, asset quantity, const string& memo) {
     check(quantity.is_valid(), "invalid quantity");
     check(quantity.amount > 0, "must issue positive quantity");
 
-    check(quantity.symbol == st.supply.symbol, "symbol precision mismatch");
+    check(quantity.symbol.raw() == st.supply.og_symbol.raw(), "symbol precision mismatch");
     check(quantity.amount <= st.max_supply.amount - st.supply.amount, "quantity exceeds available supply");
 
-    statstable.modify(st, same_payer, [&](auto& s) { s.supply += quantity; });
+    statstable.modify(st, same_payer, [&](auto& s) { s.supply.amount += quantity.amount; });
 
     add_balance(st.issuer, quantity, st.issuer);
 }
@@ -99,9 +98,9 @@ inline void action_retire(asset quantity, const string& memo) {
     check(quantity.is_valid(), "invalid quantity");
     check(quantity.amount > 0, "must retire positive quantity");
 
-    check(quantity.symbol == st.supply.symbol, "symbol precision mismatch");
+    check(quantity.symbol.raw() == st.supply.og_symbol.raw(), "symbol precision mismatch");
 
-    statstable.modify(st, same_payer, [&](auto& s) { s.supply -= quantity; });
+    statstable.modify(st, same_payer, [&](auto& s) { s.supply.amount -= quantity.amount; });
 
     sub_balance(st.issuer, quantity);
 }
@@ -119,7 +118,7 @@ inline void action_transfer(name from, name to, asset quantity, const string& me
 
     check(quantity.is_valid(), "invalid quantity");
     check(quantity.amount > 0, "must transfer positive quantity");
-    check(quantity.symbol == st.supply.symbol, "symbol precision mismatch");
+    check(quantity.symbol.raw() == st.supply.og_symbol.raw(), "symbol precision mismatch");
     check(memo.size() <= 256, "memo has more than 256 bytes");
 
     auto payer = has_auth(to) ? to : from;
@@ -136,12 +135,12 @@ inline void action_open(name owner, const symbol& symbol, name ram_payer) {
     auto        sym_code_raw = symbol.code().raw();
     stats       statstable(get_self(), sym_code_raw);
     const auto& st = statstable.get(sym_code_raw, "symbol does not exist");
-    check(st.supply.symbol == symbol, "symbol precision mismatch");
+    check(st.supply.og_symbol.raw() == symbol.raw(), "symbol precision mismatch");
 
     accounts acnts(get_self(), owner.value);
     auto     it = acnts.find(sym_code_raw);
     if (it == acnts.end()) {
-        acnts.emplace(ram_payer, [&](auto& a) { a.balance = asset{0, symbol}; });
+        acnts.emplace(ram_payer, [&](auto& a) { a.balance = og_asset{0, og_symbol{symbol.raw()}}; });
     }
 }
 
@@ -158,7 +157,7 @@ inline std::vector<eosio::asset> action_gettoks(eosio::name owner) {
     accounts                  accounts(get_self(), owner.value);
     std::vector<eosio::asset> result;
     for (auto& acc : accounts)
-        result.push_back(acc.balance);
+        result.push_back(eosio::asset{acc.balance.amount, eosio::symbol{acc.balance.og_symbol.raw()}});
     return result;
 }
 

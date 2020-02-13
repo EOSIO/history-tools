@@ -13,21 +13,21 @@ namespace wasm_ql {
 class backend_cache;
 
 struct shared_state {
-    uint32_t                            max_console_size = {};
-    uint32_t                            wasm_cache_size  = {};
-    std::string                         allow_origin     = {};
-    std::string                         contract_dir     = {};
-    std::string                         static_dir       = {};
-    std::unique_ptr<backend_cache>      backend_cache    = {};
-    std::shared_ptr<chain_kv::database> db;
+   uint32_t                            max_console_size = {};
+   uint32_t                            wasm_cache_size  = {};
+   std::string                         allow_origin     = {};
+   std::string                         contract_dir     = {};
+   std::string                         static_dir       = {};
+   std::unique_ptr<backend_cache>      backend_cache    = {};
+   std::shared_ptr<chain_kv::database> db;
 
-    shared_state(std::shared_ptr<chain_kv::database> db);
-    ~shared_state();
+   shared_state(std::shared_ptr<chain_kv::database> db);
+   ~shared_state();
 };
 
 struct thread_state : history_tools::action_state, history_tools::console_state {
-    std::shared_ptr<const shared_state> shared = {};
-    eosio::vm::wasm_allocator           wa     = {};
+   std::shared_ptr<const shared_state> shared = {};
+   eosio::vm::wasm_allocator           wa     = {};
 };
 
 void register_callbacks();

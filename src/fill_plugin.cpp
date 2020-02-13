@@ -14,14 +14,15 @@ fill_plugin::fill_plugin() {}
 fill_plugin::~fill_plugin() {}
 
 void fill_plugin::set_program_options(options_description& cli, options_description& cfg) {
-    auto op   = cfg.add_options();
-    auto clop = cli.add_options();
-    op("fill-connect-to,f", bpo::value<std::string>()->default_value("127.0.0.1:8080"), "State-history endpoint to connect to (nodeos)");
-    op("fill-trim,t", "Trim history before irreversible");
-    clop("fill-skip-to,k", bpo::value<uint32_t>(), "Skip blocks before [arg]");
-    clop("fill-stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
-    // todo: remove? implement in rdb?
-    // clop("fill-trx", bpo::value<std::vector<std::string>>(), "Filter transactions 'include:status:receiver:act_account:act_name'");
+   auto op   = cfg.add_options();
+   auto clop = cli.add_options();
+   op("fill-connect-to,f", bpo::value<std::string>()->default_value("127.0.0.1:8080"),
+      "State-history endpoint to connect to (nodeos)");
+   op("fill-trim,t", "Trim history before irreversible");
+   clop("fill-skip-to,k", bpo::value<uint32_t>(), "Skip blocks before [arg]");
+   clop("fill-stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
+   // todo: remove? implement in rdb?
+   // clop("fill-trx", bpo::value<std::vector<std::string>>(), "Filter transactions 'include:status:receiver:act_account:act_name'");
 }
 
 void fill_plugin::plugin_initialize(const variables_map& options) {}

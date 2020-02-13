@@ -7,6 +7,11 @@
 #include "state_history_rocksdb.hpp"
 #include "unimplemented_callbacks.hpp"
 
+#include <boost/multi_index/member.hpp>
+#include <boost/multi_index/ordered_index.hpp>
+#include <boost/multi_index/sequenced_index.hpp>
+#include <boost/multi_index_container.hpp>
+
 #include <eosio/abi.hpp>
 
 namespace eosio {
@@ -18,6 +23,13 @@ using state_history::rdb::kv_environment;
 #include <fc/scoped_exit.hpp>
 
 using namespace std::literals;
+
+using boost::multi_index::indexed_by;
+using boost::multi_index::member;
+using boost::multi_index::multi_index_container;
+using boost::multi_index::ordered_non_unique;
+using boost::multi_index::sequenced;
+using boost::multi_index::tag;
 
 namespace eosio {
 
@@ -127,11 +139,77 @@ void register_callbacks() {
     history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }
 
+struct backend_entry {
+    eosio::name                name; // only for wasms loaded from disk
+    eosio::checksum256         hash; // only for wasms loaded from chain
+    std::unique_ptr<backend_t> backend;
+};
+
+struct by_age;
+struct by_name;
+struct by_hash;
+
+using backend_container = multi_index_container<
+    backend_entry,
+    indexed_by<
+        sequenced<tag<by_age>>, //
+        ordered_non_unique<tag<by_name>, member<backend_entry, eosio::name, &backend_entry::name>>,
+        ordered_non_unique<tag<by_hash>, member<backend_entry, eosio::checksum256, &backend_entry::hash>>>>;
+
+class backend_cache {
+  private:
+    std::mutex                   mutex;
+    const wasm_ql::shared_state& shared_state;
+    backend_container            backends;
+
+  public:
+    backend_cache(const wasm_ql::shared_state& shared_state)
+        : shared_state{shared_state} {}
+
+    void add(backend_entry&& entry) {
+        std::lock_guard<std::mutex> lock{mutex};
+        auto&                       ind = backends.get<by_age>();
+        ind.push_back(std::move(entry));
+        while (ind.size() > shared_state.wasm_cache_size)
+            ind.pop_front();
+    }
+
+    std::optional<backend_entry> get(eosio::name name) {
+        std::optional<backend_entry> result;
+        std::lock_guard<std::mutex>  lock{mutex};
+        auto&                        ind = backends.get<by_name>();
+        auto                         it  = ind.find(name);
+        if (it == ind.end())
+            return result;
+        ind.modify(it, [&](auto& x) { result = std::move(x); });
+        ind.erase(it);
+        return result;
+    }
+
+    std::optional<backend_entry> get(const eosio::checksum256& hash) {
+        std::optional<backend_entry> result;
+        std::lock_guard<std::mutex>  lock{mutex};
+        auto&                        ind = backends.get<by_hash>();
+        auto                         it  = ind.find(hash);
+        if (it == ind.end())
+            return result;
+        ind.modify(it, [&](auto& x) { result = std::move(x); });
+        ind.erase(it);
+        return result;
+    }
+};
+
+shared_state::shared_state(std::shared_ptr<chain_kv::database> db)
+    : backend_cache(std::make_unique<wasm_ql::backend_cache>(*this))
+    , db(std::move(db)) {}
+
+shared_state::~shared_state() {}
+
 template <typename T, typename K>
 std::optional<std::pair<std::shared_ptr<const chain_kv::bytes>, T>> get_state_row(chain_kv::view& view, const K& key) {
     std::optional<std::pair<std::shared_ptr<const chain_kv::bytes>, T>> result;
     result.emplace();
-    result->first = view.get(abieos::name{"state"}.value, chain_kv::to_slice(eosio::check(eosio::convert_to_key(key)).value()));
+    result->first = view.get(eosio::name{"state"}.value, chain_kv::to_slice(eosio::check(eosio::convert_to_key(key)).value()));
     if (!result->first) {
         result.reset();
         return result;
@@ -142,11 +220,13 @@ std::optional<std::pair<std::shared_ptr<const chain_kv::bytes>, T>> get_state_ro
     return result;
 }
 
-std::optional<std::vector<uint8_t>> read_code(wasm_ql::thread_state& thread_state, abieos::name account) {
+std::optional<std::vector<uint8_t>> read_code(wasm_ql::thread_state& thread_state, eosio::name account) {
     std::optional<std::vector<uint8_t>> code;
     if (!thread_state.shared->contract_dir.empty()) {
-        std::ifstream wasm_file(thread_state.shared->contract_dir + "/" + (std::string)account + ".wasm", std::ios::binary);
+        auto          filename = thread_state.shared->contract_dir + "/" + (std::string)account + ".wasm";
+        std::ifstream wasm_file(filename, std::ios::binary);
         if (wasm_file.is_open()) {
+            ilog("compiling %{f}", ("f", filename));
             wasm_file.seekg(0, std::ios::end);
             int len = wasm_file.tellg();
             if (len < 0)
@@ -160,27 +240,31 @@ std::optional<std::vector<uint8_t>> read_code(wasm_ql::thread_state& thread_stat
     return code;
 }
 
-std::optional<std::vector<uint8_t>>
-read_contract(wasm_ql::thread_state& thread_state, abieos::name account, state_history::rdb::db_view_state& db_view_state) {
-    std::optional<std::vector<uint8_t>> code;
-    auto                                meta = get_state_row<state_history::account_metadata>(
-        db_view_state.kv_state.view, std::make_tuple(abieos::name{"account.meta"}, abieos::name{"primary"}, account));
+std::optional<eosio::checksum256> get_contract_hash(state_history::rdb::db_view_state& db_view_state, eosio::name account) {
+    std::optional<eosio::checksum256> result;
+    auto                              meta = get_state_row<state_history::account_metadata>(
+        db_view_state.kv_state.view, std::make_tuple(eosio::name{"account.meta"}, eosio::name{"primary"}, account));
     if (!meta)
-        return code;
+        return result;
     auto& meta0 = std::get<state_history::account_metadata_v0>(meta->second);
-    if (!meta0.code || meta0.code->vm_type || meta0.code->vm_version)
-        return code;
+    if (!meta0.code->vm_type && !meta0.code->vm_version)
+        result = meta0.code->code_hash;
+    return result;
+}
 
-    auto code_row = get_state_row<state_history::code>(
-        db_view_state.kv_state.view,
-        std::make_tuple(abieos::name{"code"}, abieos::name{"primary"}, meta0.code->vm_type, meta0.code->vm_version, meta0.code->code_hash));
+std::optional<std::vector<uint8_t>>
+read_contract(state_history::rdb::db_view_state& db_view_state, const eosio::checksum256& hash, eosio::name account) {
+    std::optional<std::vector<uint8_t>> result;
+    auto                                code_row = get_state_row<state_history::code>(
+        db_view_state.kv_state.view, std::make_tuple(eosio::name{"code"}, eosio::name{"primary"}, uint8_t(0), uint8_t(0), hash));
     if (!code_row)
-        return code;
+        return result;
     auto& code0 = std::get<state_history::code_v0>(code_row->second);
 
     // todo: avoid copy
-    code.emplace(code0.code.pos, code0.code.end);
-    return code;
+    result.emplace(code0.code.pos, code0.code.end);
+    ilog("compiling ${h}: ${a}", ("h", eosio::check(eosio::convert_to_json(hash)).value())("a", (std::string)account));
+    return result;
 }
 
 // todo: timeout
@@ -189,30 +273,51 @@ read_contract(wasm_ql::thread_state& thread_state, abieos::name account, state_h
 static void run_query(wasm_ql::thread_state& thread_state, state_history::action& action, result_action_trace& atrace) {
     rocksdb::ManagedSnapshot          snapshot{thread_state.shared->db->rdb.get()};
     chain_kv::write_session           write_session{*thread_state.shared->db, snapshot.snapshot()};
-    state_history::rdb::db_view_state db_view_state{abieos::name{"state"}, *thread_state.shared->db, write_session};
+    state_history::rdb::db_view_state db_view_state{eosio::name{"state"}, *thread_state.shared->db, write_session};
 
-    auto code = read_code(thread_state, action.account);
-    if (!code)
-        code = read_contract(thread_state, action.account, db_view_state);
+    std::optional<backend_entry>        entry = thread_state.shared->backend_cache->get(action.account);
+    std::optional<std::vector<uint8_t>> code;
+    if (!entry)
+        code = read_code(thread_state, action.account);
+    std::optional<eosio::checksum256> hash;
+    if (!entry && !code) {
+        hash = get_contract_hash(db_view_state, action.account);
+        if (hash) {
+            entry = thread_state.shared->backend_cache->get(*hash);
+            if (!entry)
+                code = read_contract(db_view_state, *hash, action.account);
+        }
+    }
 
     // todo: fail? silent success like normal transactions?
-    if (!code)
+    if (!entry && !code)
         throw std::runtime_error("account " + (std::string)action.account + " has no code");
 
-    history_tools::chaindb_state chaindb_state;
-    callbacks                    cb{thread_state, chaindb_state, db_view_state};
-    backend_t                    backend(*code);
-    backend.set_wasm_allocator(&thread_state.wa);
+    if (!entry) {
+        entry.emplace();
+        if (hash)
+            entry->hash = *hash;
+        else
+            entry->name = action.account;
+        entry->backend = std::make_unique<backend_t>(*code);
+        rhf_t::resolve(entry->backend->get_module());
+    }
+
     thread_state.max_console_size = thread_state.shared->max_console_size;
     thread_state.receiver         = action.account;
     thread_state.action_data      = action.data;
     thread_state.action_return_value.clear();
 
-    rhf_t::resolve(backend.get_module());
-    backend.initialize(&cb);
-    backend(&cb, "env", "apply", action.account.value, action.account.value, action.name.value);
+    history_tools::chaindb_state chaindb_state;
+    callbacks                    cb{thread_state, chaindb_state, db_view_state};
+    entry->backend->set_wasm_allocator(&thread_state.wa);
+    entry->backend->initialize(&cb);
+
+    (*entry->backend)(&cb, "env", "apply", action.account.value, action.account.value, action.name.value);
     atrace.console           = std::move(thread_state.console);
     atrace.return_value.data = std::move(thread_state.action_return_value);
+
+    thread_state.shared->backend_cache->add(std::move(*entry));
 }
 
 const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {

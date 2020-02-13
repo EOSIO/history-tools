@@ -62,6 +62,7 @@ void wasm_ql_plugin::set_program_options(options_description& cli, options_descr
        "Directory to fetch contracts from. These override contracts on the chain. (default: disabled)");
     op("wql-static-dir", bpo::value<std::string>(), "Directory to serve static files from (default: disabled)");
     op("wql-console-size", bpo::value<uint32_t>()->default_value(0), "Maximum size of console data");
+    op("wql-wasm-cache-size", bpo::value<uint32_t>()->default_value(100), "Maximum number of compiled wasms to cache");
 }
 
 void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
@@ -75,6 +76,7 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
         my->endpoint_port           = ip_port.substr(ip_port.find(':') + 1, ip_port.size());
         my->endpoint_address        = ip_port.substr(0, ip_port.find(':'));
         my->state->max_console_size = options.at("wql-console-size").as<uint32_t>();
+        my->state->wasm_cache_size  = options.at("wql-wasm-cache-size").as<uint32_t>();
         if (options.count("wql-contract-dir"))
             my->state->contract_dir = options.at("wql-contract-dir").as<std::string>();
         if (options.count("wql-allow-origin"))

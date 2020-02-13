@@ -203,6 +203,7 @@ struct db_view_state {
     abieos::name                                      receiver;
     chain_kv::database&                               database;
     const kv_database_config                          limits;
+    const kv_database_config                          kv_state_limits{1024, std::numeric_limits<uint32_t>::max()};
     kv_context_rocksdb                                kv_ram;
     kv_context_rocksdb                                kv_disk;
     kv_context_rocksdb                                kv_state;
@@ -214,7 +215,7 @@ struct db_view_state {
         , database{database}
         , kv_ram{database, write_session, kvram_db_id, receiver, limits}
         , kv_disk{database, write_session, kvdisk_db_id, receiver, limits}
-        , kv_state{database, write_session, state_db_id, receiver, limits}
+        , kv_state{database, write_session, state_db_id, receiver, kv_state_limits}
         , kv_iterators(1) {}
 
     void reset() {

@@ -3,6 +3,7 @@
 #include "wasm_ql.hpp"
 #include "chaindb_callbacks.hpp"
 #include "console_callbacks.hpp"
+#include "compiler_builtins_callbacks.hpp"
 #include "memory_callbacks.hpp"
 #include "state_history_rocksdb.hpp"
 #include "unimplemented_callbacks.hpp"
@@ -111,6 +112,7 @@ struct callbacks : history_tools::action_callbacks<callbacks>,
                    history_tools::basic_callbacks<callbacks>,
                    history_tools::chaindb_callbacks<callbacks>,
                    history_tools::console_callbacks<callbacks>,
+                   history_tools::compiler_builtins_callbacks<callbacks>,
                    history_tools::memory_callbacks<callbacks>,
                    history_tools::unimplemented_callbacks<callbacks> {
    wasm_ql::thread_state&             thread_state;
@@ -131,6 +133,7 @@ void register_callbacks() {
    history_tools::basic_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::chaindb_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::console_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   history_tools::compiler_builtins_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::memory_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }

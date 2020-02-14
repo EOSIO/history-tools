@@ -11,51 +11,6 @@ struct unimplemented_callbacks {
       throw std::runtime_error("wasm called " + std::string(name) + ", which is unimplemented");
    }
 
-   // compiler_builtins
-   void    __ashlti3(int, int64_t, int64_t, int) { return unimplemented<void>("__ashlti3"); }
-   void    __ashrti3(int, int64_t, int64_t, int) { return unimplemented<void>("__ashrti3"); }
-   void    __lshlti3(int, int64_t, int64_t, int) { return unimplemented<void>("__lshlti3"); }
-   void    __lshrti3(int, int64_t, int64_t, int) { return unimplemented<void>("__lshrti3"); }
-   void    __divti3(int, int64_t, int64_t, int64_t, int64_t) { return unimplemented<void>("__divti3"); }
-   void    __udivti3(int, int64_t, int64_t, int64_t, int64_t) { return unimplemented<void>("__udivti3"); }
-   void    __modti3(int, int64_t, int64_t, int64_t, int64_t) { return unimplemented<void>("__modti3"); }
-   void    __umodti3(int, int64_t, int64_t, int64_t, int64_t) { return unimplemented<void>("__umodti3"); }
-   void    __multi3(int, int64_t, int64_t, int64_t, int64_t) { return unimplemented<void>("__multi3"); }
-   void    __addtf3(int, int64_t, int64_t, int64_t, int64_t) { return unimplemented<void>("__addtf3"); }
-   void    __subtf3(int, int64_t, int64_t, int64_t, int64_t) { return unimplemented<void>("__subtf3"); }
-   void    __multf3(int, int64_t, int64_t, int64_t, int64_t) { return unimplemented<void>("__multf3"); }
-   void    __divtf3(int, int64_t, int64_t, int64_t, int64_t) { return unimplemented<void>("__divtf3"); }
-   int     __eqtf2(int64_t, int64_t, int64_t, int64_t) { return unimplemented<int>("__eqtf2"); }
-   int     __netf2(int64_t, int64_t, int64_t, int64_t) { return unimplemented<int>("__netf2"); }
-   int     __getf2(int64_t, int64_t, int64_t, int64_t) { return unimplemented<int>("__getf2"); }
-   int     __gttf2(int64_t, int64_t, int64_t, int64_t) { return unimplemented<int>("__gttf2"); }
-   int     __lttf2(int64_t, int64_t, int64_t, int64_t) { return unimplemented<int>("__lttf2"); }
-   int     __letf2(int64_t, int64_t, int64_t, int64_t) { return unimplemented<int>("__letf2"); }
-   int     __cmptf2(int64_t, int64_t, int64_t, int64_t) { return unimplemented<int>("__cmptf2"); }
-   int     __unordtf2(int64_t, int64_t, int64_t, int64_t) { return unimplemented<int>("__unordtf2"); }
-   void    __negtf2(int, int64_t, int64_t) { return unimplemented<void>("__negtf2 "); }
-   void    __floatsitf(int, int) { return unimplemented<void>("__floatsitf "); }
-   void    __floatunsitf(int, int) { return unimplemented<void>("__floatunsitf "); }
-   void    __floatditf(int, int64_t) { return unimplemented<void>("__floatditf "); }
-   void    __floatunditf(int, int64_t) { return unimplemented<void>("__floatunditf "); }
-   double  __floattidf(int64_t, int64_t) { return unimplemented<double>("__floattidf "); }
-   double  __floatuntidf(int64_t, int64_t) { return unimplemented<double>("__floatuntidf "); }
-   double  __floatsidf(int) { return unimplemented<double>("__floatsidf"); }
-   void    __extendsftf2(int, float) { return unimplemented<void>("__extendsftf2"); }
-   void    __extenddftf2(int, double) { return unimplemented<void>("__extenddftf2"); }
-   void    __fixtfti(int, int64_t, int64_t) { return unimplemented<void>("__fixtfti"); }
-   int64_t __fixtfdi(int64_t, int64_t) { return unimplemented<int64_t>("__fixtfdi"); }
-   int     __fixtfsi(int64_t, int64_t) { return unimplemented<int>("__fixtfsi"); }
-   void    __fixunstfti(int, int64_t, int64_t) { return unimplemented<void>("__fixunstfti"); }
-   int64_t __fixunstfdi(int64_t, int64_t) { return unimplemented<int64_t>("__fixunstfdi"); }
-   int     __fixunstfsi(int64_t, int64_t) { return unimplemented<int>("__fixunstfsi"); }
-   void    __fixsfti(int, float) { return unimplemented<void>("__fixsfti"); }
-   void    __fixdfti(int, double) { return unimplemented<void>("__fixdfti"); }
-   void    __fixunssfti(int, float) { return unimplemented<void>("__fixunssfti"); }
-   void    __fixunsdfti(int, double) { return unimplemented<void>("__fixunsdfti"); }
-   double  __trunctfdf2(int64_t, int64_t) { return unimplemented<double>("__trunctfdf2"); }
-   float   __trunctfsf2(int64_t, int64_t) { return unimplemented<float>("__trunctfsf2"); }
-
    // privileged_api
    int  is_feature_active(int64_t) { return unimplemented<int>("is_feature_active"); }
    void activate_feature(int64_t) { return unimplemented<void>("activate_feature"); }
@@ -152,7 +107,10 @@ struct unimplemented_callbacks {
    int64_t get_sender() { return unimplemented<int64_t>("get_sender"); }
 
    // context_free_system_api
-   void eosio_assert(int, int) { return unimplemented<void>("eosio_assert"); }
+   void eosio_assert(uint32_t test, const char* msg ) {
+      if(test==0)
+         throw std::runtime_error(msg);
+   }
    void eosio_assert_code(int, int64_t) { return unimplemented<void>("eosio_assert_code"); }
    void eosio_exit(int) { return unimplemented<void>("eosio_exit"); }
 
@@ -182,51 +140,6 @@ struct unimplemented_callbacks {
 
    template <typename Rft, typename Allocator>
    static void register_callbacks() {
-      // compiler_builtins
-      Rft::template add<Derived, &Derived::__ashlti3, Allocator>("env", "__ashlti3");
-      Rft::template add<Derived, &Derived::__ashrti3, Allocator>("env", "__ashrti3");
-      Rft::template add<Derived, &Derived::__lshlti3, Allocator>("env", "__lshlti3");
-      Rft::template add<Derived, &Derived::__lshrti3, Allocator>("env", "__lshrti3");
-      Rft::template add<Derived, &Derived::__divti3, Allocator>("env", "__divti3");
-      Rft::template add<Derived, &Derived::__udivti3, Allocator>("env", "__udivti3");
-      Rft::template add<Derived, &Derived::__modti3, Allocator>("env", "__modti3");
-      Rft::template add<Derived, &Derived::__umodti3, Allocator>("env", "__umodti3");
-      Rft::template add<Derived, &Derived::__multi3, Allocator>("env", "__multi3");
-      Rft::template add<Derived, &Derived::__addtf3, Allocator>("env", "__addtf3");
-      Rft::template add<Derived, &Derived::__subtf3, Allocator>("env", "__subtf3");
-      Rft::template add<Derived, &Derived::__multf3, Allocator>("env", "__multf3");
-      Rft::template add<Derived, &Derived::__divtf3, Allocator>("env", "__divtf3");
-      Rft::template add<Derived, &Derived::__eqtf2, Allocator>("env", "__eqtf2");
-      Rft::template add<Derived, &Derived::__netf2, Allocator>("env", "__netf2");
-      Rft::template add<Derived, &Derived::__getf2, Allocator>("env", "__getf2");
-      Rft::template add<Derived, &Derived::__gttf2, Allocator>("env", "__gttf2");
-      Rft::template add<Derived, &Derived::__lttf2, Allocator>("env", "__lttf2");
-      Rft::template add<Derived, &Derived::__letf2, Allocator>("env", "__letf2");
-      Rft::template add<Derived, &Derived::__cmptf2, Allocator>("env", "__cmptf2");
-      Rft::template add<Derived, &Derived::__unordtf2, Allocator>("env", "__unordtf2");
-      Rft::template add<Derived, &Derived::__negtf2, Allocator>("env", "__negtf2");
-      Rft::template add<Derived, &Derived::__floatsitf, Allocator>("env", "__floatsitf");
-      Rft::template add<Derived, &Derived::__floatunsitf, Allocator>("env", "__floatunsitf");
-      Rft::template add<Derived, &Derived::__floatditf, Allocator>("env", "__floatditf");
-      Rft::template add<Derived, &Derived::__floatunditf, Allocator>("env", "__floatunditf");
-      Rft::template add<Derived, &Derived::__floattidf, Allocator>("env", "__floattidf");
-      Rft::template add<Derived, &Derived::__floatuntidf, Allocator>("env", "__floatuntidf");
-      Rft::template add<Derived, &Derived::__floatsidf, Allocator>("env", "__floatsidf");
-      Rft::template add<Derived, &Derived::__extendsftf2, Allocator>("env", "__extendsftf2");
-      Rft::template add<Derived, &Derived::__extenddftf2, Allocator>("env", "__extenddftf2");
-      Rft::template add<Derived, &Derived::__fixtfti, Allocator>("env", "__fixtfti");
-      Rft::template add<Derived, &Derived::__fixtfdi, Allocator>("env", "__fixtfdi");
-      Rft::template add<Derived, &Derived::__fixtfsi, Allocator>("env", "__fixtfsi");
-      Rft::template add<Derived, &Derived::__fixunstfti, Allocator>("env", "__fixunstfti");
-      Rft::template add<Derived, &Derived::__fixunstfdi, Allocator>("env", "__fixunstfdi");
-      Rft::template add<Derived, &Derived::__fixunstfsi, Allocator>("env", "__fixunstfsi");
-      Rft::template add<Derived, &Derived::__fixsfti, Allocator>("env", "__fixsfti");
-      Rft::template add<Derived, &Derived::__fixdfti, Allocator>("env", "__fixdfti");
-      Rft::template add<Derived, &Derived::__fixunssfti, Allocator>("env", "__fixunssfti");
-      Rft::template add<Derived, &Derived::__fixunsdfti, Allocator>("env", "__fixunsdfti");
-      Rft::template add<Derived, &Derived::__trunctfdf2, Allocator>("env", "__trunctfdf2");
-      Rft::template add<Derived, &Derived::__trunctfsf2, Allocator>("env", "__trunctfsf2");
-
       // privileged_api
       Rft::template add<Derived, &Derived::is_feature_active, Allocator>("env", "is_feature_active");
       Rft::template add<Derived, &Derived::activate_feature, Allocator>("env", "activate_feature");

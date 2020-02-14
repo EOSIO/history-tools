@@ -93,6 +93,7 @@ add_compile_options(-Wno-error=shadow)
 add_subdirectory(external/appbase EXCLUDE_FROM_ALL)
 add_subdirectory(external/fc EXCLUDE_FROM_ALL)
 add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
+add_subdirectory(libraries/builtins EXCLUDE_FROM_ALL)
 
 set(FOUND_ROCKSDB ON)
 set(ROCKSDB_LIB rocksdb)
@@ -119,7 +120,7 @@ function(add_app APP MAIN FLAGS LIBS)
             ${JS_INCLUDE_DIRS}
             ${ROCKSDB_INCLUDE_DIR}
     )
-    target_link_libraries(${APP} appbase fc eos-vm Boost::date_time Boost::filesystem Boost::chrono Boost::system Boost::iostreams Boost::program_options Boost::unit_test_framework ${LIBS} -lpthread)
+    target_link_libraries(${APP} appbase builtins fc eos-vm Boost::date_time Boost::filesystem Boost::chrono Boost::system Boost::iostreams Boost::program_options Boost::unit_test_framework ${LIBS} -lpthread)
 
     if(APPLE)
     else()

@@ -125,7 +125,7 @@ beast::string_view mime_type(beast::string_view path) {
    if (iequals(ext, ".svgz"))
       return "image/svg+xml";
    return "application/text";
-}
+} // mime_type
 
 // Append an HTTP rel-path to a local filesystem path.
 // The returned path is normalized for the platform.
@@ -155,9 +155,9 @@ std::string path_cat(beast::string_view base, beast::string_view path) {
 // contents of the request, so the interface requires the
 // caller to pass a generic lambda for receiving the response.
 template <class Body, class Allocator, class Send>
-void handle_request(beast::string_view doc_root, const std::shared_ptr<const shared_state>& shared_state,
-                    const std::shared_ptr<thread_state_cache>&           state_cache,
-                    http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send) {
+void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shared_state& shared_state,
+                    thread_state_cache& state_cache, http::request<Body, http::basic_fields<Allocator>>&& req,
+                    Send&& send) {
    // Returns a bad request response
    const auto bad_request = [&req](beast::string_view why) {
       http::response<http::string_body> res{ http::status::bad_request, req.version() };
@@ -191,12 +191,12 @@ void handle_request(beast::string_view doc_root, const std::shared_ptr<const sha
       return res;
    };
 
-   const auto ok = [&shared_state, &req](std::vector<char> reply, const char* content_type) {
+   const auto ok = [&http_config, &req](std::vector<char> reply, const char* content_type) {
       http::response<http::vector_body<char>> res{ http::status::ok, req.version() };
       res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
       res.set(http::field::content_type, content_type);
-      if (!shared_state->allow_origin.empty())
-         res.set(http::field::access_control_allow_origin, shared_state->allow_origin);
+      if (!http_config.allow_origin.empty())
+         res.set(http::field::access_control_allow_origin, http_config.allow_origin);
       res.keep_alive(req.keep_alive());
       res.body() = std::move(reply);
       res.prepare_payload();
@@ -207,37 +207,37 @@ void handle_request(beast::string_view doc_root, const std::shared_ptr<const sha
    // todo: replace "query failed"
    try {
       if (req.target() == "/v1/chain/get_info") {
-         auto thread_state = state_cache->get_state();
+         auto thread_state = state_cache.get_state();
          send(ok(query_get_info(*thread_state), "application/json"));
-         state_cache->store_state(std::move(thread_state));
+         state_cache.store_state(std::move(thread_state));
          return;
       } else if (req.target() ==
                  "/v1/chain/get_block") { // todo: replace with /v1/chain/get_block_header. upgrade cleos.
          if (req.method() != http::verb::post)
             return send(
                   error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
-         auto thread_state = state_cache->get_state();
+         auto thread_state = state_cache.get_state();
          send(ok(query_get_block(*thread_state, std::string_view{ req.body().data(), req.body().size() }),
                  "application/json"));
-         state_cache->store_state(std::move(thread_state));
+         state_cache.store_state(std::move(thread_state));
          return;
       } else if (req.target() == "/v1/chain/get_abi") { // todo: get_raw_abi. upgrade cleos to use get_raw_abi.
          if (req.method() != http::verb::post)
             return send(
                   error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
-         auto thread_state = state_cache->get_state();
+         auto thread_state = state_cache.get_state();
          send(ok(query_get_abi(*thread_state, std::string_view{ req.body().data(), req.body().size() }),
                  "application/json"));
-         state_cache->store_state(std::move(thread_state));
+         state_cache.store_state(std::move(thread_state));
          return;
       } else if (req.target() == "/v1/chain/get_required_keys") { // todo: replace with a binary endpoint?
          if (req.method() != http::verb::post)
             return send(
                   error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
-         auto thread_state = state_cache->get_state();
+         auto thread_state = state_cache.get_state();
          send(ok(query_get_required_keys(*thread_state, std::string_view{ req.body().data(), req.body().size() }),
                  "application/json"));
-         state_cache->store_state(std::move(thread_state));
+         state_cache.store_state(std::move(thread_state));
          return;
       } else if (req.target() == "/v1/chain/send_transaction") {
          // todo: replace with /v1/chain/send_transaction2?
@@ -245,12 +245,12 @@ void handle_request(beast::string_view doc_root, const std::shared_ptr<const sha
          if (req.method() != http::verb::post)
             return send(
                   error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
-         auto thread_state = state_cache->get_state();
+         auto thread_state = state_cache.get_state();
          send(ok(query_send_transaction(*thread_state, std::string_view{ req.body().data(), req.body().size() }),
                  "application/json"));
-         state_cache->store_state(std::move(thread_state));
+         state_cache.store_state(std::move(thread_state));
          return;
-      } else if (req.target().starts_with("/v1/") || doc_root.empty()) {
+      } else if (req.target().starts_with("/v1/") || http_config.static_dir.empty()) {
          // todo: redirect if /v1/?
          return send(
                error(http::status::not_found, "The resource '" + req.target().to_string() + "' was not found.\n"));
@@ -264,7 +264,7 @@ void handle_request(beast::string_view doc_root, const std::shared_ptr<const sha
             return send(bad_request("Illegal request-target"));
 
          // Build the path to the requested file
-         std::string path = path_cat(doc_root, req.target());
+         std::string path = path_cat(http_config.static_dir, req.target());
          if (req.target().back() == '/')
             path.append("index.html");
 
@@ -310,7 +310,7 @@ void handle_request(beast::string_view doc_root, const std::shared_ptr<const sha
       elog("query failed: unknown exception");
       return send(error(http::status::internal_server_error, "query failed: unknown exception\n"));
    }
-}
+} // handle_request
 
 // Handles an HTTP server connection
 class http_session : public std::enable_shared_from_this<http_session> {
@@ -379,9 +379,9 @@ class http_session : public std::enable_shared_from_this<http_session> {
 
    beast::tcp_stream                   stream_;
    beast::flat_buffer                  buffer_;
-   std::shared_ptr<const std::string>  doc_root_;
-   std::shared_ptr<const shared_state> shared_state_;
-   std::shared_ptr<thread_state_cache> state_cache_;
+   std::shared_ptr<const http_config>  http_config;
+   std::shared_ptr<const shared_state> shared_state;
+   std::shared_ptr<thread_state_cache> state_cache;
    queue                               queue_;
 
    // The parser is stored in an optional container so we can
@@ -390,10 +390,10 @@ class http_session : public std::enable_shared_from_this<http_session> {
 
  public:
    // Take ownership of the socket
-   http_session(tcp::socket&& socket, const std::shared_ptr<const std::string>& doc_root,
-                const std::shared_ptr<const shared_state>& shared_state,
-                const std::shared_ptr<thread_state_cache>& state_cache)
-       : stream_(std::move(socket)), doc_root_(doc_root), shared_state_(shared_state), state_cache_(state_cache),
+   http_session(const std::shared_ptr<const wasm_ql::http_config>&  http_config,
+                const std::shared_ptr<const wasm_ql::shared_state>& shared_state,
+                const std::shared_ptr<thread_state_cache>& state_cache, tcp::socket&& socket)
+       : stream_(std::move(socket)), http_config(http_config), shared_state(shared_state), state_cache(state_cache),
          queue_(*this) {}
 
    // Start the session
@@ -407,10 +407,10 @@ class http_session : public std::enable_shared_from_this<http_session> {
       // Apply a reasonable limit to the allowed size
       // of the body in bytes to prevent abuse.
       // todo: make configurable
-      parser_->body_limit(10000);
+      parser_->body_limit(http_config->max_request_size);
 
       // Set the timeout.
-      stream_.expires_after(std::chrono::seconds(30));
+      stream_.expires_after(std::chrono::seconds(http_config->idle_timeout));
 
       // Read a request using the parser-oriented interface
       http::async_read(stream_, buffer_, *parser_,
@@ -428,7 +428,7 @@ class http_session : public std::enable_shared_from_this<http_session> {
          return fail(ec, "read");
 
       // Send the response
-      handle_request(*doc_root_, shared_state_, state_cache_, parser_->release(), queue_);
+      handle_request(*http_config, *shared_state, *state_cache, parser_->release(), queue_);
 
       // If we aren't at the queue limit, try to pipeline another request
       if (!queue_.is_full())
@@ -461,22 +461,23 @@ class http_session : public std::enable_shared_from_this<http_session> {
 
       // At this point the connection is closed gracefully
    }
-};
+}; // http_session
 
 // Accepts incoming connections and launches the sessions
 class listener : public std::enable_shared_from_this<listener> {
-   net::io_context&                    ioc_;
-   tcp::acceptor                       acceptor_;
-   bool                                acceptor_ready = false;
-   std::shared_ptr<const std::string>  doc_root_;
-   std::shared_ptr<const shared_state> shared_state_;
-   std::shared_ptr<thread_state_cache> state_cache_;
+   std::shared_ptr<const wasm_ql::http_config>  http_config;
+   std::shared_ptr<const wasm_ql::shared_state> shared_state;
+   net::io_context&                             ioc_;
+   tcp::acceptor                                acceptor_;
+   bool                                         acceptor_ready = false;
+   std::shared_ptr<thread_state_cache>          state_cache;
 
  public:
-   listener(net::io_context& ioc, tcp::endpoint endpoint, const std::shared_ptr<const std::string>& doc_root,
-            const std::shared_ptr<const shared_state>& shared_state)
-       : ioc_(ioc), acceptor_(net::make_strand(ioc)), doc_root_(doc_root), shared_state_(shared_state),
-         state_cache_(std::make_shared<thread_state_cache>(shared_state_)) {
+   listener(const std::shared_ptr<const wasm_ql::http_config>&  http_config,
+            const std::shared_ptr<const wasm_ql::shared_state>& shared_state, net::io_context& ioc,
+            tcp::endpoint endpoint)
+       : http_config{ http_config }, shared_state{ shared_state }, ioc_(ioc), acceptor_(net::make_strand(ioc)),
+         state_cache(std::make_shared<thread_state_cache>(shared_state)) {
 
       beast::error_code ec;
 
@@ -522,26 +523,24 @@ class listener : public std::enable_shared_from_this<listener> {
          fail(ec, "accept");
       } else {
          // Create the http session and run it
-         std::make_shared<http_session>(std::move(socket), doc_root_, shared_state_, state_cache_)->run();
+         std::make_shared<http_session>(http_config, shared_state, state_cache, std::move(socket))->run();
       }
 
       // Accept another connection
       do_accept();
    }
-};
+}; // listener
 
 struct server_impl : http_server, std::enable_shared_from_this<server_impl> {
-   int                                 num_threads;
    net::io_service                     ioc;
-   std::shared_ptr<const shared_state> state    = {};
-   std::string                         address  = {};
-   std::string                         port     = {};
-   std::vector<std::thread>            threads  = {};
-   std::unique_ptr<tcp::acceptor>      acceptor = {};
+   std::shared_ptr<const http_config>  http_config  = {};
+   std::shared_ptr<const shared_state> shared_state = {};
+   std::vector<std::thread>            threads      = {};
+   std::unique_ptr<tcp::acceptor>      acceptor     = {};
 
-   server_impl(int num_threads, const std::shared_ptr<const shared_state>& state, const std::string& address,
-               const std::string& port)
-       : num_threads{ num_threads }, ioc{ num_threads }, state{ state }, address{ address }, port{ port } {}
+   server_impl(const std::shared_ptr<const wasm_ql::http_config>&  http_config,
+               const std::shared_ptr<const wasm_ql::shared_state>& shared_state)
+       : http_config{ http_config }, shared_state{ shared_state } {}
 
    virtual ~server_impl() {}
 
@@ -560,24 +559,27 @@ struct server_impl : http_server, std::enable_shared_from_this<server_impl> {
          FC_ASSERT(false, "unable to open listen socket");
       };
 
-      ilog("listen on ${a}:${p}", ("a", address)("p", port));
+      ilog("listen on ${a}:${p}", ("a", http_config->address)("p", http_config->port));
       boost::asio::ip::address a;
       try {
-         a = net::ip::make_address(address);
-      } catch (std::exception& e) { throw std::runtime_error("make_address(): "s + address + ": " + e.what()); }
-      std::make_shared<listener>(ioc, tcp::endpoint{ a, (unsigned short)std::atoi(port.c_str()) },
-                                 std::make_shared<std::string>(state->static_dir), state)
+         a = net::ip::make_address(http_config->address);
+      } catch (std::exception& e) {
+         throw std::runtime_error("make_address(): "s + http_config->address + ": " + e.what());
+      }
+      std::make_shared<listener>(http_config, shared_state, ioc,
+                                 tcp::endpoint{ a, (unsigned short)std::atoi(http_config->port.c_str()) })
             ->run();
 
-      threads.reserve(num_threads);
-      for (int i = 0; i < num_threads; ++i) threads.emplace_back([self = shared_from_this()] { self->ioc.run(); });
+      threads.reserve(http_config->num_threads);
+      for (int i = 0; i < http_config->num_threads; ++i)
+         threads.emplace_back([self = shared_from_this()] { self->ioc.run(); });
    }
 }; // server_impl
 
-std::shared_ptr<http_server> http_server::create(int num_threads, const std::shared_ptr<const shared_state>& state,
-                                                 const std::string& address, const std::string& port) {
-   FC_ASSERT(num_threads > 0, "too few threads");
-   auto server = std::make_shared<server_impl>(num_threads, state, address, port);
+std::shared_ptr<http_server> http_server::create(const std::shared_ptr<const http_config>&  http_config,
+                                                 const std::shared_ptr<const shared_state>& shared_state) {
+   FC_ASSERT(http_config->num_threads > 0, "too few threads");
+   auto server = std::make_shared<server_impl>(http_config, shared_state);
    server->start();
    return server;
 }

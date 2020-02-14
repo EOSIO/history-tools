@@ -29,16 +29,12 @@ using namespace std::literals;
 static abstract_plugin& _wasm_ql_plugin = app().register_plugin<wasm_ql_plugin>();
 
 struct wasm_ql_plugin_impl : std::enable_shared_from_this<wasm_ql_plugin_impl> {
-   bool                                   stopping         = false;
-   int                                    num_threads      = {};
-   std::string                            endpoint_address = {};
-   std::string                            endpoint_port    = {};
-   std::shared_ptr<wasm_ql::shared_state> state            = {};
-   std::shared_ptr<wasm_ql::http_server>  http_server      = {};
+   bool                                         stopping     = false;
+   std::shared_ptr<const wasm_ql::http_config>  http_config  = {};
+   std::shared_ptr<const wasm_ql::shared_state> shared_state = {};
+   std::shared_ptr<wasm_ql::http_server>        http_server  = {};
 
-   void start_http() {
-      http_server = wasm_ql::http_server::create(num_threads, state, endpoint_address, endpoint_port);
-   }
+   void start_http() { http_server = wasm_ql::http_server::create(http_config, shared_state); }
 
    void shutdown() {
       stopping = true;
@@ -64,6 +60,8 @@ void wasm_ql_plugin::set_program_options(options_description& cli, options_descr
    op("wql-static-dir", bpo::value<std::string>(), "Directory to serve static files from (default: disabled)");
    op("wql-console-size", bpo::value<uint32_t>()->default_value(0), "Maximum size of console data");
    op("wql-wasm-cache-size", bpo::value<uint32_t>()->default_value(100), "Maximum number of compiled wasms to cache");
+   op("wql-max-request-size", bpo::value<uint32_t>()->default_value(10000), "HTTP maximum request body size (bytes)");
+   op("wql-idle-timeout", bpo::value<uint32_t>()->default_value(30), "HTTP idle connection timeout (seconds)");
 }
 
 void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
@@ -72,18 +70,24 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
       if (ip_port.find(':') == std::string::npos)
          throw std::runtime_error("invalid --wql-listen value: " + ip_port);
 
-      my->state            = std::make_shared<wasm_ql::shared_state>(app().find_plugin<rocksdb_plugin>()->get_db());
-      my->num_threads      = options.at("wql-threads").as<int>();
-      my->endpoint_port    = ip_port.substr(ip_port.find(':') + 1, ip_port.size());
-      my->endpoint_address = ip_port.substr(0, ip_port.find(':'));
-      my->state->max_console_size = options.at("wql-console-size").as<uint32_t>();
-      my->state->wasm_cache_size  = options.at("wql-wasm-cache-size").as<uint32_t>();
+      auto http_config  = std::make_shared<wasm_ql::http_config>();
+      auto shared_state = std::make_shared<wasm_ql::shared_state>(app().find_plugin<rocksdb_plugin>()->get_db());
+      my->http_config   = http_config;
+      my->shared_state  = shared_state;
+
+      http_config->num_threads       = options.at("wql-threads").as<int>();
+      http_config->port              = ip_port.substr(ip_port.find(':') + 1, ip_port.size());
+      http_config->address           = ip_port.substr(0, ip_port.find(':'));
+      shared_state->max_console_size = options.at("wql-console-size").as<uint32_t>();
+      shared_state->wasm_cache_size  = options.at("wql-wasm-cache-size").as<uint32_t>();
+      http_config->max_request_size  = options.at("wql-max-request-size").as<uint32_t>();
+      http_config->idle_timeout      = options.at("wql-idle-timeout").as<uint32_t>();
       if (options.count("wql-contract-dir"))
-         my->state->contract_dir = options.at("wql-contract-dir").as<std::string>();
+         shared_state->contract_dir = options.at("wql-contract-dir").as<std::string>();
       if (options.count("wql-allow-origin"))
-         my->state->allow_origin = options.at("wql-allow-origin").as<std::string>();
+         http_config->allow_origin = options.at("wql-allow-origin").as<std::string>();
       if (options.count("wql-static-dir"))
-         my->state->static_dir = options.at("wql-static-dir").as<std::string>();
+         http_config->static_dir = options.at("wql-static-dir").as<std::string>();
 
       register_callbacks();
    }

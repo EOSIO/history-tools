@@ -327,26 +327,26 @@ class http_session : public std::enable_shared_from_this<http_session> {
          virtual void operator()() = 0;
       };
 
-      http_session&                      self_;
-      std::vector<std::unique_ptr<work>> items_;
+      http_session&                      self;
+      std::vector<std::unique_ptr<work>> items;
 
     public:
-      explicit queue(http_session& self) : self_(self) {
+      explicit queue(http_session& self) : self(self) {
          static_assert(limit > 0, "queue limit must be positive");
-         items_.reserve(limit);
+         items.reserve(limit);
       }
 
       // Returns `true` if we have reached the queue limit
-      bool is_full() const { return items_.size() >= limit; }
+      bool is_full() const { return items.size() >= limit; }
 
       // Called when a message finishes sending
       // Returns `true` if the caller should initiate a read
       bool on_write() {
-         BOOST_ASSERT(!items_.empty());
+         BOOST_ASSERT(!items.empty());
          const auto was_full = is_full();
-         items_.erase(items_.begin());
-         if (!items_.empty())
-            (*items_.front())();
+         items.erase(items.begin());
+         if (!items.empty())
+            (*items.front())();
          return was_full;
       }
 
@@ -355,30 +355,30 @@ class http_session : public std::enable_shared_from_this<http_session> {
       void operator()(http::message<isRequest, Body, Fields>&& msg) {
          // This holds a work item
          struct work_impl : work {
-            http_session&                          self_;
-            http::message<isRequest, Body, Fields> msg_;
+            http_session&                          self;
+            http::message<isRequest, Body, Fields> msg;
 
             work_impl(http_session& self, http::message<isRequest, Body, Fields>&& msg)
-                : self_(self), msg_(std::move(msg)) {}
+                : self(self), msg(std::move(msg)) {}
 
             void operator()() {
                http::async_write(
-                     self_.stream_, msg_,
-                     beast::bind_front_handler(&http_session::on_write, self_.shared_from_this(), msg_.need_eof()));
+                     self.stream, msg,
+                     beast::bind_front_handler(&http_session::on_write, self.shared_from_this(), msg.need_eof()));
             }
          };
 
          // Allocate and store the work
-         items_.push_back(boost::make_unique<work_impl>(self_, std::move(msg)));
+         items.push_back(boost::make_unique<work_impl>(self, std::move(msg)));
 
          // If there was no previous work, start this one
-         if (items_.size() == 1)
-            (*items_.front())();
+         if (items.size() == 1)
+            (*items.front())();
       }
    };
 
-   beast::tcp_stream                   stream_;
-   beast::flat_buffer                  buffer_;
+   beast::tcp_stream                   stream;
+   beast::flat_buffer                  buffer;
    std::shared_ptr<const http_config>  http_config;
    std::shared_ptr<const shared_state> shared_state;
    std::shared_ptr<thread_state_cache> state_cache;
@@ -386,14 +386,14 @@ class http_session : public std::enable_shared_from_this<http_session> {
 
    // The parser is stored in an optional container so we can
    // construct it from scratch it at the beginning of each new message.
-   boost::optional<http::request_parser<http::vector_body<char>>> parser_;
+   boost::optional<http::request_parser<http::vector_body<char>>> parser;
 
  public:
    // Take ownership of the socket
    http_session(const std::shared_ptr<const wasm_ql::http_config>&  http_config,
                 const std::shared_ptr<const wasm_ql::shared_state>& shared_state,
                 const std::shared_ptr<thread_state_cache>& state_cache, tcp::socket&& socket)
-       : stream_(std::move(socket)), http_config(http_config), shared_state(shared_state), state_cache(state_cache),
+       : stream(std::move(socket)), http_config(http_config), shared_state(shared_state), state_cache(state_cache),
          queue_(*this) {}
 
    // Start the session
@@ -402,19 +402,18 @@ class http_session : public std::enable_shared_from_this<http_session> {
  private:
    void do_read() {
       // Construct a new parser for each message
-      parser_.emplace();
+      parser.emplace();
 
       // Apply a reasonable limit to the allowed size
       // of the body in bytes to prevent abuse.
       // todo: make configurable
-      parser_->body_limit(http_config->max_request_size);
+      parser->body_limit(http_config->max_request_size);
 
       // Set the timeout.
-      stream_.expires_after(std::chrono::seconds(http_config->idle_timeout));
+      stream.expires_after(std::chrono::seconds(http_config->idle_timeout));
 
       // Read a request using the parser-oriented interface
-      http::async_read(stream_, buffer_, *parser_,
-                       beast::bind_front_handler(&http_session::on_read, shared_from_this()));
+      http::async_read(stream, buffer, *parser, beast::bind_front_handler(&http_session::on_read, shared_from_this()));
    }
 
    void on_read(beast::error_code ec, std::size_t bytes_transferred) {
@@ -428,7 +427,7 @@ class http_session : public std::enable_shared_from_this<http_session> {
          return fail(ec, "read");
 
       // Send the response
-      handle_request(*http_config, *shared_state, *state_cache, parser_->release(), queue_);
+      handle_request(*http_config, *shared_state, *state_cache, parser->release(), queue_);
 
       // If we aren't at the queue limit, try to pipeline another request
       if (!queue_.is_full())
@@ -457,7 +456,7 @@ class http_session : public std::enable_shared_from_this<http_session> {
    void do_close() {
       // Send a TCP shutdown
       beast::error_code ec;
-      stream_.socket().shutdown(tcp::socket::shutdown_send, ec);
+      stream.socket().shutdown(tcp::socket::shutdown_send, ec);
 
       // At this point the connection is closed gracefully
    }
@@ -467,8 +466,8 @@ class http_session : public std::enable_shared_from_this<http_session> {
 class listener : public std::enable_shared_from_this<listener> {
    std::shared_ptr<const wasm_ql::http_config>  http_config;
    std::shared_ptr<const wasm_ql::shared_state> shared_state;
-   net::io_context&                             ioc_;
-   tcp::acceptor                                acceptor_;
+   net::io_context&                             ioc;
+   tcp::acceptor                                acceptor;
    bool                                         acceptor_ready = false;
    std::shared_ptr<thread_state_cache>          state_cache;
 
@@ -476,27 +475,27 @@ class listener : public std::enable_shared_from_this<listener> {
    listener(const std::shared_ptr<const wasm_ql::http_config>&  http_config,
             const std::shared_ptr<const wasm_ql::shared_state>& shared_state, net::io_context& ioc,
             tcp::endpoint endpoint)
-       : http_config{ http_config }, shared_state{ shared_state }, ioc_(ioc), acceptor_(net::make_strand(ioc)),
+       : http_config{ http_config }, shared_state{ shared_state }, ioc(ioc), acceptor(net::make_strand(ioc)),
          state_cache(std::make_shared<thread_state_cache>(shared_state)) {
 
       beast::error_code ec;
 
       // Open the acceptor
-      acceptor_.open(endpoint.protocol(), ec);
+      acceptor.open(endpoint.protocol(), ec);
       if (ec) {
          fail(ec, "open");
          return;
       }
 
       // Bind to the server address
-      acceptor_.bind(endpoint, ec);
+      acceptor.bind(endpoint, ec);
       if (ec) {
          fail(ec, "bind");
          return;
       }
 
       // Start listening for connections
-      acceptor_.listen(net::socket_base::max_listen_connections, ec);
+      acceptor.listen(net::socket_base::max_listen_connections, ec);
       if (ec) {
          fail(ec, "listen");
          return;
@@ -514,8 +513,7 @@ class listener : public std::enable_shared_from_this<listener> {
  private:
    void do_accept() {
       // The new connection gets its own strand
-      acceptor_.async_accept(net::make_strand(ioc_),
-                             beast::bind_front_handler(&listener::on_accept, shared_from_this()));
+      acceptor.async_accept(net::make_strand(ioc), beast::bind_front_handler(&listener::on_accept, shared_from_this()));
    }
 
    void on_accept(beast::error_code ec, tcp::socket socket) {

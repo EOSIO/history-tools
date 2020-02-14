@@ -107,8 +107,8 @@ struct unimplemented_callbacks {
    int64_t get_sender() { return unimplemented<int64_t>("get_sender"); }
 
    // context_free_system_api
-   void eosio_assert(uint32_t test, const char* msg ) {
-      if(test==0)
+   void eosio_assert(uint32_t test, const char* msg) {
+      if (test == 0)
          throw std::runtime_error(msg);
    }
    void eosio_assert_code(int, int64_t) { return unimplemented<void>("eosio_assert_code"); }

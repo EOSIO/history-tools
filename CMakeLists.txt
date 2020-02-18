@@ -30,7 +30,7 @@ set(Boost_USE_STATIC_LIBS ON)
 add_definitions(-DBOOST_ASIO_DISABLE_STD_EXPERIMENTAL_STRING_VIEW)
 
 find_package(eosio.cdt)
-find_package(PostgreSQL COMPONENTS Libraries)
+find_package(PostgreSQL REQUIRED COMPONENTS Libraries)
 find_package(Boost 1.70 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
 find_package(PkgConfig REQUIRED)
 

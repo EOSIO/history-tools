@@ -15,7 +15,7 @@ namespace eosio {
 
 eosio::rope to_json(const eosio::public_key& value) {
     std::string e, s;
-    (void)abieos::key_to_string(s, e, value, "", "EOS");
+    (void)abieos::key_to_string(s, e, reinterpret_cast<const abieos::public_key&>(value), "", "EOS");
     s.insert(0, 1, '"');
     s.append(1, '"');
     return s.c_str(); // todo: fix dangling

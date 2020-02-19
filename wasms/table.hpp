@@ -332,10 +332,10 @@ void table<T>::insert(const T& obj, bool bypass_preexist_check) {
     if (!bypass_preexist_check)
         erase_pk(pk);
     environment.kv_set(database.value, contract.value, pk, check(convert_to_bin(obj)).value());
+    // todo: check for uniqueness violation in secondary
     for (auto* ind : secondary_indexes) {
         auto sk = ind->get_key(obj);
         sk.insert(sk.begin(), ind->prefix.begin(), ind->prefix.end());
-        sk.insert(sk.end(), pk.begin(), pk.end());
         // todo: re-encode the key to make pk extractable and make value empty
         environment.kv_set(database.value, contract.value, sk, pk);
     }
@@ -360,7 +360,6 @@ void table<T>::erase_pk(const std::vector<char>& pk) {
     for (auto* ind : secondary_indexes) {
         auto sk = ind->get_key(obj);
         sk.insert(sk.begin(), ind->prefix.begin(), ind->prefix.end());
-        sk.insert(sk.end(), pk.begin(), pk.end());
         environment.kv_erase(database.value, contract.value, sk.data(), sk.size());
     }
     environment.kv_erase(database.value, contract.value, pk.data(), pk.size());

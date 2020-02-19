@@ -70,13 +70,13 @@ struct block_info_kv : eosio::table<block_info> {
                                 var);
                        } };
 
-   // todo
-   // index id_index{eosio::name{"id"}, [](const auto& var) {
-   //                    return std::visit([](const auto& obj) { return eosio::check(eosio::convert_to_key(obj.id)).value(); }, var);
-   //                }};
+   index id_index{ eosio::name{ "id" }, [](const auto& var) {
+                     return std::visit(
+                           [](const auto& obj) { return eosio::check(eosio::convert_to_key(obj.id)).value(); }, var);
+                  } };
 
    block_info_kv(eosio::kv_environment environment) : eosio::table<block_info>{ std::move(environment) } {
-      init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "block.info" }, primary_index);
+      init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "block.info" }, primary_index, id_index);
    }
 };
 
@@ -178,8 +178,9 @@ struct contract_index64_kv : eosio::table<contract_index64> {
    index secondary_index{ eosio::name{ "secondary" }, [](const auto& var) {
                             return std::visit(
                                   [](const auto& obj) {
-                                     return eosio::check(eosio::convert_to_key(std::tie(obj.code, obj.table, obj.scope,
-                                                                                        obj.secondary_key)))
+                                     return eosio::check(
+                                                  eosio::convert_to_key(std::tie(obj.code, obj.table, obj.scope,
+                                                                                 obj.secondary_key, obj.primary_key)))
                                            .value();
                                   },
                                   var);
@@ -204,8 +205,9 @@ struct contract_index128_kv : eosio::table<contract_index128> {
    index secondary_index{ eosio::name{ "secondary" }, [](const auto& var) {
                             return std::visit(
                                   [](const auto& obj) {
-                                     return eosio::check(eosio::convert_to_key(std::tie(obj.code, obj.table, obj.scope,
-                                                                                        obj.secondary_key)))
+                                     return eosio::check(
+                                                  eosio::convert_to_key(std::tie(obj.code, obj.table, obj.scope,
+                                                                                 obj.secondary_key, obj.primary_key)))
                                            .value();
                                   },
                                   var);

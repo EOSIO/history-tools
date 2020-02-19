@@ -222,7 +222,7 @@ std::optional<std::vector<uint8_t>> read_code(wasm_ql::thread_state& thread_stat
       auto          filename = thread_state.shared->contract_dir + "/" + (std::string)account + ".wasm";
       std::ifstream wasm_file(filename, std::ios::binary);
       if (wasm_file.is_open()) {
-         ilog("compiling %{f}", ("f", filename));
+         ilog("compiling ${f}", ("f", filename));
          wasm_file.seekg(0, std::ios::end);
          int len = wasm_file.tellg();
          if (len < 0)
@@ -367,7 +367,7 @@ const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {
 }
 
 struct get_block_params {
-   uint32_t block_num_or_id = {};
+   std::string block_num_or_id = {};
 };
 
 EOSIO_REFLECT(get_block_params, block_num_or_id)
@@ -376,18 +376,31 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
    get_block_params         params;
    std::string              s{ body.begin(), body.end() };
    eosio::json_token_stream stream{ s.data() };
-   auto                     r = from_json(params, stream);
-   if (!r)
+   if (auto r = from_json(params, stream); !r)
       throw std::runtime_error("An error occurred deserializing get_block_params: " + r.error().message());
 
    rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
    chain_kv::write_session           write_session{ *thread_state.shared->db, snapshot.snapshot() };
    state_history::rdb::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
 
-   // todo: look up by id? rename block_num_or_id?
-   auto info = get_state_row<state_history::block_info>(
-         db_view_state.kv_state.view,
-         std::make_tuple(eosio::name{ "block.info" }, eosio::name{ "primary" }, params.block_num_or_id));
+   std::string              bn_json = "\"" + params.block_num_or_id + "\"";
+   eosio::json_token_stream bn_stream{ bn_json.data() };
+
+   std::optional<std::pair<std::shared_ptr<const chain_kv::bytes>, state_history::block_info>> info;
+   if (params.block_num_or_id.size() == 64) {
+      eosio::checksum256 id;
+      if (auto r = from_json(id, bn_stream); !r)
+         throw std::runtime_error("An error occurred deserializing block_num_or_id: " + r.error().message());
+      info = get_state_row_secondary<state_history::block_info>(
+            db_view_state.kv_state.view, std::make_tuple(eosio::name{ "block.info" }, eosio::name{ "id" }, id));
+   } else {
+      uint32_t num;
+      if (auto r = from_json(num, bn_stream); !r)
+         throw std::runtime_error("An error occurred deserializing block_num_or_id: " + r.error().message());
+      info = get_state_row<state_history::block_info>(
+            db_view_state.kv_state.view, std::make_tuple(eosio::name{ "block.info" }, eosio::name{ "primary" }, num));
+   }
+
    if (info) {
       auto&    obj = std::get<state_history::block_info_v0>(info->second);
       uint32_t ref_block_prefix;
@@ -411,7 +424,7 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
       return thread_state.action_return_value;
    }
 
-   throw std::runtime_error("block " + std::to_string(params.block_num_or_id) + " not found");
+   throw std::runtime_error("block " + params.block_num_or_id + " not found");
 } // query_get_block
 
 struct get_abi_params {

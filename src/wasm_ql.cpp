@@ -388,33 +388,32 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
    rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
    chain_kv::write_session           write_session{ *thread_state.shared->db, snapshot.snapshot() };
    state_history::rdb::db_view_state db_view_state{ abieos::name{ "state" }, *thread_state.shared->db, write_session };
-   state_history::block_info_kv      table{ { db_view_state } };
 
-   // !!!! todo: use index
    // todo: look up by id? rename block_num_or_id?
-   for (auto it = table.begin(); it != table.end(); ++it) {
-      auto obj = std::get<0>(it.get());
-      if (obj.num == params.block_num_or_id) {
-         uint32_t ref_block_prefix;
-         memcpy(&ref_block_prefix, obj.id.value.begin() + 8, sizeof(ref_block_prefix));
+   auto info = get_state_row<state_history::block_info>(
+         db_view_state.kv_state.view,
+         std::make_tuple(eosio::name{ "block.info" }, eosio::name{ "primary" }, params.block_num_or_id));
+   if (info) {
+      auto&    obj = std::get<state_history::block_info_v0>(info->second);
+      uint32_t ref_block_prefix;
+      memcpy(&ref_block_prefix, obj.id.value.begin() + 8, sizeof(ref_block_prefix));
 
-         std::string result = "{";
-         result += "\"block_num\":" + eosio::check(eosio::convert_to_json(obj.num)).value();
-         result += ",\"id\":" + eosio::check(eosio::convert_to_json(obj.id)).value();
-         result += ",\"timestamp\":" + eosio::check(eosio::convert_to_json(obj.timestamp)).value();
-         result += ",\"producer\":" + eosio::check(eosio::convert_to_json(obj.producer)).value();
-         result += ",\"confirmed\":" + eosio::check(eosio::convert_to_json(obj.confirmed)).value();
-         result += ",\"previous\":" + eosio::check(eosio::convert_to_json(obj.previous)).value();
-         result += ",\"transaction_mroot\":" + eosio::check(eosio::convert_to_json(obj.transaction_mroot)).value();
-         result += ",\"action_mroot\":" + eosio::check(eosio::convert_to_json(obj.action_mroot)).value();
-         result += ",\"schedule_version\":" + eosio::check(eosio::convert_to_json(obj.schedule_version)).value();
-         result += ",\"producer_signature\":" + eosio::check(eosio::convert_to_json(obj.producer_signature)).value();
-         result += ",\"ref_block_prefix\":" + eosio::check(eosio::convert_to_json(ref_block_prefix)).value();
-         result += "}";
+      std::string result = "{";
+      result += "\"block_num\":" + eosio::check(eosio::convert_to_json(obj.num)).value();
+      result += ",\"id\":" + eosio::check(eosio::convert_to_json(obj.id)).value();
+      result += ",\"timestamp\":" + eosio::check(eosio::convert_to_json(obj.timestamp)).value();
+      result += ",\"producer\":" + eosio::check(eosio::convert_to_json(obj.producer)).value();
+      result += ",\"confirmed\":" + eosio::check(eosio::convert_to_json(obj.confirmed)).value();
+      result += ",\"previous\":" + eosio::check(eosio::convert_to_json(obj.previous)).value();
+      result += ",\"transaction_mroot\":" + eosio::check(eosio::convert_to_json(obj.transaction_mroot)).value();
+      result += ",\"action_mroot\":" + eosio::check(eosio::convert_to_json(obj.action_mroot)).value();
+      result += ",\"schedule_version\":" + eosio::check(eosio::convert_to_json(obj.schedule_version)).value();
+      result += ",\"producer_signature\":" + eosio::check(eosio::convert_to_json(obj.producer_signature)).value();
+      result += ",\"ref_block_prefix\":" + eosio::check(eosio::convert_to_json(ref_block_prefix)).value();
+      result += "}";
 
-         thread_state.action_return_value.assign(result.data(), result.data() + result.size());
-         return thread_state.action_return_value;
-      }
+      thread_state.action_return_value.assign(result.data(), result.data() + result.size());
+      return thread_state.action_return_value;
    }
 
    throw std::runtime_error("block " + std::to_string(params.block_num_or_id) + " not found");

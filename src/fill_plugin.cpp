@@ -52,11 +52,11 @@ std::vector<state_history::trx_filter> fill_plugin::get_trx_filters(const variab
                 if (split.size() > 1 && !split[1].empty())
                     filt.status = state_history::get_transaction_status(split[1]);
                 if (split.size() > 2 && !split[2].empty())
-                    filt.receiver = abieos::name{split[2].c_str()};
+                    filt.receiver = eosio::name{split[2].c_str()};
                 if (split.size() > 3 && !split[3].empty())
-                    filt.act_account = abieos::name{split[3].c_str()};
+                    filt.act_account = eosio::name{split[3].c_str()};
                 if (split.size() > 4 && !split[4].empty())
-                    filt.act_name = abieos::name{split[4].c_str()};
+                    filt.act_name = eosio::name{split[4].c_str()};
 
                 result.push_back(filt);
             }

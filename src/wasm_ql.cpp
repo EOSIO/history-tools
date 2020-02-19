@@ -63,10 +63,10 @@ EOSIO_REFLECT(dummy_type)
 
 // todo: replace
 struct result_action_trace {
-   abieos::varuint32          action_ordinal         = {};
-   abieos::varuint32          creator_action_ordinal = {};
+   eosio::varuint32           action_ordinal         = {};
+   eosio::varuint32           creator_action_ordinal = {};
    std::optional<dummy_type>  receipt                = {};
-   abieos::name               receiver               = {};
+   eosio::name                receiver               = {};
    state_history::action      act                    = {};
    bool                       context_free           = {};
    int64_t                    elapsed                = {};
@@ -74,7 +74,7 @@ struct result_action_trace {
    std::vector<dummy_type>    account_ram_deltas     = {};
    std::optional<std::string> except                 = {};
    std::optional<uint64_t>    error_code             = {};
-   abieos::bytes              return_value           = {};
+   eosio::bytes               return_value           = {};
 };
 
 EOSIO_REFLECT(result_action_trace, action_ordinal, creator_action_ordinal, receipt, receiver, act, context_free,
@@ -82,10 +82,10 @@ EOSIO_REFLECT(result_action_trace, action_ordinal, creator_action_ordinal, recei
 
 // todo: replace
 struct result_transaction_trace {
-   abieos::checksum256               id                = {};
+   eosio::checksum256                id                = {};
    state_history::transaction_status status            = {};
    uint32_t                          cpu_usage_us      = {};
-   abieos::varuint32                 net_usage_words   = {};
+   eosio::varuint32                  net_usage_words   = {};
    int64_t                           elapsed           = {};
    uint64_t                          net_usage         = {};
    bool                              scheduled         = {};
@@ -326,7 +326,7 @@ void run_action(wasm_ql::thread_state& thread_state, state_history::action& acti
 const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {
    rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
    chain_kv::write_session           write_session{ *thread_state.shared->db, snapshot.snapshot() };
-   state_history::rdb::db_view_state db_view_state{ abieos::name{ "state" }, *thread_state.shared->db, write_session };
+   state_history::rdb::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
 
    std::string result = "{\"server-type\":\"wasm-ql\"";
 
@@ -382,7 +382,7 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
 
    rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
    chain_kv::write_session           write_session{ *thread_state.shared->db, snapshot.snapshot() };
-   state_history::rdb::db_view_state db_view_state{ abieos::name{ "state" }, *thread_state.shared->db, write_session };
+   state_history::rdb::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
 
    // todo: look up by id? rename block_num_or_id?
    auto info = get_state_row<state_history::block_info>(
@@ -415,13 +415,13 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
 } // query_get_block
 
 struct get_abi_params {
-   abieos::name account_name = {};
+   eosio::name account_name = {};
 };
 
 EOSIO_REFLECT(get_abi_params, account_name)
 
 struct get_abi_result {
-   abieos::name                  account_name;
+   eosio::name                   account_name;
    std::optional<eosio::abi_def> abi;
 };
 
@@ -436,11 +436,11 @@ const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, std:
 
    rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
    chain_kv::write_session           write_session{ *thread_state.shared->db, snapshot.snapshot() };
-   state_history::rdb::db_view_state db_view_state{ abieos::name{ "state" }, *thread_state.shared->db, write_session };
+   state_history::rdb::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
 
    auto acc = get_state_row<state_history::account>(
          db_view_state.kv_state.view,
-         std::make_tuple(abieos::name{ "account" }, abieos::name{ "primary" }, params.account_name));
+         std::make_tuple(eosio::name{ "account" }, eosio::name{ "primary" }, params.account_name));
    if (!acc)
       throw std::runtime_error("account " + (std::string)params.account_name + " not found");
    auto& acc0 = std::get<state_history::account_v0>(acc->second);
@@ -460,8 +460,8 @@ const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, std:
 
 // Ignores data field
 struct action_no_data {
-   abieos::name                                 account       = {};
-   abieos::name                                 name          = {};
+   eosio::name                                  account       = {};
+   eosio::name                                  name          = {};
    std::vector<state_history::permission_level> authorization = {};
 };
 
@@ -484,14 +484,14 @@ EOSIO_REFLECT(transaction_for_get_keys, base state_history::transaction_header, 
               transaction_extensions)
 
 struct get_required_keys_params {
-   transaction_for_get_keys        transaction    = {};
-   std::vector<abieos::public_key> available_keys = {};
+   transaction_for_get_keys       transaction    = {};
+   std::vector<eosio::public_key> available_keys = {};
 };
 
 EOSIO_REFLECT(get_required_keys_params, transaction, available_keys)
 
 struct get_required_keys_result {
-   std::vector<abieos::public_key> required_keys = {};
+   std::vector<eosio::public_key> required_keys = {};
 };
 
 EOSIO_REFLECT(get_required_keys_result, required_keys)
@@ -518,16 +518,16 @@ const std::vector<char>& query_get_required_keys(wasm_ql::thread_state& thread_s
 } // query_get_required_keys
 
 struct send_transaction_params {
-   std::vector<abieos::signature> signatures               = {};
-   std::string                    compression              = {};
-   hex_bytes                      packed_context_free_data = {};
-   hex_bytes                      packed_trx               = {};
+   std::vector<eosio::signature> signatures               = {};
+   std::string                   compression              = {};
+   hex_bytes                     packed_context_free_data = {};
+   hex_bytes                     packed_trx               = {};
 };
 
 EOSIO_REFLECT(send_transaction_params, signatures, compression, packed_context_free_data, packed_trx)
 
 struct send_transaction_results {
-   abieos::checksum256      transaction_id; // todo: redundant with processed.id
+   eosio::checksum256       transaction_id; // todo: redundant with processed.id
    result_transaction_trace processed;
 };
 

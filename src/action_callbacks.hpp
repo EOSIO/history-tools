@@ -5,7 +5,7 @@
 namespace history_tools {
 
 struct action_state {
-   abieos::name        receiver{};
+   eosio::name         receiver{};
    eosio::input_stream action_data{};
    std::vector<char>   action_return_value{};
 };

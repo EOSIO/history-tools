@@ -134,7 +134,7 @@ class table {
     table(table&&)      = delete;
 
     template <typename... Indexes>
-    void init(abieos::name database, abieos::name contract, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes);
+    void init(eosio::name database, eosio::name contract, eosio::name table_name, index& primary_index, Indexes&... secondary_indexes);
 
     void     insert(const T& obj, bool bypass_preexist_check = false);
     void     erase(const T& obj);
@@ -143,8 +143,8 @@ class table {
 
   private:
     bool                initialized{};
-    abieos::name        database{};
-    abieos::name        contract{};
+    eosio::name         database{};
+    eosio::name         contract{};
     std::vector<char>   prefix{};
     index*              primary_index{};
     std::vector<index*> secondary_indexes{};
@@ -162,7 +162,7 @@ class index {
     friend iterator;
     friend proxy;
 
-    index(abieos::name index_name, std::vector<char> (*get_key)(const T&))
+    index(eosio::name index_name, std::vector<char> (*get_key)(const T&))
         : index_name{index_name}
         , get_key{get_key} {}
 
@@ -170,7 +170,7 @@ class index {
     iterator end();
 
   private:
-    abieos::name index_name                = {};
+    eosio::name index_name                = {};
     std::vector<char> (*get_key)(const T&) = {};
     table*            t                    = {};
     bool              is_primary           = false;
@@ -309,7 +309,7 @@ class table_iterator {
 template <typename T>
 template <typename... Indexes>
 void table<T>::init(
-    abieos::name database, abieos::name contract, abieos::name table_name, index& primary_index, Indexes&... secondary_indexes) {
+    eosio::name database, eosio::name contract, eosio::name table_name, index& primary_index, Indexes&... secondary_indexes) {
     check(!initialized, "table is already initialized");
 
     this->database          = database;

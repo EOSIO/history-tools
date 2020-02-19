@@ -17,11 +17,11 @@ eosio::result<void> to_key(const checksum256& obj, S& stream) {
 namespace state_history {
 
 struct fill_status_v0 {
-   uint32_t            head            = {};
-   abieos::checksum256 head_id         = {};
-   uint32_t            irreversible    = {};
-   abieos::checksum256 irreversible_id = {};
-   uint32_t            first           = {};
+   uint32_t           head            = {};
+   eosio::checksum256 head_id         = {};
+   uint32_t           irreversible    = {};
+   eosio::checksum256 irreversible_id = {};
+   uint32_t           first           = {};
 };
 
 EOSIO_REFLECT(fill_status_v0, head, head_id, irreversible, irreversible_id, first)
@@ -36,25 +36,25 @@ inline bool operator==(const fill_status_v0& a, fill_status_v0& b) {
 inline bool operator!=(const fill_status_v0& a, fill_status_v0& b) { return !(a == b); }
 
 struct fill_status_kv : eosio::table<fill_status> {
-   index primary_index{ abieos::name{ "primary" }, [](const auto& var) { return std::vector<char>{}; } };
+   index primary_index{ eosio::name{ "primary" }, [](const auto& var) { return std::vector<char>{}; } };
 
    fill_status_kv(eosio::kv_environment environment) : eosio::table<fill_status>{ std::move(environment) } {
-      init(abieos::name{ "eosio.state" }, abieos::name{ "state" }, abieos::name{ "fill.status" }, primary_index);
+      init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "fill.status" }, primary_index);
    }
 };
 
 struct block_info_v0 {
    uint32_t                         num                = {};
-   abieos::checksum256              id                 = {};
-   abieos::block_timestamp          timestamp          = {};
-   abieos::name                     producer           = {};
+   eosio::checksum256               id                 = {};
+   eosio::block_timestamp           timestamp          = {};
+   eosio::name                      producer           = {};
    uint16_t                         confirmed          = {};
-   abieos::checksum256              previous           = {};
-   abieos::checksum256              transaction_mroot  = {};
-   abieos::checksum256              action_mroot       = {};
+   eosio::checksum256               previous           = {};
+   eosio::checksum256               transaction_mroot  = {};
+   eosio::checksum256               action_mroot       = {};
    uint32_t                         schedule_version   = {};
    std::optional<producer_schedule> new_producers      = {};
-   abieos::signature                producer_signature = {};
+   eosio::signature                 producer_signature = {};
 };
 
 EOSIO_REFLECT(block_info_v0, num, id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot,
@@ -64,32 +64,32 @@ using block_info = std::variant<block_info_v0>;
 
 // todo: move out of "state"?
 struct block_info_kv : eosio::table<block_info> {
-   index primary_index{ abieos::name{ "primary" }, [](const auto& var) {
+   index primary_index{ eosio::name{ "primary" }, [](const auto& var) {
                           return std::visit(
                                 [](const auto& obj) { return eosio::check(eosio::convert_to_key(obj.num)).value(); },
                                 var);
                        } };
 
    // todo
-   // index id_index{abieos::name{"id"}, [](const auto& var) {
+   // index id_index{eosio::name{"id"}, [](const auto& var) {
    //                    return std::visit([](const auto& obj) { return eosio::check(eosio::convert_to_key(obj.id)).value(); }, var);
    //                }};
 
    block_info_kv(eosio::kv_environment environment) : eosio::table<block_info>{ std::move(environment) } {
-      init(abieos::name{ "eosio.state" }, abieos::name{ "state" }, abieos::name{ "block.info" }, primary_index);
+      init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "block.info" }, primary_index);
    }
 };
 
 struct global_property_kv : eosio::table<global_property> {
-   index primary_index{ abieos::name{ "primary" }, [](const auto& var) { return std::vector<char>{}; } };
+   index primary_index{ eosio::name{ "primary" }, [](const auto& var) { return std::vector<char>{}; } };
 
    global_property_kv(eosio::kv_environment environment) : eosio::table<global_property>{ std::move(environment) } {
-      init(abieos::name{ "eosio.state" }, abieos::name{ "state" }, abieos::name{ "global.prop" }, primary_index);
+      init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "global.prop" }, primary_index);
    }
 };
 
 struct account_kv : eosio::table<account> {
-   index primary_index{ abieos::name{ "primary" }, [](const auto& var) {
+   index primary_index{ eosio::name{ "primary" }, [](const auto& var) {
                           return std::visit(
                                 [](const auto& obj) {
                                    return eosio::check(eosio::convert_to_key(std::tie(obj.name))).value();
@@ -98,12 +98,12 @@ struct account_kv : eosio::table<account> {
                        } };
 
    account_kv(eosio::kv_environment environment) : eosio::table<account>{ std::move(environment) } {
-      init(abieos::name{ "eosio.state" }, abieos::name{ "state" }, abieos::name{ "account" }, primary_index);
+      init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "account" }, primary_index);
    }
 };
 
 struct account_metadata_kv : eosio::table<account_metadata> {
-   index primary_index{ abieos::name{ "primary" }, [](const auto& var) {
+   index primary_index{ eosio::name{ "primary" }, [](const auto& var) {
                           return std::visit(
                                 [](const auto& obj) {
                                    return eosio::check(eosio::convert_to_key(std::tie(obj.name))).value();
@@ -112,12 +112,12 @@ struct account_metadata_kv : eosio::table<account_metadata> {
                        } };
 
    account_metadata_kv(eosio::kv_environment environment) : eosio::table<account_metadata>{ std::move(environment) } {
-      init(abieos::name{ "eosio.state" }, abieos::name{ "state" }, abieos::name{ "account.meta" }, primary_index);
+      init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "account.meta" }, primary_index);
    }
 };
 
 struct code_kv : eosio::table<code> {
-   index primary_index{ abieos::name{ "primary" }, [](const auto& var) {
+   index primary_index{ eosio::name{ "primary" }, [](const auto& var) {
                           return std::visit(
                                 [](const auto& obj) {
                                    return eosio::check(eosio::convert_to_key(
@@ -128,13 +128,13 @@ struct code_kv : eosio::table<code> {
                        } };
 
    code_kv(eosio::kv_environment environment) : eosio::table<code>{ std::move(environment) } {
-      init(abieos::name{ "eosio.state" }, abieos::name{ "state" }, abieos::name{ "code" }, primary_index);
+      init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "code" }, primary_index);
    }
 };
 
 struct contract_table_kv : eosio::table<contract_table> {
    index primary_index{
-      abieos::name{ "primary" },
+      eosio::name{ "primary" },
       [](const auto& var) {
          return std::visit(
                [](const auto& obj) {
@@ -145,12 +145,12 @@ struct contract_table_kv : eosio::table<contract_table> {
    };
 
    contract_table_kv(eosio::kv_environment environment) : eosio::table<contract_table>{ std::move(environment) } {
-      init(abieos::name{ "eosio.state" }, abieos::name{ "state" }, abieos::name{ "contract.tab" }, primary_index);
+      init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "contract.tab" }, primary_index);
    }
 };
 
 struct contract_row_kv : eosio::table<contract_row> {
-   index primary_index{ abieos::name{ "primary" }, [](const auto& var) {
+   index primary_index{ eosio::name{ "primary" }, [](const auto& var) {
                           return std::visit(
                                 [](const auto& obj) {
                                    return eosio::check(eosio::convert_to_key(
@@ -161,12 +161,12 @@ struct contract_row_kv : eosio::table<contract_row> {
                        } };
 
    contract_row_kv(eosio::kv_environment environment) : eosio::table<contract_row>{ std::move(environment) } {
-      init(abieos::name{ "eosio.state" }, abieos::name{ "state" }, abieos::name{ "contract.row" }, primary_index);
+      init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "contract.row" }, primary_index);
    }
 };
 
 struct contract_index64_kv : eosio::table<contract_index64> {
-   index primary_index{ abieos::name{ "primary" }, [](const auto& var) {
+   index primary_index{ eosio::name{ "primary" }, [](const auto& var) {
                           return std::visit(
                                 [](const auto& obj) {
                                    return eosio::check(eosio::convert_to_key(
@@ -175,7 +175,7 @@ struct contract_index64_kv : eosio::table<contract_index64> {
                                 },
                                 var);
                        } };
-   index secondary_index{ abieos::name{ "secondary" }, [](const auto& var) {
+   index secondary_index{ eosio::name{ "secondary" }, [](const auto& var) {
                             return std::visit(
                                   [](const auto& obj) {
                                      return eosio::check(eosio::convert_to_key(std::tie(obj.code, obj.table, obj.scope,
@@ -186,13 +186,13 @@ struct contract_index64_kv : eosio::table<contract_index64> {
                          } };
 
    contract_index64_kv(eosio::kv_environment environment) : eosio::table<contract_index64>{ std::move(environment) } {
-      init(abieos::name{ "eosio.state" }, abieos::name{ "state" }, abieos::name{ "contract.i1" }, primary_index,
+      init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "contract.i1" }, primary_index,
            secondary_index);
    }
 };
 
 struct contract_index128_kv : eosio::table<contract_index128> {
-   index primary_index{ abieos::name{ "primary" }, [](const auto& var) {
+   index primary_index{ eosio::name{ "primary" }, [](const auto& var) {
                           return std::visit(
                                 [](const auto& obj) {
                                    return eosio::check(eosio::convert_to_key(
@@ -201,7 +201,7 @@ struct contract_index128_kv : eosio::table<contract_index128> {
                                 },
                                 var);
                        } };
-   index secondary_index{ abieos::name{ "secondary" }, [](const auto& var) {
+   index secondary_index{ eosio::name{ "secondary" }, [](const auto& var) {
                             return std::visit(
                                   [](const auto& obj) {
                                      return eosio::check(eosio::convert_to_key(std::tie(obj.code, obj.table, obj.scope,
@@ -212,7 +212,7 @@ struct contract_index128_kv : eosio::table<contract_index128> {
                          } };
 
    contract_index128_kv(eosio::kv_environment environment) : eosio::table<contract_index128>{ std::move(environment) } {
-      init(abieos::name{ "eosio.state" }, abieos::name{ "state" }, abieos::name{ "contract.i2" }, primary_index,
+      init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "contract.i2" }, primary_index,
            secondary_index);
    }
 };

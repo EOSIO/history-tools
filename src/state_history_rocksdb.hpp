@@ -11,9 +11,9 @@
 
 namespace state_history { namespace rdb {
 
-   inline constexpr abieos::name kvram_db_id{ "eosio.kvram" };
-   inline constexpr abieos::name kvdisk_db_id{ "eosio.kvdisk" };
-   inline constexpr abieos::name state_db_id{ "eosio.state" };
+   inline constexpr eosio::name kvram_db_id{ "eosio.kvram" };
+   inline constexpr eosio::name kvdisk_db_id{ "eosio.kvdisk" };
+   inline constexpr eosio::name state_db_id{ "eosio.state" };
 
    inline const std::vector<char> undo_stack_prefix{ 0x40 };
    inline const std::vector<char> contract_kv_prefix{ 0x41 };
@@ -132,15 +132,15 @@ namespace state_history { namespace rdb {
    struct kv_context_rocksdb {
       chain_kv::database&                      database;
       chain_kv::write_session&                 write_session;
-      abieos::name                             database_id;
+      eosio::name                              database_id;
       chain_kv::view                           view;
-      abieos::name                             receiver;
+      eosio::name                              receiver;
       const kv_database_config&                limits;
       uint32_t                                 num_iterators = 0;
       std::shared_ptr<const std::vector<char>> temp_data_buffer;
 
-      kv_context_rocksdb(chain_kv::database& database, chain_kv::write_session& write_session, abieos::name database_id,
-                         abieos::name receiver, const kv_database_config& limits)
+      kv_context_rocksdb(chain_kv::database& database, chain_kv::write_session& write_session, eosio::name database_id,
+                         eosio::name receiver, const kv_database_config& limits)
           : database{ database }, write_session{ write_session },
             database_id{ database_id }, view{ write_session, make_prefix() }, receiver{ receiver }, limits{ limits } {}
 
@@ -151,13 +151,13 @@ namespace state_history { namespace rdb {
       }
 
       void kv_erase(uint64_t contract, const char* key, uint32_t key_size) {
-         eosio::check(abieos::name{ contract } == receiver, "Can not write to this key");
+         eosio::check(eosio::name{ contract } == receiver, "Can not write to this key");
          temp_data_buffer = nullptr;
          view.erase(contract, { key, key_size });
       }
 
       void kv_set(uint64_t contract, const char* key, uint32_t key_size, const char* value, uint32_t value_size) {
-         eosio::check(abieos::name{ contract } == receiver, "Can not write to this key");
+         eosio::check(eosio::name{ contract } == receiver, "Can not write to this key");
          eosio::check(key_size <= limits.max_key_size, "Key too large");
          eosio::check(value_size <= limits.max_value_size, "Value too large");
          temp_data_buffer = nullptr;
@@ -194,7 +194,7 @@ namespace state_history { namespace rdb {
    }; // kv_context_rocksdb
 
    struct db_view_state {
-      abieos::name                                      receiver;
+      eosio::name                                       receiver;
       chain_kv::database&                               database;
       const kv_database_config                          limits;
       const kv_database_config                          kv_state_limits{ 1024, std::numeric_limits<uint32_t>::max() };
@@ -204,7 +204,7 @@ namespace state_history { namespace rdb {
       std::vector<std::unique_ptr<kv_iterator_rocksdb>> kv_iterators;
       std::vector<size_t>                               kv_destroyed_iterators;
 
-      db_view_state(abieos::name receiver, chain_kv::database& database, chain_kv::write_session& write_session)
+      db_view_state(eosio::name receiver, chain_kv::database& database, chain_kv::write_session& write_session)
           : receiver{ receiver }, database{ database }, kv_ram{ database, write_session, kvram_db_id, receiver,
                                                                 limits },
             kv_disk{ database, write_session, kvdisk_db_id, receiver, limits }, kv_state{ database, write_session,

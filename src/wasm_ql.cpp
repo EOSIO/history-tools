@@ -104,8 +104,28 @@ struct result_transaction_trace {
 EOSIO_REFLECT(result_transaction_trace, id, status, cpu_usage_us, net_usage_words, elapsed, net_usage, scheduled,
               action_traces, account_ram_delta, except, error_code, failed_dtrx_trace)
 
+// todo: relax some of these limits
+struct wasm_ql_backend_options {
+   static constexpr std::uint32_t max_mutable_global_bytes      = 1024;
+   static constexpr std::uint32_t max_table_elements            = 1024;
+   static constexpr std::uint32_t max_section_elements          = 8191;
+   static constexpr std::uint32_t max_function_section_elements = 1023;
+   static constexpr std::uint32_t max_import_section_elements   = 1023;
+   static constexpr std::uint32_t max_element_segment_elements  = 8191;
+   static constexpr std::uint32_t max_data_segment_bytes        = 8191;
+   static constexpr std::uint32_t max_linear_memory_init        = 64 * 1024;
+   static constexpr std::uint32_t max_func_local_bytes          = 8192;
+   static constexpr std::uint32_t max_local_sets                = 1023;
+   static constexpr std::uint32_t eosio_max_nested_structures   = 1023;
+   static constexpr std::uint32_t max_br_table_elements         = 8191;
+   static constexpr std::uint32_t max_symbol_bytes              = 8191;
+   static constexpr std::uint32_t max_memory_offset             = (33 * 1024 * 1024 - 1);
+   static constexpr std::uint32_t max_pages                     = 528; // 33 MiB
+   static constexpr std::uint32_t max_call_depth                = 251;
+};
+
 struct callbacks;
-using backend_t = eosio::vm::backend<callbacks, eosio::vm::jit>;
+using backend_t = eosio::vm::backend<callbacks, eosio::vm::jit, wasm_ql_backend_options>;
 using rhf_t     = eosio::vm::registered_host_functions<callbacks>;
 
 // todo: remove basic_callbacks
@@ -251,7 +271,6 @@ std::optional<std::vector<uint8_t>> read_contract(state_history::rdb::db_view_st
    return result;
 }
 
-// todo: limit WASM memory size
 void run_action(wasm_ql::thread_state& thread_state, state_history::action& action, result_action_trace& atrace,
                 const std::chrono::steady_clock::time_point& stop_time) {
    if (std::chrono::steady_clock::now() >= stop_time)

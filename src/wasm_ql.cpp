@@ -14,6 +14,7 @@
 #include <boost/multi_index_container.hpp>
 
 #include <eosio/abi.hpp>
+#include <eosio/vm/watchdog.hpp>
 
 namespace eosio {
 using state_history::rdb::kv_environment;
@@ -250,10 +251,12 @@ std::optional<std::vector<uint8_t>> read_contract(state_history::rdb::db_view_st
    return result;
 }
 
-// todo: timeout
 // todo: limit WASM memory size
-// todo: cache compiled wasms
-static void run_query(wasm_ql::thread_state& thread_state, state_history::action& action, result_action_trace& atrace) {
+void run_action(wasm_ql::thread_state& thread_state, state_history::action& action, result_action_trace& atrace,
+                const std::chrono::steady_clock::time_point& stop_time) {
+   if (std::chrono::steady_clock::now() >= stop_time)
+      throw eosio::vm::timeout_exception("execution timed out");
+
    rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
    chain_kv::write_session           write_session{ *thread_state.shared->db, snapshot.snapshot() };
    state_history::rdb::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
@@ -285,6 +288,7 @@ static void run_query(wasm_ql::thread_state& thread_state, state_history::action
       entry->backend = std::make_unique<backend_t>(*code);
       rhf_t::resolve(entry->backend->get_module());
    }
+   auto se = fc::make_scoped_exit([&] { thread_state.shared->backend_cache->add(std::move(*entry)); });
 
    thread_state.max_console_size = thread_state.shared->max_console_size;
    thread_state.receiver         = action.account;
@@ -294,13 +298,15 @@ static void run_query(wasm_ql::thread_state& thread_state, state_history::action
    history_tools::chaindb_state chaindb_state;
    callbacks                    cb{ thread_state, chaindb_state, db_view_state };
    entry->backend->set_wasm_allocator(&thread_state.wa);
-   entry->backend->initialize(&cb);
 
-   (*entry->backend)(&cb, "env", "apply", action.account.value, action.account.value, action.name.value);
+   eosio::vm::watchdog wd{ stop_time - std::chrono::steady_clock::now() };
+   entry->backend->timed_run(wd, [&] {
+      entry->backend->initialize(&cb);
+      (*entry->backend)(&cb, "env", "apply", action.account.value, action.account.value, action.name.value);
+   });
+
    atrace.console           = std::move(thread_state.console);
    atrace.return_value.data = std::move(thread_state.action_return_value);
-
-   thread_state.shared->backend_cache->add(std::move(*entry));
 }
 
 const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {
@@ -554,7 +560,9 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
    auto&                    tt = results.processed;
    tt.action_traces.reserve(unpacked.actions.size());
 
-   // todo: timeout
+   auto stop_time =
+         std::chrono::steady_clock::now() + std::chrono::milliseconds{ thread_state.shared->max_exec_time_ms };
+
    for (auto& action : unpacked.actions) {
       tt.action_traces.emplace_back();
       auto& at                = tt.action_traces.back();
@@ -563,7 +571,7 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
       at.act                  = action;
 
       try {
-         run_query(thread_state, action, at);
+         run_action(thread_state, action, at, stop_time);
       } catch (std::exception& e) {
          // todo: errorcode
          at.except = tt.except = e.what();

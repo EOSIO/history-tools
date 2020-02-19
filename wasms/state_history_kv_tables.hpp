@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../src/state_history.hpp"
 #include "table.hpp"
 #include <eosio/to_key.hpp>

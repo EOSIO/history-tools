@@ -139,4 +139,13 @@ std::vector<asset> token::gettoks(const name& owner) {
    return result;
 }
 
+std::vector<char> token::loop(uint32_t n) {
+   std::vector<char> result(n);
+   for (uint32_t i = 0; i < n; ++i) {
+      print(i, " ");
+      result[i] = i;
+   }
+   return result;
+}
+
 } // namespace eosio

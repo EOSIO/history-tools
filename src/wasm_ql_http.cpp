@@ -410,7 +410,7 @@ class http_session : public std::enable_shared_from_this<http_session> {
       parser->body_limit(http_config->max_request_size);
 
       // Set the timeout.
-      stream.expires_after(std::chrono::seconds(http_config->idle_timeout));
+      stream.expires_after(std::chrono::milliseconds(http_config->idle_timeout_ms));
 
       // Read a request using the parser-oriented interface
       http::async_read(stream, buffer, *parser, beast::bind_front_handler(&http_session::on_read, shared_from_this()));

@@ -19,6 +19,7 @@ class [[eosio::contract("eosio.token")]] token : public contract {
    [[eosio::action]] void open(const name& owner, const symbol& symbol, const name& ram_payer);
    [[eosio::action]] void close(const name& owner, const symbol& symbol);
    [[eosio::action]] std::vector<eosio::asset> gettoks(const name& owner);
+   [[eosio::action]] std::vector<char>         loop(uint32_t n);
 
    static asset get_supply(const name& token_contract_account, const symbol_code& sym_code) {
       stats       statstable(token_contract_account, sym_code.raw());

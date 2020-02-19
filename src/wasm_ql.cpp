@@ -16,11 +16,6 @@
 #include <eosio/abi.hpp>
 #include <eosio/vm/watchdog.hpp>
 
-namespace eosio {
-using state_history::rdb::kv_environment;
-}
-#include "../wasms/state_history_kv_tables.hpp" // todo: move
-
 #include <fc/log/logger.hpp>
 #include <fc/scoped_exit.hpp>
 

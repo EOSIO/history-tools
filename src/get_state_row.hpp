@@ -3,7 +3,7 @@
 namespace eosio {
 using state_history::rdb::kv_environment;
 }
-#include "../wasms/state_history_kv_tables.hpp" // todo: move
+#include "state_history_kv_tables.hpp"
 
 template <typename T, typename K>
 std::optional<std::pair<std::shared_ptr<const chain_kv::bytes>, T>> get_state_row(chain_kv::view& view, const K& key) {

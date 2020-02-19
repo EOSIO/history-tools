@@ -4,8 +4,8 @@
 #include "chaindb_callbacks.hpp"
 #include "compiler_builtins_callbacks.hpp"
 #include "console_callbacks.hpp"
+#include "get_state_row.hpp"
 #include "memory_callbacks.hpp"
-#include "state_history_rocksdb.hpp"
 #include "unimplemented_callbacks.hpp"
 
 #include <boost/multi_index/member.hpp>
@@ -199,22 +199,6 @@ shared_state::shared_state(std::shared_ptr<chain_kv::database> db)
     : backend_cache(std::make_unique<wasm_ql::backend_cache>(*this)), db(std::move(db)) {}
 
 shared_state::~shared_state() {}
-
-template <typename T, typename K>
-std::optional<std::pair<std::shared_ptr<const chain_kv::bytes>, T>> get_state_row(chain_kv::view& view, const K& key) {
-   std::optional<std::pair<std::shared_ptr<const chain_kv::bytes>, T>> result;
-   result.emplace();
-   result->first =
-         view.get(eosio::name{ "state" }.value, chain_kv::to_slice(eosio::check(eosio::convert_to_key(key)).value()));
-   if (!result->first) {
-      result.reset();
-      return result;
-   }
-   eosio::input_stream account_metadata_stream{ *result->first };
-   if (auto r = from_bin(result->second, account_metadata_stream); !r)
-      throw std::runtime_error("An error occurred deserializing state: " + r.error().message());
-   return result;
-}
 
 std::optional<std::vector<uint8_t>> read_code(wasm_ql::thread_state& thread_state, eosio::name account) {
    std::optional<std::vector<uint8_t>> code;

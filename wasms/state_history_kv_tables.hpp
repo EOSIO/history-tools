@@ -75,7 +75,7 @@ struct block_info_kv : eosio::table<block_info> {
 
     block_info_kv(eosio::kv_environment environment)
         : eosio::table<block_info>{std::move(environment)} {
-        init(abieos::name{"eosio.state"}, abieos::name{"state"}, abieos::name{"contract.tab"}, primary_index);
+        init(abieos::name{"eosio.state"}, abieos::name{"state"}, abieos::name{"block.info"}, primary_index);
     }
 };
 

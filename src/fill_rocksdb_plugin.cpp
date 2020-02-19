@@ -1,14 +1,8 @@
 // copyright defined in LICENSE.txt
 
 #include "fill_rocksdb_plugin.hpp"
-
-namespace eosio {
-using state_history::rdb::kv_environment;
-}
-#include "../wasms/state_history_kv_tables.hpp" // todo: move
-
+#include "get_state_row.hpp"
 #include "state_history_connection.hpp"
-#include "state_history_rocksdb.hpp"
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -69,6 +63,7 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
    uint32_t                                   irreversible    = 0;
    eosio::checksum256                         irreversible_id = {};
    uint32_t                                   first           = 0;
+   bool                                       reported_block  = false;
 
    fill_rdb_session(fill_rocksdb_plugin_impl* my) : my(my), config(my->config) {}
 
@@ -105,7 +100,8 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
          irreversible_id = status.irreversible_id;
          first           = status.first;
       }
-      ilog("filler status:");
+      ilog("filler database status:");
+      ilog("    revisions:    ${f} - ${r}", ("f", undo_stack.first_revision())("r", undo_stack.revision()));
       ilog("    head:         ${a} ${b}", ("a", head)("b", eosio::check(eosio::convert_to_json(head_id)).value()));
       ilog("    irreversible: ${a} ${b}",
            ("a", irreversible)("b", eosio::check(eosio::convert_to_json(irreversible_id)).value()));
@@ -113,14 +109,17 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
 
    std::vector<block_position> get_positions() {
       std::vector<block_position> result;
-      /*
-        if (head) {
-            for (uint32_t i = irreversible; i <= head; ++i) {
-                auto rb = rdb::get<kv::received_block>(*db, kv::make_received_block_key(i), true);
-                result.push_back({rb->block_num, rb->block_id});
-            }
-        }
-        */
+      if (head) {
+         rdb::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
+         for (uint32_t i = irreversible; i <= head; ++i) {
+            auto info = get_state_row<state_history::block_info>(
+                  view_state.kv_state.view, std::make_tuple(eosio::name{ "block.info" }, eosio::name{ "primary" }, i));
+            if (!info)
+               throw std::runtime_error("database is missing block.info for block " + std::to_string(i));
+            auto& info0 = std::get<state_history::block_info_v0>(info->second);
+            result.push_back({ info0.num, info0.id });
+         }
+      }
       return result;
    }
 
@@ -157,41 +156,61 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
          db->flush(false, false);
          return false;
       }
+      if (head && result.this_block->block_num > head + 1)
+         throw std::runtime_error("state-history plugin is missing block " + std::to_string(head + 1));
 
-      try {
-         if (result.this_block->block_num <= head) {
-            ilog("switch forks at block ${b}", ("b", result.this_block->block_num));
-            throw std::runtime_error("truncate not implemented");
-         }
+      if (result.this_block->block_num <= head) {
+         ilog("switch forks at block ${b}; database contains revisions ${f} - ${h}",
+              ("b", result.this_block->block_num)("f", undo_stack.first_revision())("h", undo_stack.revision()));
+         if (undo_stack.first_revision() >= result.this_block->block_num)
+            throw std::runtime_error("can't switch forks since database doesn't contain revision " +
+                                     std::to_string(result.this_block->block_num - 1));
+         write_session.wipe_cache();
+         while (undo_stack.revision() >= result.this_block->block_num) //
+            undo_stack.undo(true);
+         load_fill_status();
+         reported_block = false;
+      }
 
-         bool near       = result.this_block->block_num + 4 >= result.last_irreversible.block_num;
-         bool commit_now = !(result.this_block->block_num % 200) || near;
-         if (commit_now)
-            ilog("block ${b}", ("b", result.this_block->block_num));
+      bool near      = result.this_block->block_num + 4 >= result.last_irreversible.block_num;
+      bool write_now = !(result.this_block->block_num % 200) || near;
+      if (write_now || !reported_block)
+         ilog("block ${b} ${i}",
+              ("b", result.this_block->block_num)(
+                    "i", result.this_block->block_num <= result.last_irreversible.block_num ? "irreversible" : ""));
+      reported_block = true;
+      if (head_id != eosio::checksum256{} && (!result.prev_block || result.prev_block->block_id != head_id))
+         throw std::runtime_error("prev_block does not match");
 
-         if (head_id != eosio::checksum256{} && (!result.prev_block || result.prev_block->block_id != head_id))
-            throw std::runtime_error("prev_block does not match");
-         if (result.block)
-            receive_block(result.this_block->block_num, result.this_block->block_id, *result.block);
-         if (result.deltas)
-            receive_deltas(result.this_block->block_num, *result.deltas);
+      if (result.this_block->block_num <= result.last_irreversible.block_num) {
+         undo_stack.commit(std::min(result.last_irreversible.block_num, head));
+         undo_stack.set_revision(result.this_block->block_num, false);
+      } else {
+         end_write(false);
+         undo_stack.commit(std::min(result.last_irreversible.block_num, head));
+         undo_stack.push(false);
+      }
 
-         head            = result.this_block->block_num;
-         head_id         = result.this_block->block_id;
-         irreversible    = result.last_irreversible.block_num;
-         irreversible_id = result.last_irreversible.block_id;
-         if (!first || head < first)
-            first = head;
+      if (result.block)
+         receive_block(result.this_block->block_num, result.this_block->block_id, *result.block);
+      if (result.deltas)
+         receive_deltas(result.this_block->block_num, *result.deltas);
 
-         // rdb::put(
-         //     active_content_batch, kv::make_received_block_key(result.this_block->block_num),
-         //     kv::received_block{result.this_block->block_num, result.this_block->block_id});
+      head            = result.this_block->block_num;
+      head_id         = result.this_block->block_id;
+      irreversible    = result.last_irreversible.block_num;
+      irreversible_id = result.last_irreversible.block_id;
+      if (!first || head < first)
+         first = head;
 
-         if (commit_now)
-            end_write(true);
-         if (near)
-            db->flush(false, false);
-      } catch (...) { throw; }
+      // rdb::put(
+      //     active_content_batch, kv::make_received_block_key(result.this_block->block_num),
+      //     kv::received_block{result.this_block->block_num, result.this_block->block_id});
+
+      if (write_now)
+         end_write(write_now);
+      if (near)
+         db->flush(false, false);
 
       return true;
    } // receive_result()

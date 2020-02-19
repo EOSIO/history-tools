@@ -124,7 +124,7 @@ struct connection : std::enable_shared_from_this<connection> {
       req.end_block_num          = 0xffff'ffff;
       req.max_messages_in_flight = 0xffff'ffff;
       req.have_positions         = positions;
-      req.irreversible_only      = true; // todo
+      req.irreversible_only      = false;
       req.fetch_block            = true;
       req.fetch_traces           = true;
       req.fetch_deltas           = true;

@@ -23,6 +23,8 @@
 #include <fc/exception/exception.hpp>
 #include <fc/log/logger.hpp>
 
+#include <eosio/to_json.hpp>
+
 #include <algorithm>
 #include <cstdlib>
 #include <functional>
@@ -38,6 +40,23 @@ namespace net   = boost::asio;          // from <boost/asio.hpp>
 using tcp       = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 
 using namespace std::literals;
+
+struct error_info {
+   int64_t          code    = {};
+   std::string      name    = {};
+   std::string      what    = {};
+   std::vector<int> details = {};
+};
+
+EOSIO_REFLECT(error_info, code, name, what, details)
+
+struct error_results {
+   uint16_t    code    = {};
+   std::string message = {};
+   error_info  error   = {};
+};
+
+EOSIO_REFLECT(error_results, code, message, error)
 
 namespace wasm_ql {
 
@@ -181,10 +200,10 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
    };
 
    // Returns an error response
-   const auto error = [&req](http::status status, beast::string_view why) {
+   const auto error = [&req](http::status status, beast::string_view why, const char* content_type = "text/html") {
       http::response<http::string_body> res{ status, req.version() };
       res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-      res.set(http::field::content_type, "text/html");
+      res.set(http::field::content_type, content_type);
       res.keep_alive(req.keep_alive());
       res.body() = why.to_string();
       res.prepare_payload();
@@ -304,8 +323,18 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
          return send(std::move(res));
       }
    } catch (const std::exception& e) {
-      elog("query failed: ${s}", ("s", e.what()));
-      return send(error(http::status::internal_server_error, "query failed: "s + e.what() + "\n"));
+      try {
+         elog("query failed: ${s}", ("s", e.what()));
+         error_results err;
+         err.code       = (uint16_t)http::status::internal_server_error;
+         err.message    = "Internal Service Error";
+         err.error.name = "exception";
+         err.error.what = e.what();
+         return send(error(http::status::internal_server_error, eosio::check(eosio::convert_to_json(err)).value(),
+                           "application/json"));
+      } catch (...) { //
+         return send(error(http::status::internal_server_error, "failure reporting failure\n"));
+      }
    } catch (...) {
       elog("query failed: unknown exception");
       return send(error(http::status::internal_server_error, "query failed: unknown exception\n"));

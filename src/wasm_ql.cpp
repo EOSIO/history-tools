@@ -596,8 +596,8 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
    auto&                    tt = results.processed;
    tt.action_traces.reserve(unpacked.actions.size());
 
-   auto stop_time =
-         std::chrono::steady_clock::now() + std::chrono::milliseconds{ thread_state.shared->max_exec_time_ms };
+   auto start_time = std::chrono::steady_clock::now();
+   auto stop_time  = start_time + std::chrono::milliseconds{ thread_state.shared->max_exec_time_ms };
 
    for (auto& action : unpacked.actions) {
       tt.action_traces.emplace_back();
@@ -608,6 +608,11 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
 
       try {
          run_action(thread_state, action, at, stop_time);
+      } catch (eosio::vm::timeout_exception&) { //
+         throw std::runtime_error(
+               "timeout after " +
+               std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time).count()) +
+               " ms");
       } catch (std::exception& e) {
          // todo: errorcode
          at.except = tt.except = e.what();

@@ -61,31 +61,42 @@ struct dummy_type {};
 
 EOSIO_REFLECT(dummy_type)
 
-// todo: replace
+struct result_action_receipt {
+   eosio::name receiver = {};
+};
+
+EOSIO_REFLECT(result_action_receipt, receiver)
+
 struct result_action_trace {
-   eosio::varuint32           action_ordinal         = {};
-   eosio::varuint32           creator_action_ordinal = {};
-   std::optional<dummy_type>  receipt                = {};
-   eosio::name                receiver               = {};
-   state_history::action      act                    = {};
-   bool                       context_free           = {};
-   int64_t                    elapsed                = {};
-   std::string                console                = {};
-   std::vector<dummy_type>    account_ram_deltas     = {};
-   std::optional<std::string> except                 = {};
-   std::optional<uint64_t>    error_code             = {};
-   eosio::bytes               return_value           = {};
+   eosio::varuint32                     action_ordinal         = {};
+   eosio::varuint32                     creator_action_ordinal = {};
+   std::optional<result_action_receipt> receipt                = {};
+   eosio::name                          receiver               = {};
+   state_history::action                act                    = {};
+   bool                                 context_free           = {};
+   int64_t                              elapsed                = {};
+   std::string                          console                = {};
+   std::vector<dummy_type>              account_ram_deltas     = {};
+   std::optional<std::string>           except                 = {};
+   std::optional<uint64_t>              error_code             = {};
+   eosio::bytes                         return_value           = {};
 };
 
 EOSIO_REFLECT(result_action_trace, action_ordinal, creator_action_ordinal, receipt, receiver, act, context_free,
               elapsed, console, account_ram_deltas, except, error_code, return_value)
 
-// todo: replace
+struct result_transaction_receipt {
+   state_history::transaction_status status          = {};
+   uint32_t                          cpu_usage_us    = {};
+   eosio::varuint32                  net_usage_words = {};
+};
+
+EOSIO_REFLECT(result_transaction_receipt, status, cpu_usage_us, net_usage_words)
+
 struct result_transaction_trace {
    eosio::checksum256                id                = {};
-   state_history::transaction_status status            = {};
-   uint32_t                          cpu_usage_us      = {};
-   eosio::varuint32                  net_usage_words   = {};
+   std::optional<eosio::checksum256> producer_block_id = {};
+   result_transaction_receipt        receipt           = {};
    int64_t                           elapsed           = {};
    uint64_t                          net_usage         = {};
    bool                              scheduled         = {};
@@ -93,11 +104,10 @@ struct result_transaction_trace {
    std::optional<dummy_type>         account_ram_delta = {};
    std::optional<std::string>        except            = {};
    std::optional<uint64_t>           error_code        = {};
-   std::vector<dummy_type>           failed_dtrx_trace = {};
 };
 
-EOSIO_REFLECT(result_transaction_trace, id, status, cpu_usage_us, net_usage_words, elapsed, net_usage, scheduled,
-              action_traces, account_ram_delta, except, error_code, failed_dtrx_trace)
+EOSIO_REFLECT(result_transaction_trace, id, producer_block_id, receipt, elapsed, net_usage, scheduled, action_traces,
+              account_ram_delta, except, error_code)
 
 // todo: relax some of these limits
 struct wasm_ql_backend_options {
@@ -601,9 +611,12 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
       } catch (std::exception& e) {
          // todo: errorcode
          at.except = tt.except = e.what();
-         tt.status             = state_history::transaction_status::soft_fail;
+         tt.receipt.status     = state_history::transaction_status::soft_fail;
          break;
       }
+
+      at.receipt.emplace();
+      at.receipt->receiver = action.account;
    }
 
    // todo: avoid the extra copy

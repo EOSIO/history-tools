@@ -58,6 +58,7 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
    chain_kv::undo_stack                 undo_stack{ *db, chain_kv::bytes{ state_history::rdb::undo_stack_prefix } };
    chain_kv::write_session              write_session{ *db };
    std::shared_ptr<state_history::connection> connection;
+   eosio::checksum256                         chain_id        = {};
    uint32_t                                   head            = 0;
    eosio::checksum256                         head_id         = {};
    uint32_t                                   irreversible    = 0;
@@ -82,6 +83,13 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
    }
 
    bool received(get_status_result_v0& status, eosio::input_stream bin) override {
+      ilog("nodeos has chain ${c}", ("c", eosio::check(eosio::convert_to_json(status.chain_id)).value()));
+      if (chain_id == eosio::checksum256{})
+         chain_id = status.chain_id;
+      if (chain_id != status.chain_id)
+         throw std::runtime_error("database is for chain " + eosio::check(eosio::convert_to_json(chain_id)).value() +
+                                  " but nodeos has chain " +
+                                  eosio::check(eosio::convert_to_json(status.chain_id)).value());
       ilog("request blocks");
       connection->request_blocks(status, std::max(config->skip_to, head + 1), get_positions());
       return true;
@@ -94,6 +102,7 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
       auto               it = table.begin();
       if (it != table.end()) {
          auto status     = std::get<0>(it.get());
+         chain_id        = status.chain_id;
          head            = status.head;
          head_id         = status.head_id;
          irreversible    = status.irreversible;
@@ -102,6 +111,7 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
       }
       ilog("filler database status:");
       ilog("    revisions:    ${f} - ${r}", ("f", undo_stack.first_revision())("r", undo_stack.revision()));
+      ilog("    chain:        ${a}", ("a", eosio::check(eosio::convert_to_json(chain_id)).value()));
       ilog("    head:         ${a} ${b}", ("a", head)("b", eosio::check(eosio::convert_to_json(head_id)).value()));
       ilog("    irreversible: ${a} ${b}",
            ("a", irreversible)("b", eosio::check(eosio::convert_to_json(irreversible_id)).value()));
@@ -126,15 +136,19 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
    void write_fill_status() {
       state_history::fill_status status;
       if (irreversible < head)
-         status = state_history::fill_status_v0{ .head            = head,
+         status = state_history::fill_status_v0{ .chain_id        = chain_id,
+                                                 .head            = head,
                                                  .head_id         = head_id,
                                                  .irreversible    = irreversible,
                                                  .irreversible_id = irreversible_id,
                                                  .first           = first };
       else
-         status = state_history::fill_status_v0{
-            .head = head, .head_id = head_id, .irreversible = head, .irreversible_id = head_id, .first = first
-         };
+         status = state_history::fill_status_v0{ .chain_id        = chain_id,
+                                                 .head            = head,
+                                                 .head_id         = head_id,
+                                                 .irreversible    = head,
+                                                 .irreversible_id = head_id,
+                                                 .first           = first };
 
       rdb::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
       fill_status_kv     table{ { view_state } };

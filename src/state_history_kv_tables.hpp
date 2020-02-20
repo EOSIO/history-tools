@@ -17,6 +17,7 @@ eosio::result<void> to_key(const checksum256& obj, S& stream) {
 namespace state_history {
 
 struct fill_status_v0 {
+   eosio::checksum256 chain_id        = {};
    uint32_t           head            = {};
    eosio::checksum256 head_id         = {};
    uint32_t           irreversible    = {};
@@ -24,7 +25,7 @@ struct fill_status_v0 {
    uint32_t           first           = {};
 };
 
-EOSIO_REFLECT(fill_status_v0, head, head_id, irreversible, irreversible_id, first)
+EOSIO_REFLECT(fill_status_v0, chain_id, head, head_id, irreversible, irreversible_id, first)
 
 using fill_status = std::variant<fill_status_v0>;
 

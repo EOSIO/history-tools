@@ -94,16 +94,17 @@ struct block_position {
 EOSIO_REFLECT(block_position, block_num, block_id)
 
 struct get_status_result_v0 {
-   block_position head                    = {};
-   block_position last_irreversible       = {};
-   uint32_t       trace_begin_block       = {};
-   uint32_t       trace_end_block         = {};
-   uint32_t       chain_state_begin_block = {};
-   uint32_t       chain_state_end_block   = {};
+   block_position     head                    = {};
+   block_position     last_irreversible       = {};
+   uint32_t           trace_begin_block       = {};
+   uint32_t           trace_end_block         = {};
+   uint32_t           chain_state_begin_block = {};
+   uint32_t           chain_state_end_block   = {};
+   eosio::checksum256 chain_id                = {}; // todo: switch to binary extension
 };
 
 EOSIO_REFLECT(get_status_result_v0, head, last_irreversible, trace_begin_block, trace_end_block,
-              chain_state_begin_block, chain_state_end_block)
+              chain_state_begin_block, chain_state_end_block, chain_id)
 
 struct get_blocks_request_v0 {
    uint32_t                    start_block_num        = {};

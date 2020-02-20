@@ -324,7 +324,7 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
       }
    } catch (const std::exception& e) {
       try {
-         elog("query failed: ${s}", ("s", e.what()));
+         // elog("query failed: ${s}", ("s", e.what()));
          error_results err;
          err.code       = (uint16_t)http::status::internal_server_error;
          err.message    = "Internal Service Error";

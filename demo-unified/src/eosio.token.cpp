@@ -140,6 +140,7 @@ std::vector<asset> token::gettoks(const name& owner) {
 }
 
 std::vector<char> token::loop(uint32_t n) {
+   eosio::check(n >= 10, "n is too small");
    std::vector<char> result(n);
    for (uint32_t i = 0; i < n; ++i) {
       print(i, " ");

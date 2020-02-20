@@ -108,8 +108,10 @@ struct unimplemented_callbacks {
 
    // context_free_system_api
    void eosio_assert(uint32_t test, const char* msg) {
+      // todo: bounds check
+      // todo: move out of unimplemented_callbacks.hpp
       if (test == 0)
-         throw std::runtime_error(msg);
+         throw std::runtime_error(std::string("assertion failed: ") + msg);
    }
    void eosio_assert_code(int, int64_t) { return unimplemented<void>("eosio_assert_code"); }
    void eosio_exit(int) { return unimplemented<void>("eosio_exit"); }

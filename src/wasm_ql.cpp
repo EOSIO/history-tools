@@ -613,11 +613,12 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
                "timeout after " +
                std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time).count()) +
                " ms");
-      } catch (std::exception& e) {
-         // todo: errorcode
-         at.except = tt.except = e.what();
-         tt.receipt.status     = state_history::transaction_status::soft_fail;
-         break;
+         // todo: /v1/send_transaction doesn't support this:
+         // } catch (std::exception& e) {
+         //    // todo: errorcode
+         //    at.except = tt.except = e.what();
+         //    tt.receipt.status     = state_history::transaction_status::soft_fail;
+         //    break;
       }
 
       at.receipt.emplace();

@@ -1,5 +1,11 @@
 #include "eosio.token.hpp"
 
+#define IMPORT extern "C" __attribute__((eosio_wasm_import))
+
+// clang-format off
+IMPORT void     kv_set(uint64_t db, uint64_t contract, const char* key, uint32_t key_size, const char* value, uint32_t value_size);
+// clang-format on
+
 namespace eosio {
 
 void token::create(const name& issuer, const asset& maximum_supply) {
@@ -145,6 +151,10 @@ std::vector<char> token::loop(uint32_t n) {
    for (uint32_t i = 0; i < n; ++i) {
       print(i, " ");
       result[i] = i;
+
+      uint32_t j = i * 4;
+      kv_set("eosio.kvram"_n.value, "eosio.token"_n.value, (char*)&i, 2, (char*)&j, 2);
+      // kv_set("eosio.kvdisk"_n.value, "eosio.token"_n.value, (char*)&i, sizeof(i), (char*)&j, sizeof(j));
    }
    return result;
 }

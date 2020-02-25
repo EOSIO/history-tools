@@ -4,6 +4,13 @@
 #include "get_state_row.hpp"
 #include "state_history_connection.hpp"
 
+#include "basic_callbacks.hpp"
+#include "chaindb_callbacks.hpp"
+#include "compiler_builtins_callbacks.hpp"
+#include "console_callbacks.hpp"
+#include "memory_callbacks.hpp"
+#include "unimplemented_callbacks.hpp"
+
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
@@ -26,10 +33,57 @@ using boost::system::error_code;
 struct fill_rdb_session;
 
 struct fill_rocksdb_config : connection_config {
-   uint32_t skip_to     = 0;
-   uint32_t stop_before = 0;
+   uint32_t    skip_to     = 0;
+   uint32_t    stop_before = 0;
+   std::string filter_wasm = {}; // todo: remove
    // std::vector<trx_filter> trx_filters = {};
 };
+
+// todo: remove from this plugin
+// todo: configure limits
+// todo: timeout
+namespace temp_filter_wasm {
+
+struct callbacks;
+using backend_t = eosio::vm::backend<callbacks, eosio::vm::jit>;
+using rhf_t     = eosio::vm::registered_host_functions<callbacks>;
+
+struct filter_state : history_tools::data_state<backend_t>, history_tools::console_state {
+   eosio::vm::wasm_allocator wa = {};
+};
+
+// todo: remove basic_callbacks
+struct callbacks : history_tools::basic_callbacks<callbacks>,
+                   history_tools::chaindb_callbacks<callbacks>,
+                   history_tools::compiler_builtins_callbacks<callbacks>,
+                   history_tools::console_callbacks<callbacks>,
+                   history_tools::data_callbacks<callbacks>,
+                   history_tools::memory_callbacks<callbacks>,
+                   history_tools::unimplemented_callbacks<callbacks> {
+   temp_filter_wasm::filter_state&    filter_state;
+   history_tools::chaindb_state&      chaindb_state;
+   state_history::rdb::db_view_state& db_view_state;
+
+   callbacks(temp_filter_wasm::filter_state& filter_state, history_tools::chaindb_state& chaindb_state,
+             state_history::rdb::db_view_state& db_view_state)
+       : filter_state{ filter_state }, chaindb_state{ chaindb_state }, db_view_state{ db_view_state } {}
+
+   auto& get_state() { return filter_state; }
+   auto& get_chaindb_state() { return chaindb_state; }
+   auto& get_db_view_state() { return db_view_state; }
+};
+
+void register_callbacks() {
+   history_tools::basic_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   history_tools::chaindb_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   history_tools::compiler_builtins_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   history_tools::console_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   history_tools::data_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   history_tools::memory_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+}
+
+} // namespace temp_filter_wasm
 
 struct fill_rocksdb_plugin_impl : std::enable_shared_from_this<fill_rocksdb_plugin_impl> {
    std::shared_ptr<fill_rocksdb_config> config = std::make_shared<fill_rocksdb_config>();
@@ -57,16 +111,37 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
    std::shared_ptr<chain_kv::database>  db = app().find_plugin<rocksdb_plugin>()->get_db();
    chain_kv::undo_stack                 undo_stack{ *db, chain_kv::bytes{ state_history::rdb::undo_stack_prefix } };
    chain_kv::write_session              write_session{ *db };
-   std::shared_ptr<state_history::connection> connection;
-   eosio::checksum256                         chain_id        = {};
-   uint32_t                                   head            = 0;
-   eosio::checksum256                         head_id         = {};
-   uint32_t                                   irreversible    = 0;
-   eosio::checksum256                         irreversible_id = {};
-   uint32_t                                   first           = 0;
-   bool                                       reported_block  = false;
+   std::shared_ptr<state_history::connection>      connection;
+   eosio::checksum256                              chain_id        = {};
+   uint32_t                                        head            = 0;
+   eosio::checksum256                              head_id         = {};
+   uint32_t                                        irreversible    = 0;
+   eosio::checksum256                              irreversible_id = {};
+   uint32_t                                        first           = 0;
+   bool                                            reported_block  = false;
+   std::unique_ptr<temp_filter_wasm::backend_t>    backend         = {}; // todo: remove
+   std::unique_ptr<temp_filter_wasm::filter_state> filter_state    = {}; // todo: remove
 
-   fill_rdb_session(fill_rocksdb_plugin_impl* my) : my(my), config(my->config) {}
+   fill_rdb_session(fill_rocksdb_plugin_impl* my) : my(my), config(my->config) {
+      // todo: remove
+      if (!config->filter_wasm.empty()) {
+         std::ifstream wasm_file(config->filter_wasm, std::ios::binary);
+         if (!wasm_file.is_open())
+            throw std::runtime_error("can not open " + config->filter_wasm);
+         ilog("compiling ${f}", ("f", config->filter_wasm));
+         wasm_file.seekg(0, std::ios::end);
+         int len = wasm_file.tellg();
+         if (len < 0)
+            throw std::runtime_error("wasm file length is -1");
+         std::vector<uint8_t> code(len);
+         wasm_file.seekg(0, std::ios::beg);
+         wasm_file.read((char*)code.data(), code.size());
+         wasm_file.close();
+         backend      = std::make_unique<temp_filter_wasm::backend_t>(code);
+         filter_state = std::make_unique<temp_filter_wasm::filter_state>();
+         temp_filter_wasm::rhf_t::resolve(backend->get_module());
+      }
+   }
 
    void connect(asio::io_context& ioc) {
       load_fill_status();
@@ -210,22 +285,37 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
       if (result.deltas)
          receive_deltas(result.this_block->block_num, *result.deltas);
 
+      // todo: remove
+      if (backend) {
+         history_tools::chaindb_state chaindb_state;
+         rdb::db_view_state           view_state{ eosio::name{ "state" }, *db, write_session };
+         temp_filter_wasm::callbacks  cb{ *filter_state, chaindb_state, view_state };
+         filter_state->max_console_size = 10000;
+         filter_state->console.clear();
+         filter_state->input_data = bin;
+         backend->set_wasm_allocator(&filter_state->wa);
+         backend->initialize(&cb);
+         try {
+            (*backend)(&cb, "env", "apply", uint64_t(0), uint64_t(0), uint64_t(0));
+         } catch (...) {
+            if (!filter_state->console.empty())
+               ilog("console output before exception:\n${c}", ("c", filter_state->console));
+            throw;
+         }
+         if (!filter_state->console.empty())
+            ilog("console output:\n${c}", ("c", filter_state->console));
+      }
+
       head            = result.this_block->block_num;
       head_id         = result.this_block->block_id;
       irreversible    = result.last_irreversible.block_num;
       irreversible_id = result.last_irreversible.block_id;
       if (!first || head < first)
          first = head;
-
-      // rdb::put(
-      //     active_content_batch, kv::make_received_block_key(result.this_block->block_num),
-      //     kv::received_block{result.this_block->block_num, result.this_block->block_id});
-
       if (write_now)
          end_write(write_now);
       if (near)
          db->flush(false, false);
-
       return true;
    } // receive_result()
 
@@ -303,6 +393,8 @@ fill_rocksdb_plugin::~fill_rocksdb_plugin() {}
 
 void fill_rocksdb_plugin::set_program_options(options_description& cli, options_description& cfg) {
    auto clop = cli.add_options();
+   // todo: remove
+   clop("filter-wasm", bpo::value<std::string>(), "Filter wasm");
 }
 
 void fill_rocksdb_plugin::plugin_initialize(const variables_map& options) {
@@ -317,7 +409,10 @@ void fill_rocksdb_plugin::plugin_initialize(const variables_map& options) {
       my->config->port        = port;
       my->config->skip_to     = options.count("fill-skip-to") ? options["fill-skip-to"].as<uint32_t>() : 0;
       my->config->stop_before = options.count("fill-stop") ? options["fill-stop"].as<uint32_t>() : 0;
+      my->config->filter_wasm = options.count("filter-wasm") ? options["filter-wasm"].as<std::string>() : "";
       // my->config->trx_filters = fill_plugin::get_trx_filters(options);
+
+      temp_filter_wasm::register_callbacks();
    }
    FC_LOG_AND_RETHROW()
 }

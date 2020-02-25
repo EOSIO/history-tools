@@ -492,6 +492,17 @@ EOSIO_REFLECT(contract_index_long_double_v0, code, scope, table, primary_key, pa
 
 using contract_index_long_double = std::variant<contract_index_long_double_v0>;
 
+struct key_value_v0 {
+   eosio::name         database = {};
+   eosio::name         contract = {};
+   eosio::input_stream key      = {};
+   eosio::input_stream value    = {};
+};
+
+EOSIO_REFLECT(key_value_v0, database, contract, key, value)
+
+using key_value = std::variant<key_value_v0>;
+
 struct key_weight {
    eosio::public_key key    = {};
    uint16_t          weight = {};

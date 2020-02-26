@@ -319,6 +319,7 @@ namespace state_history { namespace rdb {
       }
 
       kv_context_rocksdb& kv_get_db(uint64_t db) {
+         // todo: replace .state with .get_db_view_state()
          if (db == kvram_db_id.value)
             return derived().state.kv_ram;
          else if (db == kvdisk_db_id.value)

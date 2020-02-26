@@ -58,19 +58,20 @@ struct callbacks : history_tools::basic_callbacks<callbacks>,
                    history_tools::compiler_builtins_callbacks<callbacks>,
                    history_tools::console_callbacks<callbacks>,
                    history_tools::data_callbacks<callbacks>,
+                   state_history::rdb::db_callbacks<callbacks>,
                    history_tools::memory_callbacks<callbacks>,
                    history_tools::unimplemented_callbacks<callbacks> {
    temp_filter_wasm::filter_state&    filter_state;
    history_tools::chaindb_state&      chaindb_state;
-   state_history::rdb::db_view_state& db_view_state;
+   state_history::rdb::db_view_state& state; // todo: rename; needs change to db_callbacks
 
    callbacks(temp_filter_wasm::filter_state& filter_state, history_tools::chaindb_state& chaindb_state,
              state_history::rdb::db_view_state& db_view_state)
-       : filter_state{ filter_state }, chaindb_state{ chaindb_state }, db_view_state{ db_view_state } {}
+       : filter_state{ filter_state }, chaindb_state{ chaindb_state }, state{ db_view_state } {}
 
    auto& get_state() { return filter_state; }
    auto& get_chaindb_state() { return chaindb_state; }
-   auto& get_db_view_state() { return db_view_state; }
+   auto& get_db_view_state() { return state; }
 };
 
 void register_callbacks() {
@@ -79,6 +80,7 @@ void register_callbacks() {
    history_tools::compiler_builtins_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::console_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::data_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   state_history::rdb::db_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::memory_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }
@@ -288,7 +290,7 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
       // todo: remove
       if (backend) {
          history_tools::chaindb_state chaindb_state;
-         rdb::db_view_state           view_state{ eosio::name{ "state" }, *db, write_session };
+         rdb::db_view_state           view_state{ eosio::name{ "eosio.filter" }, *db, write_session };
          temp_filter_wasm::callbacks  cb{ *filter_state, chaindb_state, view_state };
          filter_state->max_console_size = 10000;
          filter_state->console.clear();

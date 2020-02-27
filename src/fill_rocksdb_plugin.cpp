@@ -63,15 +63,15 @@ struct callbacks : history_tools::basic_callbacks<callbacks>,
                    history_tools::unimplemented_callbacks<callbacks> {
    temp_filter_wasm::filter_state&    filter_state;
    history_tools::chaindb_state&      chaindb_state;
-   state_history::rdb::db_view_state& state; // todo: rename; needs change to db_callbacks
+   state_history::rdb::db_view_state& db_view_state;
 
    callbacks(temp_filter_wasm::filter_state& filter_state, history_tools::chaindb_state& chaindb_state,
              state_history::rdb::db_view_state& db_view_state)
-       : filter_state{ filter_state }, chaindb_state{ chaindb_state }, state{ db_view_state } {}
+       : filter_state{ filter_state }, chaindb_state{ chaindb_state }, db_view_state{ db_view_state } {}
 
    auto& get_state() { return filter_state; }
    auto& get_chaindb_state() { return chaindb_state; }
-   auto& get_db_view_state() { return state; }
+   auto& get_db_view_state() { return db_view_state; }
 };
 
 void register_callbacks() {
@@ -332,6 +332,8 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
          size_t num_processed = 0;
          store_delta({ view_state }, delta_v0, head == 0, [&]() {
             if (delta_v0.rows.size() > 10000 && !(num_processed % 10000)) {
+               if (app().is_quiting())
+                  throw std::runtime_error("shutting down");
                ilog("block ${b} ${t} ${n} of ${r}",
                     ("b", block_num)("t", delta_v0.name)("n", num_processed)("r", delta_v0.rows.size()));
                if (head == 0) {

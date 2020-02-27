@@ -137,8 +137,9 @@ using rhf_t     = eosio::vm::registered_host_functions<callbacks>;
 struct callbacks : history_tools::action_callbacks<callbacks>,
                    history_tools::basic_callbacks<callbacks>,
                    history_tools::chaindb_callbacks<callbacks>,
-                   history_tools::console_callbacks<callbacks>,
                    history_tools::compiler_builtins_callbacks<callbacks>,
+                   history_tools::console_callbacks<callbacks>,
+                   state_history::rdb::db_callbacks<callbacks>,
                    history_tools::memory_callbacks<callbacks>,
                    history_tools::unimplemented_callbacks<callbacks> {
    wasm_ql::thread_state&             thread_state;
@@ -158,8 +159,9 @@ void register_callbacks() {
    history_tools::action_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::basic_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::chaindb_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
-   history_tools::console_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::compiler_builtins_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   history_tools::console_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   state_history::rdb::db_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::memory_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }

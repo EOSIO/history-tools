@@ -249,88 +249,91 @@ namespace state_history { namespace rdb {
          derived().check_bounds(prefix, size);
          auto&    kdb = kv_get_db(db);
          uint32_t itr;
-         if (!derived().state.kv_destroyed_iterators.empty()) {
-            itr = derived().state.kv_destroyed_iterators.back();
-            derived().state.kv_destroyed_iterators.pop_back();
+         if (!derived().get_db_view_state().kv_destroyed_iterators.empty()) {
+            itr = derived().get_db_view_state().kv_destroyed_iterators.back();
+            derived().get_db_view_state().kv_destroyed_iterators.pop_back();
          } else {
             // Sanity check in case the per-database limits are set poorly
-            eosio::check(derived().state.kv_iterators.size() <= 0xFFFFFFFFu, "Too many iterators");
-            itr = derived().state.kv_iterators.size();
-            derived().state.kv_iterators.emplace_back();
+            eosio::check(derived().get_db_view_state().kv_iterators.size() <= 0xFFFFFFFFu, "Too many iterators");
+            itr = derived().get_db_view_state().kv_iterators.size();
+            derived().get_db_view_state().kv_iterators.emplace_back();
          }
-         derived().state.kv_iterators[itr] = kdb.kv_it_create(contract, prefix, size);
+         derived().get_db_view_state().kv_iterators[itr] = kdb.kv_it_create(contract, prefix, size);
          return itr;
       }
 
       void kv_it_destroy(uint32_t itr) {
          kv_check_iterator(itr);
-         derived().state.kv_destroyed_iterators.push_back(itr);
-         derived().state.kv_iterators[itr].reset();
+         derived().get_db_view_state().kv_destroyed_iterators.push_back(itr);
+         derived().get_db_view_state().kv_iterators[itr].reset();
       }
 
       int32_t kv_it_status(uint32_t itr) {
          kv_check_iterator(itr);
-         return static_cast<int32_t>(derived().state.kv_iterators[itr]->kv_it_status());
+         return static_cast<int32_t>(derived().get_db_view_state().kv_iterators[itr]->kv_it_status());
       }
 
       int32_t kv_it_compare(uint32_t itr_a, uint32_t itr_b) {
          kv_check_iterator(itr_a);
          kv_check_iterator(itr_b);
-         return derived().state.kv_iterators[itr_a]->kv_it_compare(*derived().state.kv_iterators[itr_b]);
+         return derived().get_db_view_state().kv_iterators[itr_a]->kv_it_compare(
+               *derived().get_db_view_state().kv_iterators[itr_b]);
       }
 
       int32_t kv_it_key_compare(uint32_t itr, const char* key, uint32_t size) {
          derived().check_bounds(key, size);
          kv_check_iterator(itr);
-         return derived().state.kv_iterators[itr]->kv_it_key_compare(key, size);
+         return derived().get_db_view_state().kv_iterators[itr]->kv_it_key_compare(key, size);
       }
 
       int32_t kv_it_move_to_end(uint32_t itr) {
          kv_check_iterator(itr);
-         return static_cast<int32_t>(derived().state.kv_iterators[itr]->kv_it_move_to_end());
+         return static_cast<int32_t>(derived().get_db_view_state().kv_iterators[itr]->kv_it_move_to_end());
       }
 
       int32_t kv_it_next(uint32_t itr) {
          kv_check_iterator(itr);
-         return static_cast<int32_t>(derived().state.kv_iterators[itr]->kv_it_next());
+         return static_cast<int32_t>(derived().get_db_view_state().kv_iterators[itr]->kv_it_next());
       }
 
       int32_t kv_it_prev(uint32_t itr) {
          kv_check_iterator(itr);
-         return static_cast<int32_t>(derived().state.kv_iterators[itr]->kv_it_prev());
+         return static_cast<int32_t>(derived().get_db_view_state().kv_iterators[itr]->kv_it_prev());
       }
 
       int32_t kv_it_lower_bound(uint32_t itr, const char* key, uint32_t size) {
          derived().check_bounds(key, size);
          kv_check_iterator(itr);
-         return static_cast<int32_t>(derived().state.kv_iterators[itr]->kv_it_lower_bound(key, size));
+         return static_cast<int32_t>(derived().get_db_view_state().kv_iterators[itr]->kv_it_lower_bound(key, size));
       }
 
       int32_t kv_it_key(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size) {
          derived().check_bounds(dest, size);
          kv_check_iterator(itr);
-         return static_cast<int32_t>(derived().state.kv_iterators[itr]->kv_it_key(offset, dest, size, actual_size));
+         return static_cast<int32_t>(
+               derived().get_db_view_state().kv_iterators[itr]->kv_it_key(offset, dest, size, actual_size));
       }
 
       int32_t kv_it_value(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size) {
          derived().check_bounds(dest, size);
          kv_check_iterator(itr);
-         return static_cast<int32_t>(derived().state.kv_iterators[itr]->kv_it_value(offset, dest, size, actual_size));
+         return static_cast<int32_t>(
+               derived().get_db_view_state().kv_iterators[itr]->kv_it_value(offset, dest, size, actual_size));
       }
 
       kv_context_rocksdb& kv_get_db(uint64_t db) {
-         // todo: replace .state with .get_db_view_state()
          if (db == kvram_db_id.value)
-            return derived().state.kv_ram;
+            return derived().get_db_view_state().kv_ram;
          else if (db == kvdisk_db_id.value)
-            return derived().state.kv_disk;
+            return derived().get_db_view_state().kv_disk;
          else if (db == state_db_id.value)
-            return derived().state.kv_state;
+            return derived().get_db_view_state().kv_state;
          throw std::runtime_error("Bad key-value database ID");
       }
 
       void kv_check_iterator(uint32_t itr) {
-         eosio::check(itr < derived().state.kv_iterators.size() && derived().state.kv_iterators[itr],
+         eosio::check(itr < derived().get_db_view_state().kv_iterators.size() &&
+                            derived().get_db_view_state().kv_iterators[itr],
                       "Bad key-value iterator");
       }
 
@@ -362,7 +365,8 @@ namespace state_history { namespace rdb {
       kv_environment(db_view_state& state) : state{ state } {}
       kv_environment(const kv_environment&) = default;
 
-      void check_bounds(const char*, uint32_t) {}
+      auto& get_db_view_state() { return state; }
+      void  check_bounds(const char*, uint32_t) {}
 
       void kv_set(uint64_t db, uint64_t contract, const std::vector<char>& k, const std::vector<char>& v) {
          base::kv_set(db, contract, k.data(), k.size(), v.data(), v.size());

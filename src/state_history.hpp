@@ -382,15 +382,17 @@ ABIEOS_REFLECT(key_weight) {
     ABIEOS_MEMBER(key_weight, weight)
 }
 
-struct block_signing_authority {
+struct block_signing_authority_v0 {
     uint32_t threshold = {};
     std::vector<key_weight> keys = {};
 };
 
-ABIEOS_REFLECT(block_signing_authority) {
-    ABIEOS_MEMBER(block_signing_authority, threshold)
-    ABIEOS_MEMBER(block_signing_authority, keys)
+ABIEOS_REFLECT(block_signing_authority_v0) {
+    ABIEOS_MEMBER(block_signing_authority_v0, threshold)
+    ABIEOS_MEMBER(block_signing_authority_v0, keys)
 }
+
+using block_signing_authority = std::variant<block_signing_authority_v0>;
 
 struct producer_authority {
     abieos::name producer_name = {};
@@ -462,7 +464,7 @@ struct protocol_feature_activation {
 ABIEOS_REFLECT(protocol_feature_activation) {
     ABIEOS_MEMBER(protocol_feature_activation, protocol_features)
 }
-
+/*
 namespace detail {
    struct extract_match {
       bool enforce_unique = false;
@@ -492,7 +494,7 @@ namespace detail {
       {
          if( id == head_t::extension_id() ) {
             //result = fc::raw::unpack<head_t>( data );
-             bin_to_native(v, state, true);
+             //bin_to_native(v, state, true);
             return { extract_match{ head_t::enforce_unique() } };
          }
 
@@ -513,7 +515,7 @@ using block_header_extension_types = detail::block_header_extension_types<
 >;
 
 using block_header_extension = block_header_extension_types::block_header_extension_t;
-
+*/
 struct transaction_receipt_header {
     transaction_status status          = {};
     uint32_t           cpu_usage_us    = {};
@@ -585,7 +587,7 @@ ABIEOS_REFLECT(signed_block_header) {
 }
 
 struct signed_block : signed_block_header {
-    boost::container::flat_multimap<uint16_t, block_header_extension> validate_and_extract_header_extensions() const;
+//    boost::container::flat_multimap<uint16_t, block_header_extension> validate_and_extract_header_extensions() const;
     std::vector<transaction_receipt> transactions     = {};
     std::vector<extension>           block_extensions = {};
 };
@@ -657,6 +659,7 @@ inline bool filter(const std::vector<trx_filter>& filters, const transaction_tra
     return false;
 }
 
+/*
 inline boost::container::flat_multimap<uint16_t, block_header_extension> signed_block::validate_and_extract_header_extensions() const {
    using decompose_t = block_header_extension_types::decompose_t;
 
@@ -688,5 +691,6 @@ inline boost::container::flat_multimap<uint16_t, block_header_extension> signed_
    }
    return results;
 }
+*/
 
 } // namespace state_history

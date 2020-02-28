@@ -713,6 +713,38 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             }
         }
 
+        if (block.header_extensions.size() > 0) {
+           for (auto const& xtn : block.header_extensions) {
+
+               if (xtn.type == 1) {
+                   input_buffer ib;
+                   ib.pos = xtn.data.data();
+                   ib.end = ib.pos + xtn.data.size();
+
+                   producer_authority_schedule pfa;
+                   bin_to_native(pfa, ib);
+
+                   for (auto& x : pfa.producers) {
+                       block_signing_authority_v0 bsa = std::get<block_signing_authority_v0>(x.authority);
+
+                       for (auto& y : bsa.keys) {
+                           std::string values = sql_str(bulk, block.new_producers->version) + sep(bulk) + //
+                                                sql_str(bulk, x.producer_name) + sep(bulk) +              //
+                                                sql_str(bulk, bsa.threshold) + sep(bulk) +        //
+                                                sql_str(bulk, y.weight) + sep(bulk) +                     //
+                                                quote(bulk, public_key_to_string(y.key));                 //
+                           write(block_num, t, pipeline, bulk, "producer_schedule", fields, values);
+                       }
+                   }
+
+
+               }
+
+           }
+        }
+
+
+        /*
         const auto& extensions = block.validate_and_extract_header_extensions();
         const auto& schedule = extensions.find(producer_schedule_change_extension::extension_id());
         if (schedule != extensions.end()) {
@@ -728,6 +760,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 }
             }
         }
+         */
     } // receive_block
 
     void receive_deltas(uint32_t block_num, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {

@@ -13,7 +13,7 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <fc/exception/exception.hpp>
-
+#include <boost/algorithm/string.hpp> 
 #include <pqxx/tablewriter>
 
 using namespace abieos;
@@ -35,9 +35,10 @@ struct table_stream {
     pqxx::work        t;
     pqxx::tablewriter writer;
 
-    table_stream(const std::string& name)
-        : t(c)
-        , writer(t, name) {}
+    table_stream(const std::string& db_str,const std::string& name, std::vector<std::string>& cols)
+        :c(db_str) 
+        ,t(c)
+        , writer(t, name,cols.begin(),cols.end()) {}
 };
 
 struct fpg_session;
@@ -90,7 +91,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     uint32_t                                             first_bulk      = 0;
     std::map<std::string, std::unique_ptr<table_stream>> table_streams;
     std::map<std::string, std::vector<std::string>>      abi_table_keys; // table name -> primary keys
-
+    std::set<std::string>                                prepared_query;
     fpg_session(fill_postgresql_plugin_impl* my)
         : my(my)
         , config(my->config) {
@@ -151,7 +152,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     }
 
     template <typename T>
-    void add_table_fields(pqxx::work& t, std::string& fields, const std::string& prefix) {
+    void    add_table_fields(pqxx::work& t, std::string& fields, const std::string& prefix) {
         for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
             add_table_field<typename decltype(member_ptr)::member_type>(t, fields, prefix + field_name);
         });
@@ -246,7 +247,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         t.exec("create index from_index on " + t.quote_name(config->schema) + ".action_trace (token_from, receipt_global_sequence)");
         t.exec("create index to_index on " + t.quote_name(config->schema) + ".action_trace (token_to, receipt_global_sequence)");
 
-        create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_num, transaction_ordinal",                     "block_num bigint, transaction_ordinal integer, failed_dtrx_trace varchar(64)", "partial_signatures varchar[], partial_context_free_data bytea[]");
+        create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_num, transaction_ordinal",                     "block_num bigint, transaction_ordinal integer, failed_dtrx_trace varchar(64)", "partial_signatures varchar[], partial_context_free_data bytea[], seq_id serial");
 
         t.exec("create index transaction_id_index on " + t.quote_name(config->schema) + ".transaction_trace (id, block_num)");
 
@@ -477,7 +478,6 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         trunc("action_trace_ram_delta");
         trunc("action_trace");
         trunc("transaction_trace");
-        trunc("block_info");
         for (auto& table : connection->abi.tables) {
             if (table.type == "global_property")
                 continue;
@@ -500,6 +500,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         if (!result.this_block)
             return true;
         bool bulk         = result.this_block->block_num + 4 < result.last_irreversible.block_num;
+        // std::cout << "bulk:" << result.this_block->block_num << "\t" << result.last_irreversible.block_num << std::endl;
         bool large_deltas = false;
         if (!bulk && result.deltas && result.deltas->end - result.deltas->pos >= 10 * 1024 * 1024) {
             ilog("large deltas size: ${s}", ("s", uint64_t(result.deltas->end - result.deltas->pos)));
@@ -532,6 +533,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
         pqxx::work     t(*sql_connection);
         pqxx::pipeline pipeline(t);
+        auto start_time = boost::posix_time::microsec_clock::local_time();
         if (result.this_block->block_num <= head)
             truncate(t, pipeline, result.this_block->block_num);
         if (!head_id.empty() && (!result.prev_block || (std::string)result.prev_block->block_id != head_id))
@@ -569,17 +571,24 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
         pipeline.complete();
         t.commit();
+        auto finish_time = boost::posix_time::microsec_clock::local_time();
+        std::cout << "benchmark:" << (finish_time-start_time).total_milliseconds() <<"," << result.this_block->block_num << "," << block.transactions.size() << std::endl;
         if (large_deltas)
             close_streams();
         return true;
     } // receive_result()
 
-    void write_stream(uint32_t block_num, pqxx::work& t, const std::string& name, const std::string& values) {
+    void write_stream(uint32_t block_num, pqxx::work& t, const std::string& name, const std::string& fields, const std::string& values) {
         if (!first_bulk)
             first_bulk = block_num;
-        auto& ts = table_streams[name];
-        if (!ts)
-            ts = std::make_unique<table_stream>(t.quote_name(config->schema) + "." + t.quote_name(name));
+        auto& ts = table_streams[name+fields];
+        if (!ts){
+
+            std::vector<std::string> cols;
+            boost::split(cols,fields,boost::is_any_of(","));
+            ts = std::make_unique<table_stream>(config->dbstring,t.quote_name(config->schema) + "." + t.quote_name(name),cols);
+        }
+        // std::cout << name << ":" << values << std::endl;
         ts->writer.write_raw_line(values);
     }
 
@@ -909,6 +918,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         const std::string& name, uint32_t block_num, transaction_trace_v0& ttrace, int32_t action_ordinal, int32_t& num, T& obj, bool bulk,
         pqxx::work& t, pqxx::pipeline& pipeline) {
         ++num;
+
         std::string fields = "block_num, transaction_id, action_ordinal, ordinal, transaction_status";
         std::string values = std::to_string(block_num) + sep(bulk) + quote(bulk, (std::string)ttrace.id) + sep(bulk) +
                              std::to_string(action_ordinal) + sep(bulk) + std::to_string(num) + sep(bulk) +
@@ -917,15 +927,46 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         write(name, block_num, obj, fields, values, bulk, t, pipeline);
     }
 
+
     void write(
         uint32_t block_num, pqxx::work& t, pqxx::pipeline& pipeline, bool bulk, const std::string& name, const std::string& fields,
         const std::string& values) {
         if (bulk) {
-            write_stream(block_num, t, name, values);
+            // std::cout << "write bulk with stream." << std::endl;
+            write_stream(block_num, t, name,fields, values);
         } else {
+            // std::cout << "no bulk!!!!!" << std::endl;
+            // if(prepared_query.find(t.quote_name(config->schema) + "." + t.quote_name(name)+std::to_string(std::hash<std::string>{}(fields))) == prepared_query.end()){
+
+            //     int n = std::count(fields.begin(), fields.end(), ',');
+            //     std::string pls;
+            //     for(int i = 0;i<n;i++){
+            //         pls+='$';
+            //         pls+=std::to_string(i+1);
+            //         pls+=",";
+            //     }
+            //     pls+='$';
+            //     pls+=std::to_string(n+1);
+
+
+            //     std::string prepare = 
+            //         "prepare insert_"+config->schema + "_" + name +"_" + std::to_string(std::hash<std::string>{}(fields)) + " AS insert into " + config->schema + "." + name + " (" + fields + ") values (" + pls + ")";
+
+            //     pipeline.insert(prepare);
+            //     prepared_query.insert(t.quote_name(config->schema) + "." + t.quote_name(name)+ std::to_string(std::hash<std::string>{}(fields)));
+            //     // std::cout << prepare <<std::endl;
+            // }
+
+
+            // std::string query =
+            //     "execute insert_" + config->schema + "_" + name+"_" + std::to_string(std::hash<std::string>{}(fields))+"(" + values + ")";
+            // pipeline.insert(query);
+            // std::cout << query <<std::endl;
+
             std::string query =
                 "insert into " + t.quote_name(config->schema) + "." + t.quote_name(name) + "(" + fields + ") values (" + values + ")";
             pipeline.insert(query);
+
         }
     }
 

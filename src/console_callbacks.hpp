@@ -82,9 +82,9 @@ struct console_callbacks {
    void printhex(const char* data, uint32_t len) {
       derived().check_bounds(data, len);
       auto& state = derived().get_state();
-      while (len && state.console.size() + 2 < state.max_console_size) {
+      for (uint32_t i = 0; i < len && state.console.size() + 2 < state.max_console_size; ++i) {
          static const char hex_digits[] = "0123456789ABCDEF";
-         uint8_t           byte         = data[len--];
+         uint8_t           byte         = data[i];
          state.console.push_back(hex_digits[byte >> 4]);
          state.console.push_back(hex_digits[byte & 15]);
       }

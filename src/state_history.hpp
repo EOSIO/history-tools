@@ -464,58 +464,6 @@ struct protocol_feature_activation {
 ABIEOS_REFLECT(protocol_feature_activation) {
     ABIEOS_MEMBER(protocol_feature_activation, protocol_features)
 }
-/*
-namespace detail {
-   struct extract_match {
-      bool enforce_unique = false;
-   };
-
-   template<typename... Ts>
-   struct decompose;
-
-   template<>
-   struct decompose<> {
-      template<typename ResultVariant>
-      static auto extract( uint16_t id, const std::vector<char>& data, ResultVariant& result )
-      -> fc::optional<extract_match>
-      {
-         return {};
-      }
-   };
-
-   template<typename T, typename... Rest>
-   struct decompose<T, Rest...> {
-      using head_t = T;
-      using tail_t = decompose< Rest... >;
-
-      template<typename ResultVariant>
-      static auto extract( uint16_t id, const std::vector<char>& data, ResultVariant& result )
-      -> fc::optional<extract_match>
-      {
-         if( id == head_t::extension_id() ) {
-            //result = fc::raw::unpack<head_t>( data );
-             //bin_to_native(v, state, true);
-            return { extract_match{ head_t::enforce_unique() } };
-         }
-
-         return tail_t::template extract<ResultVariant>( id, data, result );
-      }
-   };
-
-   template<typename... Ts>
-   struct block_header_extension_types {
-      using block_header_extension_t = fc::static_variant< Ts... >;
-      using decompose_t = decompose< Ts... >;
-   };
-}
-
-using block_header_extension_types = detail::block_header_extension_types<
-   protocol_feature_activation,
-   producer_schedule_change_extension
->;
-
-using block_header_extension = block_header_extension_types::block_header_extension_t;
-*/
 struct transaction_receipt_header {
     transaction_status status          = {};
     uint32_t           cpu_usage_us    = {};
@@ -587,7 +535,6 @@ ABIEOS_REFLECT(signed_block_header) {
 }
 
 struct signed_block : signed_block_header {
-//    boost::container::flat_multimap<uint16_t, block_header_extension> validate_and_extract_header_extensions() const;
     std::vector<transaction_receipt> transactions     = {};
     std::vector<extension>           block_extensions = {};
 };
@@ -658,39 +605,5 @@ inline bool filter(const std::vector<trx_filter>& filters, const transaction_tra
             return true;
     return false;
 }
-
-/*
-inline boost::container::flat_multimap<uint16_t, block_header_extension> signed_block::validate_and_extract_header_extensions() const {
-   using decompose_t = block_header_extension_types::decompose_t;
-
-   boost::container::flat_multimap<uint16_t, block_header_extension> results;
-
-   uint16_t id_type_lower_bound = 0;
-
-   for( size_t i = 0; i < header_extensions.size(); ++i ) {
-      const auto& e = header_extensions[i];
-      auto id = e.type;
-
-      if( !(id >= id_type_lower_bound) )
-         throw std::runtime_error("Block extensions are not in the correct order (ascending id types required)");
-
-      auto iter = results.emplace(std::piecewise_construct,
-         std::forward_as_tuple(id),
-         std::forward_as_tuple()
-      );
-
-      auto match = decompose_t::extract<block_header_extension>( id, e.data, iter->second );
-      if( !match )
-         throw std::runtime_error("Block extension with id type " + std::to_string(id) + " is not supported");
-
-      if( match->enforce_unique ) {
-         if( !(i == 0 || id > id_type_lower_bound) )
-                throw std::runtime_error("Block extension with id type " + std::to_string(id) + " is not allowed to repeat");
-      }
-      id_type_lower_bound = id;
-   }
-   return results;
-}
-*/
 
 } // namespace state_history

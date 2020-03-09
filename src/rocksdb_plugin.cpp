@@ -25,7 +25,7 @@ void rocksdb_plugin::set_program_options(options_description& cli, options_descr
    auto op = cfg.add_options();
    op("rdb-database", bpo::value<std::string>()->default_value("./chain.rocksdb"), "Primary database path");
    op("rdb-threads", bpo::value<uint32_t>(),
-      "Increase number of background RocksDB threads. Only used with fill_rocksdb_plugin. Recommend 8 for full history "
+      "Increase number of background RocksDB threads. Only used with cloner_plugin. Recommend 8 for full history "
       "on large chains.");
    op("rdb-max-files", bpo::value<uint32_t>(),
       "RocksDB limit max number of open files (default unlimited). This should be smaller than 'ulimit -n #'. "

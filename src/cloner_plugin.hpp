@@ -1,15 +1,14 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include "fill_plugin.hpp"
 #include "rocksdb_plugin.hpp"
 
-class fill_rocksdb_plugin : public appbase::plugin<fill_rocksdb_plugin> {
+class cloner_plugin : public appbase::plugin<cloner_plugin> {
  public:
-   APPBASE_PLUGIN_REQUIRES((fill_plugin)(rocksdb_plugin))
+   APPBASE_PLUGIN_REQUIRES((rocksdb_plugin))
 
-   fill_rocksdb_plugin();
-   virtual ~fill_rocksdb_plugin();
+   cloner_plugin();
+   virtual ~cloner_plugin();
 
    virtual void set_program_options(appbase::options_description& cli, appbase::options_description& cfg) override;
    void         plugin_initialize(const appbase::variables_map& options);
@@ -17,5 +16,5 @@ class fill_rocksdb_plugin : public appbase::plugin<fill_rocksdb_plugin> {
    void         plugin_shutdown();
 
  private:
-   std::shared_ptr<struct fill_rocksdb_plugin_impl> my;
+   std::shared_ptr<struct cloner_plugin_impl> my;
 };

@@ -20,8 +20,8 @@
 #   include "wasm_ql_pg_plugin.hpp"
 #endif
 
-#ifdef INCLUDE_FILL_ROCKSDB_PLUGIN
-#   include "fill_rocksdb_plugin.hpp"
+#ifdef INCLUDE_CLONER_PLUGIN
+#   include "cloner_plugin.hpp"
 #endif
 
 #ifdef INCLUDE_WASM_QL_PLUGIN

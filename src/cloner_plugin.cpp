@@ -1,6 +1,6 @@
 // copyright defined in LICENSE.txt
 
-#include "fill_rocksdb_plugin.hpp"
+#include "cloner_plugin.hpp"
 #include "get_state_row.hpp"
 #include "state_history_connection.hpp"
 
@@ -30,9 +30,9 @@ using asio::ip::tcp;
 using boost::beast::flat_buffer;
 using boost::system::error_code;
 
-struct fill_rdb_session;
+struct cloner_session;
 
-struct fill_rocksdb_config : connection_config {
+struct cloner_config : connection_config {
    uint32_t    skip_to     = 0;
    uint32_t    stop_before = 0;
    std::string filter_wasm = {}; // todo: remove
@@ -87,14 +87,14 @@ void register_callbacks() {
 
 } // namespace temp_filter_wasm
 
-struct fill_rocksdb_plugin_impl : std::enable_shared_from_this<fill_rocksdb_plugin_impl> {
-   std::shared_ptr<fill_rocksdb_config> config = std::make_shared<fill_rocksdb_config>();
-   std::shared_ptr<::fill_rdb_session>  session;
-   boost::asio::deadline_timer          timer;
+struct cloner_plugin_impl : std::enable_shared_from_this<cloner_plugin_impl> {
+   std::shared_ptr<cloner_config>    config = std::make_shared<cloner_config>();
+   std::shared_ptr<::cloner_session> session;
+   boost::asio::deadline_timer       timer;
 
-   fill_rocksdb_plugin_impl() : timer(app().get_io_service()) {}
+   cloner_plugin_impl() : timer(app().get_io_service()) {}
 
-   ~fill_rocksdb_plugin_impl();
+   ~cloner_plugin_impl();
 
    void schedule_retry() {
       timer.expires_from_now(boost::posix_time::seconds(1));
@@ -107,12 +107,12 @@ struct fill_rocksdb_plugin_impl : std::enable_shared_from_this<fill_rocksdb_plug
    void start();
 };
 
-struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fill_rdb_session> {
-   fill_rocksdb_plugin_impl*            my = nullptr;
-   std::shared_ptr<fill_rocksdb_config> config;
-   std::shared_ptr<chain_kv::database>  db = app().find_plugin<rocksdb_plugin>()->get_db();
-   chain_kv::undo_stack                 undo_stack{ *db, chain_kv::bytes{ state_history::rdb::undo_stack_prefix } };
-   chain_kv::write_session              write_session{ *db };
+struct cloner_session : connection_callbacks, std::enable_shared_from_this<cloner_session> {
+   cloner_plugin_impl*                 my = nullptr;
+   std::shared_ptr<cloner_config>      config;
+   std::shared_ptr<chain_kv::database> db = app().find_plugin<rocksdb_plugin>()->get_db();
+   chain_kv::undo_stack                undo_stack{ *db, chain_kv::bytes{ state_history::rdb::undo_stack_prefix } };
+   chain_kv::write_session             write_session{ *db };
    std::shared_ptr<state_history::connection>      connection;
    eosio::checksum256                              chain_id        = {};
    uint32_t                                        head            = 0;
@@ -124,7 +124,7 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
    std::unique_ptr<temp_filter_wasm::backend_t>    backend         = {}; // todo: remove
    std::unique_ptr<temp_filter_wasm::filter_state> filter_state    = {}; // todo: remove
 
-   fill_rdb_session(fill_rocksdb_plugin_impl* my) : my(my), config(my->config) {
+   cloner_session(cloner_plugin_impl* my) : my(my), config(my->config) {
       // todo: remove
       if (!config->filter_wasm.empty()) {
          std::ifstream wasm_file(config->filter_wasm, std::ios::binary);
@@ -186,7 +186,7 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
          irreversible_id = status.irreversible_id;
          first           = status.first;
       }
-      ilog("filler database status:");
+      ilog("cloner database status:");
       ilog("    revisions:    ${f} - ${r}", ("f", undo_stack.first_revision())("r", undo_stack.revision()));
       ilog("    chain:        ${a}", ("a", eosio::check(eosio::convert_to_json(chain_id)).value()));
       ilog("    head:         ${a} ${b}", ("a", head)("b", eosio::check(eosio::convert_to_json(head_id)).value()));
@@ -376,34 +376,39 @@ struct fill_rdb_session : connection_callbacks, std::enable_shared_from_this<fil
       }
    }
 
-   ~fill_rdb_session() {}
-}; // fill_rdb_session
+   ~cloner_session() {}
+}; // cloner_session
 
-static abstract_plugin& _fill_rocksdb_plugin = app().register_plugin<fill_rocksdb_plugin>();
+static abstract_plugin& _cloner_plugin = app().register_plugin<cloner_plugin>();
 
-fill_rocksdb_plugin_impl::~fill_rocksdb_plugin_impl() {
+cloner_plugin_impl::~cloner_plugin_impl() {
    if (session)
       session->my = nullptr;
 }
 
-void fill_rocksdb_plugin_impl::start() {
-   session = std::make_shared<fill_rdb_session>(this);
+void cloner_plugin_impl::start() {
+   session = std::make_shared<cloner_session>(this);
    session->connect(app().get_io_service());
 }
 
-fill_rocksdb_plugin::fill_rocksdb_plugin() : my(std::make_shared<fill_rocksdb_plugin_impl>()) {}
+cloner_plugin::cloner_plugin() : my(std::make_shared<cloner_plugin_impl>()) {}
 
-fill_rocksdb_plugin::~fill_rocksdb_plugin() {}
+cloner_plugin::~cloner_plugin() {}
 
-void fill_rocksdb_plugin::set_program_options(options_description& cli, options_description& cfg) {
+void cloner_plugin::set_program_options(options_description& cli, options_description& cfg) {
+   auto op   = cfg.add_options();
    auto clop = cli.add_options();
+   op("clone-connect-to,f", bpo::value<std::string>()->default_value("127.0.0.1:8080"),
+      "State-history endpoint to connect to (nodeos)");
+   clop("clone-skip-to,k", bpo::value<uint32_t>(), "Skip blocks before [arg]");
+   clop("clone-stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
    // todo: remove
-   clop("filter-wasm", bpo::value<std::string>(), "Filter wasm");
+   op("filter-wasm", bpo::value<std::string>(), "Filter wasm");
 }
 
-void fill_rocksdb_plugin::plugin_initialize(const variables_map& options) {
+void cloner_plugin::plugin_initialize(const variables_map& options) {
    try {
-      auto endpoint = options.at("fill-connect-to").as<std::string>();
+      auto endpoint = options.at("clone-connect-to").as<std::string>();
       if (endpoint.find(':') == std::string::npos)
          throw std::runtime_error("invalid endpoint: " + endpoint);
 
@@ -411,21 +416,20 @@ void fill_rocksdb_plugin::plugin_initialize(const variables_map& options) {
       auto host               = endpoint.substr(0, endpoint.find(':'));
       my->config->host        = host;
       my->config->port        = port;
-      my->config->skip_to     = options.count("fill-skip-to") ? options["fill-skip-to"].as<uint32_t>() : 0;
-      my->config->stop_before = options.count("fill-stop") ? options["fill-stop"].as<uint32_t>() : 0;
+      my->config->skip_to     = options.count("clone-skip-to") ? options["clone-skip-to"].as<uint32_t>() : 0;
+      my->config->stop_before = options.count("clone-stop") ? options["clone-stop"].as<uint32_t>() : 0;
       my->config->filter_wasm = options.count("filter-wasm") ? options["filter-wasm"].as<std::string>() : "";
-      // my->config->trx_filters = fill_plugin::get_trx_filters(options);
 
       temp_filter_wasm::register_callbacks();
    }
    FC_LOG_AND_RETHROW()
 }
 
-void fill_rocksdb_plugin::plugin_startup() { my->start(); }
+void cloner_plugin::plugin_startup() { my->start(); }
 
-void fill_rocksdb_plugin::plugin_shutdown() {
+void cloner_plugin::plugin_shutdown() {
    if (my->session)
       my->session->connection->close(false);
    my->timer.cancel();
-   ilog("fill_rocksdb_plugin stopped");
+   ilog("cloner_plugin stopped");
 }

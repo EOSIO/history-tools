@@ -1,7 +1,7 @@
 #pragma once
 
-#include "basic_callbacks.hpp"
 #include <compiler_builtins.hpp>
+#include <eosio/history-tools/callbacks/basic.hpp>
 #include <softfloat.hpp>
 
 namespace history_tools {

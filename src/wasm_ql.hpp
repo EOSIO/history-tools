@@ -1,9 +1,9 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include "action_callbacks.hpp"
-#include "console_callbacks.hpp"
-#include "state_history_rocksdb.hpp"
+#include <eosio/history-tools/callbacks/action.hpp>
+#include <eosio/history-tools/callbacks/console.hpp>
+#include <eosio/history-tools/callbacks/kv.hpp>
 #include "wasm_ql_plugin.hpp"
 
 #include <eosio/vm/backend.hpp>

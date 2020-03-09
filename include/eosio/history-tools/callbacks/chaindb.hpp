@@ -4,8 +4,8 @@ namespace eosio {
 using state_history::rdb::kv_environment;
 }
 #include "../wasms/table.hpp"
-#include "basic_callbacks.hpp"
-#include "state_history.hpp"
+#include <eosio/history-tools/callbacks/basic.hpp>
+#include <eosio/history-tools/state_history.hpp>
 
 #include <eosio/vm/backend.hpp>
 

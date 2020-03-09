@@ -1,8 +1,8 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include "state_history.hpp"
 #include <appbase/application.hpp>
+#include <eosio/history-tools/state_history.hpp>
 
 class fill_plugin : public appbase::plugin<fill_plugin> {
  public:

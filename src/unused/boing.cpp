@@ -1,6 +1,6 @@
-#include "basic_callbacks.hpp"
 #include "state_history_connection.hpp"
-#include "state_history_rocksdb.hpp"
+#include <eosio/history-tools/callbacks/kv.hpp>
+#include <eosio/history-tools/callbacks/basic.hpp>
 #include <fc/exception/exception.hpp>
 
 struct callbacks;

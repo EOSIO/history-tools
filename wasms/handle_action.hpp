@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../src/state_history.hpp"
 #include <eosio/asset.hpp>
 #include <eosio/check.hpp>
 #include <eosio/datastream.hpp>
+#include <eosio/history-tools/state_history.hpp>
 #include <eosio/name.hpp>
 #include <eosio/print.hpp>
 #include <vector>

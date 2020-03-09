@@ -1,12 +1,12 @@
 // copyright defined in LICENSE.txt
 
 #include "wasm_ql.hpp"
-#include "chaindb_callbacks.hpp"
-#include "compiler_builtins_callbacks.hpp"
-#include "console_callbacks.hpp"
 #include "get_state_row.hpp"
-#include "memory_callbacks.hpp"
-#include "unimplemented_callbacks.hpp"
+#include <eosio/history-tools/callbacks/chaindb.hpp>
+#include <eosio/history-tools/callbacks/compiler_builtins.hpp>
+#include <eosio/history-tools/callbacks/console.hpp>
+#include <eosio/history-tools/callbacks/memory.hpp>
+#include <eosio/history-tools/callbacks/unimplemented.hpp>
 
 #include <boost/multi_index/member.hpp>
 #include <boost/multi_index/ordered_index.hpp>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "basic_callbacks.hpp"
+#include <eosio/history-tools/callbacks/basic.hpp>
 
 namespace history_tools {
 

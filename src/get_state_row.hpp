@@ -1,4 +1,4 @@
-#include "state_history_rocksdb.hpp"
+#include <eosio/history-tools/callbacks/kv.hpp>
 
 namespace eosio {
 using state_history::rdb::kv_environment;

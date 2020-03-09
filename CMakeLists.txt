@@ -116,6 +116,7 @@ function(add_app APP MAIN FLAGS LIBS)
             external/eos-vm/include
             external/eos-vm/external/softfloat/source/include
             external/fc/include
+            include
             ${Boost_INCLUDE_DIR}
             ${JS_INCLUDE_DIRS}
             ${ROCKSDB_INCLUDE_DIR}

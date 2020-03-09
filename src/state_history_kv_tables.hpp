@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../src/state_history.hpp"
 #include "../wasms/table.hpp"
+#include <eosio/history-tools/state_history.hpp>
 #include <eosio/to_key.hpp>
 
 namespace abieos {

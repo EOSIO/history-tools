@@ -1,7 +1,7 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include "state_history_rocksdb.hpp"
+#include <eosio/history-tools/callbacks/kv.hpp>
 #include <appbase/application.hpp>
 
 class rocksdb_plugin : public appbase::plugin<rocksdb_plugin> {

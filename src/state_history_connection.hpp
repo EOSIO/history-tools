@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "state_history.hpp"
+#include <eosio/history-tools/state_history.hpp>
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>

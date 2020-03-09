@@ -1,6 +1,6 @@
 #pragma once
 
-#include "state_history.hpp"
+#include <eosio/history-tools/state_history.hpp>
 
 namespace state_history {
 

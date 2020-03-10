@@ -4,7 +4,7 @@
 #include <eosio/history-tools/callbacks/basic.hpp>
 #include <softfloat.hpp>
 
-namespace history_tools {
+namespace eosio { namespace history_tools {
 
 template <typename Derived>
 struct compiler_builtins_callbacks {
@@ -316,4 +316,5 @@ struct compiler_builtins_callbacks {
       Rft::template add<Derived, &Derived::__trunctfsf2, Allocator>("env", "__trunctfsf2");
    }
 };
-} // namespace history_tools
+
+}} // namespace eosio::history_tools

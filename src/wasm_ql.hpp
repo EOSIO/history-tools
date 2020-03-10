@@ -8,7 +8,7 @@
 
 #include <eosio/vm/backend.hpp>
 
-namespace wasm_ql {
+namespace eosio { namespace wasm_ql {
 
 class backend_cache;
 
@@ -24,7 +24,7 @@ struct shared_state {
    ~shared_state();
 };
 
-struct thread_state : history_tools::action_state, history_tools::console_state {
+struct thread_state : eosio::history_tools::action_state, eosio::history_tools::console_state {
    std::shared_ptr<const shared_state> shared = {};
    eosio::vm::wasm_allocator           wa     = {};
 };
@@ -37,4 +37,4 @@ const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, std:
 const std::vector<char>& query_get_required_keys(wasm_ql::thread_state& thread_state, std::string_view body);
 const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_state, std::string_view body);
 
-} // namespace wasm_ql
+}} // namespace eosio::wasm_ql

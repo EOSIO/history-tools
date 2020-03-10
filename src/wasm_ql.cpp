@@ -28,6 +28,8 @@ using boost::multi_index::ordered_non_unique;
 using boost::multi_index::sequenced;
 using boost::multi_index::tag;
 
+namespace history_tools = eosio::history_tools;
+
 namespace eosio {
 
 // todo: move to abieos
@@ -44,6 +46,7 @@ result<void> to_json(const std::pair<uint16_t, std::vector<char>>&, S& stream) {
 
 }; // namespace eosio
 
+namespace eosio {
 namespace wasm_ql {
 
 // todo: replace
@@ -139,15 +142,15 @@ struct callbacks : history_tools::action_callbacks<callbacks>,
                    history_tools::chaindb_callbacks<callbacks>,
                    history_tools::compiler_builtins_callbacks<callbacks>,
                    history_tools::console_callbacks<callbacks>,
-                   state_history::rdb::db_callbacks<callbacks>,
+                   history_tools::db_callbacks<callbacks>,
                    history_tools::memory_callbacks<callbacks>,
                    history_tools::unimplemented_callbacks<callbacks> {
    wasm_ql::thread_state&             thread_state;
    history_tools::chaindb_state&      chaindb_state;
-   state_history::rdb::db_view_state& db_view_state;
+   history_tools::db_view_state&      db_view_state;
 
    callbacks(wasm_ql::thread_state& thread_state, history_tools::chaindb_state& chaindb_state,
-             state_history::rdb::db_view_state& db_view_state)
+             history_tools::db_view_state& db_view_state)
        : thread_state{ thread_state }, chaindb_state{ chaindb_state }, db_view_state{ db_view_state } {}
 
    auto& get_state() { return thread_state; }
@@ -161,7 +164,7 @@ void register_callbacks() {
    history_tools::chaindb_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::compiler_builtins_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::console_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
-   state_history::rdb::db_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   history_tools::db_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::memory_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }
@@ -248,8 +251,7 @@ std::optional<std::vector<uint8_t>> read_code(wasm_ql::thread_state& thread_stat
    return code;
 }
 
-std::optional<eosio::checksum256> get_contract_hash(state_history::rdb::db_view_state& db_view_state,
-                                                    eosio::name                        account) {
+std::optional<eosio::checksum256> get_contract_hash(history_tools::db_view_state& db_view_state, eosio::name account) {
    std::optional<eosio::checksum256> result;
    auto                              meta = get_state_row<state_history::account_metadata>(
          db_view_state.kv_state.view,
@@ -262,7 +264,7 @@ std::optional<eosio::checksum256> get_contract_hash(state_history::rdb::db_view_
    return result;
 }
 
-std::optional<std::vector<uint8_t>> read_contract(state_history::rdb::db_view_state& db_view_state,
+std::optional<std::vector<uint8_t>> read_contract(history_tools::db_view_state& db_view_state,
                                                   const eosio::checksum256& hash, eosio::name account) {
    std::optional<std::vector<uint8_t>> result;
    auto                                code_row = get_state_row<state_history::code>(
@@ -285,7 +287,7 @@ void run_action(wasm_ql::thread_state& thread_state, state_history::action& acti
 
    rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
    chain_kv::write_session           write_session{ *thread_state.shared->db, snapshot.snapshot() };
-   state_history::rdb::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
+   history_tools::db_view_state      db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
 
    std::optional<backend_entry>        entry = thread_state.shared->backend_cache->get(action.account);
    std::optional<std::vector<uint8_t>> code;
@@ -338,7 +340,7 @@ void run_action(wasm_ql::thread_state& thread_state, state_history::action& acti
 const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {
    rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
    chain_kv::write_session           write_session{ *thread_state.shared->db, snapshot.snapshot() };
-   state_history::rdb::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
+   history_tools::db_view_state      db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
 
    std::string result = "{\"server-type\":\"wasm-ql\"";
 
@@ -393,7 +395,7 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
 
    rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
    chain_kv::write_session           write_session{ *thread_state.shared->db, snapshot.snapshot() };
-   state_history::rdb::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
+   history_tools::db_view_state      db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
 
    std::string              bn_json = "\"" + params.block_num_or_id + "\"";
    eosio::json_token_stream bn_stream{ bn_json.data() };
@@ -461,7 +463,7 @@ const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, std:
 
    rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
    chain_kv::write_session           write_session{ *thread_state.shared->db, snapshot.snapshot() };
-   state_history::rdb::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
+   history_tools::db_view_state      db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
 
    auto acc = get_state_row<state_history::account>(
          db_view_state.kv_state.view,
@@ -633,4 +635,4 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
    return thread_state.action_return_value;
 } // query_send_transaction
 
-} // namespace wasm_ql
+}} // namespace eosio::wasm_ql

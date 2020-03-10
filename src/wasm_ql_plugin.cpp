@@ -23,8 +23,10 @@
 #include <fc/log/logger.hpp>
 
 using namespace appbase;
-using namespace wasm_ql;
+using namespace eosio::wasm_ql;
 using namespace std::literals;
+
+namespace wasm_ql = eosio::wasm_ql;
 
 static abstract_plugin& _wasm_ql_plugin = app().register_plugin<wasm_ql_plugin>();
 

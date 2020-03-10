@@ -9,7 +9,7 @@
 #include <rocksdb/db.h>
 #include <rocksdb/table.h>
 
-namespace state_history { namespace rdb {
+namespace eosio { namespace history_tools {
 
    inline constexpr eosio::name kvram_db_id{ "eosio.kvram" };
    inline constexpr eosio::name kvdisk_db_id{ "eosio.kvdisk" };
@@ -373,4 +373,4 @@ namespace state_history { namespace rdb {
       }
    };
 
-}} // namespace state_history::rdb
+}} // namespace eosio::history_tools

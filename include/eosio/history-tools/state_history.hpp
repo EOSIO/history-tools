@@ -15,7 +15,7 @@ result<void> to_json(const input_stream& data, S& stream) {
 }
 } // namespace eosio
 
-namespace state_history {
+namespace eosio { namespace state_history {
 
 typedef __uint128_t uint128_t;
 
@@ -756,4 +756,4 @@ EOSIO_REFLECT(resource_limits_config_v0, cpu_limit_parameters, net_limit_paramet
 
 using resource_limits_config = std::variant<resource_limits_config_v0>;
 
-} // namespace state_history
+}} // namespace eosio::state_history

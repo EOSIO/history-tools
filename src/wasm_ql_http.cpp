@@ -58,7 +58,7 @@ struct error_results {
 
 EOSIO_REFLECT(error_results, code, message, error)
 
-namespace wasm_ql {
+namespace eosio { namespace wasm_ql {
 
 class thread_state_cache {
  private:
@@ -611,4 +611,4 @@ std::shared_ptr<http_server> http_server::create(const std::shared_ptr<const htt
    return server;
 }
 
-} // namespace wasm_ql
+}} // namespace eosio::wasm_ql

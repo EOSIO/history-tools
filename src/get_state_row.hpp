@@ -1,7 +1,7 @@
 #include <eosio/history-tools/callbacks/kv.hpp>
 
 namespace eosio {
-using state_history::rdb::kv_environment;
+using history_tools::kv_environment;
 }
 #include "state_history_kv_tables.hpp"
 

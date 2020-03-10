@@ -19,12 +19,13 @@
 
 using namespace appbase;
 using namespace std::literals;
-using namespace state_history;
+using namespace eosio::state_history;
 
-namespace asio      = boost::asio;
-namespace bpo       = boost::program_options;
-namespace rdb       = state_history::rdb;
-namespace websocket = boost::beast::websocket;
+namespace asio          = boost::asio;
+namespace bpo           = boost::program_options;
+namespace websocket     = boost::beast::websocket;
+namespace history_tools = eosio::history_tools;
+namespace state_history = eosio::state_history;
 
 using asio::ip::tcp;
 using boost::beast::flat_buffer;
@@ -58,15 +59,15 @@ struct callbacks : history_tools::basic_callbacks<callbacks>,
                    history_tools::compiler_builtins_callbacks<callbacks>,
                    history_tools::console_callbacks<callbacks>,
                    history_tools::data_callbacks<callbacks>,
-                   state_history::rdb::db_callbacks<callbacks>,
+                   history_tools::db_callbacks<callbacks>,
                    history_tools::memory_callbacks<callbacks>,
                    history_tools::unimplemented_callbacks<callbacks> {
-   temp_filter_wasm::filter_state&    filter_state;
-   history_tools::chaindb_state&      chaindb_state;
-   state_history::rdb::db_view_state& db_view_state;
+   temp_filter_wasm::filter_state& filter_state;
+   history_tools::chaindb_state&   chaindb_state;
+   history_tools::db_view_state&   db_view_state;
 
    callbacks(temp_filter_wasm::filter_state& filter_state, history_tools::chaindb_state& chaindb_state,
-             state_history::rdb::db_view_state& db_view_state)
+             history_tools::db_view_state& db_view_state)
        : filter_state{ filter_state }, chaindb_state{ chaindb_state }, db_view_state{ db_view_state } {}
 
    auto& get_state() { return filter_state; }
@@ -80,7 +81,7 @@ void register_callbacks() {
    history_tools::compiler_builtins_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::console_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::data_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
-   state_history::rdb::db_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   history_tools::db_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::memory_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }
@@ -108,21 +109,21 @@ struct cloner_plugin_impl : std::enable_shared_from_this<cloner_plugin_impl> {
 };
 
 struct cloner_session : connection_callbacks, std::enable_shared_from_this<cloner_session> {
-   cloner_plugin_impl*                 my = nullptr;
-   std::shared_ptr<cloner_config>      config;
-   std::shared_ptr<chain_kv::database> db = app().find_plugin<rocksdb_plugin>()->get_db();
-   chain_kv::undo_stack                undo_stack{ *db, chain_kv::bytes{ state_history::rdb::undo_stack_prefix } };
-   chain_kv::write_session             write_session{ *db };
-   std::shared_ptr<state_history::connection>      connection;
-   eosio::checksum256                              chain_id        = {};
-   uint32_t                                        head            = 0;
-   eosio::checksum256                              head_id         = {};
-   uint32_t                                        irreversible    = 0;
-   eosio::checksum256                              irreversible_id = {};
-   uint32_t                                        first           = 0;
-   bool                                            reported_block  = false;
-   std::unique_ptr<temp_filter_wasm::backend_t>    backend         = {}; // todo: remove
-   std::unique_ptr<temp_filter_wasm::filter_state> filter_state    = {}; // todo: remove
+   cloner_plugin_impl*                          my = nullptr;
+   std::shared_ptr<cloner_config>               config;
+   std::shared_ptr<chain_kv::database>          db = app().find_plugin<rocksdb_plugin>()->get_db();
+   chain_kv::undo_stack                         undo_stack{ *db, chain_kv::bytes{ history_tools::undo_stack_prefix } };
+   chain_kv::write_session                      write_session{ *db };
+   std::shared_ptr<state_history::connection>   connection;
+   eosio::checksum256                           chain_id        = {};
+   uint32_t                                     head            = 0;
+   eosio::checksum256                           head_id         = {};
+   uint32_t                                     irreversible    = 0;
+   eosio::checksum256                           irreversible_id = {};
+   uint32_t                                     first           = 0;
+   bool                                         reported_block  = false;
+   std::unique_ptr<temp_filter_wasm::backend_t> backend         = {}; // todo: remove
+   std::unique_ptr<temp_filter_wasm::filter_state> filter_state = {}; // todo: remove
 
    cloner_session(cloner_plugin_impl* my) : my(my), config(my->config) {
       // todo: remove
@@ -174,9 +175,9 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
 
    void load_fill_status() {
       write_session.wipe_cache();
-      rdb::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
-      fill_status_kv     table{ { view_state } };
-      auto               it = table.begin();
+      history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
+      fill_status_kv               table{ { view_state } };
+      auto                         it = table.begin();
       if (it != table.end()) {
          auto status     = std::get<0>(it.get());
          chain_id        = status.chain_id;
@@ -197,7 +198,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
    std::vector<block_position> get_positions() {
       std::vector<block_position> result;
       if (head) {
-         rdb::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
+         history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
          for (uint32_t i = irreversible; i <= head; ++i) {
             auto info = get_state_row<state_history::block_info>(
                   view_state.kv_state.view, std::make_tuple(eosio::name{ "block.info" }, eosio::name{ "primary" }, i));
@@ -227,8 +228,8 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
                                                  .irreversible_id = head_id,
                                                  .first           = first };
 
-      rdb::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
-      fill_status_kv     table{ { view_state } };
+      history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
+      fill_status_kv               table{ { view_state } };
       table.insert(status);
    }
 
@@ -290,7 +291,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       // todo: remove
       if (backend) {
          history_tools::chaindb_state chaindb_state;
-         rdb::db_view_state           view_state{ eosio::name{ "eosio.filter" }, *db, write_session };
+         history_tools::db_view_state view_state{ eosio::name{ "eosio.filter" }, *db, write_session };
          temp_filter_wasm::callbacks  cb{ *filter_state, chaindb_state, view_state };
          filter_state->max_console_size = 10000;
          filter_state->console.clear();
@@ -322,8 +323,8 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
    } // receive_result()
 
    void receive_deltas(uint32_t block_num, eosio::input_stream bin) {
-      rdb::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
-      uint32_t           num;
+      history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
+      uint32_t                     num;
       eosio::check_discard(eosio::varuint32_from_bin(num, bin));
       for (uint32_t i = 0; i < num; ++i) {
          state_history::table_delta delta;
@@ -363,8 +364,8 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       info.new_producers      = block.new_producers;
       info.producer_signature = block.producer_signature;
 
-      rdb::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
-      block_info_kv      table{ { view_state } };
+      history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
+      block_info_kv                table{ { view_state } };
       table.insert(info);
    }
 

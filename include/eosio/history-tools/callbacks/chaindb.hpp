@@ -1,15 +1,15 @@
 #pragma once
 
+#include <eosio/history-tools/callbacks/kv.hpp>
 namespace eosio {
-using state_history::rdb::kv_environment;
+using history_tools::kv_environment;
 }
-#include "../wasms/table.hpp"
-#include <eosio/history-tools/callbacks/basic.hpp>
-#include <eosio/history-tools/state_history.hpp>
 
+#include "../wasms/table.hpp"
+#include <eosio/history-tools/state_history.hpp>
 #include <eosio/vm/backend.hpp>
 
-namespace history_tools {
+namespace eosio { namespace history_tools {
 
 class iterator_cache {
  private:
@@ -262,4 +262,4 @@ struct chaindb_callbacks {
    }
 };
 
-} // namespace history_tools
+}} // namespace eosio::history_tools

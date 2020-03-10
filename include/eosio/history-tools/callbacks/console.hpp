@@ -3,7 +3,7 @@
 #include <eosio/history-tools/callbacks/basic.hpp>
 #include <eosio/to_json.hpp>
 
-namespace history_tools {
+namespace eosio { namespace history_tools {
 
 struct console_state {
    uint32_t    max_console_size = 0;
@@ -105,4 +105,4 @@ struct console_callbacks {
    }
 }; // console_callbacks
 
-} // namespace history_tools
+}} // namespace eosio::history_tools

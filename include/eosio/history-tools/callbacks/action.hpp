@@ -2,7 +2,7 @@
 
 #include <eosio/history-tools/callbacks/basic.hpp>
 
-namespace history_tools {
+namespace eosio { namespace history_tools {
 
 struct action_state {
    eosio::name         receiver{};
@@ -47,4 +47,4 @@ struct action_callbacks {
    }
 }; // action_callbacks
 
-} // namespace history_tools
+}} // namespace eosio::history_tools

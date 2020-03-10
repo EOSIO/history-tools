@@ -29,7 +29,7 @@ namespace eosio { namespace vm {
 
 }} // namespace eosio::vm
 
-namespace history_tools {
+namespace eosio { namespace history_tools {
 
 struct assert_exception : std::exception {
    std::string msg;
@@ -124,4 +124,4 @@ struct data_callbacks {
    }
 };
 
-} // namespace history_tools
+}} // namespace eosio::history_tools

@@ -3,7 +3,7 @@
 #pragma once
 #include "wasm_ql.hpp"
 
-namespace wasm_ql {
+namespace eosio { namespace wasm_ql {
 
 struct http_config {
    uint32_t    num_threads      = {};
@@ -24,4 +24,4 @@ struct http_server {
    virtual void stop() = 0;
 };
 
-} // namespace wasm_ql
+}} // namespace eosio::wasm_ql

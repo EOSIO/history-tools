@@ -2,7 +2,7 @@
 
 #include <eosio/history-tools/callbacks/basic.hpp>
 
-namespace history_tools {
+namespace eosio { namespace history_tools {
 
 template <typename Derived>
 struct memory_callbacks {
@@ -47,4 +47,4 @@ struct memory_callbacks {
    }
 }; // memory_callbacks
 
-} // namespace history_tools
+}} // namespace eosio::history_tools

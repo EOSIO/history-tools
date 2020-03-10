@@ -2,7 +2,7 @@
 
 #include <eosio/history-tools/callbacks/basic.hpp>
 
-namespace history_tools {
+namespace eosio { namespace history_tools {
 
 template <typename Derived>
 struct unimplemented_callbacks {
@@ -250,4 +250,4 @@ struct unimplemented_callbacks {
    } // register_callbacks()
 };   // unimplemented_callbacks
 
-} // namespace history_tools
+}} // namespace eosio::history_tools

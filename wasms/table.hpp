@@ -122,7 +122,7 @@ class table {
     friend iterator;
     friend proxy;
 
-    kv_environment environment;
+    history_tools::kv_environment environment;
 
     template <typename KVE = kv_environment>
     table(typename std::enable_if_t<std::is_constructible_v<KVE>, default_constructor_tag>* = nullptr) {}

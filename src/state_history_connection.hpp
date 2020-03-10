@@ -11,7 +11,7 @@
 #include <eosio/abi.hpp>
 #include <fc/exception/exception.hpp>
 
-namespace state_history {
+namespace eosio { namespace state_history {
 
 struct connection_callbacks {
    virtual ~connection_callbacks() = default;
@@ -196,4 +196,4 @@ struct connection : std::enable_shared_from_this<connection> {
    }
 }; // connection
 
-} // namespace state_history
+}} // namespace eosio::state_history

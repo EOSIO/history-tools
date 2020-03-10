@@ -14,7 +14,7 @@ eosio::result<void> to_key(const checksum256& obj, S& stream) {
 
 } // namespace abieos
 
-namespace state_history {
+namespace eosio { namespace state_history {
 
 struct fill_status_v0 {
    eosio::checksum256 chain_id        = {};
@@ -259,4 +259,4 @@ inline void store_deltas(eosio::kv_environment environment, std::vector<table_de
       store_delta(environment, std::get<table_delta_v0>(delta), bypass_preexist_check, [] {});
 }
 
-} // namespace state_history
+}} // namespace eosio::state_history

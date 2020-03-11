@@ -69,7 +69,7 @@ BreakConstructorInitializers: BeforeColon
 CompactNamespaces: true
 IndentCaseLabels: true
 IndentPPDirectives: AfterHash
-NamespaceIndentation: Inner
+NamespaceIndentation: None
 ReflowComments: false
 SortIncludes: true
 SortUsingDeclarations: true

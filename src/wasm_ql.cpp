@@ -46,8 +46,7 @@ result<void> to_json(const std::pair<uint16_t, std::vector<char>>&, S& stream) {
 
 }; // namespace eosio
 
-namespace eosio {
-namespace wasm_ql {
+namespace eosio { namespace wasm_ql {
 
 // todo: replace
 struct hex_bytes {
@@ -75,7 +74,7 @@ struct result_action_trace {
    eosio::varuint32                     creator_action_ordinal = {};
    std::optional<result_action_receipt> receipt                = {};
    eosio::name                          receiver               = {};
-   state_history::action                act                    = {};
+   ship_protocol::action                act                    = {};
    bool                                 context_free           = {};
    int64_t                              elapsed                = {};
    std::string                          console                = {};
@@ -89,7 +88,7 @@ EOSIO_REFLECT(result_action_trace, action_ordinal, creator_action_ordinal, recei
               elapsed, console, account_ram_deltas, except, error_code, return_value)
 
 struct result_transaction_receipt {
-   state_history::transaction_status status          = {};
+   ship_protocol::transaction_status status          = {};
    uint32_t                          cpu_usage_us    = {};
    eosio::varuint32                  net_usage_words = {};
 };
@@ -145,9 +144,9 @@ struct callbacks : history_tools::action_callbacks<callbacks>,
                    history_tools::db_callbacks<callbacks>,
                    history_tools::memory_callbacks<callbacks>,
                    history_tools::unimplemented_callbacks<callbacks> {
-   wasm_ql::thread_state&             thread_state;
-   history_tools::chaindb_state&      chaindb_state;
-   history_tools::db_view_state&      db_view_state;
+   wasm_ql::thread_state&        thread_state;
+   history_tools::chaindb_state& chaindb_state;
+   history_tools::db_view_state& db_view_state;
 
    callbacks(wasm_ql::thread_state& thread_state, history_tools::chaindb_state& chaindb_state,
              history_tools::db_view_state& db_view_state)
@@ -253,12 +252,12 @@ std::optional<std::vector<uint8_t>> read_code(wasm_ql::thread_state& thread_stat
 
 std::optional<eosio::checksum256> get_contract_hash(history_tools::db_view_state& db_view_state, eosio::name account) {
    std::optional<eosio::checksum256> result;
-   auto                              meta = get_state_row<state_history::account_metadata>(
+   auto                              meta = get_state_row<ship_protocol::account_metadata>(
          db_view_state.kv_state.view,
          std::make_tuple(eosio::name{ "account.meta" }, eosio::name{ "primary" }, account));
    if (!meta)
       return result;
-   auto& meta0 = std::get<state_history::account_metadata_v0>(meta->second);
+   auto& meta0 = std::get<ship_protocol::account_metadata_v0>(meta->second);
    if (!meta0.code->vm_type && !meta0.code->vm_version)
       result = meta0.code->code_hash;
    return result;
@@ -267,12 +266,12 @@ std::optional<eosio::checksum256> get_contract_hash(history_tools::db_view_state
 std::optional<std::vector<uint8_t>> read_contract(history_tools::db_view_state& db_view_state,
                                                   const eosio::checksum256& hash, eosio::name account) {
    std::optional<std::vector<uint8_t>> result;
-   auto                                code_row = get_state_row<state_history::code>(
+   auto                                code_row = get_state_row<ship_protocol::code>(
          db_view_state.kv_state.view,
          std::make_tuple(eosio::name{ "code" }, eosio::name{ "primary" }, uint8_t(0), uint8_t(0), hash));
    if (!code_row)
       return result;
-   auto& code0 = std::get<state_history::code_v0>(code_row->second);
+   auto& code0 = std::get<ship_protocol::code_v0>(code_row->second);
 
    // todo: avoid copy
    result.emplace(code0.code.pos, code0.code.end);
@@ -280,14 +279,14 @@ std::optional<std::vector<uint8_t>> read_contract(history_tools::db_view_state& 
    return result;
 }
 
-void run_action(wasm_ql::thread_state& thread_state, state_history::action& action, result_action_trace& atrace,
+void run_action(wasm_ql::thread_state& thread_state, ship_protocol::action& action, result_action_trace& atrace,
                 const std::chrono::steady_clock::time_point& stop_time) {
    if (std::chrono::steady_clock::now() >= stop_time)
       throw eosio::vm::timeout_exception("execution timed out");
 
-   rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
-   chain_kv::write_session           write_session{ *thread_state.shared->db, snapshot.snapshot() };
-   history_tools::db_view_state      db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
+   rocksdb::ManagedSnapshot     snapshot{ thread_state.shared->db->rdb.get() };
+   chain_kv::write_session      write_session{ *thread_state.shared->db, snapshot.snapshot() };
+   history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
 
    std::optional<backend_entry>        entry = thread_state.shared->backend_cache->get(action.account);
    std::optional<std::vector<uint8_t>> code;
@@ -338,18 +337,18 @@ void run_action(wasm_ql::thread_state& thread_state, state_history::action& acti
 }
 
 const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {
-   rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
-   chain_kv::write_session           write_session{ *thread_state.shared->db, snapshot.snapshot() };
-   history_tools::db_view_state      db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
+   rocksdb::ManagedSnapshot     snapshot{ thread_state.shared->db->rdb.get() };
+   chain_kv::write_session      write_session{ *thread_state.shared->db, snapshot.snapshot() };
+   history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
 
    std::string result = "{\"server-type\":\"wasm-ql\"";
 
    {
-      state_history::global_property_kv table{ { db_view_state } };
+      ship_protocol::global_property_kv table{ { db_view_state } };
       bool                              found = false;
       if (table.begin() != table.end()) {
          auto record = table.begin().get();
-         if (auto* obj = std::get_if<state_history::global_property_v1>(&record)) {
+         if (auto* obj = std::get_if<ship_protocol::global_property_v1>(&record)) {
             found = true;
             result += ",\"chain_id\":" + eosio::check(eosio::convert_to_json(obj->chain_id)).value();
          }
@@ -359,7 +358,7 @@ const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {
    }
 
    {
-      state_history::fill_status_kv table{ { db_view_state } };
+      ship_protocol::fill_status_kv table{ { db_view_state } };
       if (table.begin() != table.end()) {
          std::visit(
                [&](auto& obj) {
@@ -393,30 +392,30 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
    if (auto r = from_json(params, stream); !r)
       throw std::runtime_error("An error occurred deserializing get_block_params: " + r.error().message());
 
-   rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
-   chain_kv::write_session           write_session{ *thread_state.shared->db, snapshot.snapshot() };
-   history_tools::db_view_state      db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
+   rocksdb::ManagedSnapshot     snapshot{ thread_state.shared->db->rdb.get() };
+   chain_kv::write_session      write_session{ *thread_state.shared->db, snapshot.snapshot() };
+   history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
 
    std::string              bn_json = "\"" + params.block_num_or_id + "\"";
    eosio::json_token_stream bn_stream{ bn_json.data() };
 
-   std::optional<std::pair<std::shared_ptr<const chain_kv::bytes>, state_history::block_info>> info;
+   std::optional<std::pair<std::shared_ptr<const chain_kv::bytes>, ship_protocol::block_info>> info;
    if (params.block_num_or_id.size() == 64) {
       eosio::checksum256 id;
       if (auto r = from_json(id, bn_stream); !r)
          throw std::runtime_error("An error occurred deserializing block_num_or_id: " + r.error().message());
-      info = get_state_row_secondary<state_history::block_info>(
+      info = get_state_row_secondary<ship_protocol::block_info>(
             db_view_state.kv_state.view, std::make_tuple(eosio::name{ "block.info" }, eosio::name{ "id" }, id));
    } else {
       uint32_t num;
       if (auto r = from_json(num, bn_stream); !r)
          throw std::runtime_error("An error occurred deserializing block_num_or_id: " + r.error().message());
-      info = get_state_row<state_history::block_info>(
+      info = get_state_row<ship_protocol::block_info>(
             db_view_state.kv_state.view, std::make_tuple(eosio::name{ "block.info" }, eosio::name{ "primary" }, num));
    }
 
    if (info) {
-      auto&    obj = std::get<state_history::block_info_v0>(info->second);
+      auto&    obj = std::get<ship_protocol::block_info_v0>(info->second);
       uint32_t ref_block_prefix;
       memcpy(&ref_block_prefix, obj.id.value.begin() + 8, sizeof(ref_block_prefix));
 
@@ -461,16 +460,16 @@ const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, std:
    if (auto r = from_json(params, stream); !r)
       throw std::runtime_error("An error occurred deserializing get_abi_params: " + r.error().message());
 
-   rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
-   chain_kv::write_session           write_session{ *thread_state.shared->db, snapshot.snapshot() };
-   history_tools::db_view_state      db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
+   rocksdb::ManagedSnapshot     snapshot{ thread_state.shared->db->rdb.get() };
+   chain_kv::write_session      write_session{ *thread_state.shared->db, snapshot.snapshot() };
+   history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
 
-   auto acc = get_state_row<state_history::account>(
+   auto acc = get_state_row<ship_protocol::account>(
          db_view_state.kv_state.view,
          std::make_tuple(eosio::name{ "account" }, eosio::name{ "primary" }, params.account_name));
    if (!acc)
       throw std::runtime_error("account " + (std::string)params.account_name + " not found");
-   auto& acc0 = std::get<state_history::account_v0>(acc->second);
+   auto& acc0 = std::get<ship_protocol::account_v0>(acc->second);
 
    get_abi_result result;
    result.account_name = acc0.name;
@@ -489,7 +488,7 @@ const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, std:
 struct action_no_data {
    eosio::name                                  account       = {};
    eosio::name                                  name          = {};
-   std::vector<state_history::permission_level> authorization = {};
+   std::vector<ship_protocol::permission_level> authorization = {};
 };
 
 struct extension_hex_data {
@@ -501,13 +500,13 @@ EOSIO_REFLECT(extension_hex_data, type, data)
 
 EOSIO_REFLECT(action_no_data, account, name, authorization)
 
-struct transaction_for_get_keys : state_history::transaction_header {
+struct transaction_for_get_keys : ship_protocol::transaction_header {
    std::vector<action_no_data>     context_free_actions   = {};
    std::vector<action_no_data>     actions                = {};
    std::vector<extension_hex_data> transaction_extensions = {};
 };
 
-EOSIO_REFLECT(transaction_for_get_keys, base state_history::transaction_header, context_free_actions, actions,
+EOSIO_REFLECT(transaction_for_get_keys, base ship_protocol::transaction_header, context_free_actions, actions,
               transaction_extensions)
 
 struct get_required_keys_params {
@@ -569,12 +568,12 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
          throw std::runtime_error("An error occurred deserializing send_transaction_params: "s + r.error().message());
    }
    eosio::input_stream s{ trx.packed_trx.data };
-   auto                r = eosio::from_bin<state_history::transaction>(s);
+   auto                r = eosio::from_bin<ship_protocol::transaction>(s);
    if (!r)
       throw std::runtime_error("An error occurred deserializing packed_trx: "s + r.error().message());
    if (s.end != s.pos)
       throw std::runtime_error("Extra data in packed_trx");
-   state_history::transaction& unpacked = r.value();
+   ship_protocol::transaction& unpacked = r.value();
 
    if (!trx.signatures.empty())
       throw std::runtime_error("Signatures must be empty"); // todo
@@ -621,7 +620,7 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
          // } catch (std::exception& e) {
          //    // todo: errorcode
          //    at.except = tt.except = e.what();
-         //    tt.receipt.status     = state_history::transaction_status::soft_fail;
+         //    tt.receipt.status     = ship_protocol::transaction_status::soft_fail;
          //    break;
       }
 

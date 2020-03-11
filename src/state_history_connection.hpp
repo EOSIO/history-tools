@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <eosio/history-tools/state_history.hpp>
+#include <eosio/history-tools/ship_protocol.hpp>
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -11,7 +11,7 @@
 #include <eosio/abi.hpp>
 #include <fc/exception/exception.hpp>
 
-namespace eosio { namespace state_history {
+namespace eosio { namespace ship_protocol {
 
 struct connection_callbacks {
    virtual ~connection_callbacks() = default;
@@ -111,7 +111,7 @@ struct connection : std::enable_shared_from_this<connection> {
       auto                  data = p->data();
       eosio::input_stream   bin{ (const char*)data.data(), (const char*)data.data() + data.size() };
       auto                  orig = bin;
-      state_history::result result;
+      ship_protocol::result result;
       auto                  r = from_bin(result, bin);
       if (!r)
          report_error(r.error().message());
@@ -196,4 +196,4 @@ struct connection : std::enable_shared_from_this<connection> {
    }
 }; // connection
 
-}} // namespace eosio::state_history
+}} // namespace eosio::ship_protocol

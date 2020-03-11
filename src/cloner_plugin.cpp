@@ -19,13 +19,13 @@
 
 using namespace appbase;
 using namespace std::literals;
-using namespace eosio::state_history;
+using namespace eosio::ship_protocol;
 
 namespace asio          = boost::asio;
 namespace bpo           = boost::program_options;
 namespace websocket     = boost::beast::websocket;
 namespace history_tools = eosio::history_tools;
-namespace state_history = eosio::state_history;
+namespace ship_protocol = eosio::ship_protocol;
 
 using asio::ip::tcp;
 using boost::beast::flat_buffer;
@@ -114,7 +114,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
    std::shared_ptr<chain_kv::database>          db = app().find_plugin<rocksdb_plugin>()->get_db();
    chain_kv::undo_stack                         undo_stack{ *db, chain_kv::bytes{ history_tools::undo_stack_prefix } };
    chain_kv::write_session                      write_session{ *db };
-   std::shared_ptr<state_history::connection>   connection;
+   std::shared_ptr<ship_protocol::connection>   connection;
    eosio::checksum256                           chain_id        = {};
    uint32_t                                     head            = 0;
    eosio::checksum256                           head_id         = {};
@@ -151,7 +151,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       end_write(true);
       db->flush(true, true);
 
-      connection = std::make_shared<state_history::connection>(ioc, *config, shared_from_this());
+      connection = std::make_shared<ship_protocol::connection>(ioc, *config, shared_from_this());
       connection->connect();
    }
 
@@ -200,11 +200,11 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       if (head) {
          history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
          for (uint32_t i = irreversible; i <= head; ++i) {
-            auto info = get_state_row<state_history::block_info>(
+            auto info = get_state_row<block_info>(
                   view_state.kv_state.view, std::make_tuple(eosio::name{ "block.info" }, eosio::name{ "primary" }, i));
             if (!info)
                throw std::runtime_error("database is missing block.info for block " + std::to_string(i));
-            auto& info0 = std::get<state_history::block_info_v0>(info->second);
+            auto& info0 = std::get<block_info_v0>(info->second);
             result.push_back({ info0.num, info0.id });
          }
       }
@@ -212,21 +212,21 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
    }
 
    void write_fill_status() {
-      state_history::fill_status status;
+      fill_status status;
       if (irreversible < head)
-         status = state_history::fill_status_v0{ .chain_id        = chain_id,
-                                                 .head            = head,
-                                                 .head_id         = head_id,
-                                                 .irreversible    = irreversible,
-                                                 .irreversible_id = irreversible_id,
-                                                 .first           = first };
+         status = fill_status_v0{ .chain_id        = chain_id,
+                                  .head            = head,
+                                  .head_id         = head_id,
+                                  .irreversible    = irreversible,
+                                  .irreversible_id = irreversible_id,
+                                  .first           = first };
       else
-         status = state_history::fill_status_v0{ .chain_id        = chain_id,
-                                                 .head            = head,
-                                                 .head_id         = head_id,
-                                                 .irreversible    = head,
-                                                 .irreversible_id = head_id,
-                                                 .first           = first };
+         status = fill_status_v0{ .chain_id        = chain_id,
+                                  .head            = head,
+                                  .head_id         = head_id,
+                                  .irreversible    = head,
+                                  .irreversible_id = head_id,
+                                  .first           = first };
 
       history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
       fill_status_kv               table{ { view_state } };
@@ -327,7 +327,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       uint32_t                     num;
       eosio::check_discard(eosio::varuint32_from_bin(num, bin));
       for (uint32_t i = 0; i < num; ++i) {
-         state_history::table_delta delta;
+         table_delta delta;
          eosio::check_discard(from_bin(delta, bin));
          auto&  delta_v0      = std::get<0>(delta);
          size_t num_processed = 0;
@@ -351,7 +351,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       signed_block block;
       eosio::check_discard(from_bin(block, bin));
 
-      state_history::block_info_v0 info;
+      block_info_v0 info;
       info.num                = block_num;
       info.id                 = block_id;
       info.timestamp          = block.timestamp;

@@ -6,7 +6,7 @@ using history_tools::kv_environment;
 }
 
 #include "../wasms/table.hpp"
-#include <eosio/history-tools/state_history.hpp>
+#include <eosio/history-tools/ship_protocol.hpp>
 #include <eosio/vm/backend.hpp>
 
 namespace eosio { namespace history_tools {
@@ -89,7 +89,7 @@ class iterator_cache {
             iterators.emplace_back();
             it = &iterators.back();
             eosio::input_stream stream{ view_it.get_kv()->value.data(), view_it.get_kv()->value.size() };
-            auto row        = std::get<0>(eosio::check(eosio::from_bin<state_history::contract_row>(stream)).value());
+            auto row        = std::get<0>(eosio::check(eosio::from_bin<ship_protocol::contract_row>(stream)).value());
             it->table_index = rk.table_index;
             it->primary     = row.primary_key;
             it->value.insert(it->value.end(), row.value.pos, row.value.end);
@@ -157,7 +157,7 @@ class iterator_cache {
          return it.next;
       } else {
          eosio::input_stream stream{ view_it->get_kv()->value.data(), view_it->get_kv()->value.size() };
-         auto row = std::get<0>(eosio::check(eosio::from_bin<state_history::contract_row>(stream)).value());
+         auto row = std::get<0>(eosio::check(eosio::from_bin<ship_protocol::contract_row>(stream)).value());
          primary  = row.primary_key;
          it.next  = get_iterator({ it.table_index, primary }, std::move(*view_it));
          return it.next;

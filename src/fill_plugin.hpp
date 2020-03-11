@@ -2,7 +2,7 @@
 
 #pragma once
 #include <appbase/application.hpp>
-#include <eosio/history-tools/state_history.hpp>
+#include <eosio/history-tools/ship_protocol.hpp>
 
 class fill_plugin : public appbase::plugin<fill_plugin> {
  public:

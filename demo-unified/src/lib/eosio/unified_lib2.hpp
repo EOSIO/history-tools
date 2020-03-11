@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef EOSIO_CDT_COMPILATION
+#ifdef __eosio_cdt__
 #include <cwchar>
 namespace std {
 using ::wcslen;

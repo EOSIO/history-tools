@@ -3,7 +3,7 @@
 #include <abieos.hpp>
 
 // todo: remove check
-#ifdef EOSIO_CDT_COMPILATION
+#ifdef __eosio_cdt__
 #   include <eosio/check.hpp>
 #endif
 
@@ -20,7 +20,7 @@ namespace eosio { namespace ship_protocol {
 typedef __uint128_t uint128_t;
 
 // todo: remove report_error
-#ifdef EOSIO_CDT_COMPILATION
+#ifdef __eosio_cdt__
 #   pragma clang diagnostic push
 #   pragma clang diagnostic ignored "-Winvalid-noreturn"
 [[noreturn]] inline void report_error(const std::string& s) { eosio::check(false, s); }

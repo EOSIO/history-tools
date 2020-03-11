@@ -4,7 +4,7 @@
 #include <eosio/to_key.hpp>
 #include <type_traits>
 
-#ifdef EOSIO_CDT_COMPILATION
+#ifdef __eosio_cdt__
 #include <eosio/name.hpp>
 #endif
 
@@ -27,7 +27,7 @@ enum class it_stat {
 
 namespace internal_use_do_not_use {
 
-#ifdef EOSIO_CDT_COMPILATION
+#ifdef __eosio_cdt__
 
 #define IMPORT extern "C" __attribute__((eosio_wasm_import))
 
@@ -67,7 +67,7 @@ class table_iterator;
 template <typename T>
 class table_proxy;
 
-#ifdef EOSIO_CDT_COMPILATION
+#ifdef __eosio_cdt__
 class kv_environment {
   public:
     kv_environment() {}

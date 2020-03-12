@@ -100,11 +100,9 @@ set(ROCKSDB_LIB rocksdb)
 set(ROCKSDB_INCLUDE_DIR external/rocksdb/include)
 
 set(APPS "")
-function(add_app APP MAIN FLAGS LIBS)
-    set(APPS ${APPS} ${APP} PARENT_SCOPE)
-    add_executable(${APP} src/${MAIN}.cpp external/abieos/src/abi.cpp external/abieos/src/crypto.cpp external/abieos/include/eosio/fpconv.c)
-
-    target_include_directories(${APP}
+function(set_opts TARGET FLAGS LIBS)
+    set(APPS ${APPS} ${TARGET} PARENT_SCOPE)
+    target_include_directories(${TARGET}
         PRIVATE
             external/abieos/include
             external/abieos/src
@@ -121,26 +119,31 @@ function(add_app APP MAIN FLAGS LIBS)
             ${JS_INCLUDE_DIRS}
             ${ROCKSDB_INCLUDE_DIR}
     )
-    target_link_libraries(${APP} appbase builtins fc eos-vm Boost::date_time Boost::filesystem Boost::chrono Boost::system Boost::iostreams Boost::program_options Boost::unit_test_framework ${LIBS} -lpthread)
+    target_link_libraries(${TARGET} appbase builtins fc eos-vm Boost::date_time Boost::filesystem Boost::chrono Boost::system Boost::iostreams Boost::program_options Boost::unit_test_framework ${LIBS} -lpthread)
 
     if(APPLE)
     else()
-        target_link_libraries(${APP} -latomic)
+        target_link_libraries(${TARGET} -latomic)
     endif()
-    target_compile_options(${APP} PUBLIC -DAPP_NAME="${APP}" ${FLAGS})
+    target_compile_options(${TARGET} PUBLIC -DAPP_NAME="${TARGET}" ${FLAGS})
 
     string(TOLOWER ${CMAKE_BUILD_TYPE} LOWERCASE_CMAKE_BUILD_TYPE)
     if (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
-        target_compile_options(${APP} PRIVATE -D DEBUG)
+        target_compile_options(${TARGET} PRIVATE -D DEBUG)
     endif (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
 
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        target_compile_options(${APP} PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics -Wno-sign-compare -Wno-unused-variable -Wno-macro-redefined)
+        target_compile_options(${TARGET} PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics -Wno-sign-compare -Wno-unused-variable -Wno-macro-redefined)
     endif()
     if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-        target_compile_options(${APP} PRIVATE -fdiagnostics-color=auto)
+        target_compile_options(${TARGET} PRIVATE -fdiagnostics-color=auto)
     endif()
-endfunction(add_app)
+endfunction(set_opts)
+
+macro(add_app APP MAIN FLAGS LIBS)
+    add_executable(${APP} src/${MAIN}.cpp external/abieos/src/abi.cpp external/abieos/src/crypto.cpp external/abieos/include/eosio/fpconv.c)
+    set_opts("${APP}" "${FLAGS}" "${LIBS}")
+endmacro(add_app)
 
 # add_app(history-tools main "-DDEFAULT_PLUGINS=" "${ROCKSDB_LIB}")
 # add_app(boing boing "" "${ROCKSDB_LIB}")
@@ -175,6 +178,9 @@ if (FOUND_ROCKSDB)
     target_sources(wasm-ql PRIVATE src/rocksdb_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
     target_sources(rodeos PRIVATE src/rocksdb_plugin.cpp src/cloner_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
 endif()
+
+add_library(embedded_rodeos src/embedded_rodeos.cpp)
+set_opts(embedded_rodeos "" "")
 
 message(STATUS "Enabled apps:")
 foreach(APP ${APPS})

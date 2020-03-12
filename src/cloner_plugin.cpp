@@ -1,15 +1,7 @@
-// copyright defined in LICENSE.txt
-
 #include "cloner_plugin.hpp"
+#include "filter.hpp"
 #include "get_state_row.hpp"
 #include "state_history_connection.hpp"
-
-#include <eosio/history-tools/callbacks/basic.hpp>
-#include <eosio/history-tools/callbacks/chaindb.hpp>
-#include <eosio/history-tools/callbacks/compiler_builtins.hpp>
-#include <eosio/history-tools/callbacks/console.hpp>
-#include <eosio/history-tools/callbacks/memory.hpp>
-#include <eosio/history-tools/callbacks/unimplemented.hpp>
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -23,9 +15,10 @@ using namespace eosio::ship_protocol;
 
 namespace asio          = boost::asio;
 namespace bpo           = boost::program_options;
-namespace websocket     = boost::beast::websocket;
+namespace filter        = eosio::history_tools::filter;
 namespace history_tools = eosio::history_tools;
 namespace ship_protocol = eosio::ship_protocol;
+namespace websocket     = boost::beast::websocket;
 
 using asio::ip::tcp;
 using boost::beast::flat_buffer;
@@ -37,56 +30,7 @@ struct cloner_config : connection_config {
    uint32_t    skip_to     = 0;
    uint32_t    stop_before = 0;
    std::string filter_wasm = {}; // todo: remove
-   // std::vector<trx_filter> trx_filters = {};
 };
-
-// todo: remove from this plugin
-// todo: configure limits
-// todo: timeout
-namespace temp_filter_wasm {
-
-struct callbacks;
-using backend_t = eosio::vm::backend<callbacks, eosio::vm::jit>;
-using rhf_t     = eosio::vm::registered_host_functions<callbacks>;
-
-struct filter_state : history_tools::data_state<backend_t>, history_tools::console_state {
-   eosio::vm::wasm_allocator wa = {};
-};
-
-// todo: remove basic_callbacks
-struct callbacks : history_tools::basic_callbacks<callbacks>,
-                   history_tools::chaindb_callbacks<callbacks>,
-                   history_tools::compiler_builtins_callbacks<callbacks>,
-                   history_tools::console_callbacks<callbacks>,
-                   history_tools::data_callbacks<callbacks>,
-                   history_tools::db_callbacks<callbacks>,
-                   history_tools::memory_callbacks<callbacks>,
-                   history_tools::unimplemented_callbacks<callbacks> {
-   temp_filter_wasm::filter_state& filter_state;
-   history_tools::chaindb_state&   chaindb_state;
-   history_tools::db_view_state&   db_view_state;
-
-   callbacks(temp_filter_wasm::filter_state& filter_state, history_tools::chaindb_state& chaindb_state,
-             history_tools::db_view_state& db_view_state)
-       : filter_state{ filter_state }, chaindb_state{ chaindb_state }, db_view_state{ db_view_state } {}
-
-   auto& get_state() { return filter_state; }
-   auto& get_chaindb_state() { return chaindb_state; }
-   auto& get_db_view_state() { return db_view_state; }
-};
-
-void register_callbacks() {
-   history_tools::basic_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
-   history_tools::chaindb_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
-   history_tools::compiler_builtins_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
-   history_tools::console_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
-   history_tools::data_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
-   history_tools::db_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
-   history_tools::memory_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
-   history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
-}
-
-} // namespace temp_filter_wasm
 
 struct cloner_plugin_impl : std::enable_shared_from_this<cloner_plugin_impl> {
    std::shared_ptr<cloner_config>    config = std::make_shared<cloner_config>();
@@ -109,21 +53,21 @@ struct cloner_plugin_impl : std::enable_shared_from_this<cloner_plugin_impl> {
 };
 
 struct cloner_session : connection_callbacks, std::enable_shared_from_this<cloner_session> {
-   cloner_plugin_impl*                          my = nullptr;
-   std::shared_ptr<cloner_config>               config;
-   std::shared_ptr<chain_kv::database>          db = app().find_plugin<rocksdb_plugin>()->get_db();
-   chain_kv::undo_stack                         undo_stack{ *db, chain_kv::bytes{ history_tools::undo_stack_prefix } };
-   chain_kv::write_session                      write_session{ *db };
-   std::shared_ptr<ship_protocol::connection>   connection;
-   eosio::checksum256                           chain_id        = {};
-   uint32_t                                     head            = 0;
-   eosio::checksum256                           head_id         = {};
-   uint32_t                                     irreversible    = 0;
-   eosio::checksum256                           irreversible_id = {};
-   uint32_t                                     first           = 0;
-   bool                                         reported_block  = false;
-   std::unique_ptr<temp_filter_wasm::backend_t> backend         = {}; // todo: remove
-   std::unique_ptr<temp_filter_wasm::filter_state> filter_state = {}; // todo: remove
+   cloner_plugin_impl*                        my = nullptr;
+   std::shared_ptr<cloner_config>             config;
+   std::shared_ptr<chain_kv::database>        db = app().find_plugin<rocksdb_plugin>()->get_db();
+   chain_kv::undo_stack                       undo_stack{ *db, chain_kv::bytes{ history_tools::undo_stack_prefix } };
+   chain_kv::write_session                    write_session{ *db };
+   std::shared_ptr<ship_protocol::connection> connection;
+   eosio::checksum256                         chain_id        = {};
+   uint32_t                                   head            = 0;
+   eosio::checksum256                         head_id         = {};
+   uint32_t                                   irreversible    = 0;
+   eosio::checksum256                         irreversible_id = {};
+   uint32_t                                   first           = 0;
+   bool                                       reported_block  = false;
+   std::unique_ptr<filter::backend_t>         backend         = {}; // todo: remove
+   std::unique_ptr<filter::filter_state>      filter_state    = {}; // todo: remove
 
    cloner_session(cloner_plugin_impl* my) : my(my), config(my->config) {
       // todo: remove
@@ -140,9 +84,9 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
          wasm_file.seekg(0, std::ios::beg);
          wasm_file.read((char*)code.data(), code.size());
          wasm_file.close();
-         backend      = std::make_unique<temp_filter_wasm::backend_t>(code);
-         filter_state = std::make_unique<temp_filter_wasm::filter_state>();
-         temp_filter_wasm::rhf_t::resolve(backend->get_module());
+         backend      = std::make_unique<filter::backend_t>(code);
+         filter_state = std::make_unique<filter::filter_state>();
+         filter::rhf_t::resolve(backend->get_module());
       }
    }
 
@@ -292,7 +236,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       if (backend) {
          history_tools::chaindb_state chaindb_state;
          history_tools::db_view_state view_state{ eosio::name{ "eosio.filter" }, *db, write_session };
-         temp_filter_wasm::callbacks  cb{ *filter_state, chaindb_state, view_state };
+         filter::callbacks            cb{ *filter_state, chaindb_state, view_state };
          filter_state->max_console_size = 10000;
          filter_state->console.clear();
          filter_state->input_data = bin;
@@ -421,7 +365,7 @@ void cloner_plugin::plugin_initialize(const variables_map& options) {
       my->config->stop_before = options.count("clone-stop") ? options["clone-stop"].as<uint32_t>() : 0;
       my->config->filter_wasm = options.count("filter-wasm") ? options["filter-wasm"].as<std::string>() : "";
 
-      temp_filter_wasm::register_callbacks();
+      filter::register_callbacks();
    }
    FC_LOG_AND_RETHROW()
 }

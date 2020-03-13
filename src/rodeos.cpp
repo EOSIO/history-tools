@@ -157,4 +157,46 @@ void rodeos_db_snapshot::write_deltas(ship_protocol::get_blocks_result_v0& resul
    }
 }
 
+std::once_flag registered_filter_callbacks;
+
+rodeos_filter::rodeos_filter(const std::string filter_wasm) {
+   std::call_once(registered_filter_callbacks, filter::register_callbacks);
+
+   std::ifstream wasm_file(filter_wasm, std::ios::binary);
+   if (!wasm_file.is_open())
+      throw std::runtime_error("can not open " + filter_wasm);
+   ilog("compiling ${f}", ("f", filter_wasm));
+   wasm_file.seekg(0, std::ios::end);
+   int len = wasm_file.tellg();
+   if (len < 0)
+      throw std::runtime_error("wasm file length is -1");
+   std::vector<uint8_t> code(len);
+   wasm_file.seekg(0, std::ios::beg);
+   wasm_file.read((char*)code.data(), code.size());
+   wasm_file.close();
+   backend      = std::make_unique<filter::backend_t>(code);
+   filter_state = std::make_unique<filter::filter_state>();
+   filter::rhf_t::resolve(backend->get_module());
+}
+
+void rodeos_filter::process(rodeos_db_snapshot& snapshot, eosio::input_stream bin) {
+   chaindb_state     chaindb_state;
+   db_view_state     view_state{ eosio::name{ "eosio.filter" }, *snapshot.db, *snapshot.write_session };
+   filter::callbacks cb{ *filter_state, chaindb_state, view_state };
+   filter_state->max_console_size = 10000;
+   filter_state->console.clear();
+   filter_state->input_data = bin;
+   backend->set_wasm_allocator(&filter_state->wa);
+   backend->initialize(&cb);
+   try {
+      (*backend)(&cb, "env", "apply", uint64_t(0), uint64_t(0), uint64_t(0));
+   } catch (...) {
+      if (!filter_state->console.empty())
+         ilog("console output before exception:\n${c}", ("c", filter_state->console));
+      throw;
+   }
+   if (!filter_state->console.empty())
+      ilog("console output:\n${c}", ("c", filter_state->console));
+}
+
 }} // namespace eosio::history_tools

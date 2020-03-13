@@ -41,7 +41,7 @@ struct callbacks : history_tools::basic_callbacks<callbacks>,
    auto& get_db_view_state() { return db_view_state; }
 };
 
-void register_callbacks() {
+inline void register_callbacks() {
    history_tools::basic_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::chaindb_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::compiler_builtins_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();

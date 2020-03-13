@@ -1,4 +1,5 @@
 #include <chain_kv/chain_kv.hpp>
+#include <eosio/history-tools/filter.hpp>
 #include <eosio/history-tools/ship_protocol.hpp>
 
 namespace eosio { namespace history_tools {
@@ -42,6 +43,15 @@ struct rodeos_db_snapshot {
 
  private:
    void write_fill_status();
+};
+
+struct rodeos_filter {
+   std::unique_ptr<filter::backend_t>    backend      = {};
+   std::unique_ptr<filter::filter_state> filter_state = {};
+
+   rodeos_filter(const std::string filter_wasm);
+
+   void process(rodeos_db_snapshot& snapshot, eosio::input_stream bin);
 };
 
 }} // namespace eosio::history_tools

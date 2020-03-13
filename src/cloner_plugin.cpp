@@ -1,5 +1,4 @@
 #include "cloner_plugin.hpp"
-#include "filter.hpp"
 #include "get_state_row.hpp"
 #include "state_history_connection.hpp"
 
@@ -17,7 +16,6 @@ using namespace eosio::ship_protocol;
 
 namespace asio          = boost::asio;
 namespace bpo           = boost::program_options;
-namespace filter        = eosio::history_tools::filter;
 namespace history_tools = eosio::history_tools;
 namespace ship_protocol = eosio::ship_protocol;
 namespace websocket     = boost::beast::websocket;
@@ -28,6 +26,7 @@ using boost::system::error_code;
 
 using history_tools::rodeos_db_partition;
 using history_tools::rodeos_db_snapshot;
+using history_tools::rodeos_filter;
 
 struct cloner_session;
 
@@ -65,28 +64,12 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
    std::optional<rodeos_db_snapshot>          rodeos_snapshot;
    std::shared_ptr<ship_protocol::connection> connection;
    bool                                       reported_block = false;
-   std::unique_ptr<filter::backend_t>         backend        = {}; // todo: remove
-   std::unique_ptr<filter::filter_state>      filter_state   = {}; // todo: remove
+   std::unique_ptr<rodeos_filter>             filter         = {}; // todo: remove
 
    cloner_session(cloner_plugin_impl* my) : my(my), config(my->config) {
       // todo: remove
-      if (!config->filter_wasm.empty()) {
-         std::ifstream wasm_file(config->filter_wasm, std::ios::binary);
-         if (!wasm_file.is_open())
-            throw std::runtime_error("can not open " + config->filter_wasm);
-         ilog("compiling ${f}", ("f", config->filter_wasm));
-         wasm_file.seekg(0, std::ios::end);
-         int len = wasm_file.tellg();
-         if (len < 0)
-            throw std::runtime_error("wasm file length is -1");
-         std::vector<uint8_t> code(len);
-         wasm_file.seekg(0, std::ios::beg);
-         wasm_file.read((char*)code.data(), code.size());
-         wasm_file.close();
-         backend      = std::make_unique<filter::backend_t>(code);
-         filter_state = std::make_unique<filter::filter_state>();
-         filter::rhf_t::resolve(backend->get_module());
-      }
+      if (!config->filter_wasm.empty())
+         filter = std::make_unique<rodeos_filter>(config->filter_wasm);
    }
 
    void connect(asio::io_context& ioc) {
@@ -172,25 +155,8 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       rodeos_snapshot->write_deltas(result, [] { return app().is_quiting(); });
 
       // todo: remove
-      if (backend) {
-         history_tools::chaindb_state chaindb_state;
-         history_tools::db_view_state view_state{ eosio::name{ "eosio.filter" }, *db, *rodeos_snapshot->write_session };
-         filter::callbacks            cb{ *filter_state, chaindb_state, view_state };
-         filter_state->max_console_size = 10000;
-         filter_state->console.clear();
-         filter_state->input_data = bin;
-         backend->set_wasm_allocator(&filter_state->wa);
-         backend->initialize(&cb);
-         try {
-            (*backend)(&cb, "env", "apply", uint64_t(0), uint64_t(0), uint64_t(0));
-         } catch (...) {
-            if (!filter_state->console.empty())
-               ilog("console output before exception:\n${c}", ("c", filter_state->console));
-            throw;
-         }
-         if (!filter_state->console.empty())
-            ilog("console output:\n${c}", ("c", filter_state->console));
-      }
+      if (filter)
+         filter->process(*rodeos_snapshot, bin);
 
       rodeos_snapshot->end_block(result, false);
       return true;
@@ -269,8 +235,6 @@ void cloner_plugin::plugin_initialize(const variables_map& options) {
       my->config->skip_to     = options.count("clone-skip-to") ? options["clone-skip-to"].as<uint32_t>() : 0;
       my->config->stop_before = options.count("clone-stop") ? options["clone-stop"].as<uint32_t>() : 0;
       my->config->filter_wasm = options.count("filter-wasm") ? options["filter-wasm"].as<std::string>() : "";
-
-      filter::register_callbacks();
    }
    FC_LOG_AND_RETHROW()
 }

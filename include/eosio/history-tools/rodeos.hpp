@@ -36,6 +36,7 @@ struct rodeos_db_snapshot {
 
    rodeos_db_snapshot(rodeos_db_partition& partition, bool persistent);
 
+   void refresh();
    void end_write(bool write_fill);
    void start_block(ship_protocol::get_blocks_result_v0& result);
    void end_block(ship_protocol::get_blocks_result_v0& result, bool force_write);

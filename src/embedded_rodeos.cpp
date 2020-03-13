@@ -107,3 +107,59 @@ extern "C" rodeos_db_snapshot* rodeos_create_snapshot(rodeos_error* error, rodeo
 extern "C" void rodeos_destroy_snapshot(rodeos_db_snapshot* snapshot) {
    std::unique_ptr<rodeos_db_snapshot>{ snapshot };
 }
+
+extern "C" rodeos_bool refresh_snapshot(rodeos_error* error, rodeos_db_snapshot* snapshot) {
+   return handle_exceptions(error, false, [&]() {
+      if (!snapshot)
+         return error->set("snapshot is null");
+      snapshot->refresh();
+      return true;
+   });
+}
+
+template <typename F>
+void with_result(const char* data, uint64_t size, F f) {
+   eosio::input_stream          bin{ data, data + size };
+   eosio::ship_protocol::result result;
+   eosio::check_discard(from_bin(result, bin));
+   auto* result_v0 = std::get_if<eosio::ship_protocol::get_blocks_result_v0>(&result);
+   if (!result_v0)
+      throw std::runtime_error("expected a get_blocks_result_v0");
+   f(*result_v0);
+}
+
+extern "C" rodeos_bool start_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size) {
+   return handle_exceptions(error, false, [&]() {
+      if (!snapshot)
+         return error->set("snapshot is null");
+      with_result(data, size, [&](auto& result) { snapshot->start_block(result); });
+      return true;
+   });
+}
+
+extern "C" rodeos_bool end_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size,
+                                 bool force_write) {
+   return handle_exceptions(error, false, [&]() {
+      if (!snapshot)
+         return error->set("snapshot is null");
+      with_result(data, size, [&](auto& result) { snapshot->end_block(result, force_write); });
+      return true;
+   });
+}
+
+extern "C" rodeos_bool write_deltas(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size,
+                                    rodeos_bool (*shutdown)(void*), void* shutdown_arg) {
+   return handle_exceptions(error, false, [&]() {
+      if (!snapshot)
+         return error->set("snapshot is null");
+      with_result(data, size, [&](auto& result) {
+         snapshot->write_deltas(result, [=]() -> bool {
+            if (shutdown)
+               return shutdown(shutdown_arg);
+            else
+               return false;
+         });
+      });
+      return true;
+   });
+}

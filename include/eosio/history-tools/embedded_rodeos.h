@@ -63,6 +63,31 @@ rodeos_db_snapshot* rodeos_create_snapshot(rodeos_error* error, rodeos_db_partit
 // a no-op if snapshot == NULL.
 void rodeos_destroy_snapshot(rodeos_db_snapshot* snapshot);
 
+// Refresh a snapshot so it may read recently-written database changes. This operation is invalid if the snapshot is
+// persistent. It is undefined behavior if the snapshot is used between threads without synchronization.
+rodeos_bool refresh_snapshot(rodeos_error* error, rodeos_db_snapshot* snapshot);
+
+// Start writing a block. data must be the serialized `result` type defined by the state-history plugin's ABI. Currently
+// only supports `get_blocks_result_v0`. It is undefined behavior if the snapshot is used between threads without
+// synchronization.
+rodeos_bool start_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size);
+
+// Finish writing a block. data must be the serialized `result` type defined by the state-history plugin's ABI.
+// Currently only supports `get_blocks_result_v0`. If `force_write` is true, then the data will become immediately
+// available to newly-created or newly-refreshed snapshots to read. If `force_write` is false, then the write may be
+// delayed until a future end_block call. It is undefined behavior if the snapshot is used between threads without
+// synchronization.
+rodeos_bool end_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size,
+                      bool force_write);
+
+// Write state-history deltas to a block. data must be the serialized `result` type defined by the state-history
+// plugin's ABI. Currently only supports `get_blocks_result_v0`. If `shutdown` isn't null, then `write_deltas` may call
+// it during long operations. If `shutdown` returns true, then `write_deltas` abandons the writes. If `write_deltas`
+// returns false, the snapshot will be in an inconsistent state; call `start_block` to abandon the current write and
+// start another. It is undefined behavior if the snapshot is used between threads without synchronization.
+rodeos_bool write_deltas(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size,
+                         rodeos_bool (*shutdown)(void*), void* shutdown_arg);
+
 #ifdef __cplusplus
 }
 #endif

@@ -35,6 +35,14 @@ rodeos_db_snapshot::rodeos_db_snapshot(rodeos_db_partition& partition, bool pers
    }
 }
 
+void rodeos_db_snapshot::refresh() {
+   if (undo_stack)
+      throw std::runtime_error("can not refresh a persistent snapshot");
+   snap.emplace(db->rdb.get());
+   write_session->snapshot = snap->snapshot();
+   write_session->wipe_cache();
+}
+
 void rodeos_db_snapshot::write_fill_status() {
    if (!undo_stack)
       throw std::runtime_error("Can only write to persistent snapshots");

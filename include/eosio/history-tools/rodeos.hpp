@@ -31,13 +31,17 @@ struct rodeos_db_snapshot {
    uint32_t                                irreversible    = 0;
    eosio::checksum256                      irreversible_id = {};
    uint32_t                                first           = 0;
+   std::optional<uint32_t>                 writing_block   = {};
 
    rodeos_db_snapshot(rodeos_db_partition& partition, bool persistent);
 
+   void end_write(bool write_fill);
    void start_block(ship_protocol::get_blocks_result_v0& result);
    void end_block(ship_protocol::get_blocks_result_v0& result, bool force_write);
+   void write_deltas(ship_protocol::get_blocks_result_v0& result, std::function<bool()> shutdown);
+
+ private:
    void write_fill_status();
-   void end_write(bool write_fill);
 };
 
 }} // namespace eosio::history_tools

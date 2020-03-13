@@ -169,8 +169,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
 
       if (result.block)
          receive_block(result.this_block->block_num, result.this_block->block_id, *result.block);
-      if (result.deltas)
-         receive_deltas(result.this_block->block_num, *result.deltas);
+      rodeos_snapshot->write_deltas(result, [] { return app().is_quiting(); });
 
       // todo: remove
       if (backend) {
@@ -196,31 +195,6 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       rodeos_snapshot->end_block(result, false);
       return true;
    } // receive_result()
-
-   void receive_deltas(uint32_t block_num, eosio::input_stream bin) {
-      history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *rodeos_snapshot->write_session };
-      uint32_t                     num;
-      eosio::check_discard(eosio::varuint32_from_bin(num, bin));
-      for (uint32_t i = 0; i < num; ++i) {
-         table_delta delta;
-         eosio::check_discard(from_bin(delta, bin));
-         auto&  delta_v0      = std::get<0>(delta);
-         size_t num_processed = 0;
-         store_delta({ view_state }, delta_v0, rodeos_snapshot->head == 0, [&]() {
-            if (delta_v0.rows.size() > 10000 && !(num_processed % 10000)) {
-               if (app().is_quiting())
-                  throw std::runtime_error("shutting down");
-               ilog("block ${b} ${t} ${n} of ${r}",
-                    ("b", block_num)("t", delta_v0.name)("n", num_processed)("r", delta_v0.rows.size()));
-               if (rodeos_snapshot->head == 0) {
-                  rodeos_snapshot->end_write(false);
-                  view_state.reset();
-               }
-            }
-            ++num_processed;
-         });
-      }
-   } // receive_deltas
 
    void receive_block(uint32_t block_num, const eosio::checksum256& block_id, eosio::input_stream bin) {
       signed_block block;

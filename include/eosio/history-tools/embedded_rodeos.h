@@ -10,6 +10,7 @@ typedef struct rodeos_error_s        rodeos_error;
 typedef struct rodeos_context_s      rodeos_context;
 typedef struct rodeos_db_partition_s rodeos_db_partition;
 typedef struct rodeos_db_snapshot_s  rodeos_db_snapshot;
+typedef struct rodeos_filter_s       rodeos_filter;
 typedef int                          rodeos_bool;
 
 // Create an error object. If multiple threads use an error object, then they must synchronize it. Returns NULL on
@@ -87,6 +88,13 @@ rodeos_bool end_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const c
 // start another. It is undefined behavior if the snapshot is used between threads without synchronization.
 rodeos_bool write_deltas(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size,
                          rodeos_bool (*shutdown)(void*), void* shutdown_arg);
+
+// Create a filter. Returns NULL on failure.
+rodeos_filter* rodeos_create_filter(rodeos_error* error, const char* wasm_filename);
+
+// Destroy a filter. It is undefined behavior if the filter is used between threads without synchronization. This
+// is a no-op if filter == NULL.
+void rodeos_destroy_filter(rodeos_filter* filter);
 
 #ifdef __cplusplus
 }

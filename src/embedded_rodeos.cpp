@@ -24,6 +24,10 @@ struct rodeos_db_snapshot_s : eosio::history_tools::rodeos_db_snapshot {
    using rodeos_db_snapshot::rodeos_db_snapshot;
 };
 
+struct rodeos_filter_s : eosio::history_tools::rodeos_filter {
+   using rodeos_filter::rodeos_filter;
+};
+
 extern "C" rodeos_error* rodeos_create_error() {
    try {
       return std::make_unique<rodeos_error>().release();
@@ -163,3 +167,11 @@ extern "C" rodeos_bool write_deltas(rodeos_error* error, rodeos_db_snapshot* sna
       return true;
    });
 }
+
+rodeos_filter* rodeos_create_filter(rodeos_error* error, const char* wasm_filename) {
+   return handle_exceptions(error, nullptr, [&]() -> rodeos_filter* { //
+      return std::make_unique<rodeos_filter>(wasm_filename).release();
+   });
+}
+
+void rodeos_destroy_filter(rodeos_filter* filter) { std::unique_ptr<rodeos_filter>{ filter }; }

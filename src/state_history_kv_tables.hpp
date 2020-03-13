@@ -1,5 +1,10 @@
 #pragma once
 
+#include <eosio/history-tools/callbacks/kv.hpp>
+namespace eosio {
+using history_tools::kv_environment;
+}
+
 #include "../wasms/table.hpp"
 #include <eosio/history-tools/ship_protocol.hpp>
 #include <eosio/to_key.hpp>

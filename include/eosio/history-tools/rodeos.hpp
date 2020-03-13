@@ -1,4 +1,5 @@
 #include <chain_kv/chain_kv.hpp>
+#include <eosio/history-tools/ship_protocol.hpp>
 
 namespace eosio { namespace history_tools {
 
@@ -20,22 +21,23 @@ struct rodeos_db_partition {
 };
 
 struct rodeos_db_snapshot {
-   std::shared_ptr<chain_kv::database>     db;
-   std::optional<chain_kv::undo_stack>     undo_stack; // only if persistent
-   std::optional<rocksdb::ManagedSnapshot> snap;       // only if !persistent
-   std::optional<chain_kv::write_session>  write_session;
+   std::shared_ptr<chain_kv::database>     db              = {};
+   std::optional<chain_kv::undo_stack>     undo_stack      = {}; // only if persistent
+   std::optional<rocksdb::ManagedSnapshot> snap            = {}; // only if !persistent
+   std::optional<chain_kv::write_session>  write_session   = {};
+   eosio::checksum256                      chain_id        = {};
+   uint32_t                                head            = 0;
+   eosio::checksum256                      head_id         = {};
+   uint32_t                                irreversible    = 0;
+   eosio::checksum256                      irreversible_id = {};
+   uint32_t                                first           = 0;
 
-   rodeos_db_snapshot(rodeos_db_partition& partition, bool persistent) : db{ partition.db } {
-      if (persistent) {
-         auto p = partition.prefix;
-         p.push_back(undo_prefix);
-         undo_stack.emplace(*db, std::move(p));
-         write_session.emplace(*db);
-      } else {
-         snap.emplace(db->rdb.get());
-         write_session.emplace(*db, snap->snapshot());
-      }
-   }
+   rodeos_db_snapshot(rodeos_db_partition& partition, bool persistent);
+
+   void start_block(ship_protocol::get_blocks_result_v0& result);
+   void end_block(ship_protocol::get_blocks_result_v0& result, bool force_write);
+   void write_fill_status();
+   void end_write(bool write_fill);
 };
 
 }} // namespace eosio::history_tools

@@ -3,6 +3,8 @@
 #include "get_state_row.hpp"
 #include "state_history_connection.hpp"
 
+#include <eosio/history-tools/rodeos.hpp>
+
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
@@ -23,6 +25,9 @@ namespace websocket     = boost::beast::websocket;
 using asio::ip::tcp;
 using boost::beast::flat_buffer;
 using boost::system::error_code;
+
+using history_tools::rodeos_db_partition;
+using history_tools::rodeos_db_snapshot;
 
 struct cloner_session;
 
@@ -56,18 +61,12 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
    cloner_plugin_impl*                        my = nullptr;
    std::shared_ptr<cloner_config>             config;
    std::shared_ptr<chain_kv::database>        db = app().find_plugin<rocksdb_plugin>()->get_db();
-   chain_kv::undo_stack                       undo_stack{ *db, chain_kv::bytes{ history_tools::undo_stack_prefix } };
-   chain_kv::write_session                    write_session{ *db };
+   rodeos_db_partition                        partition{ db, {} };
+   std::optional<rodeos_db_snapshot>          rodeos_snapshot;
    std::shared_ptr<ship_protocol::connection> connection;
-   eosio::checksum256                         chain_id        = {};
-   uint32_t                                   head            = 0;
-   eosio::checksum256                         head_id         = {};
-   uint32_t                                   irreversible    = 0;
-   eosio::checksum256                         irreversible_id = {};
-   uint32_t                                   first           = 0;
-   bool                                       reported_block  = false;
-   std::unique_ptr<filter::backend_t>         backend         = {}; // todo: remove
-   std::unique_ptr<filter::filter_state>      filter_state    = {}; // todo: remove
+   bool                                       reported_block = false;
+   std::unique_ptr<filter::backend_t>         backend        = {}; // todo: remove
+   std::unique_ptr<filter::filter_state>      filter_state   = {}; // todo: remove
 
    cloner_session(cloner_plugin_impl* my) : my(my), config(my->config) {
       // todo: remove
@@ -91,8 +90,19 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
    }
 
    void connect(asio::io_context& ioc) {
-      load_fill_status();
-      end_write(true);
+      rodeos_snapshot.emplace(partition, true);
+
+      ilog("cloner database status:");
+      ilog("    revisions:    ${f} - ${r}",
+           ("f", rodeos_snapshot->undo_stack->first_revision())("r", rodeos_snapshot->undo_stack->revision()));
+      ilog("    chain:        ${a}", ("a", eosio::check(eosio::convert_to_json(rodeos_snapshot->chain_id)).value()));
+      ilog("    head:         ${a} ${b}",
+           ("a", rodeos_snapshot->head)("b", eosio::check(eosio::convert_to_json(rodeos_snapshot->head_id)).value()));
+      ilog("    irreversible: ${a} ${b}",
+           ("a", rodeos_snapshot->irreversible)(
+                 "b", eosio::check(eosio::convert_to_json(rodeos_snapshot->irreversible_id)).value()));
+
+      rodeos_snapshot->end_write(true);
       db->flush(true, true);
 
       connection = std::make_shared<ship_protocol::connection>(ioc, *config, shared_from_this());
@@ -106,44 +116,22 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
 
    bool received(get_status_result_v0& status, eosio::input_stream bin) override {
       ilog("nodeos has chain ${c}", ("c", eosio::check(eosio::convert_to_json(status.chain_id)).value()));
-      if (chain_id == eosio::checksum256{})
-         chain_id = status.chain_id;
-      if (chain_id != status.chain_id)
-         throw std::runtime_error("database is for chain " + eosio::check(eosio::convert_to_json(chain_id)).value() +
-                                  " but nodeos has chain " +
-                                  eosio::check(eosio::convert_to_json(status.chain_id)).value());
+      if (rodeos_snapshot->chain_id == eosio::checksum256{})
+         rodeos_snapshot->chain_id = status.chain_id;
+      if (rodeos_snapshot->chain_id != status.chain_id)
+         throw std::runtime_error(
+               "database is for chain " + eosio::check(eosio::convert_to_json(rodeos_snapshot->chain_id)).value() +
+               " but nodeos has chain " + eosio::check(eosio::convert_to_json(status.chain_id)).value());
       ilog("request blocks");
-      connection->request_blocks(status, std::max(config->skip_to, head + 1), get_positions());
+      connection->request_blocks(status, std::max(config->skip_to, rodeos_snapshot->head + 1), get_positions());
       return true;
-   }
-
-   void load_fill_status() {
-      write_session.wipe_cache();
-      history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
-      fill_status_kv               table{ { view_state } };
-      auto                         it = table.begin();
-      if (it != table.end()) {
-         auto status     = std::get<0>(it.get());
-         chain_id        = status.chain_id;
-         head            = status.head;
-         head_id         = status.head_id;
-         irreversible    = status.irreversible;
-         irreversible_id = status.irreversible_id;
-         first           = status.first;
-      }
-      ilog("cloner database status:");
-      ilog("    revisions:    ${f} - ${r}", ("f", undo_stack.first_revision())("r", undo_stack.revision()));
-      ilog("    chain:        ${a}", ("a", eosio::check(eosio::convert_to_json(chain_id)).value()));
-      ilog("    head:         ${a} ${b}", ("a", head)("b", eosio::check(eosio::convert_to_json(head_id)).value()));
-      ilog("    irreversible: ${a} ${b}",
-           ("a", irreversible)("b", eosio::check(eosio::convert_to_json(irreversible_id)).value()));
    }
 
    std::vector<block_position> get_positions() {
       std::vector<block_position> result;
-      if (head) {
-         history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
-         for (uint32_t i = irreversible; i <= head; ++i) {
+      if (rodeos_snapshot->head) {
+         history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *rodeos_snapshot->write_session };
+         for (uint32_t i = rodeos_snapshot->irreversible; i <= rodeos_snapshot->head; ++i) {
             auto info = get_state_row<block_info>(
                   view_state.kv_state.view, std::make_tuple(eosio::name{ "block.info" }, eosio::name{ "primary" }, i));
             if (!info)
@@ -155,58 +143,21 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       return result;
    }
 
-   void write_fill_status() {
-      fill_status status;
-      if (irreversible < head)
-         status = fill_status_v0{ .chain_id        = chain_id,
-                                  .head            = head,
-                                  .head_id         = head_id,
-                                  .irreversible    = irreversible,
-                                  .irreversible_id = irreversible_id,
-                                  .first           = first };
-      else
-         status = fill_status_v0{ .chain_id        = chain_id,
-                                  .head            = head,
-                                  .head_id         = head_id,
-                                  .irreversible    = head,
-                                  .irreversible_id = head_id,
-                                  .first           = first };
-
-      history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
-      fill_status_kv               table{ { view_state } };
-      table.insert(status);
-   }
-
-   void end_write(bool write_fill) {
-      if (write_fill)
-         write_fill_status();
-      write_session.write_changes(undo_stack);
-   }
-
    bool received(get_blocks_result_v0& result, eosio::input_stream bin) override {
       if (!result.this_block)
          return true;
       if (config->stop_before && result.this_block->block_num >= config->stop_before) {
          ilog("block ${b}: stop requested", ("b", result.this_block->block_num));
-         end_write(true);
+         rodeos_snapshot->end_write(true);
          db->flush(false, false);
          return false;
       }
-      if (head && result.this_block->block_num > head + 1)
-         throw std::runtime_error("state-history plugin is missing block " + std::to_string(head + 1));
+      if (rodeos_snapshot->head && result.this_block->block_num > rodeos_snapshot->head + 1)
+         throw std::runtime_error("state-history plugin is missing block " + std::to_string(rodeos_snapshot->head + 1));
 
-      if (result.this_block->block_num <= head) {
-         ilog("switch forks at block ${b}; database contains revisions ${f} - ${h}",
-              ("b", result.this_block->block_num)("f", undo_stack.first_revision())("h", undo_stack.revision()));
-         if (undo_stack.first_revision() >= result.this_block->block_num)
-            throw std::runtime_error("can't switch forks since database doesn't contain revision " +
-                                     std::to_string(result.this_block->block_num - 1));
-         write_session.wipe_cache();
-         while (undo_stack.revision() >= result.this_block->block_num) //
-            undo_stack.undo(true);
-         load_fill_status();
+      rodeos_snapshot->start_block(result);
+      if (result.this_block->block_num <= rodeos_snapshot->head)
          reported_block = false;
-      }
 
       bool near      = result.this_block->block_num + 4 >= result.last_irreversible.block_num;
       bool write_now = !(result.this_block->block_num % 200) || near;
@@ -215,17 +166,6 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
               ("b", result.this_block->block_num)(
                     "i", result.this_block->block_num <= result.last_irreversible.block_num ? "irreversible" : ""));
       reported_block = true;
-      if (head_id != eosio::checksum256{} && (!result.prev_block || result.prev_block->block_id != head_id))
-         throw std::runtime_error("prev_block does not match");
-
-      if (result.this_block->block_num <= result.last_irreversible.block_num) {
-         undo_stack.commit(std::min(result.last_irreversible.block_num, head));
-         undo_stack.set_revision(result.this_block->block_num, false);
-      } else {
-         end_write(false);
-         undo_stack.commit(std::min(result.last_irreversible.block_num, head));
-         undo_stack.push(false);
-      }
 
       if (result.block)
          receive_block(result.this_block->block_num, result.this_block->block_id, *result.block);
@@ -235,7 +175,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       // todo: remove
       if (backend) {
          history_tools::chaindb_state chaindb_state;
-         history_tools::db_view_state view_state{ eosio::name{ "eosio.filter" }, *db, write_session };
+         history_tools::db_view_state view_state{ eosio::name{ "eosio.filter" }, *db, *rodeos_snapshot->write_session };
          filter::callbacks            cb{ *filter_state, chaindb_state, view_state };
          filter_state->max_console_size = 10000;
          filter_state->console.clear();
@@ -253,21 +193,12 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
             ilog("console output:\n${c}", ("c", filter_state->console));
       }
 
-      head            = result.this_block->block_num;
-      head_id         = result.this_block->block_id;
-      irreversible    = result.last_irreversible.block_num;
-      irreversible_id = result.last_irreversible.block_id;
-      if (!first || head < first)
-         first = head;
-      if (write_now)
-         end_write(write_now);
-      if (near)
-         db->flush(false, false);
+      rodeos_snapshot->end_block(result, false);
       return true;
    } // receive_result()
 
    void receive_deltas(uint32_t block_num, eosio::input_stream bin) {
-      history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
+      history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *rodeos_snapshot->write_session };
       uint32_t                     num;
       eosio::check_discard(eosio::varuint32_from_bin(num, bin));
       for (uint32_t i = 0; i < num; ++i) {
@@ -275,14 +206,14 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
          eosio::check_discard(from_bin(delta, bin));
          auto&  delta_v0      = std::get<0>(delta);
          size_t num_processed = 0;
-         store_delta({ view_state }, delta_v0, head == 0, [&]() {
+         store_delta({ view_state }, delta_v0, rodeos_snapshot->head == 0, [&]() {
             if (delta_v0.rows.size() > 10000 && !(num_processed % 10000)) {
                if (app().is_quiting())
                   throw std::runtime_error("shutting down");
                ilog("block ${b} ${t} ${n} of ${r}",
                     ("b", block_num)("t", delta_v0.name)("n", num_processed)("r", delta_v0.rows.size()));
-               if (head == 0) {
-                  end_write(false);
+               if (rodeos_snapshot->head == 0) {
+                  rodeos_snapshot->end_write(false);
                   view_state.reset();
                }
             }
@@ -308,7 +239,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       info.new_producers      = block.new_producers;
       info.producer_signature = block.producer_signature;
 
-      history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, write_session };
+      history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *rodeos_snapshot->write_session };
       block_info_kv                table{ { view_state } };
       table.insert(info);
    }

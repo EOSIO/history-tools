@@ -1,4 +1,4 @@
-#pragma onces
+#pragma once
 
 #include <eosio/history-tools/callbacks/basic.hpp>
 #include <eosio/history-tools/callbacks/chaindb.hpp>

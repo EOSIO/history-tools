@@ -112,7 +112,7 @@ extern "C" void rodeos_destroy_snapshot(rodeos_db_snapshot* snapshot) {
    std::unique_ptr<rodeos_db_snapshot>{ snapshot };
 }
 
-extern "C" rodeos_bool refresh_snapshot(rodeos_error* error, rodeos_db_snapshot* snapshot) {
+extern "C" rodeos_bool rodeos_refresh_snapshot(rodeos_error* error, rodeos_db_snapshot* snapshot) {
    return handle_exceptions(error, false, [&]() {
       if (!snapshot)
          return error->set("snapshot is null");
@@ -132,7 +132,8 @@ void with_result(const char* data, uint64_t size, F f) {
    f(*result_v0);
 }
 
-extern "C" rodeos_bool start_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size) {
+extern "C" rodeos_bool rodeos_start_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data,
+                                          uint64_t size) {
    return handle_exceptions(error, false, [&]() {
       if (!snapshot)
          return error->set("snapshot is null");
@@ -141,8 +142,8 @@ extern "C" rodeos_bool start_block(rodeos_error* error, rodeos_db_snapshot* snap
    });
 }
 
-extern "C" rodeos_bool end_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size,
-                                 bool force_write) {
+extern "C" rodeos_bool rodeos_end_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data,
+                                        uint64_t size, bool force_write) {
    return handle_exceptions(error, false, [&]() {
       if (!snapshot)
          return error->set("snapshot is null");
@@ -151,8 +152,8 @@ extern "C" rodeos_bool end_block(rodeos_error* error, rodeos_db_snapshot* snapsh
    });
 }
 
-extern "C" rodeos_bool write_deltas(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size,
-                                    rodeos_bool (*shutdown)(void*), void* shutdown_arg) {
+extern "C" rodeos_bool rodeos_write_deltas(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data,
+                                           uint64_t size, rodeos_bool (*shutdown)(void*), void* shutdown_arg) {
    return handle_exceptions(error, false, [&]() {
       if (!snapshot)
          return error->set("snapshot is null");
@@ -168,16 +169,16 @@ extern "C" rodeos_bool write_deltas(rodeos_error* error, rodeos_db_snapshot* sna
    });
 }
 
-rodeos_filter* rodeos_create_filter(rodeos_error* error, const char* wasm_filename) {
+extern "C" rodeos_filter* rodeos_create_filter(rodeos_error* error, const char* wasm_filename) {
    return handle_exceptions(error, nullptr, [&]() -> rodeos_filter* { //
       return std::make_unique<rodeos_filter>(wasm_filename).release();
    });
 }
 
-void rodeos_destroy_filter(rodeos_filter* filter) { std::unique_ptr<rodeos_filter>{ filter }; }
+extern "C" void rodeos_destroy_filter(rodeos_filter* filter) { std::unique_ptr<rodeos_filter>{ filter }; }
 
-rodeos_bool run_filter(rodeos_error* error, rodeos_db_snapshot* snapshot, rodeos_filter* filter, const char* data,
-                       uint64_t size) {
+extern "C" rodeos_bool rodeos_run_filter(rodeos_error* error, rodeos_db_snapshot* snapshot, rodeos_filter* filter,
+                                         const char* data, uint64_t size) {
    return handle_exceptions(error, false, [&]() {
       if (!snapshot)
          return error->set("snapshot is null");

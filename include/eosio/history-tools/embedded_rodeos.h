@@ -66,42 +66,43 @@ void rodeos_destroy_snapshot(rodeos_db_snapshot* snapshot);
 
 // Refresh a snapshot so it may read recently-written database changes. This operation is invalid if the snapshot is
 // persistent. It is undefined behavior if the snapshot is used between threads without synchronization.
-rodeos_bool refresh_snapshot(rodeos_error* error, rodeos_db_snapshot* snapshot);
+rodeos_bool rodeos_refresh_snapshot(rodeos_error* error, rodeos_db_snapshot* snapshot);
 
 // Start writing a block. Aborts any block in progress and rolls back reversible blocks if needed. `data` must be the
 // serialized `result` type defined by the state-history plugin's ABI. Currently only supports `get_blocks_result_v0`.
 // It is undefined behavior if the snapshot is used between threads without synchronization.
-rodeos_bool start_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size);
+rodeos_bool rodeos_start_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size);
 
 // Finish writing a block. `data` must be the serialized `result` type defined by the state-history plugin's ABI.
 // Currently only supports `get_blocks_result_v0`. If `force_write` is true, then the data will become immediately
 // available to newly-created or newly-refreshed snapshots to read. If `force_write` is false, then the write may be
-// delayed until a future end_block call. It is undefined behavior if the snapshot is used between threads without
-// synchronization.
-rodeos_bool end_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size,
-                      bool force_write);
+// delayed until a future rodeos_end_block call. It is undefined behavior if the snapshot is used between threads
+// without synchronization.
+rodeos_bool rodeos_end_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size,
+                             bool force_write);
 
 // Write state-history deltas to a block. `data` must be the serialized `result` type defined by the state-history
-// plugin's ABI. Currently only supports `get_blocks_result_v0`. If `shutdown` isn't null, then `write_deltas` may call
-// it during long operations. If `shutdown` returns true, then `write_deltas` abandons the writes. If `write_deltas`
-// returns false, the snapshot will be in an inconsistent state; call `start_block` to abandon the current write and
-// start another. It is undefined behavior if the snapshot is used between threads without synchronization.
-rodeos_bool write_deltas(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size,
-                         rodeos_bool (*shutdown)(void*), void* shutdown_arg);
+// plugin's ABI. Currently only supports `get_blocks_result_v0`. If `shutdown` isn't null, then `rodeos_write_deltas`
+// may call it during long operations. If `shutdown` returns true, then `rodeos_write_deltas` abandons the writes. If
+// `rodeos_write_deltas` returns false, the snapshot will be in an inconsistent state; call `start_block` to abandon the
+// current write and start another. It is undefined behavior if the snapshot is used between threads without
+// synchronization.
+rodeos_bool rodeos_write_deltas(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size,
+                                rodeos_bool (*shutdown)(void*), void* shutdown_arg);
 
 // Create a filter. Returns NULL on failure.
 rodeos_filter* rodeos_create_filter(rodeos_error* error, const char* wasm_filename);
 
-// Destroy a filter. It is undefined behavior if the filter is used between threads without synchronization. This
-// is a no-op if filter == NULL.
+// Destroy a filter. It is undefined behavior if the filter is used between threads without synchronization. This is a
+// no-op if filter == NULL.
 void rodeos_destroy_filter(rodeos_filter* filter);
 
 // Run filter. data must be the serialized `result` type defined by the state-history plugin's ABI. Currently only
-// supports `get_blocks_result_v0`. If `run_filter` returns false, the snapshot will be in an inconsistent state; call
-// `start_block` to abandon the current write and start another. It is undefined behavior if `snapshot` or `filter` is
-// used between threads without synchronization.
-rodeos_bool run_filter(rodeos_error* error, rodeos_db_snapshot* snapshot, rodeos_filter* filter, const char* data,
-                       uint64_t size);
+// supports `get_blocks_result_v0`. If `rodeos_run_filter` returns false, the snapshot will be in an inconsistent state;
+// call `start_block` to abandon the current write and start another. It is undefined behavior if `snapshot` or `filter`
+// is used between threads without synchronization.
+rodeos_bool rodeos_run_filter(rodeos_error* error, rodeos_db_snapshot* snapshot, rodeos_filter* filter,
+                              const char* data, uint64_t size);
 
 #ifdef __cplusplus
 }

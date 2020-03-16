@@ -38,9 +38,10 @@ struct rodeos_db_snapshot {
 
    void refresh();
    void end_write(bool write_fill);
-   void start_block(ship_protocol::get_blocks_result_v0& result);
-   void end_block(ship_protocol::get_blocks_result_v0& result, bool force_write);
-   void write_deltas(ship_protocol::get_blocks_result_v0& result, std::function<bool()> shutdown);
+   void start_block(const ship_protocol::get_blocks_result_v0& result);
+   void end_block(const ship_protocol::get_blocks_result_v0& result, bool force_write);
+   void check_write(const ship_protocol::get_blocks_result_v0& result);
+   void write_deltas(const ship_protocol::get_blocks_result_v0& result, std::function<bool()> shutdown);
 
  private:
    void write_fill_status();
@@ -52,7 +53,8 @@ struct rodeos_filter {
 
    rodeos_filter(const std::string filter_wasm);
 
-   void process(rodeos_db_snapshot& snapshot, eosio::input_stream bin);
+   void process(rodeos_db_snapshot& snapshot, const ship_protocol::get_blocks_result_v0& result,
+                eosio::input_stream bin);
 };
 
 }} // namespace eosio::history_tools

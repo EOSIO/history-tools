@@ -75,7 +75,7 @@ void rodeos_db_snapshot::end_write(bool write_fill) {
    write_session->write_changes(*undo_stack);
 }
 
-void rodeos_db_snapshot::start_block(get_blocks_result_v0& result) {
+void rodeos_db_snapshot::start_block(const get_blocks_result_v0& result) {
    if (!undo_stack)
       throw std::runtime_error("Can only write to persistent snapshots");
    if (!result.this_block)
@@ -106,7 +106,7 @@ void rodeos_db_snapshot::start_block(get_blocks_result_v0& result) {
    writing_block = result.this_block->block_num;
 }
 
-void rodeos_db_snapshot::end_block(get_blocks_result_v0& result, bool force_write) {
+void rodeos_db_snapshot::end_block(const get_blocks_result_v0& result, bool force_write) {
    if (!undo_stack)
       throw std::runtime_error("Can only write to persistent snapshots");
    if (!result.this_block)
@@ -128,13 +128,18 @@ void rodeos_db_snapshot::end_block(get_blocks_result_v0& result, bool force_writ
       db->flush(false, false);
 }
 
-void rodeos_db_snapshot::write_deltas(ship_protocol::get_blocks_result_v0& result, std::function<bool()> shutdown) {
+void rodeos_db_snapshot::check_write(const ship_protocol::get_blocks_result_v0& result) {
    if (!undo_stack)
       throw std::runtime_error("Can only write to persistent snapshots");
    if (!result.this_block)
       throw std::runtime_error("get_blocks_result this_block is empty");
    if (!writing_block || result.this_block->block_num != *writing_block)
       throw std::runtime_error("call start_block first");
+}
+
+void rodeos_db_snapshot::write_deltas(const ship_protocol::get_blocks_result_v0& result,
+                                      std::function<bool()>                      shutdown) {
+   check_write(result);
    if (!result.deltas)
       return;
 
@@ -187,7 +192,10 @@ rodeos_filter::rodeos_filter(const std::string filter_wasm) {
    filter::rhf_t::resolve(backend->get_module());
 }
 
-void rodeos_filter::process(rodeos_db_snapshot& snapshot, eosio::input_stream bin) {
+void rodeos_filter::process(rodeos_db_snapshot& snapshot, const ship_protocol::get_blocks_result_v0& result,
+                            eosio::input_stream bin) {
+   // todo: timeout
+   snapshot.check_write(result);
    chaindb_state     chaindb_state;
    db_view_state     view_state{ eosio::name{ "eosio.filter" }, *snapshot.db, *snapshot.write_session };
    filter::callbacks cb{ *filter_state, chaindb_state, view_state };

@@ -156,7 +156,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
 
       // todo: remove
       if (filter)
-         filter->process(*rodeos_snapshot, bin);
+         filter->process(*rodeos_snapshot, result, bin);
 
       rodeos_snapshot->end_block(result, false);
       return true;

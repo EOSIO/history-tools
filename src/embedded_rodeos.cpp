@@ -175,3 +175,15 @@ rodeos_filter* rodeos_create_filter(rodeos_error* error, const char* wasm_filena
 }
 
 void rodeos_destroy_filter(rodeos_filter* filter) { std::unique_ptr<rodeos_filter>{ filter }; }
+
+rodeos_bool run_filter(rodeos_error* error, rodeos_db_snapshot* snapshot, rodeos_filter* filter, const char* data,
+                       uint64_t size) {
+   return handle_exceptions(error, false, [&]() {
+      if (!snapshot)
+         return error->set("snapshot is null");
+      if (!filter)
+         return error->set("filter is null");
+      with_result(data, size, [&](auto& result) { filter->process(*snapshot, result, { data, data + size }); });
+      return true;
+   });
+}

@@ -92,7 +92,7 @@ struct snapshot {
       error.check([&] { return rodeos_start_block(error, obj, data, size); });
    }
 
-   void start_block(const char* data, uint64_t size, bool force_write) {
+   void end_block(const char* data, uint64_t size, bool force_write) {
       error.check([&] { return rodeos_end_block(error, obj, data, size, force_write); });
    }
 

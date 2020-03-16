@@ -68,6 +68,8 @@ struct partition {
    ~partition() { rodeos_destroy_partition(obj); }
 
    partition& operator=(const partition&) = delete;
+
+   operator rodeos_db_partition*() { return obj; }
 };
 
 struct snapshot {
@@ -83,6 +85,8 @@ struct snapshot {
    ~snapshot() { rodeos_destroy_snapshot(obj); }
 
    snapshot& operator=(const snapshot&) = delete;
+
+   operator rodeos_db_snapshot*() { return obj; }
 
    void refresh() {
       error.check([&] { return rodeos_refresh_snapshot(error, obj); });
@@ -100,7 +104,7 @@ struct snapshot {
    void write_deltas(const char* data, uint64_t size, F shutdown) {
       error.check([&] {
          return rodeos_write_deltas(
-               error, obj, data, size, [](void* f) -> rodeos_bool { return (static_cast<F*>(f))(); }, &shutdown);
+               error, obj, data, size, [](void* f) -> rodeos_bool { return (*static_cast<F*>(f))(); }, &shutdown);
       });
    }
 };
@@ -118,6 +122,8 @@ struct filter {
    ~filter() { rodeos_destroy_filter(obj); }
 
    filter& operator=(const filter&) = delete;
+
+   operator rodeos_filter*() { return obj; }
 
    void run(rodeos_db_snapshot* snapshot, const char* data, uint64_t size) {
       error.check([&] { return rodeos_run_filter(error, snapshot, obj, data, size); });

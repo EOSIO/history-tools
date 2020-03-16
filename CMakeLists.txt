@@ -10,7 +10,11 @@ cmake_policy(SET CMP0077 NEW)
 set(ENABLE_INSTALL OFF cache bool "")
 set(ENABLE_TOOLS OFF cache bool "")
 set(ENABLE_TESTS OFF cache bool "")
-add_subdirectory(external/eos-vm EXCLUDE_FROM_ALL)
+
+if(${EOSIO_HISTORY_TOOLS_TESTER})
+else()
+    add_subdirectory(external/eos-vm EXCLUDE_FROM_ALL)
+endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
@@ -90,10 +94,14 @@ set(WITH_TESTS OFF)
 
 add_compile_options(-Wno-error=shadow)
 
+if(${EOSIO_HISTORY_TOOLS_TESTER})
+else()
+    add_subdirectory(external/fc EXCLUDE_FROM_ALL)
+    add_subdirectory(libraries/builtins EXCLUDE_FROM_ALL)
+endif()
+
 add_subdirectory(external/appbase EXCLUDE_FROM_ALL)
-add_subdirectory(external/fc EXCLUDE_FROM_ALL)
 add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
-add_subdirectory(libraries/builtins EXCLUDE_FROM_ALL)
 
 set(FOUND_ROCKSDB ON)
 set(ROCKSDB_LIB rocksdb)

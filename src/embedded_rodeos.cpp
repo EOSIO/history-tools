@@ -38,7 +38,7 @@ extern "C" void rodeos_destroy_error(rodeos_error* error) { std::unique_ptr<rode
 
 extern "C" const char* rodeos_get_error(rodeos_error* error) {
    if (!error)
-      return "no error";
+      return "error is null";
    return error->msg;
 }
 

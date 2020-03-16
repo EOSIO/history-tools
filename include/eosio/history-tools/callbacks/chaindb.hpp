@@ -6,7 +6,7 @@ using history_tools::kv_environment;
 }
 
 #include "../wasms/table.hpp"
-#include <eosio/history-tools/ship_protocol.hpp>
+#include <eosio/ship_protocol.hpp>
 #include <eosio/vm/backend.hpp>
 
 namespace eosio { namespace history_tools {

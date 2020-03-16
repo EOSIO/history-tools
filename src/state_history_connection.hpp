@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <eosio/history-tools/ship_protocol.hpp>
+#include <eosio/ship_protocol.hpp>
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>

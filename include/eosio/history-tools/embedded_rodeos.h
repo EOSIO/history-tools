@@ -6,12 +6,13 @@
 extern "C" {
 #endif
 
-typedef struct rodeos_error_s        rodeos_error;
-typedef struct rodeos_context_s      rodeos_context;
-typedef struct rodeos_db_partition_s rodeos_db_partition;
-typedef struct rodeos_db_snapshot_s  rodeos_db_snapshot;
-typedef struct rodeos_filter_s       rodeos_filter;
-typedef int                          rodeos_bool;
+typedef struct rodeos_error_s         rodeos_error;
+typedef struct rodeos_context_s       rodeos_context;
+typedef struct rodeos_db_partition_s  rodeos_db_partition;
+typedef struct rodeos_db_snapshot_s   rodeos_db_snapshot;
+typedef struct rodeos_filter_s        rodeos_filter;
+typedef struct rodeos_query_handler_s rodeos_query_handler;
+typedef int                           rodeos_bool;
 
 // Create an error object. If multiple threads use an error object, then they must synchronize it. Returns NULL on
 // failure.
@@ -103,6 +104,30 @@ void rodeos_destroy_filter(rodeos_filter* filter);
 // is used between threads without synchronization.
 rodeos_bool rodeos_run_filter(rodeos_error* error, rodeos_db_snapshot* snapshot, rodeos_filter* filter,
                               const char* data, uint64_t size);
+
+// Create a query handler. This object manages pools of resources for running queries simultaneously.
+//
+// Query handlers may safely outlive partition objects. It is undefined behavior if the partition is used between
+// threads without synchronization. Returns NULL on failure.
+rodeos_query_handler* rodeos_create_query_handler(rodeos_error* error, rodeos_db_partition* partition,
+                                                  rodeos_bool persistent);
+
+// Destroy a query handler. It is undefined behavior if the handler is used between threads without synchronization.
+// This is a no-op if handler == NULL.
+void rodeos_destroy_query_handler(rodeos_query_handler* handler);
+
+// Run a query. data is a serialized ship_protocol::packed_transaction. Returns false on error and sets *result to NULL
+// and *result_size to 0. Otherwise, sets *result and *result_size to memory containing a serialized
+// ship_protocol::transaction_trace. Caller must use rodeos_free_result to free the memory.
+//
+// It is safe to use the same handler from multiple threads if:
+// * The return from rodeos_create_query_handler happens-before any calls to rodeos_query_transaction
+// * The return from all rodeos_query_transaction calls happens-before the call to rodeos_destroy_query_handler
+rodeos_bool rodeos_query_transaction(rodeos_error* error, rodeos_query_handler* handler, const char* data,
+                                     uint64_t size, char** result, uint64_t* result_size);
+
+// Frees memory from rodeos_query_transaction. Does nothing if result == NULL.
+void rodeos_free_result(char* result, uint64_t result_size);
 
 #ifdef __cplusplus
 }

@@ -1,11 +1,8 @@
-// copyright defined in LICENSE.txt
-
 #pragma once
 #include <eosio/history-tools/callbacks/action.hpp>
 #include <eosio/history-tools/callbacks/console.hpp>
 #include <eosio/history-tools/callbacks/kv.hpp>
-#include "wasm_ql_plugin.hpp"
-
+#include <eosio/ship_protocol.hpp>
 #include <eosio/vm/backend.hpp>
 
 namespace eosio { namespace wasm_ql {
@@ -36,5 +33,8 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
 const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, std::string_view body);
 const std::vector<char>& query_get_required_keys(wasm_ql::thread_state& thread_state, std::string_view body);
 const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_state, std::string_view body);
+const std::vector<char>& query_send_transaction(wasm_ql::thread_state&                   thread_state,
+                                                const ship_protocol::packed_transaction& trx,
+                                                const rocksdb::Snapshot*                 snapshot);
 
 }} // namespace eosio::wasm_ql

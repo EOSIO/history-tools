@@ -1,6 +1,7 @@
 // copyright defined in LICENSE.txt
 
-#include "wasm_ql.hpp"
+#include <eosio/history-tools/wasm_ql.hpp>
+
 #include "get_state_row.hpp"
 #include <eosio/history-tools/callbacks/chaindb.hpp>
 #include <eosio/history-tools/callbacks/compiler_builtins.hpp>
@@ -47,16 +48,6 @@ result<void> to_json(const std::pair<uint16_t, std::vector<char>>&, S& stream) {
 }; // namespace eosio
 
 namespace eosio { namespace wasm_ql {
-
-// todo: replace
-struct hex_bytes {
-   std::vector<char> data = {};
-};
-
-template <typename S>
-eosio::result<void> from_json(hex_bytes& obj, S& stream) {
-   return from_json_hex(obj.data, stream);
-}
 
 // todo: remove
 struct dummy_type {};
@@ -280,12 +271,11 @@ std::optional<std::vector<uint8_t>> read_contract(history_tools::db_view_state& 
 }
 
 void run_action(wasm_ql::thread_state& thread_state, ship_protocol::action& action, result_action_trace& atrace,
-                const std::chrono::steady_clock::time_point& stop_time) {
+                const rocksdb::Snapshot* snapshot, const std::chrono::steady_clock::time_point& stop_time) {
    if (std::chrono::steady_clock::now() >= stop_time)
       throw eosio::vm::timeout_exception("execution timed out");
 
-   rocksdb::ManagedSnapshot     snapshot{ thread_state.shared->db->rdb.get() };
-   chain_kv::write_session      write_session{ *thread_state.shared->db, snapshot.snapshot() };
+   chain_kv::write_session      write_session{ *thread_state.shared->db, snapshot };
    history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
 
    std::optional<backend_entry>        entry = thread_state.shared->backend_cache->get(action.account);
@@ -492,8 +482,8 @@ struct action_no_data {
 };
 
 struct extension_hex_data {
-   uint16_t  type = {};
-   hex_bytes data = {};
+   uint16_t     type = {};
+   eosio::bytes data = {};
 };
 
 EOSIO_REFLECT(extension_hex_data, type, data)
@@ -546,8 +536,8 @@ const std::vector<char>& query_get_required_keys(wasm_ql::thread_state& thread_s
 struct send_transaction_params {
    std::vector<eosio::signature> signatures               = {};
    std::string                   compression              = {};
-   hex_bytes                     packed_context_free_data = {};
-   hex_bytes                     packed_trx               = {};
+   eosio::bytes                  packed_context_free_data = {};
+   eosio::bytes                  packed_trx               = {};
 };
 
 EOSIO_REFLECT(send_transaction_params, signatures, compression, packed_context_free_data, packed_trx)
@@ -560,14 +550,25 @@ struct send_transaction_results {
 EOSIO_REFLECT(send_transaction_results, transaction_id, processed)
 
 const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_state, std::string_view body) {
-   send_transaction_params trx;
+   send_transaction_params params;
    {
       std::string              s{ body.begin(), body.end() };
       eosio::json_token_stream stream{ s.data() };
-      if (auto r = from_json(trx, stream); !r)
+      if (auto r = from_json(params, stream); !r)
          throw std::runtime_error("An error occurred deserializing send_transaction_params: "s + r.error().message());
    }
-   eosio::input_stream s{ trx.packed_trx.data };
+   if (params.compression != "0" && params.compression != "none")
+      throw std::runtime_error("Compression must be 0 or none"); // todo
+   ship_protocol::packed_transaction trx{ std::move(params.signatures), 0, params.packed_context_free_data.data,
+                                          params.packed_trx.data };
+   rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
+   return query_send_transaction(thread_state, trx, snapshot.snapshot());
+}
+
+const std::vector<char>& query_send_transaction(wasm_ql::thread_state&                   thread_state,
+                                                const ship_protocol::packed_transaction& trx,
+                                                const rocksdb::Snapshot*                 snapshot) {
+   eosio::input_stream s{ trx.packed_trx };
    auto                r = eosio::from_bin<ship_protocol::transaction>(s);
    if (!r)
       throw std::runtime_error("An error occurred deserializing packed_trx: "s + r.error().message());
@@ -577,9 +578,9 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
 
    if (!trx.signatures.empty())
       throw std::runtime_error("Signatures must be empty"); // todo
-   if (trx.compression != "0" && trx.compression != "none")
+   if (trx.compression)
       throw std::runtime_error("Compression must be 0 or none"); // todo
-   if (!trx.packed_context_free_data.data.empty())
+   if (trx.packed_context_free_data.pos != trx.packed_context_free_data.end)
       throw std::runtime_error("packed_context_free_data must be empty");
    // todo: verify query transaction extension is present, but no others
    // todo: redirect if transaction extension not present?
@@ -610,7 +611,7 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
       at.act                  = action;
 
       try {
-         run_action(thread_state, action, at, stop_time);
+         run_action(thread_state, action, at, snapshot, stop_time);
       } catch (eosio::vm::timeout_exception&) { //
          throw std::runtime_error(
                "timeout after " +

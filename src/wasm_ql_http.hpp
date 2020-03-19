@@ -1,7 +1,7 @@
 // copyright defined in LICENSE.txt
 
 #pragma once
-#include "wasm_ql.hpp"
+#include <eosio/history-tools/wasm_ql.hpp>
 
 namespace eosio { namespace wasm_ql {
 

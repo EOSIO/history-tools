@@ -12,6 +12,7 @@
 #include <eosio/from_json.hpp>
 
 #include <boost/asio/bind_executor.hpp>
+#include <boost/asio/io_service.hpp>
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>

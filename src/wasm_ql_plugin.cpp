@@ -16,8 +16,8 @@
 // todo: better naming for queries
 
 #include "wasm_ql_plugin.hpp"
-#include "wasm_ql.hpp"
 #include "wasm_ql_http.hpp"
+#include <eosio/history-tools/wasm_ql.hpp>
 
 #include <fc/exception/exception.hpp>
 #include <fc/log/logger.hpp>

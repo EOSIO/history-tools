@@ -104,7 +104,7 @@ extern "C" rodeos_db_snapshot* rodeos_create_snapshot(rodeos_error* error, rodeo
    return handle_exceptions(error, nullptr, [&]() -> rodeos_db_snapshot* {
       if (!partition)
          return error->set("partition is null"), nullptr;
-      return std::make_unique<rodeos_db_snapshot>(*partition, persistent).release();
+      return std::make_unique<rodeos_db_snapshot>(partition->shared_from_this(), persistent).release();
    });
 }
 

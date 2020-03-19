@@ -1,27 +1,41 @@
 #include <chain_kv/chain_kv.hpp>
 #include <eosio/history-tools/filter.hpp>
+#include <eosio/history-tools/wasm_ql.hpp>
 #include <eosio/ship_protocol.hpp>
 
 namespace eosio { namespace history_tools {
 
-static constexpr char undo_prefix = 0x01;
+static constexpr char undo_prefix_byte        = 0x01;
+static constexpr char contract_kv_prefix_byte = 0x02;
 
 struct rodeos_context {
    std::shared_ptr<chain_kv::database> db;
 };
 
-struct rodeos_db_partition {
-   std::shared_ptr<chain_kv::database> db;
-   std::vector<char>                   prefix;
+struct rodeos_db_partition : std::enable_shared_from_this<rodeos_db_partition> {
+   const std::shared_ptr<chain_kv::database> db;
+   const std::vector<char>                   undo_prefix;
+   const std::vector<char>                   contract_kv_prefix;
 
    // todo: move rocksdb::ManagedSnapshot to here to prevent optimization in cloner from
    //       defeating non-persistent snapshots.
 
-   rodeos_db_partition(std::shared_ptr<chain_kv::database> db, std::vector<char> prefix)
-       : db{ std::move(db) }, prefix{ std::move(prefix) } {}
+   rodeos_db_partition(std::shared_ptr<chain_kv::database> db, const std::vector<char>& prefix)
+       : db{ std::move(db) }, //
+         undo_prefix{ [&] {
+            auto x = prefix;
+            x.push_back(undo_prefix_byte);
+            return x;
+         }() },
+         contract_kv_prefix{ [&] {
+            auto x = prefix;
+            x.push_back(contract_kv_prefix_byte);
+            return x;
+         }() } {}
 };
 
 struct rodeos_db_snapshot {
+   std::shared_ptr<rodeos_db_partition>    partition       = {};
    std::shared_ptr<chain_kv::database>     db              = {};
    std::optional<chain_kv::undo_stack>     undo_stack      = {}; // only if persistent
    std::optional<rocksdb::ManagedSnapshot> snap            = {}; // only if !persistent
@@ -34,7 +48,7 @@ struct rodeos_db_snapshot {
    uint32_t                                first           = 0;
    std::optional<uint32_t>                 writing_block   = {};
 
-   rodeos_db_snapshot(rodeos_db_partition& partition, bool persistent);
+   rodeos_db_snapshot(std::shared_ptr<rodeos_db_partition> partition, bool persistent);
 
    void refresh();
    void end_write(bool write_fill);

@@ -57,10 +57,11 @@ struct cloner_plugin_impl : std::enable_shared_from_this<cloner_plugin_impl> {
 };
 
 struct cloner_session : connection_callbacks, std::enable_shared_from_this<cloner_session> {
-   cloner_plugin_impl*                        my = nullptr;
-   std::shared_ptr<cloner_config>             config;
-   std::shared_ptr<chain_kv::database>        db = app().find_plugin<rocksdb_plugin>()->get_db();
-   rodeos_db_partition                        partition{ db, {} };
+   cloner_plugin_impl*                  my = nullptr;
+   std::shared_ptr<cloner_config>       config;
+   std::shared_ptr<chain_kv::database>  db = app().find_plugin<rocksdb_plugin>()->get_db();
+   std::shared_ptr<rodeos_db_partition> partition =
+         std::make_shared<rodeos_db_partition>(db, std::vector<char>{}); // todo: prefix
    std::optional<rodeos_db_snapshot>          rodeos_snapshot;
    std::shared_ptr<ship_protocol::connection> connection;
    bool                                       reported_block = false;
@@ -113,7 +114,8 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
    std::vector<block_position> get_positions() {
       std::vector<block_position> result;
       if (rodeos_snapshot->head) {
-         history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *rodeos_snapshot->write_session };
+         history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *rodeos_snapshot->write_session,
+                                                  partition->contract_kv_prefix };
          for (uint32_t i = rodeos_snapshot->irreversible; i <= rodeos_snapshot->head; ++i) {
             auto info = get_state_row<block_info>(
                   view_state.kv_state.view, std::make_tuple(eosio::name{ "block.info" }, eosio::name{ "primary" }, i));
@@ -179,7 +181,8 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       info.new_producers      = block.new_producers;
       info.producer_signature = block.producer_signature;
 
-      history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *rodeos_snapshot->write_session };
+      history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *rodeos_snapshot->write_session,
+                                               partition->contract_kv_prefix };
       block_info_kv                table{ { view_state } };
       table.insert(info);
    }

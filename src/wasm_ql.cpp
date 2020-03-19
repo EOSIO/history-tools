@@ -270,13 +270,15 @@ std::optional<std::vector<uint8_t>> read_contract(history_tools::db_view_state& 
    return result;
 }
 
-void run_action(wasm_ql::thread_state& thread_state, ship_protocol::action& action, result_action_trace& atrace,
-                const rocksdb::Snapshot* snapshot, const std::chrono::steady_clock::time_point& stop_time) {
+void run_action(wasm_ql::thread_state& thread_state, const std::vector<char>& contract_kv_prefix,
+                ship_protocol::action& action, result_action_trace& atrace, const rocksdb::Snapshot* snapshot,
+                const std::chrono::steady_clock::time_point& stop_time) {
    if (std::chrono::steady_clock::now() >= stop_time)
       throw eosio::vm::timeout_exception("execution timed out");
 
    chain_kv::write_session      write_session{ *thread_state.shared->db, snapshot };
-   history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
+   history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session,
+                                               contract_kv_prefix };
 
    std::optional<backend_entry>        entry = thread_state.shared->backend_cache->get(action.account);
    std::optional<std::vector<uint8_t>> code;
@@ -326,10 +328,12 @@ void run_action(wasm_ql::thread_state& thread_state, ship_protocol::action& acti
    atrace.return_value.data = std::move(thread_state.action_return_value);
 }
 
-const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state) {
+const std::vector<char>& query_get_info(wasm_ql::thread_state&   thread_state,
+                                        const std::vector<char>& contract_kv_prefix) {
    rocksdb::ManagedSnapshot     snapshot{ thread_state.shared->db->rdb.get() };
    chain_kv::write_session      write_session{ *thread_state.shared->db, snapshot.snapshot() };
-   history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
+   history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session,
+                                               contract_kv_prefix };
 
    std::string result = "{\"server-type\":\"wasm-ql\"";
 
@@ -375,7 +379,8 @@ struct get_block_params {
 
 EOSIO_REFLECT(get_block_params, block_num_or_id)
 
-const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, std::string_view body) {
+const std::vector<char>& query_get_block(wasm_ql::thread_state&   thread_state,
+                                         const std::vector<char>& contract_kv_prefix, std::string_view body) {
    get_block_params         params;
    std::string              s{ body.begin(), body.end() };
    eosio::json_token_stream stream{ s.data() };
@@ -384,7 +389,8 @@ const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, st
 
    rocksdb::ManagedSnapshot     snapshot{ thread_state.shared->db->rdb.get() };
    chain_kv::write_session      write_session{ *thread_state.shared->db, snapshot.snapshot() };
-   history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
+   history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session,
+                                               contract_kv_prefix };
 
    std::string              bn_json = "\"" + params.block_num_or_id + "\"";
    eosio::json_token_stream bn_stream{ bn_json.data() };
@@ -443,7 +449,8 @@ struct get_abi_result {
 
 EOSIO_REFLECT(get_abi_result, account_name, abi)
 
-const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, std::string_view body) {
+const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, const std::vector<char>& contract_kv_prefix,
+                                       std::string_view body) {
    get_abi_params           params;
    std::string              s{ body.begin(), body.end() };
    eosio::json_token_stream stream{ s.data() };
@@ -452,7 +459,8 @@ const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, std:
 
    rocksdb::ManagedSnapshot     snapshot{ thread_state.shared->db->rdb.get() };
    chain_kv::write_session      write_session{ *thread_state.shared->db, snapshot.snapshot() };
-   history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session };
+   history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session,
+                                               contract_kv_prefix };
 
    auto acc = get_state_row<ship_protocol::account>(
          db_view_state.kv_state.view,
@@ -549,7 +557,8 @@ struct send_transaction_results {
 
 EOSIO_REFLECT(send_transaction_results, transaction_id, processed)
 
-const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_state, std::string_view body) {
+const std::vector<char>& query_send_transaction(wasm_ql::thread_state&   thread_state,
+                                                const std::vector<char>& contract_kv_prefix, std::string_view body) {
    send_transaction_params params;
    {
       std::string              s{ body.begin(), body.end() };
@@ -562,10 +571,11 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_st
    ship_protocol::packed_transaction trx{ std::move(params.signatures), 0, params.packed_context_free_data.data,
                                           params.packed_trx.data };
    rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
-   return query_send_transaction(thread_state, trx, snapshot.snapshot());
+   return query_send_transaction(thread_state, contract_kv_prefix, trx, snapshot.snapshot());
 }
 
 const std::vector<char>& query_send_transaction(wasm_ql::thread_state&                   thread_state,
+                                                const std::vector<char>&                 contract_kv_prefix,
                                                 const ship_protocol::packed_transaction& trx,
                                                 const rocksdb::Snapshot*                 snapshot) {
    eosio::input_stream s{ trx.packed_trx };
@@ -611,7 +621,7 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state&          
       at.act                  = action;
 
       try {
-         run_action(thread_state, action, at, snapshot, stop_time);
+         run_action(thread_state, contract_kv_prefix, action, at, snapshot, stop_time);
       } catch (eosio::vm::timeout_exception&) { //
          throw std::runtime_error(
                "timeout after " +

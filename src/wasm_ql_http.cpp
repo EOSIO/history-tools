@@ -35,6 +35,8 @@
 #include <thread>
 #include <vector>
 
+static const std::vector<char> temp_contract_kv_prefix{ 0x02 }; // todo: replace
+
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http  = beast::http;          // from <boost/beast/http.hpp>
 namespace net   = boost::asio;          // from <boost/asio.hpp>
@@ -228,7 +230,7 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
    try {
       if (req.target() == "/v1/chain/get_info") {
          auto thread_state = state_cache.get_state();
-         send(ok(query_get_info(*thread_state), "application/json"));
+         send(ok(query_get_info(*thread_state, temp_contract_kv_prefix), "application/json"));
          state_cache.store_state(std::move(thread_state));
          return;
       } else if (req.target() ==
@@ -237,7 +239,8 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
             return send(
                   error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
          auto thread_state = state_cache.get_state();
-         send(ok(query_get_block(*thread_state, std::string_view{ req.body().data(), req.body().size() }),
+         send(ok(query_get_block(*thread_state, temp_contract_kv_prefix,
+                                 std::string_view{ req.body().data(), req.body().size() }),
                  "application/json"));
          state_cache.store_state(std::move(thread_state));
          return;
@@ -246,7 +249,8 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
             return send(
                   error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
          auto thread_state = state_cache.get_state();
-         send(ok(query_get_abi(*thread_state, std::string_view{ req.body().data(), req.body().size() }),
+         send(ok(query_get_abi(*thread_state, temp_contract_kv_prefix,
+                               std::string_view{ req.body().data(), req.body().size() }),
                  "application/json"));
          state_cache.store_state(std::move(thread_state));
          return;
@@ -266,7 +270,8 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
             return send(
                   error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
          auto thread_state = state_cache.get_state();
-         send(ok(query_send_transaction(*thread_state, std::string_view{ req.body().data(), req.body().size() }),
+         send(ok(query_send_transaction(*thread_state, temp_contract_kv_prefix,
+                                        std::string_view{ req.body().data(), req.body().size() }),
                  "application/json"));
          state_cache.store_state(std::move(thread_state));
          return;

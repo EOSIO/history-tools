@@ -28,12 +28,17 @@ struct thread_state : eosio::history_tools::action_state, eosio::history_tools::
 
 void register_callbacks();
 
-const std::vector<char>& query_get_info(wasm_ql::thread_state& thread_state);
-const std::vector<char>& query_get_block(wasm_ql::thread_state& thread_state, std::string_view body);
-const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, std::string_view body);
+const std::vector<char>& query_get_info(wasm_ql::thread_state&   thread_state,
+                                        const std::vector<char>& contract_kv_prefix);
+const std::vector<char>& query_get_block(wasm_ql::thread_state&   thread_state,
+                                         const std::vector<char>& contract_kv_prefix, std::string_view body);
+const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, const std::vector<char>& contract_kv_prefix,
+                                       std::string_view body);
 const std::vector<char>& query_get_required_keys(wasm_ql::thread_state& thread_state, std::string_view body);
-const std::vector<char>& query_send_transaction(wasm_ql::thread_state& thread_state, std::string_view body);
+const std::vector<char>& query_send_transaction(wasm_ql::thread_state&   thread_state,
+                                                const std::vector<char>& contract_kv_prefix, std::string_view body);
 const std::vector<char>& query_send_transaction(wasm_ql::thread_state&                   thread_state,
+                                                const std::vector<char>&                 contract_kv_prefix,
                                                 const ship_protocol::packed_transaction& trx,
                                                 const rocksdb::Snapshot*                 snapshot);
 

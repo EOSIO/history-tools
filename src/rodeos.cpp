@@ -10,18 +10,18 @@ using ship_protocol::fill_status_kv;
 using ship_protocol::fill_status_v0;
 using ship_protocol::get_blocks_result_v0;
 
-rodeos_db_snapshot::rodeos_db_snapshot(rodeos_db_partition& partition, bool persistent) : db{ partition.db } {
+rodeos_db_snapshot::rodeos_db_snapshot(std::shared_ptr<rodeos_db_partition> partition, bool persistent)
+    : partition{ std::move(partition) }, db{ this->partition->db } {
    if (persistent) {
-      auto p = partition.prefix;
-      p.push_back(undo_prefix);
-      undo_stack.emplace(*db, std::move(p));
+      undo_stack.emplace(*db, this->partition->undo_prefix);
       write_session.emplace(*db);
    } else {
       snap.emplace(db->rdb.get());
       write_session.emplace(*db, snap->snapshot());
    }
 
-   history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *write_session };
+   history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *write_session,
+                                            this->partition->contract_kv_prefix };
    fill_status_kv               table{ { view_state } };
    auto                         it = table.begin();
    if (it != table.end()) {
@@ -62,7 +62,8 @@ void rodeos_db_snapshot::write_fill_status() {
                                .irreversible_id = head_id,
                                .first           = first };
 
-   history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *write_session };
+   history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *write_session,
+                                            partition->contract_kv_prefix };
    fill_status_kv               table{ { view_state } };
    table.insert(status);
 }
@@ -146,7 +147,8 @@ void rodeos_db_snapshot::write_deltas(const ship_protocol::get_blocks_result_v0&
    uint32_t            block_num = result.this_block->block_num;
    eosio::input_stream bin       = *result.deltas;
 
-   history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *write_session };
+   history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *write_session,
+                                            partition->contract_kv_prefix };
    uint32_t                     num;
    eosio::check_discard(eosio::varuint32_from_bin(num, bin));
    for (uint32_t i = 0; i < num; ++i) {
@@ -197,7 +199,8 @@ void rodeos_filter::process(rodeos_db_snapshot& snapshot, const ship_protocol::g
    // todo: timeout
    snapshot.check_write(result);
    chaindb_state     chaindb_state;
-   db_view_state     view_state{ eosio::name{ "eosio.filter" }, *snapshot.db, *snapshot.write_session };
+   db_view_state     view_state{ eosio::name{ "eosio.filter" }, *snapshot.db, *snapshot.write_session,
+                             snapshot.partition->contract_kv_prefix };
    filter::callbacks cb{ *filter_state, chaindb_state, view_state };
    filter_state->max_console_size = 10000;
    filter_state->console.clear();

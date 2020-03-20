@@ -63,33 +63,6 @@ EOSIO_REFLECT(error_results, code, message, error)
 
 namespace eosio { namespace wasm_ql {
 
-class thread_state_cache {
- private:
-   std::mutex                                   mutex;
-   std::shared_ptr<const wasm_ql::shared_state> shared_state;
-   std::vector<std::unique_ptr<thread_state>>   states;
-
- public:
-   thread_state_cache(const std::shared_ptr<const wasm_ql::shared_state>& shared_state) : shared_state(shared_state) {}
-
-   std::unique_ptr<thread_state> get_state() {
-      std::lock_guard<std::mutex> lock{ mutex };
-      if (states.empty()) {
-         auto result    = std::make_unique<thread_state>();
-         result->shared = shared_state;
-         return result;
-      }
-      auto result = std::move(states.back());
-      states.pop_back();
-      return result;
-   }
-
-   void store_state(std::unique_ptr<thread_state> state) {
-      std::lock_guard<std::mutex> lock{ mutex };
-      states.push_back(std::move(state));
-   }
-};
-
 // Report a failure
 static void fail(beast::error_code ec, const char* what) { elog("${w}: ${s}", ("w", what)("s", ec.message())); }
 

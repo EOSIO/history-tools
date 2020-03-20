@@ -218,4 +218,8 @@ void rodeos_filter::process(rodeos_db_snapshot& snapshot, const ship_protocol::g
       ilog("console output:\n${c}", ("c", filter_state->console));
 }
 
+rodeos_query_handler::rodeos_query_handler(std::shared_ptr<rodeos_db_partition>         partition,
+                                           std::shared_ptr<const wasm_ql::shared_state> shared_state)
+    : partition{ partition }, shared_state{ std::move(shared_state) }, state_cache{ this->shared_state } {}
+
 }} // namespace eosio::history_tools

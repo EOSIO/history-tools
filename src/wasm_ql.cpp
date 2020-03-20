@@ -29,6 +29,10 @@ using boost::multi_index::ordered_non_unique;
 using boost::multi_index::sequenced;
 using boost::multi_index::tag;
 
+using eosio::ship_protocol::action_receipt_v0;
+using eosio::ship_protocol::action_trace_v1;
+using eosio::ship_protocol::transaction_trace_v0;
+
 namespace history_tools = eosio::history_tools;
 
 namespace eosio {
@@ -48,59 +52,6 @@ result<void> to_json(const std::pair<uint16_t, std::vector<char>>&, S& stream) {
 }; // namespace eosio
 
 namespace eosio { namespace wasm_ql {
-
-// todo: remove
-struct dummy_type {};
-
-EOSIO_REFLECT(dummy_type)
-
-struct result_action_receipt {
-   eosio::name receiver = {};
-};
-
-EOSIO_REFLECT(result_action_receipt, receiver)
-
-struct result_action_trace {
-   eosio::varuint32                     action_ordinal         = {};
-   eosio::varuint32                     creator_action_ordinal = {};
-   std::optional<result_action_receipt> receipt                = {};
-   eosio::name                          receiver               = {};
-   ship_protocol::action                act                    = {};
-   bool                                 context_free           = {};
-   int64_t                              elapsed                = {};
-   std::string                          console                = {};
-   std::vector<dummy_type>              account_ram_deltas     = {};
-   std::optional<std::string>           except                 = {};
-   std::optional<uint64_t>              error_code             = {};
-   eosio::bytes                         return_value           = {};
-};
-
-EOSIO_REFLECT(result_action_trace, action_ordinal, creator_action_ordinal, receipt, receiver, act, context_free,
-              elapsed, console, account_ram_deltas, except, error_code, return_value)
-
-struct result_transaction_receipt {
-   ship_protocol::transaction_status status          = {};
-   uint32_t                          cpu_usage_us    = {};
-   eosio::varuint32                  net_usage_words = {};
-};
-
-EOSIO_REFLECT(result_transaction_receipt, status, cpu_usage_us, net_usage_words)
-
-struct result_transaction_trace {
-   eosio::checksum256                id                = {};
-   std::optional<eosio::checksum256> producer_block_id = {};
-   result_transaction_receipt        receipt           = {};
-   int64_t                           elapsed           = {};
-   uint64_t                          net_usage         = {};
-   bool                              scheduled         = {};
-   std::vector<result_action_trace>  action_traces     = {};
-   std::optional<dummy_type>         account_ram_delta = {};
-   std::optional<std::string>        except            = {};
-   std::optional<uint64_t>           error_code        = {};
-};
-
-EOSIO_REFLECT(result_transaction_trace, id, producer_block_id, receipt, elapsed, net_usage, scheduled, action_traces,
-              account_ram_delta, except, error_code)
 
 // todo: relax some of these limits
 struct wasm_ql_backend_options {
@@ -271,8 +222,8 @@ std::optional<std::vector<uint8_t>> read_contract(history_tools::db_view_state& 
 }
 
 void run_action(wasm_ql::thread_state& thread_state, const std::vector<char>& contract_kv_prefix,
-                ship_protocol::action& action, result_action_trace& atrace, const rocksdb::Snapshot* snapshot,
-                const std::chrono::steady_clock::time_point& stop_time) {
+                ship_protocol::action& action, action_trace_v1& atrace, const rocksdb::Snapshot* snapshot,
+                const std::chrono::steady_clock::time_point& stop_time, std::vector<std::vector<char>>& memory) {
    if (std::chrono::steady_clock::now() >= stop_time)
       throw eosio::vm::timeout_exception("execution timed out");
 
@@ -324,9 +275,10 @@ void run_action(wasm_ql::thread_state& thread_state, const std::vector<char>& co
       (*entry->backend)(&cb, "env", "apply", action.account.value, action.account.value, action.name.value);
    });
 
-   atrace.console           = std::move(thread_state.console);
-   atrace.return_value.data = std::move(thread_state.action_return_value);
-}
+   atrace.console = std::move(thread_state.console);
+   memory.push_back(std::move(thread_state.action_return_value));
+   atrace.return_value = memory.back();
+} // run_action
 
 const std::vector<char>& query_get_info(wasm_ql::thread_state&   thread_state,
                                         const std::vector<char>& contract_kv_prefix) {
@@ -551,8 +503,8 @@ struct send_transaction_params {
 EOSIO_REFLECT(send_transaction_params, signatures, compression, packed_context_free_data, packed_trx)
 
 struct send_transaction_results {
-   eosio::checksum256       transaction_id; // todo: redundant with processed.id
-   result_transaction_trace processed;
+   eosio::checksum256   transaction_id; // todo: redundant with processed.id
+   transaction_trace_v0 processed;
 };
 
 EOSIO_REFLECT(send_transaction_results, transaction_id, processed)
@@ -571,13 +523,23 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state&   thread_
    ship_protocol::packed_transaction trx{ std::move(params.signatures), 0, params.packed_context_free_data.data,
                                           params.packed_trx.data };
    rocksdb::ManagedSnapshot          snapshot{ thread_state.shared->db->rdb.get() };
-   return query_send_transaction(thread_state, contract_kv_prefix, trx, snapshot.snapshot());
-}
 
-const std::vector<char>& query_send_transaction(wasm_ql::thread_state&                   thread_state,
-                                                const std::vector<char>&                 contract_kv_prefix,
-                                                const ship_protocol::packed_transaction& trx,
-                                                const rocksdb::Snapshot*                 snapshot) {
+   std::vector<std::vector<char>> memory;
+   send_transaction_results       results;
+   results.processed = query_send_transaction(thread_state, contract_kv_prefix, trx, snapshot.snapshot(), memory);
+
+   // todo: hide variants during json conversion
+   // todo: avoid the extra copy
+   auto json = eosio::check(eosio::convert_to_json(results));
+   thread_state.action_return_value.assign(json.value().begin(), json.value().end());
+   return thread_state.action_return_value;
+} // query_send_transaction
+
+transaction_trace_v0 query_send_transaction(wasm_ql::thread_state&                   thread_state,       //
+                                            const std::vector<char>&                 contract_kv_prefix, //
+                                            const ship_protocol::packed_transaction& trx,                //
+                                            const rocksdb::Snapshot*                 snapshot,           //
+                                            std::vector<std::vector<char>>&          memory) {
    eosio::input_stream s{ trx.packed_trx };
    auto                r = eosio::from_bin<ship_protocol::transaction>(s);
    if (!r)
@@ -606,8 +568,7 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state&          
          throw std::runtime_error("authorization must be empty"); // todo
 
    // todo: fill transaction_id
-   send_transaction_results results;
-   auto&                    tt = results.processed;
+   transaction_trace_v0 tt;
    tt.action_traces.reserve(unpacked.actions.size());
 
    auto start_time = std::chrono::steady_clock::now();
@@ -615,13 +576,13 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state&          
 
    for (auto& action : unpacked.actions) {
       tt.action_traces.emplace_back();
-      auto& at                = tt.action_traces.back();
+      auto& at                = tt.action_traces.back().emplace<action_trace_v1>();
       at.action_ordinal.value = tt.action_traces.size(); // starts at 1
       at.receiver             = action.account;
       at.act                  = action;
 
       try {
-         run_action(thread_state, contract_kv_prefix, action, at, snapshot, stop_time);
+         run_action(thread_state, contract_kv_prefix, action, at, snapshot, stop_time, memory);
       } catch (eosio::vm::timeout_exception&) { //
          throw std::runtime_error(
                "timeout after " +
@@ -636,13 +597,11 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state&          
       }
 
       at.receipt.emplace();
-      at.receipt->receiver = action.account;
+      auto& r    = at.receipt->emplace<action_receipt_v0>();
+      r.receiver = action.account;
    }
 
-   // todo: avoid the extra copy
-   auto json = eosio::check(eosio::convert_to_json(results));
-   thread_state.action_return_value.assign(json.value().begin(), json.value().end());
-   return thread_state.action_return_value;
+   return tt;
 } // query_send_transaction
 
 }} // namespace eosio::wasm_ql

@@ -28,6 +28,10 @@ struct rodeos_filter_s : eosio::history_tools::rodeos_filter {
    using rodeos_filter::rodeos_filter;
 };
 
+struct rodeos_query_handler_s : eosio::history_tools::rodeos_query_handler {
+   using rodeos_query_handler::rodeos_query_handler;
+};
+
 extern "C" rodeos_error* rodeos_create_error() {
    try {
       return std::make_unique<rodeos_error>().release();
@@ -187,4 +191,58 @@ extern "C" rodeos_bool rodeos_run_filter(rodeos_error* error, rodeos_db_snapshot
       with_result(data, size, [&](auto& result) { filter->process(*snapshot, result, { data, data + size }); });
       return true;
    });
+}
+
+extern "C" rodeos_query_handler* rodeos_create_query_handler(rodeos_error* error, rodeos_db_partition* partition,
+                                                             uint32_t max_console_size, uint32_t wasm_cache_size,
+                                                             uint64_t max_exec_time_ms, const char* contract_dir) {
+   return handle_exceptions(error, nullptr, [&]() -> rodeos_query_handler* {
+      if (!partition)
+         return error->set("partition is null"), nullptr;
+      auto shared_state              = std::make_shared<eosio::wasm_ql::shared_state>(partition->db);
+      shared_state->max_console_size = max_console_size;
+      shared_state->wasm_cache_size  = wasm_cache_size;
+      shared_state->max_exec_time_ms = max_exec_time_ms;
+      shared_state->contract_dir     = contract_dir ? contract_dir : "";
+      return std::make_unique<rodeos_query_handler>(partition->shared_from_this(), shared_state).release();
+   });
+}
+
+void rodeos_destroy_query_handler(rodeos_query_handler* handler) { std::unique_ptr<rodeos_query_handler>{ handler }; }
+
+rodeos_bool rodeos_query_transaction(rodeos_error* error, rodeos_query_handler* handler, rodeos_db_snapshot* snapshot,
+                                     const char* data, uint64_t size, char** result, uint64_t* result_size) {
+   return handle_exceptions(error, false, [&]() {
+      if (!handler)
+         return error->set("handler is null");
+      if (!result)
+         return error->set("result is null");
+      if (!result_size)
+         return error->set("result_size is null");
+      *result      = nullptr;
+      *result_size = 0;
+
+      std::vector<std::vector<char>> memory;
+      eosio::input_stream            s{ data, size };
+      auto trx = eosio::check(eosio::from_bin<eosio::ship_protocol::packed_transaction>(s)).value();
+
+      auto                                    thread_state = handler->state_cache.get_state();
+      eosio::ship_protocol::transaction_trace tt           = query_send_transaction(
+            *thread_state, snapshot->partition->contract_kv_prefix, trx, snapshot->snap->snapshot(), memory);
+      handler->state_cache.store_state(std::move(thread_state));
+
+      auto packed = eosio::check(eosio::convert_to_bin(tt)).value();
+      *result     = (char*)malloc(packed.size());
+      if (!result)
+         throw std::bad_alloc();
+      *result_size = packed.size();
+      memcpy(*result, packed.data(), packed.size());
+      return true;
+   });
+}
+
+void rodeos_free_result(char* result, uint64_t result_size) {
+   // result_size not currently used, but allows switching to a different allocator in the future
+   if (result)
+      free(result);
 }

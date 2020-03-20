@@ -71,4 +71,14 @@ struct rodeos_filter {
                 eosio::input_stream bin);
 };
 
+struct rodeos_query_handler {
+   std::shared_ptr<rodeos_db_partition>               partition;
+   const std::shared_ptr<const wasm_ql::shared_state> shared_state;
+   wasm_ql::thread_state_cache                        state_cache;
+
+   rodeos_query_handler(std::shared_ptr<rodeos_db_partition>         partition,
+                        std::shared_ptr<const wasm_ql::shared_state> shared_state);
+   rodeos_query_handler(const rodeos_query_handler&) = delete;
+};
+
 }} // namespace eosio::history_tools

@@ -28,7 +28,7 @@ const char* rodeos_get_error(rodeos_error* error);
 rodeos_context* rodeos_create();
 
 // Destroy a context. It is undefined behavior if the context is used between threads without synchronization, or if any
-// partition objects or snapshot objects currently exist for this context. This is a no-op if context == NULL.
+// other objects currently exist for this context. This is a no-op if context == NULL.
 void rodeos_destroy(rodeos_context* context);
 
 // Open database. num_threads is the target number of rocksdb background threads; use 0 for default. max_open_files is
@@ -110,7 +110,8 @@ rodeos_bool rodeos_run_filter(rodeos_error* error, rodeos_db_snapshot* snapshot,
 // Query handlers may safely outlive partition objects. It is undefined behavior if the partition is used between
 // threads without synchronization. Returns NULL on failure.
 rodeos_query_handler* rodeos_create_query_handler(rodeos_error* error, rodeos_db_partition* partition,
-                                                  rodeos_bool persistent);
+                                                  uint32_t max_console_size, uint32_t wasm_cache_size,
+                                                  uint64_t max_exec_time_ms, const char* contract_dir);
 
 // Destroy a query handler. It is undefined behavior if the handler is used between threads without synchronization.
 // This is a no-op if handler == NULL.
@@ -123,8 +124,10 @@ void rodeos_destroy_query_handler(rodeos_query_handler* handler);
 // It is safe to use the same handler from multiple threads if:
 // * The return from rodeos_create_query_handler happens-before any calls to rodeos_query_transaction
 // * The return from all rodeos_query_transaction calls happens-before the call to rodeos_destroy_query_handler
-rodeos_bool rodeos_query_transaction(rodeos_error* error, rodeos_query_handler* handler, const char* data,
-                                     uint64_t size, char** result, uint64_t* result_size);
+//
+// It is undefined behavior if `snapshot` is used between threads without synchronization.
+rodeos_bool rodeos_query_transaction(rodeos_error* error, rodeos_query_handler* handler, rodeos_db_snapshot* snapshot,
+                                     const char* data, uint64_t size, char** result, uint64_t* result_size);
 
 // Frees memory from rodeos_query_transaction. Does nothing if result == NULL.
 void rodeos_free_result(char* result, uint64_t result_size);

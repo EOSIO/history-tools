@@ -16,8 +16,8 @@ struct rodeos_error_s {
 
 struct rodeos_context_s : eosio::history_tools::rodeos_context {};
 
-struct rodeos_db_partition_s : eosio::history_tools::rodeos_db_partition {
-   using rodeos_db_partition::rodeos_db_partition;
+struct rodeos_db_partition_s {
+   std::shared_ptr<eosio::history_tools::rodeos_db_partition> obj;
 };
 
 struct rodeos_db_snapshot_s : eosio::history_tools::rodeos_db_snapshot {
@@ -94,8 +94,10 @@ extern "C" rodeos_db_partition* rodeos_create_partition(rodeos_error* error, rod
          return error->set("prefix is null"), nullptr;
       if (!context->db)
          return error->set("database wasn't opened"), nullptr;
-      return std::make_unique<rodeos_db_partition>(context->db, std::vector<char>{ prefix, prefix + prefix_size })
-            .release();
+      auto p = std::make_unique<rodeos_db_partition>();
+      p->obj = std::make_shared<eosio::history_tools::rodeos_db_partition>(
+            context->db, std::vector<char>{ prefix, prefix + prefix_size });
+      return p.release();
    });
 }
 
@@ -108,7 +110,7 @@ extern "C" rodeos_db_snapshot* rodeos_create_snapshot(rodeos_error* error, rodeo
    return handle_exceptions(error, nullptr, [&]() -> rodeos_db_snapshot* {
       if (!partition)
          return error->set("partition is null"), nullptr;
-      return std::make_unique<rodeos_db_snapshot>(partition->shared_from_this(), persistent).release();
+      return std::make_unique<rodeos_db_snapshot>(partition->obj, persistent).release();
    });
 }
 
@@ -199,12 +201,12 @@ extern "C" rodeos_query_handler* rodeos_create_query_handler(rodeos_error* error
    return handle_exceptions(error, nullptr, [&]() -> rodeos_query_handler* {
       if (!partition)
          return error->set("partition is null"), nullptr;
-      auto shared_state              = std::make_shared<eosio::wasm_ql::shared_state>(partition->db);
+      auto shared_state              = std::make_shared<eosio::wasm_ql::shared_state>(partition->obj->db);
       shared_state->max_console_size = max_console_size;
       shared_state->wasm_cache_size  = wasm_cache_size;
       shared_state->max_exec_time_ms = max_exec_time_ms;
       shared_state->contract_dir     = contract_dir ? contract_dir : "";
-      return std::make_unique<rodeos_query_handler>(partition->shared_from_this(), shared_state).release();
+      return std::make_unique<rodeos_query_handler>(partition->obj, shared_state).release();
    });
 }
 

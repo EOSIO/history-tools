@@ -187,7 +187,7 @@ if (FOUND_ROCKSDB)
     target_sources(rodeos PRIVATE src/rocksdb_plugin.cpp src/cloner_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp src/rodeos.cpp)
 endif()
 
-add_library(embedded_rodeos src/embedded_rodeos.cpp src/rodeos.cpp)
+add_library(embedded_rodeos src/embedded_rodeos.cpp src/rodeos.cpp src/wasm_ql.cpp external/abieos/src/crypto.cpp)
 set_opts(embedded_rodeos "" "${ROCKSDB_LIB}")
 
 message(STATUS "Enabled apps:")

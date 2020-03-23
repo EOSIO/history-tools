@@ -12,7 +12,7 @@ struct rodeos_context {
    std::shared_ptr<chain_kv::database> db;
 };
 
-struct rodeos_db_partition : std::enable_shared_from_this<rodeos_db_partition> {
+struct rodeos_db_partition {
    const std::shared_ptr<chain_kv::database> db;
    const std::vector<char>                   undo_prefix;
    const std::vector<char>                   contract_kv_prefix;

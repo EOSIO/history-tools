@@ -109,6 +109,8 @@ rodeos_bool rodeos_run_filter(rodeos_error* error, rodeos_db_snapshot* snapshot,
 //
 // Query handlers may safely outlive partition objects. It is undefined behavior if the partition is used between
 // threads without synchronization. Returns NULL on failure.
+//
+// TODO: remove partition arg; redundant with snapshot in rodeos_query_transaction
 rodeos_query_handler* rodeos_create_query_handler(rodeos_error* error, rodeos_db_partition* partition,
                                                   uint32_t max_console_size, uint32_t wasm_cache_size,
                                                   uint64_t max_exec_time_ms, const char* contract_dir);

@@ -130,4 +130,51 @@ struct filter {
    }
 };
 
+struct result {
+   char*    data = {};
+   uint64_t size = {};
+
+   result()              = default;
+   result(const result&) = delete;
+   result(result&& src) { *this = std::move(src); }
+   ~result() { rodeos_free_result(data, size); }
+
+   result& operator=(const result& src) = delete;
+
+   result& operator=(result&& src) {
+      data     = src.data;
+      size     = src.size;
+      src.data = nullptr;
+      src.size = 0;
+      return *this;
+   }
+};
+
+struct query_handler {
+   struct error          error;
+   rodeos_query_handler* obj;
+
+   query_handler(rodeos_db_partition* partition, uint32_t max_console_size, uint32_t wasm_cache_size,
+                 uint64_t max_exec_time_ms, const char* contract_dir) {
+      obj = error.check([&] {
+         return rodeos_create_query_handler(error, partition, max_console_size, wasm_cache_size, max_exec_time_ms,
+                                            contract_dir);
+      });
+   }
+
+   query_handler(const query_handler&) = delete;
+
+   ~query_handler() { rodeos_destroy_query_handler(obj); }
+
+   query_handler& operator=(const query_handler&) = delete;
+
+   operator rodeos_query_handler*() { return obj; }
+
+   result query_transaction(rodeos_db_snapshot* snapshot, const char* data, uint64_t size) {
+      result r;
+      error.check([&] { return rodeos_query_transaction(error, obj, snapshot, data, size, &r.data, &r.size); });
+      return r;
+   }
+};
+
 } // namespace embedded_rodeos

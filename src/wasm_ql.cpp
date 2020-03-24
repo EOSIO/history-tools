@@ -19,6 +19,7 @@
 
 #include <fc/log/logger.hpp>
 #include <fc/scoped_exit.hpp>
+#include <mutex>
 
 using namespace std::literals;
 
@@ -98,6 +99,8 @@ struct callbacks : history_tools::action_callbacks<callbacks>,
    auto& get_chaindb_state() { return chaindb_state; }
    auto& get_db_view_state() { return db_view_state; }
 };
+
+std::once_flag registered_callbacks;
 
 void register_callbacks() {
    history_tools::action_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
@@ -256,6 +259,8 @@ void run_action(wasm_ql::thread_state& thread_state, const std::vector<char>& co
       else
          entry->name = action.account;
       entry->backend = std::make_unique<backend_t>(*code);
+
+      std::call_once(registered_callbacks, register_callbacks);
       rhf_t::resolve(entry->backend->get_module());
    }
    auto se = fc::make_scoped_exit([&] { thread_state.shared->backend_cache->add(std::move(*entry)); });

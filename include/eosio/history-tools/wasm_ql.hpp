@@ -53,8 +53,6 @@ class thread_state_cache {
    }
 };
 
-void register_callbacks();
-
 const std::vector<char>& query_get_info(wasm_ql::thread_state&   thread_state,
                                         const std::vector<char>& contract_kv_prefix);
 const std::vector<char>& query_get_block(wasm_ql::thread_state&   thread_state,

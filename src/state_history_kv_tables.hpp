@@ -239,6 +239,20 @@ void store_delta_typed(eosio::kv_environment environment, table_delta_v0& delta,
 }
 
 template <typename F>
+void store_delta_kv(eosio::kv_environment environment, table_delta_v0& delta, F f) {
+   for (auto& row : delta.rows) {
+      f();
+      auto  obj  = eosio::check(eosio::from_bin<key_value>(row.data)).value();
+      auto& obj0 = std::get<key_value_v0>(obj);
+      if (row.present)
+         environment.kv_set(obj0.database.value, obj0.contract.value, obj0.key.pos, obj0.key.remaining(),
+                            obj0.value.pos, obj0.value.remaining());
+      else
+         environment.kv_erase(obj0.database.value, obj0.contract.value, obj0.key.pos, obj0.key.remaining());
+   }
+}
+
+template <typename F>
 inline void store_delta(eosio::kv_environment environment, table_delta_v0& delta, bool bypass_preexist_check, F f) {
    if (delta.name == "global_property")
       store_delta_typed<global_property_kv>(environment, delta, bypass_preexist_check, f);
@@ -256,6 +270,8 @@ inline void store_delta(eosio::kv_environment environment, table_delta_v0& delta
       store_delta_typed<contract_index64_kv>(environment, delta, bypass_preexist_check, f);
    if (delta.name == "contract_index128")
       store_delta_typed<contract_index128_kv>(environment, delta, bypass_preexist_check, f);
+   if (delta.name == "key_value")
+      store_delta_kv(environment, delta, f);
 }
 
 inline void store_deltas(eosio::kv_environment environment, std::vector<table_delta>& deltas,

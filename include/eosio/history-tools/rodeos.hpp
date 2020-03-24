@@ -62,10 +62,11 @@ struct rodeos_db_snapshot {
 };
 
 struct rodeos_filter {
+   eosio::name                           name         = {};
    std::unique_ptr<filter::backend_t>    backend      = {};
    std::unique_ptr<filter::filter_state> filter_state = {};
 
-   rodeos_filter(const std::string filter_wasm);
+   rodeos_filter(eosio::name name, const std::string& wasm_filename);
 
    void process(rodeos_db_snapshot& snapshot, const ship_protocol::get_blocks_result_v0& result,
                 eosio::input_stream bin);

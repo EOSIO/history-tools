@@ -175,9 +175,9 @@ extern "C" rodeos_bool rodeos_write_deltas(rodeos_error* error, rodeos_db_snapsh
    });
 }
 
-extern "C" rodeos_filter* rodeos_create_filter(rodeos_error* error, const char* wasm_filename) {
+extern "C" rodeos_filter* rodeos_create_filter(rodeos_error* error, uint64_t name, const char* wasm_filename) {
    return handle_exceptions(error, nullptr, [&]() -> rodeos_filter* { //
-      return std::make_unique<rodeos_filter>(wasm_filename).release();
+      return std::make_unique<rodeos_filter>(eosio::name{ name }, wasm_filename).release();
    });
 }
 

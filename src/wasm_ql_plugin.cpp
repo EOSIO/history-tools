@@ -92,8 +92,6 @@ void wasm_ql_plugin::plugin_initialize(const variables_map& options) {
          http_config->allow_origin = options.at("wql-allow-origin").as<std::string>();
       if (options.count("wql-static-dir"))
          http_config->static_dir = options.at("wql-static-dir").as<std::string>();
-
-      register_callbacks();
    }
    FC_LOG_AND_RETHROW()
 }

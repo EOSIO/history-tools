@@ -33,6 +33,7 @@ struct cloner_session;
 struct cloner_config : connection_config {
    uint32_t    skip_to     = 0;
    uint32_t    stop_before = 0;
+   eosio::name filter_name = {}; // todo: remove
    std::string filter_wasm = {}; // todo: remove
 };
 
@@ -70,7 +71,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
    cloner_session(cloner_plugin_impl* my) : my(my), config(my->config) {
       // todo: remove
       if (!config->filter_wasm.empty())
-         filter = std::make_unique<rodeos_filter>(config->filter_wasm);
+         filter = std::make_unique<rodeos_filter>(config->filter_name, config->filter_wasm);
    }
 
    void connect(asio::io_context& ioc) {
@@ -183,7 +184,8 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
 
       history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *rodeos_snapshot->write_session,
                                                partition->contract_kv_prefix };
-      block_info_kv                table{ { view_state } };
+      view_state.kv_state.enable_write = true;
+      block_info_kv table{ { view_state } };
       table.insert(info);
    }
 
@@ -222,6 +224,7 @@ void cloner_plugin::set_program_options(options_description& cli, options_descri
    clop("clone-skip-to,k", bpo::value<uint32_t>(), "Skip blocks before [arg]");
    clop("clone-stop,x", bpo::value<uint32_t>(), "Stop before block [arg]");
    // todo: remove
+   op("filter-name", bpo::value<std::string>(), "Filter name");
    op("filter-wasm", bpo::value<std::string>(), "Filter wasm");
 }
 
@@ -237,7 +240,12 @@ void cloner_plugin::plugin_initialize(const variables_map& options) {
       my->config->port        = port;
       my->config->skip_to     = options.count("clone-skip-to") ? options["clone-skip-to"].as<uint32_t>() : 0;
       my->config->stop_before = options.count("clone-stop") ? options["clone-stop"].as<uint32_t>() : 0;
-      my->config->filter_wasm = options.count("filter-wasm") ? options["filter-wasm"].as<std::string>() : "";
+      if (options.count("filter-name") && options.count("filter-wasm")) {
+         my->config->filter_name = eosio::name{ options["filter-name"].as<std::string>() };
+         my->config->filter_wasm = options["filter-wasm"].as<std::string>();
+      } else if (options.count("filter-name") || options.count("filter-wasm")) {
+         throw std::runtime_error("filter-name and filter-wasm must be used together");
+      }
    }
    FC_LOG_AND_RETHROW()
 }

@@ -113,8 +113,8 @@ struct filter {
    struct error   error;
    rodeos_filter* obj;
 
-   filter(const char* wasm_filename) {
-      obj = error.check([&] { return rodeos_create_filter(error, wasm_filename); });
+   filter(uint64_t name, const char* wasm_filename) {
+      obj = error.check([&] { return rodeos_create_filter(error, name, wasm_filename); });
    }
 
    filter(const filter&) = delete;

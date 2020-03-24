@@ -130,6 +130,8 @@ struct kv_context_rocksdb {
    std::vector<char>                        contract_kv_prefix;
    eosio::name                              database_id;
    chain_kv::view                           view;
+   bool                                     enable_write          = false;
+   bool                                     bypass_receiver_check = false;
    eosio::name                              receiver;
    const kv_database_config&                limits;
    uint32_t                                 num_iterators = 0;
@@ -147,18 +149,22 @@ struct kv_context_rocksdb {
       return prefix;
    }
 
-   void kv_erase(uint64_t contract, const char* key, uint32_t key_size) {
-      eosio::check(eosio::name{ contract } == receiver, "Can not write to this key");
+   int64_t kv_erase(uint64_t contract, const char* key, uint32_t key_size) {
+      eosio::check(enable_write && (bypass_receiver_check || eosio::name{ contract } == receiver),
+                   "Can not write to this key");
       temp_data_buffer = nullptr;
       view.erase(contract, { key, key_size });
+      return 0;
    }
 
-   void kv_set(uint64_t contract, const char* key, uint32_t key_size, const char* value, uint32_t value_size) {
-      eosio::check(eosio::name{ contract } == receiver, "Can not write to this key");
+   int64_t kv_set(uint64_t contract, const char* key, uint32_t key_size, const char* value, uint32_t value_size) {
+      eosio::check(enable_write && (bypass_receiver_check || eosio::name{ contract } == receiver),
+                   "Can not write to this key");
       eosio::check(key_size <= limits.max_key_size, "Key too large");
       eosio::check(value_size <= limits.max_value_size, "Value too large");
       temp_data_buffer = nullptr;
       view.set(contract, { key, key_size }, { value, value_size });
+      return 0;
    }
 
    bool kv_get(uint64_t contract, const char* key, uint32_t key_size, uint32_t& value_size) {
@@ -220,13 +226,13 @@ template <typename Derived>
 struct db_callbacks {
    Derived& derived() { return static_cast<Derived&>(*this); }
 
-   void kv_erase(uint64_t db, uint64_t contract, const char* key, uint32_t key_size) {
+   int64_t kv_erase(uint64_t db, uint64_t contract, const char* key, uint32_t key_size) {
       derived().check_bounds(key, key_size);
       return kv_get_db(db).kv_erase(contract, key, key_size);
    }
 
-   void kv_set(uint64_t db, uint64_t contract, const char* key, uint32_t key_size, const char* value,
-               uint32_t value_size) {
+   int64_t kv_set(uint64_t db, uint64_t contract, const char* key, uint32_t key_size, const char* value,
+                  uint32_t value_size) {
       derived().check_bounds(key, key_size);
       derived().check_bounds(value, value_size);
       return kv_get_db(db).kv_set(contract, key, key_size, value, value_size);
@@ -365,6 +371,7 @@ class kv_environment : public db_callbacks<kv_environment> {
    auto& get_db_view_state() { return state; }
    void  check_bounds(const char*, uint32_t) {}
 
+   using base::kv_set;
    void kv_set(uint64_t db, uint64_t contract, const std::vector<char>& k, const std::vector<char>& v) {
       base::kv_set(db, contract, k.data(), k.size(), v.data(), v.size());
    }

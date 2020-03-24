@@ -92,7 +92,7 @@ rodeos_bool rodeos_write_deltas(rodeos_error* error, rodeos_db_snapshot* snapsho
                                 rodeos_bool (*shutdown)(void*), void* shutdown_arg);
 
 // Create a filter. Returns NULL on failure.
-rodeos_filter* rodeos_create_filter(rodeos_error* error, const char* wasm_filename);
+rodeos_filter* rodeos_create_filter(rodeos_error* error, uint64_t name, const char* wasm_filename);
 
 // Destroy a filter. It is undefined behavior if the filter is used between threads without synchronization. This is a
 // no-op if filter == NULL.

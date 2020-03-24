@@ -64,7 +64,8 @@ void rodeos_db_snapshot::write_fill_status() {
 
    history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *write_session,
                                             partition->contract_kv_prefix };
-   fill_status_kv               table{ { view_state } };
+   view_state.kv_state.enable_write = true;
+   fill_status_kv table{ { view_state } };
    table.insert(status);
 }
 
@@ -149,7 +150,12 @@ void rodeos_db_snapshot::write_deltas(const ship_protocol::get_blocks_result_v0&
 
    history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *write_session,
                                             partition->contract_kv_prefix };
-   uint32_t                     num;
+   view_state.kv_ram.enable_write           = true;
+   view_state.kv_ram.bypass_receiver_check  = true;
+   view_state.kv_disk.enable_write          = true;
+   view_state.kv_disk.bypass_receiver_check = true;
+   view_state.kv_state.enable_write         = true;
+   uint32_t num;
    eosio::check_discard(eosio::varuint32_from_bin(num, bin));
    for (uint32_t i = 0; i < num; ++i) {
       ship_protocol::table_delta delta;
@@ -174,13 +180,13 @@ void rodeos_db_snapshot::write_deltas(const ship_protocol::get_blocks_result_v0&
 
 std::once_flag registered_filter_callbacks;
 
-rodeos_filter::rodeos_filter(const std::string filter_wasm) {
+rodeos_filter::rodeos_filter(eosio::name name, const std::string& wasm_filename) : name{ name } {
    std::call_once(registered_filter_callbacks, filter::register_callbacks);
 
-   std::ifstream wasm_file(filter_wasm, std::ios::binary);
+   std::ifstream wasm_file(wasm_filename, std::ios::binary);
    if (!wasm_file.is_open())
-      throw std::runtime_error("can not open " + filter_wasm);
-   ilog("compiling ${f}", ("f", filter_wasm));
+      throw std::runtime_error("can not open " + wasm_filename);
+   ilog("compiling ${f}", ("f", wasm_filename));
    wasm_file.seekg(0, std::ios::end);
    int len = wasm_file.tellg();
    if (len < 0)
@@ -198,9 +204,10 @@ void rodeos_filter::process(rodeos_db_snapshot& snapshot, const ship_protocol::g
                             eosio::input_stream bin) {
    // todo: timeout
    snapshot.check_write(result);
-   chaindb_state     chaindb_state;
-   db_view_state     view_state{ eosio::name{ "eosio.filter" }, *snapshot.db, *snapshot.write_session,
-                             snapshot.partition->contract_kv_prefix };
+   chaindb_state chaindb_state;
+   db_view_state view_state{ name, *snapshot.db, *snapshot.write_session, snapshot.partition->contract_kv_prefix };
+   view_state.kv_disk.enable_write = true;
+   view_state.kv_ram.enable_write  = true;
    filter::callbacks cb{ *filter_state, chaindb_state, view_state };
    filter_state->max_console_size = 10000;
    filter_state->console.clear();

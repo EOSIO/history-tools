@@ -59,7 +59,7 @@ struct wasm_ql_backend_options {
    static constexpr std::uint32_t max_mutable_global_bytes      = 1024;
    static constexpr std::uint32_t max_table_elements            = 1024;
    static constexpr std::uint32_t max_section_elements          = 8191;
-   static constexpr std::uint32_t max_function_section_elements = 1023;
+   static constexpr std::uint32_t max_function_section_elements = 8000; // nodeos is: 1023;     TODO: restore this and use nodeos's hard fork
    static constexpr std::uint32_t max_import_section_elements   = 1023;
    static constexpr std::uint32_t max_element_segment_elements  = 8191;
    static constexpr std::uint32_t max_data_segment_bytes        = 8191;

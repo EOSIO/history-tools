@@ -58,7 +58,6 @@ class kv_environment {
   public:
     kv_environment() {}
 
-  //private:
     void kv_set(const std::vector<char>& k, const std::vector<char>& v) {
         internal_use_do_not_use::kv_set(k.data(), k.size(), v.data(), v.size());
     }
@@ -80,21 +79,6 @@ class kv_environment {
     int32_t  kv_it_key(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size)                         {return internal_use_do_not_use::kv_it_key(itr, offset, dest, size, actual_size);}
     int32_t  kv_it_value(uint32_t itr, uint32_t offset, char* dest, uint32_t size, uint32_t& actual_size)                       {return internal_use_do_not_use::kv_it_value(itr, offset, dest, size, actual_size);}
     // clang-format on
-
-    /* TODO: Add this back later */
-#if 0
-    template <typename T>
-    friend class kv_table;
-
-    template <typename T>
-    friend class index;
-
-    template <typename T>
-    friend class table_iterator;
-
-    template <typename T>
-    friend class table_proxy;
-#endif
 };
 #endif
 
@@ -762,11 +746,7 @@ protected:
 
    kv_environment environment;
 
-   template <typename KVE = kv_environment>
-   kv_table(typename std::enable_if_t<std::is_constructible_v<KVE>, default_constructor_tag>* = nullptr) {}
-
-   kv_table(kv_environment environment)
-      : environment{std::move(environment)} {}
+   kv_table(kv_environment environment) : environment{std::move(environment)} {}
 
    kv_table(const kv_table&) = delete;
    kv_table(kv_table&&)      = delete;

@@ -34,6 +34,9 @@ using eosio::ship_protocol::action_receipt_v0;
 using eosio::ship_protocol::action_trace_v1;
 using eosio::ship_protocol::transaction_trace_v0;
 
+template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
+
 namespace history_tools = eosio::history_tools;
 
 namespace eosio {
@@ -297,8 +300,8 @@ const std::vector<char>& query_get_info(wasm_ql::thread_state&   thread_state,
    {
       ship_protocol::global_property_kv table{ { db_view_state } };
       bool                              found = false;
-      if (table.begin() != table.end()) {
-         auto record = table.begin().get();
+      if (table.primary_index.begin() != table.primary_index.end()) {
+         auto record = table.primary_index.begin().value();
          if (auto* obj = std::get_if<ship_protocol::global_property_v1>(&record)) {
             found = true;
             result += ",\"chain_id\":" + eosio::check(eosio::convert_to_json(obj->chain_id)).value();
@@ -310,16 +313,17 @@ const std::vector<char>& query_get_info(wasm_ql::thread_state&   thread_state,
 
    {
       ship_protocol::fill_status_kv table{ { db_view_state } };
-      if (table.begin() != table.end()) {
-         std::visit(
-               [&](auto& obj) {
-                  result += ",\"head_block_num\":\"" + std::to_string(obj.head) + "\"";
-                  result += ",\"head_block_id\":" + eosio::check(eosio::convert_to_json(obj.head_id)).value();
-                  result += ",\"last_irreversible_block_num\":\"" + std::to_string(obj.irreversible) + "\"";
-                  result += ",\"last_irreversible_block_id\":" +
-                            eosio::check(eosio::convert_to_json(obj.irreversible_id)).value();
-               },
-               table.begin().get());
+      if (table.primary_index.begin() != table.primary_index.end()) {
+         auto val = table.primary_index.begin().value();
+         std::visit(overloaded {
+            [&](ship_protocol::fill_status_v0 obj) {
+               result += ",\"head_block_num\":\"" + std::to_string(obj.head) + "\"";
+               result += ",\"head_block_id\":" + eosio::check(eosio::convert_to_json(obj.head_id)).value();
+               result += ",\"last_irreversible_block_num\":\"" + std::to_string(obj.irreversible) + "\"";
+               result +=
+                     ",\"last_irreversible_block_id\":" + eosio::check(eosio::convert_to_json(obj.irreversible_id)).value();
+            },
+         }, val);
       } else
          throw std::runtime_error("No fill_status records found; is filler running?");
    }

@@ -23,9 +23,9 @@ rodeos_db_snapshot::rodeos_db_snapshot(std::shared_ptr<rodeos_db_partition> part
    history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *write_session,
                                             this->partition->contract_kv_prefix };
    fill_status_kv               table{ { view_state } };
-   auto                         it = table.begin();
-   if (it != table.end()) {
-      auto status     = std::get<0>(it.get());
+   auto                         it = table.primary_index.begin();
+   if (it != table.primary_index.end()) {
+      auto status     = std::get<0>(it.value());
       chain_id        = status.chain_id;
       head            = status.head;
       head_id         = status.head_id;
@@ -66,7 +66,7 @@ void rodeos_db_snapshot::write_fill_status() {
                                             partition->contract_kv_prefix };
    view_state.kv_state.enable_write = true;
    fill_status_kv table{ { view_state } };
-   table.insert(status);
+   table.put(status);
 }
 
 void rodeos_db_snapshot::end_write(bool write_fill) {

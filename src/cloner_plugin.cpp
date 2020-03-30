@@ -186,7 +186,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
                                                partition->contract_kv_prefix };
       view_state.kv_state.enable_write = true;
       block_info_kv table{ { view_state } };
-      table.insert(info);
+      table.put(info);
    }
 
    void closed(bool retry) override {

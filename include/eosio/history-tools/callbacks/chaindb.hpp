@@ -5,7 +5,7 @@ namespace eosio {
 using history_tools::kv_environment;
 }
 
-#include "../wasms/table.hpp"
+#include "../wasms/key_value.hpp"
 #include <eosio/ship_protocol.hpp>
 #include <eosio/vm/backend.hpp>
 
@@ -51,6 +51,7 @@ class iterator_cache {
          return map_it->second;
       if (!view.get(eosio::name{ "state" }.value,
                     chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
+                                                          0x01,
                                                           eosio::name{ "contract.tab" }, eosio::name{ "primary" },
                                                           key.code, key.table, key.scope)))
                                              .value())))
@@ -142,11 +143,13 @@ class iterator_cache {
          view_it               = chain_kv::view::iterator{
             view, eosio::name{ "state" }.value,
             chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
+                                                  0x01,
                                                   eosio::name{ "contract.row" }, eosio::name{ "primary" },
                                                   table_key.code, table_key.table, table_key.scope)))
                                      .value())
          };
          view_it->lower_bound(eosio::check(eosio::convert_to_key(std::make_tuple(
+                                                 0x01,
                                                  eosio::name{ "contract.row" }, eosio::name{ "primary" },
                                                  table_key.code, table_key.table, table_key.scope, it.primary)))
                                     .value());
@@ -179,11 +182,12 @@ class iterator_cache {
       // std::cout << "lower_bound: db_view::iterator\n";
       chain_kv::view::iterator it{ view, eosio::name{ "state" }.value,
                                    chain_kv::to_slice(eosio::check(eosio::convert_to_key(std::make_tuple(
+                                                                         0x01,
                                                                          eosio::name{ "contract.row" },
                                                                          eosio::name{ "primary" }, code, table, scope)))
                                                             .value()) };
       it.lower_bound(
-            eosio::check(eosio::convert_to_key(std::make_tuple(eosio::name{ "contract.row" }, eosio::name{ "primary" },
+            eosio::check(eosio::convert_to_key(std::make_tuple(0x01, eosio::name{ "contract.row" }, eosio::name{ "primary" },
                                                                code, table, scope, key)))
                   .value());
       return get_iterator(rk, std::move(it));

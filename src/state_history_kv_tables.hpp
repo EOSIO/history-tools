@@ -41,14 +41,7 @@ inline bool operator==(const fill_status_v0& a, fill_status_v0& b) {
 
 inline bool operator!=(const fill_status_v0& a, fill_status_v0& b) { return !(a == b); }
 
-struct fill_status_kv : eosio::kv_table<fill_status> {
-   index<std::vector<char>> primary_index{ eosio::name{ "primary" },
-                                           [](const auto& var) { return std::vector<char>{}; } };
-
-   fill_status_kv(eosio::kv_environment environment) : eosio::kv_table<fill_status>{ std::move(environment) } {
-      init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "fill.status" }, primary_index);
-   }
-};
+using fill_status_kv = eosio::kv_singleton<fill_status, eosio::name{ "fill.status" }>;
 
 struct block_info_v0 {
    uint32_t                         num                = {};
@@ -71,19 +64,13 @@ using block_info = std::variant<block_info_v0>;
 
 // todo: move out of "state"?
 struct block_info_kv : eosio::kv_table<block_info> {
-   index<std::vector<char>> primary_index{
-      eosio::name{ "primary" },
-      [](const auto& var) {
-         return std::visit([](const auto& obj) { return eosio::check(eosio::convert_to_key(obj.num)).value(); }, *var);
-      }
-   };
+   index<uint32_t> primary_index{ eosio::name{ "primary" }, [](const auto& var) {
+                                    return std::visit([](const auto& obj) { return obj.num; }, *var);
+                                 } };
 
-   index<std::vector<char>> id_index{
-      eosio::name{ "id" },
-      [](const auto& var) {
-         return std::visit([](const auto& obj) { return eosio::check(eosio::convert_to_key(obj.id)).value(); }, *var);
-      }
-   };
+   index<eosio::checksum256> id_index{ eosio::name{ "id" }, [](const auto& var) {
+                                         return std::visit([](const auto& obj) { return obj.id; }, *var);
+                                      } };
 
    block_info_kv(eosio::kv_environment environment) : eosio::kv_table<block_info>{ std::move(environment) } {
       init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "block.info" }, primary_index, id_index);
@@ -100,13 +87,9 @@ struct global_property_kv : eosio::kv_table<global_property> {
 };
 
 struct account_kv : eosio::kv_table<account> {
-   index<std::vector<char>> primary_index{
-      eosio::name{ "primary" },
-      [](const auto& var) {
-         return std::visit(
-               [](const auto& obj) { return eosio::check(eosio::convert_to_key(std::tie(obj.name))).value(); }, *var);
-      }
-   };
+   index<eosio::name> primary_index{ eosio::name{ "primary" }, [](const auto& var) {
+                                       return std::visit([](const auto& obj) { return obj.name; }, *var);
+                                    } };
 
    account_kv(eosio::kv_environment environment) : eosio::kv_table<account>{ std::move(environment) } {
       init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "account" }, primary_index);
@@ -114,13 +97,9 @@ struct account_kv : eosio::kv_table<account> {
 };
 
 struct account_metadata_kv : eosio::kv_table<account_metadata> {
-   index<std::vector<char>> primary_index{
-      eosio::name{ "primary" },
-      [](const auto& var) {
-         return std::visit(
-               [](const auto& obj) { return eosio::check(eosio::convert_to_key(std::tie(obj.name))).value(); }, *var);
-      }
-   };
+   index<eosio::name> primary_index{ eosio::name{ "primary" }, [](const auto& var) {
+                                       return std::visit([](const auto& obj) { return obj.name; }, *var);
+                                    } };
 
    account_metadata_kv(eosio::kv_environment environment)
        : eosio::kv_table<account_metadata>{ std::move(environment) } {
@@ -129,15 +108,10 @@ struct account_metadata_kv : eosio::kv_table<account_metadata> {
 };
 
 struct code_kv : eosio::kv_table<code> {
-   index<std::vector<char>> primary_index{
+   index<std::tuple<const uint8_t&, const uint8_t&, const eosio::checksum256&>> primary_index{
       eosio::name{ "primary" },
       [](const auto& var) {
-         return std::visit(
-               [](const auto& obj) {
-                  return eosio::check(eosio::convert_to_key(std::tie(obj.vm_type, obj.vm_version, obj.code_hash)))
-                        .value();
-               },
-               *var);
+         return std::visit([](const auto& obj) { return std::tie(obj.vm_type, obj.vm_version, obj.code_hash); }, *var);
       }
    };
 
@@ -147,14 +121,10 @@ struct code_kv : eosio::kv_table<code> {
 };
 
 struct contract_table_kv : eosio::kv_table<contract_table> {
-   index<std::vector<char>> primary_index{
+   index<std::tuple<const eosio::name&, const eosio::name&, const eosio::name&>> primary_index{
       eosio::name{ "primary" },
       [](const auto& var) {
-         return std::visit(
-               [](const auto& obj) {
-                  return eosio::check(eosio::convert_to_key(std::tie(obj.code, obj.table, obj.scope))).value();
-               },
-               *var);
+         return std::visit([](const auto& obj) { return std::tie(obj.code, obj.table, obj.scope); }, *var);
       }
    };
 
@@ -164,17 +134,14 @@ struct contract_table_kv : eosio::kv_table<contract_table> {
 };
 
 struct contract_row_kv : eosio::kv_table<contract_row> {
-   index<std::vector<char>> primary_index{
-      eosio::name{ "primary" },
-      [](const auto& var) {
-         return std::visit(
-               [](const auto& obj) {
-                  return eosio::check(eosio::convert_to_key(std::tie(obj.code, obj.table, obj.scope, obj.primary_key)))
-                        .value();
-               },
-               *var);
-      }
-   };
+   using PT = typename std::tuple<const eosio::name&, const eosio::name&, const eosio::name&, const uint64_t&>;
+   index<PT> primary_index{ eosio::name{ "primary" }, [](const auto& var) {
+                              return std::visit(
+                                    [](const auto& obj) {
+                                       return std::tie(obj.code, obj.table, obj.scope, obj.primary_key);
+                                    },
+                                    *var);
+                           } };
 
    contract_row_kv(eosio::kv_environment environment) : eosio::kv_table<contract_row>{ std::move(environment) } {
       init(eosio::name{ "eosio.state" }, eosio::name{ "state" }, eosio::name{ "contract.row" }, primary_index);
@@ -182,27 +149,24 @@ struct contract_row_kv : eosio::kv_table<contract_row> {
 };
 
 struct contract_index64_kv : eosio::kv_table<contract_index64> {
-   index<std::vector<char>> primary_index{
-      eosio::name{ "primary" },
-      [](const auto& var) {
-         return std::visit(
-               [](const auto& obj) {
-                  return eosio::check(eosio::convert_to_key(std::tie(obj.code, obj.table, obj.scope, obj.primary_key)))
-                        .value();
-               },
-               *var);
-      }
-   };
-   index<std::vector<char>> secondary_index{ eosio::name{ "secondary" }, [](const auto& var) {
-                                               return std::visit(
-                                                     [](const auto& obj) {
-                                                        return eosio::check(eosio::convert_to_key(std::tie(
-                                                                                  obj.code, obj.table, obj.scope,
-                                                                                  obj.secondary_key, obj.primary_key)))
-                                                              .value();
-                                                     },
-                                                     *var);
-                                            } };
+   using PT = typename std::tuple<const eosio::name&, const eosio::name&, const eosio::name&, const uint64_t&>;
+   index<PT> primary_index{ eosio::name{ "primary" }, [](const auto& var) {
+                              return std::visit(
+                                    [](const auto& obj) {
+                                       return std::tie(obj.code, obj.table, obj.scope, obj.primary_key);
+                                    },
+                                    *var);
+                           } };
+   using ST = typename std::tuple<const eosio::name&, const eosio::name&, const eosio::name&, const uint64_t&,
+                                  const uint64_t&>;
+   index<ST> secondary_index{ eosio::name{ "secondary" }, [](const auto& var) {
+                                return std::visit(
+                                      [](const auto& obj) {
+                                         return std::tie(obj.code, obj.table, obj.scope, obj.secondary_key,
+                                                         obj.primary_key);
+                                      },
+                                      *var);
+                             } };
 
    contract_index64_kv(eosio::kv_environment environment)
        : eosio::kv_table<contract_index64>{ std::move(environment) } {
@@ -212,27 +176,24 @@ struct contract_index64_kv : eosio::kv_table<contract_index64> {
 };
 
 struct contract_index128_kv : eosio::kv_table<contract_index128> {
-   index<std::vector<char>> primary_index{
-      eosio::name{ "primary" },
-      [](const auto& var) {
-         return std::visit(
-               [](const auto& obj) {
-                  return eosio::check(eosio::convert_to_key(std::tie(obj.code, obj.table, obj.scope, obj.primary_key)))
-                        .value();
-               },
-               *var);
-      }
-   };
-   index<std::vector<char>> secondary_index{ eosio::name{ "secondary" }, [](const auto& var) {
-                                               return std::visit(
-                                                     [](const auto& obj) {
-                                                        return eosio::check(eosio::convert_to_key(std::tie(
-                                                                                  obj.code, obj.table, obj.scope,
-                                                                                  obj.secondary_key, obj.primary_key)))
-                                                              .value();
-                                                     },
-                                                     *var);
-                                            } };
+   using PT = typename std::tuple<const eosio::name&, const eosio::name&, const eosio::name&, const uint64_t&>;
+   index<PT> primary_index{ eosio::name{ "primary" }, [](const auto& var) {
+                              return std::visit(
+                                    [](const auto& obj) {
+                                       return std::tie(obj.code, obj.table, obj.scope, obj.primary_key);
+                                    },
+                                    *var);
+                           } };
+   using ST = typename std::tuple<const eosio::name&, const eosio::name&, const eosio::name&, const uint128_t&,
+                                  const uint64_t&>;
+   index<ST> secondary_index{ eosio::name{ "secondary" }, [](const auto& var) {
+                                return std::visit(
+                                      [](const auto& obj) {
+                                         return std::tie(obj.code, obj.table, obj.scope, obj.secondary_key,
+                                                         obj.primary_key);
+                                      },
+                                      *var);
+                             } };
 
    contract_index128_kv(eosio::kv_environment environment)
        : eosio::kv_table<contract_index128>{ std::move(environment) } {

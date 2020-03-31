@@ -309,9 +309,9 @@ const std::vector<char>& query_get_info(wasm_ql::thread_state&   thread_state,
    }
 
    {
-      ship_protocol::fill_status_kv table{ { db_view_state } };
-      if (table.primary_index.begin() != table.primary_index.end()) {
-         auto val = table.primary_index.begin().value();
+      ship_protocol::fill_status_kv table{ eosio::name{ "eosio.state" }, { db_view_state } };
+      if (table.exists()) {
+         auto val = table.get();
          std::visit(
             [&](ship_protocol::fill_status_v0 obj) {
                result += ",\"head_block_num\":\"" + std::to_string(obj.head) + "\"";
@@ -320,8 +320,9 @@ const std::vector<char>& query_get_info(wasm_ql::thread_state&   thread_state,
                result +=
                      ",\"last_irreversible_block_id\":" + eosio::check(eosio::convert_to_json(obj.irreversible_id)).value();
             }, val);
-      } else
+      } else {
          throw std::runtime_error("No fill_status records found; is filler running?");
+      }
    }
 
    result += "}";

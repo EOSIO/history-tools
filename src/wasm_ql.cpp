@@ -34,9 +34,6 @@ using eosio::ship_protocol::action_receipt_v0;
 using eosio::ship_protocol::action_trace_v1;
 using eosio::ship_protocol::transaction_trace_v0;
 
-template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
-template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
-
 namespace history_tools = eosio::history_tools;
 
 namespace eosio {
@@ -315,15 +312,14 @@ const std::vector<char>& query_get_info(wasm_ql::thread_state&   thread_state,
       ship_protocol::fill_status_kv table{ { db_view_state } };
       if (table.primary_index.begin() != table.primary_index.end()) {
          auto val = table.primary_index.begin().value();
-         std::visit(overloaded {
+         std::visit(
             [&](ship_protocol::fill_status_v0 obj) {
                result += ",\"head_block_num\":\"" + std::to_string(obj.head) + "\"";
                result += ",\"head_block_id\":" + eosio::check(eosio::convert_to_json(obj.head_id)).value();
                result += ",\"last_irreversible_block_num\":\"" + std::to_string(obj.irreversible) + "\"";
                result +=
                      ",\"last_irreversible_block_id\":" + eosio::check(eosio::convert_to_json(obj.irreversible_id)).value();
-            },
-         }, val);
+            }, val);
       } else
          throw std::runtime_error("No fill_status records found; is filler running?");
    }

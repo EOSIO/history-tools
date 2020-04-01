@@ -292,7 +292,7 @@ const std::vector<char>& query_get_info(wasm_ql::thread_state&   thread_state,
    history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session,
                                                contract_kv_prefix };
 
-   std::string result = "{\"server-type\":\"wasm-ql\"";
+   std::string result = "{\"server_type\":\"wasm-ql\"";
 
    {
       ship_protocol::global_property_kv table{ { db_view_state } };

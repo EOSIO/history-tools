@@ -158,6 +158,16 @@ extern "C" rodeos_bool rodeos_end_block(rodeos_error* error, rodeos_db_snapshot*
    });
 }
 
+extern "C" rodeos_bool rodeos_write_block_info(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data,
+                                               uint64_t size) {
+   return handle_exceptions(error, false, [&]() {
+      if (!snapshot)
+         return error->set("snapshot is null");
+      with_result(data, size, [&](auto& result) { snapshot->write_block_info(result); });
+      return true;
+   });
+}
+
 extern "C" rodeos_bool rodeos_write_deltas(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data,
                                            uint64_t size, rodeos_bool (*shutdown)(void*), void* shutdown_arg) {
    return handle_exceptions(error, false, [&]() {

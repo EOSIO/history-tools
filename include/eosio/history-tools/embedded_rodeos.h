@@ -82,6 +82,12 @@ rodeos_bool rodeos_start_block(rodeos_error* error, rodeos_db_snapshot* snapshot
 rodeos_bool rodeos_end_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size,
                              bool force_write);
 
+// Write block info. `data` must be the serialized `result` type defined by the state-history plugin's ABI. Currently
+// only supports `get_blocks_result_v0`. If `rodeos_write_block_info` returns false, the snapshot will be in an
+// inconsistent state; call `start_block` to abandon the current write and start another. It is undefined behavior if
+// the snapshot is used between threads without synchronization.
+rodeos_bool rodeos_write_block_info(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size);
+
 // Write state-history deltas to a block. `data` must be the serialized `result` type defined by the state-history
 // plugin's ABI. Currently only supports `get_blocks_result_v0`. If `shutdown` isn't null, then `rodeos_write_deltas`
 // may call it during long operations. If `shutdown` returns true, then `rodeos_write_deltas` abandons the writes. If

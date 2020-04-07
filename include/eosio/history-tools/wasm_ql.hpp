@@ -2,6 +2,7 @@
 #include <eosio/history-tools/callbacks/action.hpp>
 #include <eosio/history-tools/callbacks/console.hpp>
 #include <eosio/history-tools/callbacks/kv.hpp>
+#include <eosio/history-tools/callbacks/query.hpp>
 #include <eosio/ship_protocol.hpp>
 #include <eosio/vm/backend.hpp>
 
@@ -21,7 +22,9 @@ struct shared_state {
    ~shared_state();
 };
 
-struct thread_state : eosio::history_tools::action_state, eosio::history_tools::console_state {
+struct thread_state : eosio::history_tools::action_state,
+                      eosio::history_tools::console_state,
+                      eosio::history_tools::query_state {
    std::shared_ptr<const shared_state> shared = {};
    eosio::vm::wasm_allocator           wa     = {};
 };

@@ -2,7 +2,6 @@
 
 #include <eosio/history-tools/wasm_ql.hpp>
 
-#include "get_state_row.hpp"
 #include <eosio/history-tools/callbacks/chaindb.hpp>
 #include <eosio/history-tools/callbacks/compiler_builtins.hpp>
 #include <eosio/history-tools/callbacks/console.hpp>
@@ -55,11 +54,12 @@ result<void> to_json(const std::pair<uint16_t, std::vector<char>>&, S& stream) {
 namespace eosio { namespace wasm_ql {
 
 // todo: relax some of these limits
+// todo: restore max_function_section_elements to 1023 and use nodeos's hard fork
 struct wasm_ql_backend_options {
    static constexpr std::uint32_t max_mutable_global_bytes      = 1024;
    static constexpr std::uint32_t max_table_elements            = 1024;
    static constexpr std::uint32_t max_section_elements          = 8191;
-   static constexpr std::uint32_t max_function_section_elements = 8000; // nodeos is: 1023;     TODO: restore this and use nodeos's hard fork
+   static constexpr std::uint32_t max_function_section_elements = 8000;
    static constexpr std::uint32_t max_import_section_elements   = 1023;
    static constexpr std::uint32_t max_element_segment_elements  = 8191;
    static constexpr std::uint32_t max_data_segment_bytes        = 8191;
@@ -86,6 +86,7 @@ struct callbacks : history_tools::action_callbacks<callbacks>,
                    history_tools::console_callbacks<callbacks>,
                    history_tools::db_callbacks<callbacks>,
                    history_tools::memory_callbacks<callbacks>,
+                   history_tools::query_callbacks<callbacks>,
                    history_tools::unimplemented_callbacks<callbacks> {
    wasm_ql::thread_state&        thread_state;
    history_tools::chaindb_state& chaindb_state;
@@ -110,6 +111,7 @@ void register_callbacks() {
    history_tools::console_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::db_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::memory_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   history_tools::query_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }
 
@@ -265,10 +267,19 @@ void run_action(wasm_ql::thread_state& thread_state, const std::vector<char>& co
    }
    auto se = fc::make_scoped_exit([&] { thread_state.shared->backend_cache->add(std::move(*entry)); });
 
+   ship_protocol::fill_status_kv fill_status_table{ { db_view_state } };
+   if (fill_status_table.begin() == fill_status_table.end())
+      throw std::runtime_error("No fill_status records found; is filler running?");
+   auto& fill_status = fill_status_table.begin().get();
+
+   // todo: move these out of thread_state since future enhancements could cause state to accidentally leak between
+   // queries
    thread_state.max_console_size = thread_state.shared->max_console_size;
    thread_state.receiver         = action.account;
    thread_state.action_data      = action.data;
    thread_state.action_return_value.clear();
+   std::visit([&](auto& stat) { thread_state.block_num = stat.head; }, fill_status);
+   thread_state.block_info.reset();
 
    history_tools::chaindb_state chaindb_state;
    callbacks                    cb{ thread_state, chaindb_state, db_view_state };

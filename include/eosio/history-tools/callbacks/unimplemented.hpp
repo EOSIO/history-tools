@@ -101,7 +101,6 @@ struct unimplemented_callbacks {
    int64_t get_account_creation_time(int64_t) { return unimplemented<int64_t>("get_account_creation_time"); }
 
    // system_api
-   int64_t current_time() { return unimplemented<int64_t>("current_time"); }
    int64_t publication_time() { return unimplemented<int64_t>("publication_time"); }
    int     is_feature_activated(int) { return unimplemented<int>("is_feature_activated"); }
    int64_t get_sender() { return unimplemented<int64_t>("get_sender"); }
@@ -214,7 +213,6 @@ struct unimplemented_callbacks {
       Rft::template add<Derived, &Derived::get_account_creation_time, Allocator>("env", "get_account_creation_time");
 
       // system_api
-      Rft::template add<Derived, &Derived::current_time, Allocator>("env", "current_time");
       Rft::template add<Derived, &Derived::publication_time, Allocator>("env", "publication_time");
       Rft::template add<Derived, &Derived::is_feature_activated, Allocator>("env", "is_feature_activated");
       Rft::template add<Derived, &Derived::get_sender, Allocator>("env", "get_sender");

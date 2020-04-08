@@ -252,11 +252,12 @@ void rodeos_filter::process(rodeos_db_snapshot& snapshot, const ship_protocol::g
       (*backend)(&cb, "env", "apply", uint64_t(0), uint64_t(0), uint64_t(0));
    } catch (...) {
       if (!filter_state->console.empty())
-         ilog("console output before exception:\n${c}", ("c", filter_state->console));
+         ilog("filter ${n} console output before exception: <<<\n${c}>>>",
+              ("n", name.to_string())("c", filter_state->console));
       throw;
    }
    if (!filter_state->console.empty())
-      ilog("console output:\n${c}", ("c", filter_state->console));
+      ilog("filter ${n} console output: <<<\n${c}>>>", ("n", name.to_string())("c", filter_state->console));
 }
 
 rodeos_query_handler::rodeos_query_handler(std::shared_ptr<rodeos_db_partition>         partition,

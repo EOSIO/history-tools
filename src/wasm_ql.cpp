@@ -285,11 +285,16 @@ void run_action(wasm_ql::thread_state& thread_state, const std::vector<char>& co
    callbacks                    cb{ thread_state, chaindb_state, db_view_state };
    entry->backend->set_wasm_allocator(&thread_state.wa);
 
-   eosio::vm::watchdog wd{ stop_time - std::chrono::steady_clock::now() };
-   entry->backend->timed_run(wd, [&] {
-      entry->backend->initialize(&cb);
-      (*entry->backend)(&cb, "env", "apply", action.account.value, action.account.value, action.name.value);
-   });
+   try {
+      eosio::vm::watchdog wd{ stop_time - std::chrono::steady_clock::now() };
+      entry->backend->timed_run(wd, [&] {
+         entry->backend->initialize(&cb);
+         (*entry->backend)(&cb, "env", "apply", action.account.value, action.account.value, action.name.value);
+      });
+   } catch (...) {
+      atrace.console = std::move(thread_state.console);
+      throw;
+   }
 
    atrace.console = std::move(thread_state.console);
    memory.push_back(std::move(thread_state.action_return_value));
@@ -526,7 +531,8 @@ struct send_transaction_results {
 EOSIO_REFLECT(send_transaction_results, transaction_id, processed)
 
 const std::vector<char>& query_send_transaction(wasm_ql::thread_state&   thread_state,
-                                                const std::vector<char>& contract_kv_prefix, std::string_view body) {
+                                                const std::vector<char>& contract_kv_prefix, std::string_view body,
+                                                bool return_trace_on_except) {
    send_transaction_params params;
    {
       std::string              s{ body.begin(), body.end() };
@@ -542,7 +548,8 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state&   thread_
 
    std::vector<std::vector<char>> memory;
    send_transaction_results       results;
-   results.processed = query_send_transaction(thread_state, contract_kv_prefix, trx, snapshot.snapshot(), memory);
+   results.processed = query_send_transaction(thread_state, contract_kv_prefix, trx, snapshot.snapshot(), memory,
+                                              return_trace_on_except);
 
    // todo: hide variants during json conversion
    // todo: avoid the extra copy
@@ -555,7 +562,8 @@ transaction_trace_v0 query_send_transaction(wasm_ql::thread_state&              
                                             const std::vector<char>&                 contract_kv_prefix, //
                                             const ship_protocol::packed_transaction& trx,                //
                                             const rocksdb::Snapshot*                 snapshot,           //
-                                            std::vector<std::vector<char>>&          memory) {
+                                            std::vector<std::vector<char>>&          memory,             //
+                                            bool                                     return_trace_on_except) {
    eosio::input_stream s{ trx.packed_trx };
    auto                r = eosio::from_bin<ship_protocol::transaction>(s);
    if (!r)
@@ -604,12 +612,13 @@ transaction_trace_v0 query_send_transaction(wasm_ql::thread_state&              
                "timeout after " +
                std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time).count()) +
                " ms");
-         // todo: /v1/send_transaction doesn't support this:
-         // } catch (std::exception& e) {
-         //    // todo: errorcode
-         //    at.except = tt.except = e.what();
-         //    tt.receipt.status     = ship_protocol::transaction_status::soft_fail;
-         //    break;
+      } catch (std::exception& e) {
+         if (!return_trace_on_except)
+            throw;
+         // todo: errorcode
+         at.except = tt.except = e.what();
+         tt.status             = ship_protocol::transaction_status::soft_fail;
+         break;
       }
 
       at.receipt.emplace();

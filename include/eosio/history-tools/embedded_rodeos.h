@@ -125,9 +125,10 @@ rodeos_query_handler* rodeos_create_query_handler(rodeos_error* error, rodeos_db
 // This is a no-op if handler == NULL.
 void rodeos_destroy_query_handler(rodeos_query_handler* handler);
 
-// Run a query. data is a serialized ship_protocol::packed_transaction. Returns false on error and sets *result to NULL
-// and *result_size to 0. Otherwise, sets *result and *result_size to memory containing a serialized
-// ship_protocol::transaction_trace. Caller must use rodeos_free_result to free the memory.
+// Run a query. data is a serialized ship_protocol::packed_transaction. Returns false on serious error and sets *result
+// to NULL and *result_size to 0. Otherwise, sets *result and *result_size to memory containing a serialized
+// ship_protocol::transaction_trace. If the query failed, the error result will be in the transaction trace. Caller must
+// use rodeos_free_result to free the memory.
 //
 // It is safe to use the same handler from multiple threads if:
 // * The return from rodeos_create_query_handler happens-before any calls to rodeos_query_transaction

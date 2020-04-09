@@ -78,9 +78,11 @@ struct action_trace_builder: table_builder{
 
 
 struct block_info_builder: table_builder{
+    uint32_t last_block = 0;
 
 
     void handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
+        if(pos.block_num == last_block)return; //one block only do once. 
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
         state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
         sql query;
@@ -96,7 +98,7 @@ struct block_info_builder: table_builder{
              ("action_mroot",std::string(sig_block.action_mroot))
              ("schedule_version",std::to_string(sig_block.schedule_version))
              ;
-
+        last_block = pos.block_num; //avoid multiple insert
         std::cout << query() << std::endl;
     }
 

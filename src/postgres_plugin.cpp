@@ -56,17 +56,56 @@ struct action_trace_builder: table_builder{
 
     void handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
+        state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
         sql query;
         query("action_trace")
              ("block_num",std::to_string(pos.block_num))
              ("timestamp",std::string(sig_block.timestamp))
              ("transaction_id",std::string(trace_v0.id))
              ("transaction_status",state_history::to_string(trace_v0.status));
+
+        if(atrace.act.authorization.size()){
+            query("actor",std::string(atrace.act.authorization[0].actor))
+                 ("permission",std::string(atrace.act.authorization[0].permission));
+        }
         
         std::cout << query() << std::endl;
     }
 
 };
+
+
+
+
+struct block_info_builder: table_builder{
+
+
+    void handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
+        state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
+        state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
+        sql query;
+        query("block_info")
+             ("block_num",std::to_string(pos.block_num))
+             ("block_id",std::string(pos.block_id))
+             ("timestamp",std::string(sig_block.timestamp))
+             ("producer",std::string(sig_block.producer))
+             ("confirmed",std::to_string(sig_block.confirmed))
+             ("previous",std::string(sig_block.previous))
+             ("transaction_count",std::to_string(sig_block.transactions.size()+1))
+             ("transaction_mroot",std::string(sig_block.transaction_mroot))
+             ("action_mroot",std::string(sig_block.action_mroot))
+             ("schedule_version",std::to_string(sig_block.schedule_version))
+             ;
+
+        std::cout << query() << std::endl;
+    }
+
+};
+
+
+
+
+
 
 
 
@@ -94,8 +133,8 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             )
         );
 
-        auto up = std::make_unique<action_trace_builder>();
-        table_builders.push_back(std::move(up));
+        table_builders.push_back(std::make_unique<action_trace_builder>());
+        table_builders.push_back(std::make_unique<block_info_builder>());
     }
 
 

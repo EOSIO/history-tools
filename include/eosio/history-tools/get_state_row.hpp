@@ -1,9 +1,11 @@
+#pragma once
+
 #include <eosio/history-tools/callbacks/kv.hpp>
 
 namespace eosio {
 using history_tools::kv_environment;
 }
-#include "state_history_kv_tables.hpp"
+#include <eosio/history-tools/state_history_kv_tables.hpp>
 
 template <typename T, typename K>
 std::optional<std::pair<std::shared_ptr<const chain_kv::bytes>, T>> get_state_row(chain_kv::view& view, const K& key) {

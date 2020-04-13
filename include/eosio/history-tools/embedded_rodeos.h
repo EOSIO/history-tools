@@ -82,6 +82,12 @@ rodeos_bool rodeos_start_block(rodeos_error* error, rodeos_db_snapshot* snapshot
 rodeos_bool rodeos_end_block(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size,
                              bool force_write);
 
+// Write block info. `data` must be the serialized `result` type defined by the state-history plugin's ABI. Currently
+// only supports `get_blocks_result_v0`. If `rodeos_write_block_info` returns false, the snapshot will be in an
+// inconsistent state; call `start_block` to abandon the current write and start another. It is undefined behavior if
+// the snapshot is used between threads without synchronization.
+rodeos_bool rodeos_write_block_info(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data, uint64_t size);
+
 // Write state-history deltas to a block. `data` must be the serialized `result` type defined by the state-history
 // plugin's ABI. Currently only supports `get_blocks_result_v0`. If `shutdown` isn't null, then `rodeos_write_deltas`
 // may call it during long operations. If `shutdown` returns true, then `rodeos_write_deltas` abandons the writes. If
@@ -119,9 +125,10 @@ rodeos_query_handler* rodeos_create_query_handler(rodeos_error* error, rodeos_db
 // This is a no-op if handler == NULL.
 void rodeos_destroy_query_handler(rodeos_query_handler* handler);
 
-// Run a query. data is a serialized ship_protocol::packed_transaction. Returns false on error and sets *result to NULL
-// and *result_size to 0. Otherwise, sets *result and *result_size to memory containing a serialized
-// ship_protocol::transaction_trace. Caller must use rodeos_free_result to free the memory.
+// Run a query. data is a serialized ship_protocol::packed_transaction. Returns false on serious error and sets *result
+// to NULL and *result_size to 0. Otherwise, sets *result and *result_size to memory containing a serialized
+// ship_protocol::transaction_trace. If the query failed, the error result will be in the transaction trace. Caller must
+// use rodeos_free_result to free the memory.
 //
 // It is safe to use the same handler from multiple threads if:
 // * The return from rodeos_create_query_handler happens-before any calls to rodeos_query_transaction

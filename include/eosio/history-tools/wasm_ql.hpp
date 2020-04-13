@@ -2,6 +2,7 @@
 #include <eosio/history-tools/callbacks/action.hpp>
 #include <eosio/history-tools/callbacks/console.hpp>
 #include <eosio/history-tools/callbacks/kv.hpp>
+#include <eosio/history-tools/callbacks/query.hpp>
 #include <eosio/ship_protocol.hpp>
 #include <eosio/vm/backend.hpp>
 
@@ -21,7 +22,9 @@ struct shared_state {
    ~shared_state();
 };
 
-struct thread_state : eosio::history_tools::action_state, eosio::history_tools::console_state {
+struct thread_state : eosio::history_tools::action_state,
+                      eosio::history_tools::console_state,
+                      eosio::history_tools::query_state {
    std::shared_ptr<const shared_state> shared = {};
    eosio::vm::wasm_allocator           wa     = {};
 };
@@ -61,11 +64,11 @@ const std::vector<char>& query_get_abi(wasm_ql::thread_state& thread_state, cons
                                        std::string_view body);
 const std::vector<char>& query_get_required_keys(wasm_ql::thread_state& thread_state, std::string_view body);
 const std::vector<char>& query_send_transaction(wasm_ql::thread_state&   thread_state,
-                                                const std::vector<char>& contract_kv_prefix, std::string_view body);
-ship_protocol::transaction_trace_v0 query_send_transaction(wasm_ql::thread_state&                   thread_state,
-                                                           const std::vector<char>&                 contract_kv_prefix,
-                                                           const ship_protocol::packed_transaction& trx,
-                                                           const rocksdb::Snapshot*                 snapshot,
-                                                           std::vector<std::vector<char>>&          memory);
+                                                const std::vector<char>& contract_kv_prefix, std::string_view body,
+                                                bool return_trace_on_except);
+ship_protocol::transaction_trace_v0
+query_send_transaction(wasm_ql::thread_state& thread_state, const std::vector<char>& contract_kv_prefix,
+                       const ship_protocol::packed_transaction& trx, const rocksdb::Snapshot* snapshot,
+                       std::vector<std::vector<char>>& memory, bool return_trace_on_except);
 
 }} // namespace eosio::wasm_ql

@@ -55,6 +55,7 @@ struct rodeos_db_snapshot {
    void start_block(const ship_protocol::get_blocks_result_v0& result);
    void end_block(const ship_protocol::get_blocks_result_v0& result, bool force_write);
    void check_write(const ship_protocol::get_blocks_result_v0& result);
+   void write_block_info(const ship_protocol::get_blocks_result_v0& result);
    void write_deltas(const ship_protocol::get_blocks_result_v0& result, std::function<bool()> shutdown);
 
  private:

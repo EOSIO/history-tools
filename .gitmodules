@@ -12,7 +12,7 @@
 	url = https://github.com/EOSIO/eos-vm.git
 [submodule "external/chain-kv"]
 	path = external/chain-kv
-	url = git@github.com:EOSIO/chain-kv.git
+	url = https://github.com/EOSIO/chain-kv.git
 [submodule "external/rocksdb"]
 	path = external/rocksdb
 	url = https://github.com/facebook/rocksdb.git

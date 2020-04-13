@@ -1,14 +1,17 @@
 #include <eosio/history-tools/rodeos.hpp>
 
-#include "state_history_kv_tables.hpp"
 #include <eosio/history-tools/callbacks/kv.hpp>
+#include <eosio/history-tools/state_history_kv_tables.hpp>
 
 namespace eosio { namespace history_tools {
 
+using ship_protocol::block_info_kv;
+using ship_protocol::block_info_v0;
 using ship_protocol::fill_status;
 using ship_protocol::fill_status_kv;
 using ship_protocol::fill_status_v0;
 using ship_protocol::get_blocks_result_v0;
+using ship_protocol::signed_block;
 
 rodeos_db_snapshot::rodeos_db_snapshot(std::shared_ptr<rodeos_db_partition> partition, bool persistent)
     : partition{ std::move(partition) }, db{ this->partition->db } {
@@ -138,6 +141,37 @@ void rodeos_db_snapshot::check_write(const ship_protocol::get_blocks_result_v0& 
       throw std::runtime_error("call start_block first");
 }
 
+void rodeos_db_snapshot::write_block_info(const ship_protocol::get_blocks_result_v0& result) {
+   check_write(result);
+   if (!result.block)
+      return;
+
+   uint32_t            block_num = result.this_block->block_num;
+   eosio::input_stream bin       = *result.block;
+   signed_block        block;
+   eosio::check_discard(from_bin(block, bin));
+
+   history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *write_session,
+                                            partition->contract_kv_prefix };
+   view_state.kv_state.enable_write = true;
+
+   block_info_v0 info;
+   info.num                = block_num;
+   info.id                 = result.this_block->block_id;
+   info.timestamp          = block.timestamp;
+   info.producer           = block.producer;
+   info.confirmed          = block.confirmed;
+   info.previous           = block.previous;
+   info.transaction_mroot  = block.transaction_mroot;
+   info.action_mroot       = block.action_mroot;
+   info.schedule_version   = block.schedule_version;
+   info.new_producers      = block.new_producers;
+   info.producer_signature = block.producer_signature;
+
+   block_info_kv table{ { view_state } };
+   table.insert(info);
+}
+
 void rodeos_db_snapshot::write_deltas(const ship_protocol::get_blocks_result_v0& result,
                                       std::function<bool()>                      shutdown) {
    check_write(result);
@@ -217,11 +251,12 @@ void rodeos_filter::process(rodeos_db_snapshot& snapshot, const ship_protocol::g
       (*backend)(&cb, "env", "apply", uint64_t(0), uint64_t(0), uint64_t(0));
    } catch (...) {
       if (!filter_state->console.empty())
-         ilog("console output before exception:\n${c}", ("c", filter_state->console));
+         ilog("filter ${n} console output before exception: <<<\n${c}>>>",
+              ("n", name.to_string())("c", filter_state->console));
       throw;
    }
    if (!filter_state->console.empty())
-      ilog("console output:\n${c}", ("c", filter_state->console));
+      ilog("filter ${n} console output: <<<\n${c}>>>", ("n", name.to_string())("c", filter_state->console));
 }
 
 rodeos_query_handler::rodeos_query_handler(std::shared_ptr<rodeos_db_partition>         partition,

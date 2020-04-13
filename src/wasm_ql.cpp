@@ -2,7 +2,6 @@
 
 #include <eosio/history-tools/wasm_ql.hpp>
 
-#include "get_state_row.hpp"
 #include <eosio/history-tools/callbacks/chaindb.hpp>
 #include <eosio/history-tools/callbacks/compiler_builtins.hpp>
 #include <eosio/history-tools/callbacks/console.hpp>
@@ -55,11 +54,12 @@ result<void> to_json(const std::pair<uint16_t, std::vector<char>>&, S& stream) {
 namespace eosio { namespace wasm_ql {
 
 // todo: relax some of these limits
+// todo: restore max_function_section_elements to 1023 and use nodeos's hard fork
 struct wasm_ql_backend_options {
    static constexpr std::uint32_t max_mutable_global_bytes      = 1024;
    static constexpr std::uint32_t max_table_elements            = 1024;
    static constexpr std::uint32_t max_section_elements          = 8191;
-   static constexpr std::uint32_t max_function_section_elements = 1023;
+   static constexpr std::uint32_t max_function_section_elements = 8000;
    static constexpr std::uint32_t max_import_section_elements   = 1023;
    static constexpr std::uint32_t max_element_segment_elements  = 8191;
    static constexpr std::uint32_t max_data_segment_bytes        = 8191;
@@ -86,6 +86,7 @@ struct callbacks : history_tools::action_callbacks<callbacks>,
                    history_tools::console_callbacks<callbacks>,
                    history_tools::db_callbacks<callbacks>,
                    history_tools::memory_callbacks<callbacks>,
+                   history_tools::query_callbacks<callbacks>,
                    history_tools::unimplemented_callbacks<callbacks> {
    wasm_ql::thread_state&        thread_state;
    history_tools::chaindb_state& chaindb_state;
@@ -110,6 +111,7 @@ void register_callbacks() {
    history_tools::console_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::db_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::memory_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   history_tools::query_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }
 
@@ -265,20 +267,34 @@ void run_action(wasm_ql::thread_state& thread_state, const std::vector<char>& co
    }
    auto se = fc::make_scoped_exit([&] { thread_state.shared->backend_cache->add(std::move(*entry)); });
 
+   ship_protocol::fill_status_kv fill_status_table{ { db_view_state } };
+   if (fill_status_table.begin() == fill_status_table.end())
+      throw std::runtime_error("No fill_status records found; is filler running?");
+   auto& fill_status = fill_status_table.begin().get();
+
+   // todo: move these out of thread_state since future enhancements could cause state to accidentally leak between
+   // queries
    thread_state.max_console_size = thread_state.shared->max_console_size;
    thread_state.receiver         = action.account;
    thread_state.action_data      = action.data;
    thread_state.action_return_value.clear();
+   std::visit([&](auto& stat) { thread_state.block_num = stat.head; }, fill_status);
+   thread_state.block_info.reset();
 
    history_tools::chaindb_state chaindb_state;
    callbacks                    cb{ thread_state, chaindb_state, db_view_state };
    entry->backend->set_wasm_allocator(&thread_state.wa);
 
-   eosio::vm::watchdog wd{ stop_time - std::chrono::steady_clock::now() };
-   entry->backend->timed_run(wd, [&] {
-      entry->backend->initialize(&cb);
-      (*entry->backend)(&cb, "env", "apply", action.account.value, action.account.value, action.name.value);
-   });
+   try {
+      eosio::vm::watchdog wd{ stop_time - std::chrono::steady_clock::now() };
+      entry->backend->timed_run(wd, [&] {
+         entry->backend->initialize(&cb);
+         (*entry->backend)(&cb, "env", "apply", action.account.value, action.account.value, action.name.value);
+      });
+   } catch (...) {
+      atrace.console = std::move(thread_state.console);
+      throw;
+   }
 
    atrace.console = std::move(thread_state.console);
    memory.push_back(std::move(thread_state.action_return_value));
@@ -292,7 +308,7 @@ const std::vector<char>& query_get_info(wasm_ql::thread_state&   thread_state,
    history_tools::db_view_state db_view_state{ eosio::name{ "state" }, *thread_state.shared->db, write_session,
                                                contract_kv_prefix };
 
-   std::string result = "{\"server-type\":\"wasm-ql\"";
+   std::string result = "{\"server_type\":\"wasm-ql\"";
 
    {
       ship_protocol::global_property_kv table{ { db_view_state } };
@@ -516,7 +532,8 @@ struct send_transaction_results {
 EOSIO_REFLECT(send_transaction_results, transaction_id, processed)
 
 const std::vector<char>& query_send_transaction(wasm_ql::thread_state&   thread_state,
-                                                const std::vector<char>& contract_kv_prefix, std::string_view body) {
+                                                const std::vector<char>& contract_kv_prefix, std::string_view body,
+                                                bool return_trace_on_except) {
    send_transaction_params params;
    {
       std::string              s{ body.begin(), body.end() };
@@ -532,7 +549,8 @@ const std::vector<char>& query_send_transaction(wasm_ql::thread_state&   thread_
 
    std::vector<std::vector<char>> memory;
    send_transaction_results       results;
-   results.processed = query_send_transaction(thread_state, contract_kv_prefix, trx, snapshot.snapshot(), memory);
+   results.processed = query_send_transaction(thread_state, contract_kv_prefix, trx, snapshot.snapshot(), memory,
+                                              return_trace_on_except);
 
    // todo: hide variants during json conversion
    // todo: avoid the extra copy
@@ -545,7 +563,8 @@ transaction_trace_v0 query_send_transaction(wasm_ql::thread_state&              
                                             const std::vector<char>&                 contract_kv_prefix, //
                                             const ship_protocol::packed_transaction& trx,                //
                                             const rocksdb::Snapshot*                 snapshot,           //
-                                            std::vector<std::vector<char>>&          memory) {
+                                            std::vector<std::vector<char>>&          memory,             //
+                                            bool                                     return_trace_on_except) {
    eosio::input_stream s{ trx.packed_trx };
    auto                r = eosio::from_bin<ship_protocol::transaction>(s);
    if (!r)
@@ -594,12 +613,13 @@ transaction_trace_v0 query_send_transaction(wasm_ql::thread_state&              
                "timeout after " +
                std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time).count()) +
                " ms");
-         // todo: /v1/send_transaction doesn't support this:
-         // } catch (std::exception& e) {
-         //    // todo: errorcode
-         //    at.except = tt.except = e.what();
-         //    tt.receipt.status     = ship_protocol::transaction_status::soft_fail;
-         //    break;
+      } catch (std::exception& e) {
+         if (!return_trace_on_except)
+            throw;
+         // todo: errorcode
+         at.except = tt.except = e.what();
+         tt.status             = ship_protocol::transaction_status::soft_fail;
+         break;
       }
 
       at.receipt.emplace();

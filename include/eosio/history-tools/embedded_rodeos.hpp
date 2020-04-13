@@ -100,6 +100,10 @@ struct snapshot {
       error.check([&] { return rodeos_end_block(error, obj, data, size, force_write); });
    }
 
+   void write_block_info(const char* data, uint64_t size) {
+      error.check([&] { return rodeos_write_block_info(error, obj, data, size); });
+   }
+
    template <typename F>
    void write_deltas(const char* data, uint64_t size, F shutdown) {
       error.check([&] {

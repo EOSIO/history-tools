@@ -158,6 +158,16 @@ extern "C" rodeos_bool rodeos_end_block(rodeos_error* error, rodeos_db_snapshot*
    });
 }
 
+extern "C" rodeos_bool rodeos_write_block_info(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data,
+                                               uint64_t size) {
+   return handle_exceptions(error, false, [&]() {
+      if (!snapshot)
+         return error->set("snapshot is null");
+      with_result(data, size, [&](auto& result) { snapshot->write_block_info(result); });
+      return true;
+   });
+}
+
 extern "C" rodeos_bool rodeos_write_deltas(rodeos_error* error, rodeos_db_snapshot* snapshot, const char* data,
                                            uint64_t size, rodeos_bool (*shutdown)(void*), void* shutdown_arg) {
    return handle_exceptions(error, false, [&]() {
@@ -229,8 +239,15 @@ rodeos_bool rodeos_query_transaction(rodeos_error* error, rodeos_query_handler* 
       auto trx = eosio::check(eosio::from_bin<eosio::ship_protocol::packed_transaction>(s)).value();
 
       auto                                    thread_state = handler->state_cache.get_state();
-      eosio::ship_protocol::transaction_trace tt           = query_send_transaction(
-            *thread_state, snapshot->partition->contract_kv_prefix, trx, snapshot->snap->snapshot(), memory);
+      eosio::ship_protocol::transaction_trace tt;
+      if (snapshot->snap.has_value()) {
+         tt = query_send_transaction(*thread_state, snapshot->partition->contract_kv_prefix, trx,
+                                     snapshot->snap->snapshot(), memory, true);
+      } else {
+         tt = query_send_transaction(*thread_state, snapshot->partition->contract_kv_prefix, trx, nullptr, memory,
+                                     true);
+      }
+
       handler->state_cache.store_state(std::move(thread_state));
 
       auto packed = eosio::check(eosio::convert_to_bin(tt)).value();

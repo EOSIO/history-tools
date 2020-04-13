@@ -6,6 +6,7 @@
 #include <eosio/history-tools/callbacks/console.hpp>
 #include <eosio/history-tools/callbacks/memory.hpp>
 #include <eosio/history-tools/callbacks/unimplemented.hpp>
+#include <eosio/history-tools/callbacks/unimplemented_filter.hpp>
 
 // todo: configure limits
 // todo: timeout
@@ -27,7 +28,8 @@ struct callbacks : history_tools::basic_callbacks<callbacks>,
                    history_tools::data_callbacks<callbacks>,
                    history_tools::db_callbacks<callbacks>,
                    history_tools::memory_callbacks<callbacks>,
-                   history_tools::unimplemented_callbacks<callbacks> {
+                   history_tools::unimplemented_callbacks<callbacks>,
+                   history_tools::unimplemented_filter_callbacks<callbacks> {
    filter::filter_state&         filter_state;
    history_tools::chaindb_state& chaindb_state;
    history_tools::db_view_state& db_view_state;
@@ -50,6 +52,7 @@ inline void register_callbacks() {
    history_tools::db_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::memory_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
    history_tools::unimplemented_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
+   history_tools::unimplemented_filter_callbacks<callbacks>::register_callbacks<rhf_t, eosio::vm::wasm_allocator>();
 }
 
 }}} // namespace eosio::history_tools::filter

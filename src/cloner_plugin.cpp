@@ -1,5 +1,4 @@
 #include "cloner_plugin.hpp"
-#include "get_state_row.hpp"
 #include "state_history_connection.hpp"
 
 #include <eosio/history-tools/rodeos.hpp>
@@ -153,8 +152,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
                     "i", result.this_block->block_num <= result.last_irreversible.block_num ? "irreversible" : ""));
       reported_block = true;
 
-      if (result.block)
-         receive_block(result.this_block->block_num, result.this_block->block_id, *result.block);
+      rodeos_snapshot->write_block_info(result);
       rodeos_snapshot->write_deltas(result, [] { return app().is_quiting(); });
 
       // todo: remove
@@ -164,30 +162,6 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       rodeos_snapshot->end_block(result, false);
       return true;
    } // receive_result()
-
-   void receive_block(uint32_t block_num, const eosio::checksum256& block_id, eosio::input_stream bin) {
-      signed_block block;
-      eosio::check_discard(from_bin(block, bin));
-
-      block_info_v0 info;
-      info.num                = block_num;
-      info.id                 = block_id;
-      info.timestamp          = block.timestamp;
-      info.producer           = block.producer;
-      info.confirmed          = block.confirmed;
-      info.previous           = block.previous;
-      info.transaction_mroot  = block.transaction_mroot;
-      info.action_mroot       = block.action_mroot;
-      info.schedule_version   = block.schedule_version;
-      info.new_producers      = block.new_producers;
-      info.producer_signature = block.producer_signature;
-
-      history_tools::db_view_state view_state{ eosio::name{ "state" }, *db, *rodeos_snapshot->write_session,
-                                               partition->contract_kv_prefix };
-      view_state.kv_state.enable_write = true;
-      block_info_kv table{ { view_state } };
-      table.put(info);
-   }
 
    void closed(bool retry) override {
       if (my) {

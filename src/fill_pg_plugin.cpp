@@ -128,7 +128,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         truncate(t, pipeline, head + 1);
         pipeline.complete();
         t.commit();
-
+        std::cout << "get_status_result_v0:" << status.head.block_num <<  "\t" << status.last_irreversible.block_num << std::endl;
+        throw 9;
         connection->request_blocks(status, std::max(config->skip_to, head + 1), positions);
         return true;
     }
@@ -520,9 +521,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             bulk = false;
         }
 
-		if (config->remove_old_delta_row) {
-			bulk = false;
-		}
+		// if (config->remove_old_delta_row) {
+		// 	bulk = false;
+		// }
 
         if (!bulk || large_deltas || !(result.this_block->block_num % 200))
             close_streams();
@@ -543,7 +544,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         if (result.block)
             receive_block(result.this_block->block_num, result.this_block->block_id, *result.block, bulk, t, pipeline, block);
         if (result.deltas)
-            receive_deltas(result.this_block->block_num, *result.deltas, bulk, t, pipeline);
+            receive_deltas(result.this_block->block_num, *result.deltas, false, t, pipeline);
 
         if (result.traces)
             receive_traces(result.this_block->block_num, block.timestamp, *result.traces, bulk, t, pipeline);
@@ -579,6 +580,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     } // receive_result()
 
     void write_stream(uint32_t block_num, pqxx::work& t, const std::string& name, const std::string& fields, const std::string& values) {
+        std::cout << "write with stream:" << block_num << std::endl;
         if (!first_bulk)
             first_bulk = block_num;
         auto& ts = table_streams[name+fields];
@@ -588,7 +590,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             boost::split(cols,fields,boost::is_any_of(","));
             ts = std::make_unique<table_stream>(config->dbstring,t.quote_name(config->schema) + "." + t.quote_name(name),cols);
         }
-        // std::cout << name << ":" << values << std::endl;
+        std::cout << name << ":" << values << std::endl;
         ts->writer.write_raw_line(values);
     }
 
@@ -778,6 +780,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
 			auto& primary_keys = abi_table_keys[table_delta.name];
 
+
+            std::cout << "table delta name::" << table_delta.name << std::endl;
             size_t num_processed = 0;
             for (auto& row : table_delta.rows) {
                 if (table_delta.rows.size() > 10000 && !(num_processed % 10000))
@@ -789,6 +793,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 std::string values = std::to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);
 				std::string delete_query;
                 for (auto& field : type.fields) {
+                    std::cout << "field:" << field.name << std::endl;
                     bool is_key_field = false;
 					if (config->remove_old_delta_row ) {
 						for (auto& key : primary_keys) {
@@ -802,7 +807,10 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 }
 				if (config->remove_old_delta_row && !bulk && delete_query.length()) {
 					delete_query = "delete from " + t.quote_name(config->schema) + "." + table_delta.name + " where " + delete_query;
+                    std::cout << delete_query << std::endl;
+                    std::cout << "the insert after:" << fields << "----" << values << std::endl;
 					pipeline.insert(std::move(delete_query));
+                    // t.exec(delete_query);
 				}
                 write(block_num, t, pipeline, bulk, table_delta.name, fields, values);
                 ++num_processed;

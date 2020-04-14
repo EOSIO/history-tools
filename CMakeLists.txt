@@ -166,7 +166,7 @@ show_found("    rocksdb:    " "${FOUND_ROCKSDB}" "not found; will not build rock
 message(STATUS "Enabled plugins:")
 
 
-add_app(data_tool "-DDEFAULT_PLUGINS=state_history_plugin,parser_plugin,postgres_plugin;-DINCLUDE_DATA_TOOL" "")
+add_app(data_tool "-DDEFAULT_PLUGINS=state_history_plugin,parser_plugin,postgres_plugin;-DINCLUDE_DATA_TOOL" "${PQXX_LIBRARIES}")
 target_sources(data_tool PRIVATE src/state_history_plugin.cpp src/parser_plugin.cpp src/postgres_plugin.cpp)
 
 

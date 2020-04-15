@@ -56,6 +56,30 @@ std::string str(){
 };
 
 
+struct enum_type{
+
+    std::string type_name;
+    std::vector<std::string> sub_types;
+    enum_type(const std::string& name):type_name(name){}
+
+    enum_type& operator()(const std::string& t){
+        sub_types.push_back(t);
+        return *this;
+    }
+
+    std::string str(){
+        std::stringstream ss;
+        ss << "CREATE TYPE " << type_name << " AS enum(";
+        for(uint32_t i = 0; i < sub_types.size(); ++i){
+            if(i!=0)ss << ",";
+            ss << sub_types[i];
+        }
+        ss << ")";
+        return ss.str();
+    }
+
+};
+
 struct create{
     std::string table_name;
     std::vector<std::tuple<std::string,std::string>> fields;

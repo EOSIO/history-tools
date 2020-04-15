@@ -52,7 +52,7 @@ struct pipe{
         return p.retrieve(p.insert(query));
     }
 
-    ~pipe(){
+    void complete(){
         p.complete();
         w.commit();
     }
@@ -83,14 +83,14 @@ struct writer{
 
 struct table_builder{
     virtual std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) = 0;
-    virtual std::string create() = 0;
+    virtual std::vector<std::string> create() = 0;
     virtual ~table_builder(){}
 };
 
 
 // Define user defined literal "_quoted" operator.
 std::string operator"" _quoted(const char* text, std::size_t len) {
-    return "\"" + std::string(text, len) + "\"";
+    return "'" + std::string(text, len) + "'";
 }
 
 std::string quoted(const std::string& text){
@@ -98,16 +98,132 @@ std::string quoted(const std::string& text){
 }
 
 
+struct transaction_trace_builder:table_builder{
+    std::optional<abieos::checksum256> block_id;
+    std::optional<abieos::checksum256> transaction_id;
+    uint32_t transaction_ordinal = 0;
+
+    std::vector<std::string> create() override final {
+        
+        auto query = SQL::create("transaction_trace");
+        query("block_num",                  "bigint")
+             ("transaction_ordinal",        "integer")
+             ("failed_dtrx_trace",          "varchar(64)")
+             ("id",                         "varchar(64)")
+             ("status",                     "transaction_status_type")
+             ("cpu_usage_us",               "bigint")
+             ("net_usage_words",            "bigint")
+             ("elapsed",                    "bigint")
+             ("net_usage",                  "numeric")
+             ("scheduled",                  "boolean")
+             ("account_ram_delta_present",  "boolean")
+             ("account_ram_delta_account",  "varchar(13)")
+             ("account_ram_delta_delta",    "bigint")
+             ("exception",                  "varchar")
+             ("error_code",                 "numeric")
+             ("partial_present",            "boolean")
+             ("partial_expiration",         "timestamp")
+             ("partial_ref_block_num",      "integer")
+             ("partial_ref_block_prefix",   "bigint")
+             ("partial_max_net_usage_words","bigint")
+             ("partial_max_cpu_usage_ms",   "smallint")
+             ("partial_delay_sec",          "bigint")
+             ("partial_signatures",         "varchar")
+             ("partial_context_free_data",  "bytea")
+             .primary_key("block_num, transaction_ordinal");
+
+        std::vector<std::string> ret{query.str()};
+        return ret;
+    }
+
+
+    std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
+        if(!block_id.has_value() || block_id.value() != pos.block_id){
+            block_id.reset();
+            block_id.emplace(pos.block_id);
+            transaction_ordinal = 0;
+        }
+        
+        state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
+        state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
+        
+        if(transaction_id.has_value() && transaction_id.value() == trace_v0.id){
+            return "";
+        }
+
+        transaction_id.reset();
+        transaction_id.emplace(trace_v0.id);
+        ++transaction_ordinal;
+
+        auto query = SQL::insert("block_num",std::to_string(pos.block_num))
+            ("transaction_ordinal", std::to_string(transaction_ordinal))
+            ("failed_dtrx_trace",    [&]{   if(!trace_v0.failed_dtrx_trace.empty()){
+                                                auto r = std::get<state_history::transaction_trace_v0>(trace_v0.failed_dtrx_trace.front().recurse);
+                                                return quoted(std::string(r.id));
+                                            }else{
+                                                return quoted(std::string());
+                                            }}())
+            ("id",  quoted(std::string(trace_v0.id)))
+            ("status",quoted(state_history::to_string(trace_v0.status)))
+            ("cpu_usage_us", std::to_string(trace_v0.cpu_usage_us))
+            ("net_usage_words", std::string(trace_v0.net_usage_words))
+            ("elapsed", std::to_string(trace_v0.elapsed))
+            ("net_usage", std::to_string(trace_v0.net_usage))
+            ("scheduled", (trace_v0.scheduled?"true":"false"))
+            .into("transaction_trace");
+        std::cout << query.str() << std::endl;
+        return query.str();
+    }
+
+};
+
+
+
+
+//builder for action trace table.
 struct action_trace_builder: table_builder{
 
-    std::string create() override final {
+    std::vector<std::string> create() override final {
+        std::vector<std::string> queries;
+
+        auto q = SQL::enum_type("transaction_status_type");
+           q("executed"_quoted)
+            ("soft_fail"_quoted)
+            ("hard_fail"_quoted)
+            ("delayed"_quoted)
+            ("expired"_quoted);
+
+        queries.push_back(q.str());
+
+
+
         auto query = SQL::create("action_trace");
-        query("block_num",      "bigint")
-             ("timestamp",      "timestamp")
-             ("transaction_id", "bigint")
-             .primary_key("transaction_id");
+        query("block_num",              "bigint")
+             ("timestamp",              "timestamp")
+             ("transaction_id",         "varchar(64)")
+             ("transaction_status",     "transaction_status_type")
+             ("actor",                  "varchar(13)")
+             ("permission",             "varchar(13)")
+             ("action_oridinal",        "bigint")
+             ("creator_action_oridnal", "bigint")
+             ("receipt_present",        "boolean")
+             ("receipt_receiver",       "varchar(13)")
+             ("receipt_act_digesst",    "varchar(64)")
+             ("receipt_global_sequence","numeric")
+             ("receipt_recv_sequence",  "numeric")
+             ("receipt_code_sequence",  "bigint")
+             ("receipt_abi_sequence",   "bigint")
+             ("act_account",            "varchar(13)")
+             ("act_name",               "varchar(13)")
+             ("act_data",               "varchar(13)")
+             ("context_free",           "boolean")
+             ("elapsed",                "bigint")
+             ("error_code",             "numeric")
+             ("action_ordinal",         "varchar")
+             .primary_key("block_num, transaction_id, action_ordinal");
         
-        return query.str();
+        queries.push_back(query.str());
+        return queries;
     }
 
 
@@ -117,13 +233,15 @@ struct action_trace_builder: table_builder{
         state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
         
         auto query = SQL::insert("block_num",std::to_string(pos.block_num))
-             ("timestamp",std::string(sig_block.timestamp))
-             ("transaction_id",std::string(trace_v0.id))
-             ("transaction_status",state_history::to_string(trace_v0.status)).into("transaction_trace");
+             ("timestamp",quoted(std::string(sig_block.timestamp)))
+             ("transaction_id",quoted(std::string(trace_v0.id)))
+             ("transaction_status",quoted(state_history::to_string(trace_v0.status)))
+             ("action_ordinal",quoted(std::to_string(atrace.action_ordinal.value)))
+             .into("action_trace");
 
         if(atrace.act.authorization.size()){
-            query("actor",std::string(atrace.act.authorization[0].actor))
-                 ("permission",std::string(atrace.act.authorization[0].permission));
+            query("actor",quoted(std::string(atrace.act.authorization[0].actor)))
+                 ("permission",quoted(std::string(atrace.act.authorization[0].permission)));
         }
         
         std::cout << query.str() << std::endl;
@@ -138,7 +256,7 @@ struct action_trace_builder: table_builder{
 struct block_info_builder: table_builder{
     uint32_t last_block = 0;
 
-    std::string create() override final {
+    std::vector<std::string> create() override final {
         auto query = SQL::create("block_info");
         query("block_num",              "bigint")
              ("block_id",               "varchar(64)")
@@ -153,7 +271,8 @@ struct block_info_builder: table_builder{
              ("new_producers_version",  "bigint")
              .primary_key("block_num");
 
-        return query.str();
+        std::vector<std::string> ret{query.str()};
+        return ret;
     }
 
 
@@ -209,6 +328,8 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             auto query = tb->handle(pos,sig_block,trace,action_trace);
             p(query);
         }
+
+        p.complete();
     }
 
 
@@ -226,8 +347,9 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         );
 
 
-        // table_builders.push_back(std::make_unique<action_trace_builder>());
+        table_builders.push_back(std::make_unique<action_trace_builder>());
         table_builders.push_back(std::make_unique<block_info_builder>());
+        table_builders.push_back(std::make_unique<transaction_trace_builder>());
     }
 
 
@@ -250,11 +372,15 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
         if(create_table){
             for(auto& builder: table_builders){
-                auto query = builder->create();
-                std::cout << query << std::endl;
-                p(query);
+                auto queries = builder->create();
+                for(auto& query: queries){
+                    std::cout << query << std::endl;
+                    p(query);
+                }
             }
         }
+
+        p.complete();
     }
 
 };

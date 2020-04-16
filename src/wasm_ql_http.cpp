@@ -154,10 +154,12 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
                     thread_state_cache& state_cache, http::request<Body, http::basic_fields<Allocator>>&& req,
                     Send&& send) {
    // Returns a bad request response
-   const auto bad_request = [&req](beast::string_view why) {
+   const auto bad_request = [&http_config, &req](beast::string_view why) {
       http::response<http::string_body> res{ http::status::bad_request, req.version() };
       res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
       res.set(http::field::content_type, "text/html");
+      if (!http_config.allow_origin.empty())
+         res.set(http::field::access_control_allow_origin, http_config.allow_origin);
       res.keep_alive(req.keep_alive());
       res.body() = why.to_string();
       res.prepare_payload();
@@ -165,10 +167,12 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
    };
 
    // Returns a not found response
-   const auto not_found = [&req](beast::string_view target) {
+   const auto not_found = [&http_config, &req](beast::string_view target) {
       http::response<http::string_body> res{ http::status::not_found, req.version() };
       res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
       res.set(http::field::content_type, "text/html");
+      if (!http_config.allow_origin.empty())
+         res.set(http::field::access_control_allow_origin, http_config.allow_origin);
       res.keep_alive(req.keep_alive());
       res.body() = "The resource '" + target.to_string() + "' was not found.";
       res.prepare_payload();
@@ -176,10 +180,13 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
    };
 
    // Returns an error response
-   const auto error = [&req](http::status status, beast::string_view why, const char* content_type = "text/html") {
+   const auto error = [&http_config, &req](http::status status, beast::string_view why,
+                                           const char* content_type = "text/html") {
       http::response<http::string_body> res{ status, req.version() };
       res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
       res.set(http::field::content_type, content_type);
+      if (!http_config.allow_origin.empty())
+         res.set(http::field::access_control_allow_origin, http_config.allow_origin);
       res.keep_alive(req.keep_alive());
       res.body() = why.to_string();
       res.prepare_payload();
@@ -289,6 +296,8 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
             http::response<http::empty_body> res{ http::status::ok, req.version() };
             res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
             res.set(http::field::content_type, mime_type(path));
+            if (!http_config.allow_origin.empty())
+               res.set(http::field::access_control_allow_origin, http_config.allow_origin);
             res.content_length(size);
             res.keep_alive(req.keep_alive());
             return send(std::move(res));
@@ -299,6 +308,8 @@ void handle_request(const wasm_ql::http_config& http_config, const wasm_ql::shar
                                               std::make_tuple(http::status::ok, req.version()) };
          res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
          res.set(http::field::content_type, mime_type(path));
+         if (!http_config.allow_origin.empty())
+            res.set(http::field::access_control_allow_origin, http_config.allow_origin);
          res.content_length(size);
          res.keep_alive(req.keep_alive());
          return send(std::move(res));

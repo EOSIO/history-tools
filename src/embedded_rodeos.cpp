@@ -194,13 +194,20 @@ extern "C" rodeos_filter* rodeos_create_filter(rodeos_error* error, uint64_t nam
 extern "C" void rodeos_destroy_filter(rodeos_filter* filter) { std::unique_ptr<rodeos_filter>{ filter }; }
 
 extern "C" rodeos_bool rodeos_run_filter(rodeos_error* error, rodeos_db_snapshot* snapshot, rodeos_filter* filter,
-                                         const char* data, uint64_t size) {
+                                         const char* data, uint64_t size,
+                                         rodeos_bool (*push_data)(void* arg, const char* data, uint64_t size),
+                                         void* push_data_arg) {
    return handle_exceptions(error, false, [&]() {
       if (!snapshot)
          return error->set("snapshot is null");
       if (!filter)
          return error->set("filter is null");
-      with_result(data, size, [&](auto& result) { filter->process(*snapshot, result, { data, data + size }); });
+      with_result(data, size, [&](auto& result) {
+         filter->process(*snapshot, result, { data, data + size }, [&](const char* data, uint64_t size) {
+            if (push_data && !push_data(push_data_arg, data, size))
+               throw std::runtime_error("push_data returned false");
+         });
+      });
       return true;
    });
 }

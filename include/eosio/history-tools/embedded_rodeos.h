@@ -104,12 +104,17 @@ rodeos_filter* rodeos_create_filter(rodeos_error* error, uint64_t name, const ch
 // no-op if filter == NULL.
 void rodeos_destroy_filter(rodeos_filter* filter);
 
-// Run filter. data must be the serialized `result` type defined by the state-history plugin's ABI. Currently only
-// supports `get_blocks_result_v0`. If `rodeos_run_filter` returns false, the snapshot will be in an inconsistent state;
-// call `start_block` to abandon the current write and start another. It is undefined behavior if `snapshot` or `filter`
-// is used between threads without synchronization.
+// Run filter. data must be the serialized `result` type defined by the state-history plugin's ABI. The `push_data`
+// callback receives data from the filter's `push_data` intrinsic. If `push_data` is null, then the intrinsic is a
+// no-op.
+//
+// If `rodeos_run_filter` returns false, the snapshot will be in an inconsistent state; call `start_block` to abandon
+// the current write and start another. It is undefined behavior if `snapshot` or `filter` is used between threads
+// without synchronization.
 rodeos_bool rodeos_run_filter(rodeos_error* error, rodeos_db_snapshot* snapshot, rodeos_filter* filter,
-                              const char* data, uint64_t size);
+                              const char* data, uint64_t size,
+                              rodeos_bool (*push_data)(void* arg, const char* data, uint64_t size),
+                              void* push_data_arg);
 
 // Create a query handler. This object manages pools of resources for running queries simultaneously.
 //

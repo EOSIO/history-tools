@@ -130,7 +130,21 @@ struct filter {
    operator rodeos_filter*() { return obj; }
 
    void run(rodeos_db_snapshot* snapshot, const char* data, uint64_t size) {
-      error.check([&] { return rodeos_run_filter(error, snapshot, obj, data, size); });
+      error.check([&] { return rodeos_run_filter(error, snapshot, obj, data, size, nullptr, nullptr); });
+   }
+
+   template <typename F>
+   void run(rodeos_db_snapshot* snapshot, const char* data, uint64_t size, F push_data) {
+      error.check([&] {
+         return rodeos_run_filter(
+               error, snapshot, obj, data, size,
+               [](void* arg, const char* data, uint64_t size) {
+                  try {
+                     return (*reinterpret_cast<F*>(arg))(data, size);
+                  } catch (...) { return false; }
+               },
+               &push_data);
+      });
    }
 };
 

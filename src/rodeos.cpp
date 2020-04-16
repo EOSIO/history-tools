@@ -235,7 +235,8 @@ rodeos_filter::rodeos_filter(eosio::name name, const std::string& wasm_filename)
 }
 
 void rodeos_filter::process(rodeos_db_snapshot& snapshot, const ship_protocol::get_blocks_result_v0& result,
-                            eosio::input_stream bin) {
+                            eosio::input_stream                                         bin,
+                            const std::function<void(const char* data, uint64_t size)>& push_data) {
    // todo: timeout
    snapshot.check_write(result);
    chaindb_state chaindb_state;

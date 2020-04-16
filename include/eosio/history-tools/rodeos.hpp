@@ -2,6 +2,7 @@
 #include <eosio/history-tools/filter.hpp>
 #include <eosio/history-tools/wasm_ql.hpp>
 #include <eosio/ship_protocol.hpp>
+#include <functional>
 
 namespace eosio { namespace history_tools {
 
@@ -70,7 +71,7 @@ struct rodeos_filter {
    rodeos_filter(eosio::name name, const std::string& wasm_filename);
 
    void process(rodeos_db_snapshot& snapshot, const ship_protocol::get_blocks_result_v0& result,
-                eosio::input_stream bin);
+                eosio::input_stream bin, const std::function<void(const char* data, uint64_t size)>& push_data);
 };
 
 struct rodeos_query_handler {

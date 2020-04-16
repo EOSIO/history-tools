@@ -83,8 +83,9 @@ struct writer{
 
 
 struct table_builder{
-    virtual std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) = 0;
-    virtual std::vector<std::string> create() = 0;
+    virtual std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace){return "";}
+    virtual std::vector<std::string> create(){return std::vector<std::string>();}
+    virtual std::vector<std::string> drop(){return std::vector<std::string>();}
     virtual ~table_builder(){}
 };
 
@@ -97,6 +98,33 @@ std::string operator"" _quoted(const char* text, std::size_t len) {
 std::string quoted(const std::string& text){
     return "'" + text + "'";
 }
+
+
+
+struct type_builder:table_builder{
+
+    std::vector<std::string> create() override final{
+        std::vector<std::string> queries;
+
+        auto q = SQL::enum_type("transaction_status_type");
+           q("executed"_quoted)
+            ("soft_fail"_quoted)
+            ("hard_fail"_quoted)
+            ("delayed"_quoted)
+            ("expired"_quoted);
+
+        queries.push_back(q.str());
+        return queries;
+    }
+
+    std::vector<std::string> drop() override final{
+
+        std::vector<std::string> queries;
+        queries.push_back("drop type transaction_status_type");
+        return queries;
+
+    }
+};
 
 
 struct transaction_trace_builder:table_builder{
@@ -137,6 +165,11 @@ struct transaction_trace_builder:table_builder{
         return ret;
     }
 
+    std::vector<std::string> drop() override final {
+        std::vector<std::string> queries;
+        queries.push_back("drop table transaction_trace");
+        return queries;
+    }
 
     std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         if(!block_id.has_value() || block_id.value() != pos.block_id){
@@ -187,17 +220,6 @@ struct action_trace_builder: table_builder{
     std::vector<std::string> create() override final {
         std::vector<std::string> queries;
 
-        auto q = SQL::enum_type("transaction_status_type");
-           q("executed"_quoted)
-            ("soft_fail"_quoted)
-            ("hard_fail"_quoted)
-            ("delayed"_quoted)
-            ("expired"_quoted);
-
-        queries.push_back(q.str());
-
-
-
         auto query = SQL::create("action_trace");
         query("block_num",              "bigint")
              ("timestamp",              "timestamp")
@@ -227,7 +249,11 @@ struct action_trace_builder: table_builder{
         return queries;
     }
 
-
+    std::vector<std::string> drop() override final {
+        std::vector<std::string> queries;
+        queries.push_back("drop table action_trace");
+        return queries;
+    }
 
     std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
@@ -276,6 +302,11 @@ struct block_info_builder: table_builder{
         return ret;
     }
 
+    std::vector<std::string> drop() override final {
+        std::vector<std::string> queries;
+        queries.push_back("block_info");
+        return queries;
+    }
 
     std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         if(pos.block_num == last_block)return ""; //one block only do once. 
@@ -318,11 +349,12 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
     //database 
     std::string db_string;
-    bool create_table;
+    bool create_table = false;
+    bool drop_table = false;
     std::optional<pqxx::connection> conn;
     std::optional<pg::pipe> m_pipe;
 
-    postgres_plugin_impl(postgres_plugin& plugin):m_plugin(plugin),create_table(false){}
+    postgres_plugin_impl(postgres_plugin& plugin):m_plugin(plugin){}
 
     void handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace){
         
@@ -358,6 +390,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
         db_string = options.count("dbstring") ? options["dbstring"].as<std::string>() : std::string();
         create_table = options.count("postgres-create");
+        drop_table = options.count("postgres-drop");
 
         applied_action_connection.emplace(
             appbase::app().find_plugin<parser_plugin>()->applied_action.connect(
@@ -375,7 +408,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             )
         );
 
-
+        table_builders.push_back(std::make_unique<type_builder>()); //type need to create first. 
         table_builders.push_back(std::make_unique<action_trace_builder>());
         table_builders.push_back(std::make_unique<block_info_builder>());
         table_builders.push_back(std::make_unique<transaction_trace_builder>());
@@ -400,6 +433,20 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         assert(conn.has_value());
 
         
+        if(drop_table){
+            //drop table schema in a revese direction, because type builder always the first. 
+            pg::pipe p(conn.value());
+            for(auto it = table_builders.rbegin();table_builders.rend() != it;it++){
+                auto qs = (*it)->drop();
+                for(auto q:qs){
+                    std::cout << q << std::endl;
+                    p(q);
+                }
+            }
+            p.complete();
+            //we can't only drop without create.
+            assert(create_table);
+        }
 
         if(create_table){
             pg::pipe p(conn.value());
@@ -433,7 +480,8 @@ postgres_plugin::~postgres_plugin(){}
 
 void postgres_plugin::set_program_options(appbase::options_description& cli, appbase::options_description& cfg) {
     auto op = cli.add_options();
-    op("postgres-create", "create tables");
+    op("postgres-create", "create tables.");
+    op("postgres-drop","drop existing tables.");
     op("dbstring", bpo::value<std::string>(), "dbstring of postgresql");
 }
 

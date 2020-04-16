@@ -19,6 +19,7 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
 
     std::shared_ptr<state_history::connection>   connection;
     //define signals 
+    std::optional<uint32_t> initial_block_num;
 
     state_history_plugin_impl(state_history_plugin& plugin):m_plugin(plugin){
     }
@@ -70,7 +71,13 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
         trace_begin_block.emplace(status.trace_begin_block);
         state_begin_block.emplace(status.chain_state_begin_block);
 
-        request_blocks(trace_begin_block.value());
+        uint32_t request_start_block = trace_begin_block.value();
+        if(initial_block_num.has_value()){
+            if(initial_block_num.value()>request_start_block){
+                request_start_block = initial_block_num.value();
+            }
+        }
+        request_blocks(request_start_block);
         return true;
     }
 
@@ -83,6 +90,10 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
 
     void closed(bool retry) override {}
 
+
+    void set_initial_block_num(uint32_t block_num){
+        initial_block_num.emplace(block_num);
+    }
 
 };
 
@@ -114,4 +125,8 @@ void state_history_plugin::plugin_startup() {
 }
 void state_history_plugin::plugin_shutdown() {
     ilog("state history plugin shutdown.");
+}
+
+void state_history_plugin::set_initial_block_num(uint32_t block_num){
+    my->set_initial_block_num(block_num);
 }

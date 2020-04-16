@@ -22,5 +22,7 @@ class state_history_plugin : public appbase::plugin<state_history_plugin> {
     bsg::signal<void(const state_history::get_status_result_v0&)> applied_status;
     bsg::signal<void(const state_history::get_blocks_result_v0&)> applied_blocks;
 
+    void set_initial_block_num(uint32_t block_num);
+
     std::shared_ptr<struct state_history_plugin_impl> my;
 };

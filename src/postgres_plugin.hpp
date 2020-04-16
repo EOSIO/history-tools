@@ -19,8 +19,6 @@ class postgres_plugin : public appbase::plugin<postgres_plugin> {
     void     plugin_initialize(const appbase::variables_map& options);
     void     plugin_startup();
     void     plugin_shutdown();
-
-    bsg::signal<void(const state_history::signed_block&, const state_history::transaction_trace&, const state_history::action_trace&)> applied_action;
-
+    
     std::shared_ptr<struct postgres_plugin_impl> my;
 };

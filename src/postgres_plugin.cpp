@@ -1,6 +1,7 @@
 // copyright defined in LICENSE.txt
 #include "postgres_plugin.hpp"
 #include "parser_plugin.hpp"
+#include "state_history_plugin.hpp"
 #include <fc/log/logger.hpp>
 #include "sql.hpp"
 #include <pqxx/pqxx>
@@ -309,6 +310,8 @@ struct block_info_builder: table_builder{
 
 struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> {
     std::optional<bsg::scoped_connection>     applied_action_connection;
+    std::optional<bsg::scoped_connection>     block_finish_connection;
+
     std::vector<std::unique_ptr<table_builder>> table_builders;    
     //datas
     postgres_plugin& m_plugin;
@@ -317,19 +320,37 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
     std::string db_string;
     bool create_table;
     std::optional<pqxx::connection> conn;
+    std::optional<pg::pipe> m_pipe;
 
     postgres_plugin_impl(postgres_plugin& plugin):m_plugin(plugin),create_table(false){}
 
     void handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace){
         
-        pg::pipe p(conn.value());
+        if(!m_pipe.has_value())m_pipe.emplace(conn.value());
 
         for(auto& tb: table_builders){
             auto query = tb->handle(pos,sig_block,trace,action_trace);
-            p(query);
+            m_pipe.value()(query);
         }
 
-        p.complete();
+    }
+
+
+    void handle(const state_history::block_position& pos){
+        if(m_pipe.has_value()){
+            m_pipe.value().complete();
+            m_pipe.reset();
+        }
+        std::cout << "=====finish block("<< pos.block_num <<")===" << std::endl;
+    }
+
+    uint32_t get_last_block_num(){
+        assert(conn.has_value());
+        pqxx::work w(conn.value());
+        pqxx::row row = w.exec1("select block_num from block_info order by block_num desc limit 1");
+        uint32_t block_num = row[0].as<uint32_t>();
+        ilog("latest block number exist in database is ${n}",("n",block_num));
+        return block_num;
     }
 
 
@@ -346,11 +367,21 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             )
         );
 
+        block_finish_connection.emplace(
+            appbase::app().find_plugin<parser_plugin>()->block_finish.connect(
+                [&](const state_history::block_position& pos){
+                    handle(pos);
+                }
+            )
+        );
+
 
         table_builders.push_back(std::make_unique<action_trace_builder>());
         table_builders.push_back(std::make_unique<block_info_builder>());
         table_builders.push_back(std::make_unique<transaction_trace_builder>());
     }
+
+
 
 
     void start(){
@@ -368,9 +399,10 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
         assert(conn.has_value());
 
-        pg::pipe p(conn.value());
+        
 
         if(create_table){
+            pg::pipe p(conn.value());
             for(auto& builder: table_builders){
                 auto queries = builder->create();
                 for(auto& query: queries){
@@ -378,9 +410,12 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
                     p(query);
                 }
             }
+            p.complete();
+        }else{
+            auto block_num = get_last_block_num();
+            appbase::app().find_plugin<state_history_plugin>()->set_initial_block_num(block_num+1);
         }
 
-        p.complete();
     }
 
 };
@@ -405,9 +440,9 @@ void postgres_plugin::set_program_options(appbase::options_description& cli, app
 
 void postgres_plugin::plugin_initialize(const appbase::variables_map& options) {
     my->init(options);
+    my->start();
 }
 void postgres_plugin::plugin_startup() {
-    my->start();
 }
 void postgres_plugin::plugin_shutdown() {
 }

@@ -87,6 +87,7 @@ struct parser_plugin_impl: std::enable_shared_from_this<parser_plugin_impl> {
         }
 
         if(m_this_block){
+            m_plugin.block_finish(m_position.value());
             m_position.reset();
             m_this_block.reset();
         }

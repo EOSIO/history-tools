@@ -318,7 +318,7 @@ struct block_info_builder: table_builder{
 
     std::vector<std::string> drop() override final {
         std::vector<std::string> queries;
-        queries.push_back("block_info");
+        queries.push_back("drop table block_info");
         return queries;
     }
 
@@ -480,7 +480,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             pg::pipe p(conn.value());
             for(auto it = table_builders.rbegin();table_builders.rend() != it;it++){
                 auto qs = (*it)->drop();
-                for(auto q:qs){
+                for(auto& q:qs){
                     std::cout << q << std::endl;
                     p(q);
                 }

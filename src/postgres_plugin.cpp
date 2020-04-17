@@ -389,7 +389,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
     }
 
 
-    void handle(const state_history::block_position& pos){
+    void handle_fork(const state_history::block_position& pos){
         if(!m_pipe.has_value())m_pipe.emplace(conn.value());
 
         for(auto& up_builder: table_builders){
@@ -401,7 +401,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         std::cout << "=====fork happened block("<< pos.block_num <<")===" << std::endl;
     }
 
-    void handle_fork(const state_history::block_position& pos){
+    void handle(const state_history::block_position& pos){
         if(m_pipe.has_value()){
             m_pipe.value().complete();
             m_pipe.reset();

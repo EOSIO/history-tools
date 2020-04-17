@@ -129,7 +129,6 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         pipeline.complete();
         t.commit();
         std::cout << "get_status_result_v0:" << status.head.block_num <<  "\t" << status.last_irreversible.block_num << std::endl;
-        throw 9;
         connection->request_blocks(status, std::max(config->skip_to, head + 1), positions);
         return true;
     }
@@ -730,7 +729,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     receive_block(uint32_t block_num, const checksum256& block_id, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline, signed_block &block) {
         bin_to_native(block, bin);
 
-        std::string fields = "block_num, block_id, timestamp, producer, confirmed, previous, transaction_count, transaction_mroot, action_mroot, "
+        std::string fields = "block_num, block_id, timestamp, producer, confirmed, , transaction_count, transaction_mroot, action_mroot, "
                              "schedule_version, new_producers_version"; // , new_producers";
         std::string values = sql_str(bulk, block_num) + sep(bulk) +                                 //
                              sql_str(bulk, block_id) + sep(bulk) +                                  //

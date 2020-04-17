@@ -56,6 +56,33 @@ std::string str(){
 };
 
 
+struct del{
+    std::string table_name;
+    std::string condition;
+
+    del(){}
+
+    del& from(const std::string& _name){
+        table_name = _name;
+        return *this;
+    }
+
+    del&  where(const std::string& _condidtion){
+        condition = _condidtion;
+        return *this;
+    }
+
+    std::string str(){
+        std::stringstream ss;
+        ss << "DELETE FROM " << table_name;
+        ss << " WHERE " << condition;
+    return ss.str();
+}
+
+};
+
+
+
 struct enum_type{
 
     std::string type_name;

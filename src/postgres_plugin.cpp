@@ -86,6 +86,7 @@ struct table_builder{
     virtual std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace){return "";}
     virtual std::vector<std::string> create(){return std::vector<std::string>();}
     virtual std::vector<std::string> drop(){return std::vector<std::string>();}
+    virtual std::vector<std::string> truncate(const state_history::block_position& pos){return std::vector<std::string>();}
     virtual ~table_builder(){}
 };
 
@@ -171,6 +172,13 @@ struct transaction_trace_builder:table_builder{
         return queries;
     }
 
+    std::vector<std::string> truncate(const state_history::block_position& pos) override final {
+        std::vector<std::string> queries;
+        queries.push_back( SQL::del().from("transaction_trace").where("block_num >= " + std::to_string(pos.block_num)).str());
+        return queries;
+    }
+
+
     std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         if(!block_id.has_value() || block_id.value() != pos.block_id){
             block_id.reset();
@@ -255,6 +263,12 @@ struct action_trace_builder: table_builder{
         return queries;
     }
 
+    std::vector<std::string> truncate(const state_history::block_position& pos) override final {
+        std::vector<std::string> queries;
+        queries.push_back( SQL::del().from("action_trace").where("block_num >= " + std::to_string(pos.block_num)).str());
+        return queries;
+    }
+
     std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
         state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
@@ -308,6 +322,12 @@ struct block_info_builder: table_builder{
         return queries;
     }
 
+    std::vector<std::string> truncate(const state_history::block_position& pos) override final {
+        std::vector<std::string> queries;
+        queries.push_back( SQL::del().from("block_info").where("block_num >= " + std::to_string(pos.block_num)).str());
+        return queries;
+    }
+
     std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         if(pos.block_num == last_block)return ""; //one block only do once. 
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
@@ -342,6 +362,7 @@ struct block_info_builder: table_builder{
 struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> {
     std::optional<bsg::scoped_connection>     applied_action_connection;
     std::optional<bsg::scoped_connection>     block_finish_connection;
+    std::optional<bsg::scoped_connection>     fork_connection;
 
     std::vector<std::unique_ptr<table_builder>> table_builders;    
     //datas
@@ -369,6 +390,18 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
 
     void handle(const state_history::block_position& pos){
+        if(!m_pipe.has_value())m_pipe.emplace(conn.value());
+
+        for(auto& up_builder: table_builders){
+            auto queries = up_builder->truncate(pos);
+            for(auto& q: queries){
+                m_pipe.value()(q);
+            }
+        }
+        std::cout << "=====fork happened block("<< pos.block_num <<")===" << std::endl;
+    }
+
+    void handle_fork(const state_history::block_position& pos){
         if(m_pipe.has_value()){
             m_pipe.value().complete();
             m_pipe.reset();
@@ -407,6 +440,15 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
                 }
             )
         );
+
+        fork_connection.emplace(
+            appbase::app().find_plugin<parser_plugin>()->signal_fork.connect(
+                [&](const state_history::block_position& pos){
+                    handle_fork(pos);
+                }
+            )
+        );
+
 
         table_builders.push_back(std::make_unique<type_builder>()); //type need to create first. 
         table_builders.push_back(std::make_unique<action_trace_builder>());

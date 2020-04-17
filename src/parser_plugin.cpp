@@ -69,7 +69,8 @@ struct parser_plugin_impl: std::enable_shared_from_this<parser_plugin_impl> {
         if (!result.this_block)return;
         
         if(result.this_block.value().block_num <= m_latest_block){
-            // todo:: handle fork maybe emit a fork signal
+            //emit fork signal if we got a smaller block
+            m_plugin.signal_fork(m_position.value());
         }
         m_latest_block = result.this_block.value().block_num;
         m_position.emplace(result.this_block.value());

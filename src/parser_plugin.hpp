@@ -22,5 +22,6 @@ class parser_plugin : public appbase::plugin<parser_plugin> {
 
     bsg::signal<void(const state_history::block_position& pos, const state_history::signed_block&, const state_history::transaction_trace&, const state_history::action_trace&)> applied_action;
     bsg::signal<void(const state_history::block_position& pos)> block_finish;
+    bsg::signal<void(const state_history::block_position& pos)> signal_fork;
     std::shared_ptr<struct parser_plugin_impl> my;
 };

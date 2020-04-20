@@ -121,6 +121,11 @@ struct create{
         return *this;
     }
 
+    create& operator()(const std::tuple<std::string,std::string>& tp){
+        fields.push_back(tp);
+        return *this;
+    }
+
     void primary_key(const std::string& pk){
         prim_key = pk;
     }

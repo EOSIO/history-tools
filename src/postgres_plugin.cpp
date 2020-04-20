@@ -7,6 +7,8 @@
 #include <pqxx/pqxx>
 #include <pqxx/connection>
 #include <pqxx/tablewriter>
+#include "postgres_config_utils.hpp"
+#include <abieos.hpp>
 
 
 namespace bpo       = boost::program_options;
@@ -213,7 +215,6 @@ struct transaction_trace_builder:table_builder{
             ("net_usage", std::to_string(trace_v0.net_usage))
             ("scheduled", (trace_v0.scheduled?"true":"false"))
             .into("transaction_trace");
-        std::cout << query.str() << std::endl;
         return query.str();
     }
 
@@ -285,13 +286,10 @@ struct action_trace_builder: table_builder{
                  ("permission",quoted(std::string(atrace.act.authorization[0].permission)));
         }
         
-        std::cout << query.str() << std::endl;
         return query.str();
     }
 
 };
-
-
 
 
 struct block_info_builder: table_builder{
@@ -346,7 +344,7 @@ struct block_info_builder: table_builder{
              .into("block_info")
              ;
         last_block = pos.block_num; //avoid multiple insert
-        std::cout << query.str() << std::endl;
+
         return query.str();
     }
 
@@ -354,6 +352,100 @@ struct block_info_builder: table_builder{
 
 
 
+struct abi_data_handler:table_builder{
+
+    const std::string name;
+    const ABI::action_def abi;
+
+
+    abi_data_handler(const std::string& _name, ABI::action_def& _abi):name(_name),abi(_abi){}
+
+    std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
+        state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
+        state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
+
+        //if this action is not our target, return.
+        if (atrace.act.name != abieos::name(abi.name.c_str()) || atrace.act.account != abieos::name(abi.contract.c_str()))return "";
+        std::cout << "new action" << std::endl;
+        auto query = SQL::insert("block_num",std::to_string(pos.block_num))
+            ("timestamp",quoted(std::string(sig_block.timestamp)))
+            ("transaction_id",quoted(std::string(trace_v0.id)))
+            ("action_ordinal",quoted(std::to_string(atrace.action_ordinal.value)))
+            .into(name);
+
+        abieos::input_buffer buffer = atrace.act.data;
+        std::string error;
+        for(auto& field: abi.fields){
+            if(field.type == "name"){
+                uint64_t data = 0;
+                if(!abieos::read_raw(buffer,error,data)){
+                    elog("error when parsing name");
+                    return "";
+                }
+                query(field.name, quoted(abieos::name_to_string(data)));
+            }
+            else if(field.type == "asset"){
+                uint64_t amount,symbol;
+                if(!abieos::read_raw(buffer,error,amount)){
+                    elog("error when parsing amount");
+                    return "";
+                }
+                query(field.name + "_amount",std::to_string(amount));
+                if(!abieos::read_raw(buffer,error,symbol)){
+                    elog("error when parsing symbol");
+                    return "";
+                }
+                query(field.name + "_symbol",quoted(abieos::symbol_code_to_string(symbol >> 8)));
+            }else{
+                std::string dest;
+                if(!abieos::read_string(buffer,error,dest)){
+                    elog("error when parsing dest");
+                    return "";
+                }
+                query(field.name, quoted(std::string(dest)));
+            }
+        }
+        return query.str();
+    }
+
+    std::vector<std::string> truncate(const state_history::block_position& pos) override final {
+        std::vector<std::string> queries;
+        queries.push_back( SQL::del().from(name).where("block_num >= " + std::to_string(pos.block_num)).str());
+        return queries;
+    }
+
+    std::vector<std::string> create() override final {
+        auto query = SQL::create(name);
+        query("block_num",              "bigint")
+             ("timestamp",              "timestamp")
+             ("transaction_id",         "varchar(64)")
+             ("action_ordinal",         "bigint");
+
+        for(auto& field: abi.fields){
+            if(field.type == "name"){
+                query(field.name,"varchar(64)");
+            }
+            else if(field.type == "asset"){
+                query(field.name + "_amount","bigint");
+                query(field.name + "_symbol","varchar");
+            }else{
+                query(field.name, "varchar");
+            }
+        }
+
+        query.primary_key("block_num, transaction_id, action_ordinal");
+
+        std::vector<std::string> ret{query.str()};
+        return ret;
+    }
+
+
+    std::vector<std::string> drop() override final {
+        std::vector<std::string> queries;
+        queries.push_back("drop table " + name);
+        return queries;
+    }
+};
 
 
 
@@ -365,6 +457,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
     std::optional<bsg::scoped_connection>     fork_connection;
 
     std::vector<std::unique_ptr<table_builder>> table_builders;    
+    std::vector<std::unique_ptr<abi_data_handler>> abi_handlers;
     //datas
     postgres_plugin& m_plugin;
 
@@ -386,6 +479,13 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             m_pipe.value()(query);
         }
 
+
+        for(auto& tb: abi_handlers){
+            auto query = tb->handle(pos,sig_block,trace,action_trace);
+            std::cout << query << std::endl;
+            m_pipe.value()(query);
+        }
+
     }
 
 
@@ -393,6 +493,13 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         if(!m_pipe.has_value())m_pipe.emplace(conn.value());
 
         for(auto& up_builder: table_builders){
+            auto queries = up_builder->truncate(pos);
+            for(auto& q: queries){
+                m_pipe.value()(q);
+            }
+        }
+
+        for(auto& up_builder: abi_handlers){
             auto queries = up_builder->truncate(pos);
             for(auto& q: queries){
                 m_pipe.value()(q);
@@ -406,7 +513,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             m_pipe.value().complete();
             m_pipe.reset();
         }
-        std::cout << "=====finish block("<< pos.block_num <<")===" << std::endl;
+        ilog("complete block ${num}",("num",pos.block_num));
     }
 
     uint32_t get_last_block_num(){
@@ -424,6 +531,30 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         db_string = options.count("dbstring") ? options["dbstring"].as<std::string>() : std::string();
         create_table = options.count("postgres-create");
         drop_table = options.count("postgres-drop");
+
+
+        if( options.count("action-abi") ) {
+        //  EOS_ASSERT(options.count("trace-no-abis") == 0, chain::plugin_config_exception,
+        //             "Trace API is configured with ABIs however action-no-abis is set");
+         const std::vector<std::string> key_value_pairs = options["action-abi"].as<std::vector<std::string>>();
+         for (const auto& entry : key_value_pairs) {
+            try {
+               std::cout << entry << std::endl;
+               auto kv = parse_kv_pairs(entry);
+               auto name = kv.first;
+               auto abi = abi_def_from_file(kv.second, appbase::app().data_dir());
+               abi_handlers.emplace_back(std::make_unique<abi_data_handler>(name, abi));
+            } catch (...) {
+               elog("Malformed trace-rpc-abi provider: \"${val}\"", ("val", entry));
+               throw;
+            }
+         }
+      } else {
+        //  EOS_ASSERT(options.count("trace-no-abis") != 0, chain::plugin_config_exception,
+        //             "Trace API is not configured with ABIs and trace-no-abis is not set");
+      }
+
+
 
         applied_action_connection.emplace(
             appbase::app().find_plugin<parser_plugin>()->applied_action.connect(
@@ -481,10 +612,18 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             for(auto it = table_builders.rbegin();table_builders.rend() != it;it++){
                 auto qs = (*it)->drop();
                 for(auto& q:qs){
+                    p(q);
+                }
+            }
+
+            for(auto it = abi_handlers.rbegin();abi_handlers.rend() != it;it++){
+                auto qs = (*it)->drop();
+                for(auto& q:qs){
                     std::cout << q << std::endl;
                     p(q);
                 }
             }
+
             p.complete();
             //we can't only drop without create.
             assert(create_table);
@@ -493,6 +632,14 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         if(create_table){
             pg::pipe p(conn.value());
             for(auto& builder: table_builders){
+                auto queries = builder->create();
+                for(auto& query: queries){
+                    std::cout << query << std::endl;
+                    p(query);
+                }
+            }
+
+            for(auto& builder: abi_handlers){
                 auto queries = builder->create();
                 for(auto& query: queries){
                     std::cout << query << std::endl;
@@ -525,6 +672,22 @@ void postgres_plugin::set_program_options(appbase::options_description& cli, app
     op("postgres-create", "create tables.");
     op("postgres-drop","drop existing tables.");
     op("dbstring", bpo::value<std::string>(), "dbstring of postgresql");
+
+
+    op("action-abi", bpo::value<std::vector<std::string>>()->composing(),
+    "ABIs used when decoding trace RPC responses.\n"
+    "There must be at least one ABI specified OR the flag trace-no-abis must be used.\n"
+    "ABIs are specified as \"Key=Value\" pairs in the form <account-name>=<abi-def>\n"
+    "Where <abi-def> can be:\n"
+    "   an absolute path to a file containing a valid JSON-encoded ABI\n"
+    "   a relative path from `data-dir` to a file containing a valid JSON-encoded ABI\n"
+    );
+
+    op("action-no-abis",
+    "Use to indicate that the RPC responses will not use ABIs.\n"
+    "Failure to specify this option when there are no trace-rpc-abi configuations will result in an Error.\n"
+    "This option is mutually exclusive with trace-rpc-api"
+    );
 }
 
 

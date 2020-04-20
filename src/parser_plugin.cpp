@@ -48,7 +48,7 @@ struct parser_plugin_impl: std::enable_shared_from_this<parser_plugin_impl> {
         state_history::transaction_trace_v0 trx_trace = std::get<state_history::transaction_trace_v0>(trace);
 
 
-        ilog("${tid}",("tid",std::string(trx_trace.id)));
+        // ilog("${tid}",("tid",std::string(trx_trace.id)));
 
         
 

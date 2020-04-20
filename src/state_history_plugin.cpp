@@ -84,7 +84,7 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
 
     virtual bool received(state_history::get_blocks_result_v0& result) override{ 
         m_plugin.applied_blocks(result);
-        ilog("receive block ${num} ${bid}",("num",result.this_block.value().block_num)("bid",std::string(result.this_block.value().block_id)));
+        // ilog("receive block ${num} ${bid}",("num",result.this_block.value().block_num)("bid",std::string(result.this_block.value().block_id)));
         return true;
     }
 

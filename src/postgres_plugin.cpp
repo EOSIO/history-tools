@@ -62,7 +62,7 @@ struct pipe{
 
         for(auto i: ids){
             if(!p.is_finished(i)){
-                throw std::runtime_error("problem!!!! pipeline is not complete.")
+                throw std::runtime_error("problem!!!! pipeline is not complete.");
             }
         }
 

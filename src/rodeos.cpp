@@ -247,6 +247,7 @@ void rodeos_filter::process(rodeos_db_snapshot& snapshot, const ship_protocol::g
    filter_state->max_console_size = 10000;
    filter_state->console.clear();
    filter_state->input_data = bin;
+   filter_state->push_data  = push_data;
    backend->set_wasm_allocator(&filter_state->wa);
    backend->initialize(&cb);
    try {

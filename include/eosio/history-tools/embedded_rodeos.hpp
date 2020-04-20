@@ -138,7 +138,7 @@ struct filter {
       error.check([&] {
          return rodeos_run_filter(
                error, snapshot, obj, data, size,
-               [](void* arg, const char* data, uint64_t size) {
+               [](void* arg, const char* data, uint64_t size) -> rodeos_bool {
                   try {
                      return (*reinterpret_cast<F*>(arg))(data, size);
                   } catch (...) { return false; }

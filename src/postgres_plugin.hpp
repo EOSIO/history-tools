@@ -4,8 +4,20 @@
 #include "state_history.hpp"
 #include <appbase/application.hpp>
 #include <boost/signals2/signal.hpp>
+#include "postgres_utils.hpp"
 
 namespace bsg = boost::signals2;
+
+
+
+struct table_builder{
+    virtual SQL::insert handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace){return SQL::insert();}
+    virtual std::vector<std::string> create(){return std::vector<std::string>();}
+    virtual std::vector<std::string> drop(){return std::vector<std::string>();}
+    virtual std::vector<std::string> truncate(const state_history::block_position& pos){return std::vector<std::string>();}
+    virtual ~table_builder(){}
+};
+
 
 
 class postgres_plugin : public appbase::plugin<postgres_plugin> {

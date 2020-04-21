@@ -46,7 +46,7 @@ struct pipe{
     std::vector<int> ids;
     pipe(pqxx::connection& con):w(con),p(w){}
 
-    pipe& operator()(std::string& query){
+    pipe& operator()(std::string query){
         if(query.empty())return *this;
         ids.push_back(p.insert(query));
         return *this;
@@ -71,18 +71,59 @@ struct pipe{
 };
 
 struct writer{
+    pqxx::connection con;
     pqxx::work w;
     pqxx::tablewriter tw;
 
-    writer(pqxx::connection& con ,const std::string& name, const std::vector<std::string> cols):w(con),tw(w,name,cols.begin(),cols.end()){}
+    writer(const std::string& db_str ,const std::string& name, const std::vector<std::string> cols):
+    con(db_str),w(con),tw(w,name,cols.begin(),cols.end()){}
 
-    void operator<<(std::vector<std::string>& row){
+    void write_row(std::vector<std::string> row){
         tw << row;
     }
 
-    ~writer(){
+    void complete(){
         tw.complete();
         w.commit();
+    }
+
+};
+
+
+class table_writer_manager{
+
+    std::map< std::string, std::shared_ptr<writer>> table_writers; 
+    std::string db_str;
+
+    table_writer_manager(const std::string& _db_str):db_str(_db_str){}
+public:
+    static table_writer_manager& instance(std::optional<std::string> _db_str = std::nullopt){
+        static table_writer_manager tbw_mgr(_db_str.value());
+        return tbw_mgr;
+    }
+
+    
+    writer& get_writer(const std::string& table_name, const std::vector<std::string>& cols){
+        std::stringstream key;
+        key << table_name << "::";
+        for(auto& c: cols){
+            key << c;
+        };
+
+        auto it = table_writers.find(key.str());
+        if(it == table_writers.end()){
+            it = table_writers.insert(std::make_pair(key.str(),std::make_shared<writer>(db_str,table_name,cols))).first;
+        }
+
+        return *(it->second);
+    }
+
+    void close_writers(){
+        for(auto& pair: table_writers){
+            pair.second->complete();
+        }
+
+        table_writers.clear();
     }
 
 };
@@ -94,7 +135,7 @@ struct writer{
 
 
 struct table_builder{
-    virtual std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace){return "";}
+    virtual SQL::insert handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace){return SQL::insert();}
     virtual std::vector<std::string> create(){return std::vector<std::string>();}
     virtual std::vector<std::string> drop(){return std::vector<std::string>();}
     virtual std::vector<std::string> truncate(const state_history::block_position& pos){return std::vector<std::string>();}
@@ -107,8 +148,11 @@ std::string operator"" _quoted(const char* text, std::size_t len) {
     return "'" + std::string(text, len) + "'";
 }
 
+
+bool quoted_enable = true;
 std::string quoted(const std::string& text){
-    return "'" + text + "'";
+    if(quoted_enable)return "'" + text + "'";
+    return text;
 }
 
 
@@ -190,7 +234,7 @@ struct transaction_trace_builder:table_builder{
     }
 
 
-    std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
+    SQL::insert handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         if(!block_id.has_value() || block_id.value() != pos.block_id){
             block_id.reset();
             block_id.emplace(pos.block_id);
@@ -201,7 +245,7 @@ struct transaction_trace_builder:table_builder{
         state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
         
         if(transaction_id.has_value() && transaction_id.value() == trace_v0.id){
-            return "";
+            return SQL::insert();
         }
 
         transaction_id.reset();
@@ -224,7 +268,7 @@ struct transaction_trace_builder:table_builder{
             ("net_usage", std::to_string(trace_v0.net_usage))
             ("scheduled", (trace_v0.scheduled?"true":"false"))
             .into("transaction_trace");
-        return query.str();
+        return query;
     }
 
 };
@@ -279,7 +323,7 @@ struct action_trace_builder: table_builder{
         return queries;
     }
 
-    std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
+    SQL::insert handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
         state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
         
@@ -295,7 +339,7 @@ struct action_trace_builder: table_builder{
                  ("permission",quoted(std::string(atrace.act.authorization[0].permission)));
         }
         
-        return query.str();
+        return query;
     }
 
 };
@@ -335,8 +379,8 @@ struct block_info_builder: table_builder{
         return queries;
     }
 
-    std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
-        if(pos.block_num == last_block)return ""; //one block only do once. 
+    SQL::insert handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
+        if(pos.block_num == last_block)return SQL::insert(); //one block only do once. 
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
         state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
         
@@ -354,7 +398,7 @@ struct block_info_builder: table_builder{
              ;
         last_block = pos.block_num; //avoid multiple insert
 
-        return query.str();
+        return query;
     }
 
 };
@@ -369,12 +413,12 @@ struct abi_data_handler:table_builder{
 
     abi_data_handler(const std::string& _name, ABI::action_def& _abi):name(_name),abi(_abi){}
 
-    std::string handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
+    SQL::insert handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
         state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
 
         //if this action is not our target, return.
-        if (atrace.act.name != abieos::name(abi.name.c_str()) || atrace.act.account != abieos::name(abi.contract.c_str()))return "";
+        if (atrace.act.name != abieos::name(abi.name.c_str()) || atrace.act.account != abieos::name(abi.contract.c_str()))return SQL::insert();
         std::cout << "new action" << std::endl;
         auto query = SQL::insert("block_num",std::to_string(pos.block_num))
             ("timestamp",quoted(std::string(sig_block.timestamp)))
@@ -389,7 +433,7 @@ struct abi_data_handler:table_builder{
                 uint64_t data = 0;
                 if(!abieos::read_raw(buffer,error,data)){
                     elog("error when parsing name");
-                    return "";
+                    return SQL::insert();
                 }
                 query(field.name, quoted(abieos::name_to_string(data)));
             }
@@ -397,24 +441,24 @@ struct abi_data_handler:table_builder{
                 uint64_t amount,symbol;
                 if(!abieos::read_raw(buffer,error,amount)){
                     elog("error when parsing amount");
-                    return "";
+                    return SQL::insert();
                 }
                 query(field.name + "_amount",std::to_string(amount));
                 if(!abieos::read_raw(buffer,error,symbol)){
                     elog("error when parsing symbol");
-                    return "";
+                    return SQL::insert();
                 }
                 query(field.name + "_symbol",quoted(abieos::symbol_code_to_string(symbol >> 8)));
             }else{
                 std::string dest;
                 if(!abieos::read_string(buffer,error,dest)){
                     elog("error when parsing dest");
-                    return "";
+                    return SQL::insert();
                 }
                 query(field.name, quoted(std::string(dest)));
             }
         }
-        return query.str();
+        return query;
     }
 
     std::vector<std::string> truncate(const state_history::block_position& pos) override final {
@@ -477,6 +521,8 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
     std::optional<pqxx::connection> conn;
     std::optional<pg::pipe> m_pipe;
 
+    bool m_use_tablewriter = false; //bulk
+
     postgres_plugin_impl(postgres_plugin& plugin):m_plugin(plugin){}
 
     void handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace){
@@ -485,14 +531,25 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
         for(auto& tb: table_builders){
             auto query = tb->handle(pos,sig_block,trace,action_trace);
-            m_pipe.value()(query);
+            if(query.empty)continue;
+            if(m_use_tablewriter){
+                auto& twriter = pg::table_writer_manager::instance().get_writer(query.table_name,query.get_columns());
+                twriter.write_row(query.get_value());
+            }else{
+                m_pipe.value()(query.str());
+            }
         }
 
 
         for(auto& tb: abi_handlers){
             auto query = tb->handle(pos,sig_block,trace,action_trace);
-            std::cout << query << std::endl;
-            m_pipe.value()(query);
+            if(query.empty)continue;
+            if(m_use_tablewriter){
+                auto& twriter = pg::table_writer_manager::instance().get_writer(query.table_name,query.get_columns());
+                twriter.write_row(query.get_value());
+            }else{
+                m_pipe.value()(query.str());
+            }
         }
 
     }
@@ -517,12 +574,36 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         std::cout << "=====fork happened block("<< pos.block_num <<")===" << std::endl;
     }
 
-    void handle(const state_history::block_position& pos){
+    void handle(const state_history::block_position& pos, const state_history::block_position& lib_pos){
         if(m_pipe.has_value()){
             m_pipe.value().complete();
             m_pipe.reset();
         }
-        ilog("complete block ${num}",("num",pos.block_num));
+
+        /*
+        use tablewrite to accelerate table building 
+        when current receive block number is smaller than current lib number.
+        */
+        if(!m_use_tablewriter && pos.block_num < lib_pos.block_num){
+            m_use_tablewriter = true;
+            quoted_enable = false;
+            //init a table writer manager
+            pg::table_writer_manager::instance(db_string);
+        }
+
+        if(m_use_tablewriter && pos.block_num >= lib_pos.block_num){
+
+            //closs all table writers, switch back to normal insert.
+            pg::table_writer_manager::instance().close_writers();
+            m_use_tablewriter = false;
+            quoted_enable = true;
+        }
+
+        if(m_use_tablewriter){
+            ilog("complete block ${num}, current lib ${lib}. table writer enable",("num",pos.block_num)("lib",lib_pos.block_num));
+        }else{
+            ilog("complete block ${num}, current lib ${lib}. normal mode.",("num",pos.block_num)("lib",lib_pos.block_num));
+        }
     }
 
     uint32_t get_last_block_num(){
@@ -575,8 +656,8 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
         block_finish_connection.emplace(
             appbase::app().find_plugin<parser_plugin>()->block_finish.connect(
-                [&](const state_history::block_position& pos){
-                    handle(pos);
+                [&](const state_history::block_position& pos, const state_history::block_position& lib_pos){
+                    handle(pos, lib_pos);
                 }
             )
         );

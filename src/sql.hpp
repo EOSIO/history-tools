@@ -11,15 +11,19 @@ struct insert{
 
 std::string table_name;
 std::vector< std::tuple<std::string,std::string>> data;
+bool empty = true;
 
 
+insert(){}
 
 insert(const std::tuple<std::string,std::string>& tp){
     data.push_back(tp);
+    empty = false;
 }
 
 insert(const std::string& field, const std::string& value){
     data.emplace_back(field,value);
+    empty = false;
 }
 
 
@@ -53,6 +57,23 @@ std::string str(){
     ss<< " )";
     return ss.str();
 }
+
+std::vector<std::string> get_columns(){
+    std::vector<std::string> cols;
+    for(uint32_t i = 0;i<data.size();++i){
+        cols.push_back(std::get<0>(data[i]));
+    }
+    return cols;
+}
+
+std::vector<std::string> get_value(){
+    std::vector<std::string> cols;
+    for(uint32_t i = 0;i<data.size();++i){
+        cols.push_back(std::get<1>(data[i]));
+    }
+    return cols;
+}
+
 };
 
 

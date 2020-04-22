@@ -61,13 +61,16 @@ RUN git clone --recursive --branch 'eosio-cdt-2.1-staging-b' --single-branch htt
     cd eosio.cdt/build && \
     cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld .. && \
     ninja
+ENV PATH="/eosio.cdt/build/bin/:${PATH}"
 # eosio
 RUN mkdir eosio.cdt/libraries/eos/build && \
     cd eosio.cdt/libraries/eos/build && \
     cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld .. && \
     ninja
+ENV PATH="/eosio.cdt/libraries/eos/build/bin/:${PATH}"
 # history-tools
 RUN mkdir eosio.cdt/libraries/history-tools/build && \
     cd eosio.cdt/libraries/history-tools/build && \
     cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DPORTABLE=1 .. && \
     ninja
+ENV PATH="/eosio.cdt/libraries/history-tools/build:${PATH}"

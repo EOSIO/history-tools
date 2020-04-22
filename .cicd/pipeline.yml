@@ -1,0 +1,7 @@
+steps:
+  - wait
+
+  - label: ":docker: Build"
+    command: ".cicd/build.sh"
+    agents:
+      queue: automation-contracts-builder-fleet

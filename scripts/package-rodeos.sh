@@ -1,11 +1,9 @@
 #!/bin/bash
 set -e
-echo '+++ :package: Configuring Package'
 cd "$(git rev-parse --show-toplevel)/build"
 # construct version string
 [[ -z "$PACKAGE_REVISION" ]] && export PACKAGE_REVISION='1'
 [[ -z "$VERSION_STRING" ]] && export VERSION_STRING="$(./rodeos --version | sed 's/^v//' | sed "s/$/-$PACKAGE_REVISION/")"
-echo "Using version string \"$VERSION_STRING\"."
 # determine file size
 export INSTALLED_SIZE_KB="$(du -k rodeos | cut -f 1)"
 # define binary install path
@@ -26,5 +24,4 @@ echo 'Description: Part of EOSIO, connects nodeos state-history plugin to your d
 chown root:root -R rodeos_$VERSION_STRING
 chmod 0755 rodeos_$VERSION_STRING/usr/local/bin/rodeos
 # package build
-echo '+++ :debian: Generating Debian Installer'
 dpkg -b rodeos_$VERSION_STRING

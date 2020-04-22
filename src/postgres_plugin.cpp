@@ -489,8 +489,6 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
 
         if( options.count("action-abi") ) {
-        //  EOS_ASSERT(options.count("trace-no-abis") == 0, chain::plugin_config_exception,
-        //             "Trace API is configured with ABIs however action-no-abis is set");
          const std::vector<std::string> key_value_pairs = options["action-abi"].as<std::vector<std::string>>();
          for (const auto& entry : key_value_pairs) {
             try {
@@ -500,13 +498,10 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
                auto abi = abi_def_from_file(kv.second, appbase::app().data_dir());
                abi_handlers.emplace_back(std::make_unique<abi_data_handler>(name, abi));
             } catch (...) {
-               elog("Malformed trace-rpc-abi provider: \"${val}\"", ("val", entry));
+               elog("Malformed action-abi provider: \"${val}\"", ("val", entry));
                throw;
             }
          }
-      } else {
-        //  EOS_ASSERT(options.count("trace-no-abis") != 0, chain::plugin_config_exception,
-        //             "Trace API is not configured with ABIs and trace-no-abis is not set");
       }
 
 
@@ -630,18 +625,12 @@ void postgres_plugin::set_program_options(appbase::options_description& cli, app
 
 
     op("action-abi", bpo::value<std::vector<std::string>>()->composing(),
-    "ABIs used when decoding trace RPC responses.\n"
-    "There must be at least one ABI specified OR the flag trace-no-abis must be used.\n"
+    "ABIs used when decoding action trace.\n"
+    "There must be at least one ABI specified OR the flag action-no-abis must be used.\n"
     "ABIs are specified as \"Key=Value\" pairs in the form <account-name>=<abi-def>\n"
     "Where <abi-def> can be:\n"
     "   an absolute path to a file containing a valid JSON-encoded ABI\n"
     "   a relative path from `data-dir` to a file containing a valid JSON-encoded ABI\n"
-    );
-
-    op("action-no-abis",
-    "Use to indicate that the RPC responses will not use ABIs.\n"
-    "Failure to specify this option when there are no trace-rpc-abi configuations will result in an Error.\n"
-    "This option is mutually exclusive with trace-rpc-api"
     );
 }
 

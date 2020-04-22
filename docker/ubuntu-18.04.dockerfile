@@ -44,3 +44,11 @@ RUN curl -LO https://cmake.org/files/v3.13/cmake-3.13.2.tar.gz && \
     make install && \
     cd .. && \
     rm -rf cmake-3.13.2.tar.gz cmake-3.13.2
+# boost
+RUN curl -LO https://dl.bintray.com/boostorg/release/1.72.0/source/boost_1_72_0.tar.bz2 && \
+    tar -xjf boost_1_72_0.tar.bz2 && \
+    cd boost_1_72_0 && \
+    ./bootstrap.sh --prefix=/usr/local && \
+    ./b2 --with-iostreams --with-date_time --with-filesystem --with-system --with-program_options --with-chrono --with-test -j $(nproc) install && \
+    cd .. && \
+    rm -rf boost_1_72_0.tar.bz2 boost_1_72_0

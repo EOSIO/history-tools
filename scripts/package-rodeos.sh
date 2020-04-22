@@ -8,7 +8,7 @@ cd "$(git rev-parse --show-toplevel)/build"
 export INSTALLED_SIZE_KB="$(du -k rodeos | cut -f 1)"
 # define binary install path
 mkdir -p rodeos_$VERSION_STRING/usr/local/bin
-mv rodeos rodeos_$VERSION_STRING/usr/local/bin/
+cp rodeos rodeos_$VERSION_STRING/usr/local/bin/
 # create dpkg control file
 mkdir rodeos_$VERSION_STRING/DEBIAN
 export CONTROL_FILE="rodeos_$VERSION_STRING/DEBIAN/control"

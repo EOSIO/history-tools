@@ -53,11 +53,8 @@ RUN curl -LO https://dl.bintray.com/boostorg/release/1.72.0/source/boost_1_72_0.
     cd .. && \
     rm -rf boost_1_72_0.tar.bz2 boost_1_72_0
 # eosio.cdt
-RUN git clone https://github.com/EOSIO/eosio.cdt.git && \
-    cd eosio.cdt && \
-    git checkout eosio-cdt-2.1-staging-b && \
-    git submodule update --init --recursive && \
-    mkdir build && \
-    cd build && \
+RUN git clone --recursive --branch 'eosio-cdt-2.1-staging-b' https://github.com/EOSIO/eosio.cdt.git && \
+    mkdir eosio.cdt/build && \
+    cd eosio.cdt/build && \
     CC=clang-8 CXX=clang++-8 cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld .. && \
     CC=clang-8 CXX=clang++-8 ninja

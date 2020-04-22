@@ -52,19 +52,22 @@ RUN curl -LO https://dl.bintray.com/boostorg/release/1.72.0/source/boost_1_72_0.
     ./b2 --with-iostreams --with-date_time --with-filesystem --with-system --with-program_options --with-chrono --with-test -j $(nproc) install && \
     cd .. && \
     rm -rf boost_1_72_0.tar.bz2 boost_1_72_0
+# configure compiler
+ENV CC='clang-8'
+ENV CXX='clang++-8'
 # eosio.cdt
 RUN git clone --recursive --branch 'eosio-cdt-2.1-staging-b' --single-branch https://github.com/EOSIO/eosio.cdt.git && \
     mkdir eosio.cdt/build && \
     cd eosio.cdt/build && \
-    CC=clang-8 CXX=clang++-8 cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld .. && \
-    CC=clang-8 CXX=clang++-8 ninja
+    cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld .. && \
+    ninja
 # eosio
 RUN mkdir eosio.cdt/libraries/eos/build && \
     cd eosio.cdt/libraries/eos/build && \
-    CC=clang-8 CXX=clang++-8 cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld .. && \
-    CC=clang-8 CXX=clang++-8 ninja
+    cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld .. && \
+    ninja
 # history-tools
 RUN mkdir eosio.cdt/libraries/history-tools/build && \
     cd eosio.cdt/libraries/history-tools/build && \
-    CC=clang-8 CXX=clang++-8 cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DPORTABLE=1 .. && \
-    CC=clang-8 CXX=clang++-8 ninja
+    cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DPORTABLE=1 .. && \
+    ninja

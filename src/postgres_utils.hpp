@@ -79,6 +79,10 @@ struct writer{
         w.commit();
     }
 
+    ~writer(){
+        con.disconnect();
+    }
+
 };
 
 

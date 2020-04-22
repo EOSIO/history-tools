@@ -632,6 +632,13 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
     }
 
+
+    void stop(){
+        //when app stop, disconnect main database connection.
+        if(conn.has_value()){
+            conn.value().disconnect();
+        }
+    }
 };
 
 
@@ -669,4 +676,5 @@ void postgres_plugin::plugin_initialize(const appbase::variables_map& options) {
 void postgres_plugin::plugin_startup() {
 }
 void postgres_plugin::plugin_shutdown() {
+    my->stop();
 }

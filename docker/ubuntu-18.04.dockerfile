@@ -39,8 +39,8 @@ ENV LANG='en_US.UTF-8'
 RUN curl -LO https://cmake.org/files/v3.13/cmake-3.13.2.tar.gz && \
     tar -xzf cmake-3.13.2.tar.gz && \
     cd cmake-3.13.2 && \
-    ./bootstrap --prefix=/usr/local --parallel=8 && \
-    make -j8 && \
+    ./bootstrap --prefix=/usr/local --parallel=$(nproc) && \
+    make -j $(nproc) && \
     make install && \
     cd .. && \
     rm -rf cmake-3.13.2.tar.gz cmake-3.13.2

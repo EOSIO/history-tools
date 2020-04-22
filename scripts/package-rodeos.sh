@@ -20,6 +20,7 @@ echo 'Depends: libatomic1, libssl1.1' >> $CONTROL_FILE
 echo "Installed-Size: $INSTALLED_SIZE_KB" >> $CONTROL_FILE
 echo 'Homepage: https://github.com/EOSIO/history-tools' >> $CONTROL_FILE
 echo 'Description: Part of EOSIO, connects nodeos state-history plugin to your database' >> $CONTROL_FILE
+cat $CONTROL_FILE
 # ensure correct permissions
 chown root:root -R rodeos_$VERSION_STRING
 chmod 0755 rodeos_$VERSION_STRING/usr/local/bin/rodeos

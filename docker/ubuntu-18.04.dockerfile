@@ -66,5 +66,5 @@ RUN mkdir eosio.cdt/libraries/eos/build && \
 # history-tools
 RUN mkdir eosio.cdt/libraries/history-tools/build && \
     cd eosio.cdt/libraries/history-tools/build && \
-    CC=clang-8 CXX=clang++-8 cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld .. && \
+    CC=clang-8 CXX=clang++-8 cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DPORTABLE=1 .. && \
     CC=clang-8 CXX=clang++-8 ninja

@@ -26,3 +26,5 @@ chown root:root -R rodeos_$VERSION_STRING
 chmod 0755 rodeos_$VERSION_STRING/usr/local/bin/rodeos
 # package build
 dpkg -b rodeos_$VERSION_STRING 1>&2
+# exfiltrate installer from container, if we're in one
+[[ "$BUILDKITE" == 'true' ]] && tar -cC rodeos_$VERSION_STRING.deb || :

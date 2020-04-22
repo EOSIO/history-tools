@@ -11,4 +11,4 @@ echo '+++ :package: Create rodeos Installer'
 echo "$ docker run -e BUILDKITE -e PACKAGE_REVISION -e VERSION_STRING -w /eosio.cdt/libraries/history-tools -it \"$IMAGE\" ./scripts/package-rodeos.sh | tar -xC rodeos_$VERSION_STRING.deb"
 docker run -e BUILDKITE -e PACKAGE_REVISION -e VERSION_STRING -w /eosio.cdt/libraries/history-tools -it "$IMAGE" ./scripts/package-rodeos.sh | tar -xC rodeos_$VERSION_STRING.deb
 echo '+++ :arrow_up: Uploading Artifacts'
-buildkite-agent artifact upload *.deb
+buildkite-agent artifact upload '*.deb'

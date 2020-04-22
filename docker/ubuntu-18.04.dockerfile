@@ -25,3 +25,13 @@ RUN apt-get update && \
         zlib1g-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+# configure build environment
+RUN update-alternatives --remove-all cc && \
+    update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-8 100 && \
+    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 100 && \
+    update-alternatives --remove-all c++ && \
+    update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-8 100 && \
+    update-alternatives --install /usr/bin/gcc++ gcc++ /usr/bin/g++-8 100 && \
+    update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-8 100 && \
+    locale-gen en_US.UTF-8
+ENV LANG='en_US.UTF-8'

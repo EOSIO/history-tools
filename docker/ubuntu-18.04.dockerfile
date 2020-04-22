@@ -58,3 +58,8 @@ RUN git clone --recursive --branch 'eosio-cdt-2.1-staging-b' --single-branch htt
     cd eosio.cdt/build && \
     CC=clang-8 CXX=clang++-8 cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld .. && \
     CC=clang-8 CXX=clang++-8 ninja
+# eosio
+RUN mkdir -p eosio.cdt/libraries/eos/build && \
+    cd eosio.cdt/libraries/eos/build && \
+    CC=clang-8 CXX=clang++-8 cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld .. && \
+    CC=clang-8 CXX=clang++-8 ninja

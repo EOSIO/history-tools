@@ -15,14 +15,29 @@ std::string operator"" _quoted(const char* text, std::size_t len) {
     return "'" + std::string(text, len) + "'";
 }
 
-
-bool quoted_enable = true;
+/**
+ * quote function
+ * controled by g__quoted_enable globlal varible
+ * when we insert with insert, we need quote on string
+ * wehn we use tablewriter we don't need quote
+ */
+bool g__quoted_enable = true;
 std::string quoted(const std::string& text){
-    if(quoted_enable)return "'" + text + "'";
+    if(g__quoted_enable)return "'" + text + "'";
     return text;
 }
 
+
+/**
+ * type builder
+ * create customized types before create other tables.
+ * need to be push to builder vector first 
+ */
 struct type_builder:table_builder{
+
+    type_builder(){
+        name = "type builder";
+    }
 
     std::vector<std::string> create() override final{
         std::vector<std::string> queries;
@@ -41,7 +56,7 @@ struct type_builder:table_builder{
     std::vector<std::string> drop() override final{
 
         std::vector<std::string> queries;
-        queries.push_back("drop type transaction_status_type");
+        queries.push_back("DROP TYPE IF EXISTS transaction_status_type");
         return queries;
 
     }
@@ -52,6 +67,10 @@ struct transaction_trace_builder:table_builder{
     std::optional<abieos::checksum256> block_id;
     std::optional<abieos::checksum256> transaction_id;
     uint32_t transaction_ordinal = 0;
+
+    transaction_trace_builder(){
+        name = "transaction_trace";
+    }
 
     std::vector<std::string> create() override final {
         
@@ -88,7 +107,7 @@ struct transaction_trace_builder:table_builder{
 
     std::vector<std::string> drop() override final {
         std::vector<std::string> queries;
-        queries.push_back("drop table transaction_trace");
+        queries.push_back("DROP TABLE IF EXISTS transaction_trace");
         return queries;
     }
 
@@ -144,6 +163,10 @@ struct transaction_trace_builder:table_builder{
 //builder for action trace table.
 struct action_trace_builder: table_builder{
 
+    action_trace_builder(){
+        name = "action_trace";
+    }
+
     std::vector<std::string> create() override final {
         std::vector<std::string> queries;
 
@@ -178,7 +201,7 @@ struct action_trace_builder: table_builder{
 
     std::vector<std::string> drop() override final {
         std::vector<std::string> queries;
-        queries.push_back("drop table action_trace");
+        queries.push_back("DROP TABLE IF EXISTS action_trace");
         return queries;
     }
 
@@ -213,6 +236,10 @@ struct action_trace_builder: table_builder{
 struct block_info_builder: table_builder{
     uint32_t last_block = 0;
 
+    block_info_builder(){
+        name = "block_info";
+    }
+
     std::vector<std::string> create() override final {
         auto query = SQL::create("block_info");
         query("block_num",              "bigint")
@@ -234,7 +261,7 @@ struct block_info_builder: table_builder{
 
     std::vector<std::string> drop() override final {
         std::vector<std::string> queries;
-        queries.push_back("drop table block_info");
+        queries.push_back("DROP TABLE IF EXISTS block_info");
         return queries;
     }
 
@@ -272,11 +299,10 @@ struct block_info_builder: table_builder{
 
 struct abi_data_handler:table_builder{
 
-    const std::string name;
     const ABI::action_def abi;
 
 
-    abi_data_handler(const std::string& _name, ABI::action_def& _abi):name(_name),abi(_abi){}
+    abi_data_handler(const std::string& _name, ABI::action_def& _abi):abi(_abi){name = _name;}
 
     SQL::insert handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
@@ -284,7 +310,7 @@ struct abi_data_handler:table_builder{
 
         //if this action is not our target, return.
         if (atrace.act.name != abieos::name(abi.name.c_str()) || atrace.act.account != abieos::name(abi.contract.c_str()))return SQL::insert();
-        std::cout << "new action" << std::endl;
+
         auto query = SQL::insert("block_num",std::to_string(pos.block_num))
             ("timestamp",quoted(std::string(sig_block.timestamp)))
             ("transaction_id",quoted(std::string(trace_v0.id)))
@@ -360,7 +386,7 @@ struct abi_data_handler:table_builder{
 
     std::vector<std::string> drop() override final {
         std::vector<std::string> queries;
-        queries.push_back("drop table " + name);
+        queries.push_back("DROP TABLE IF EXISTS " + name);
         return queries;
     }
 };
@@ -382,7 +408,6 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
     //database 
     std::string db_string;
     bool create_table = false;
-    bool drop_table = false;
     std::optional<pqxx::connection> conn;
     std::optional<pg::pipe> m_pipe;
 
@@ -395,25 +420,33 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         if(!m_pipe.has_value())m_pipe.emplace(conn.value());
 
         for(auto& tb: table_builders){
-            auto query = tb->handle(pos,sig_block,trace,action_trace);
-            if(query.empty)continue;
-            if(m_use_tablewriter){
-                auto& twriter = pg::table_writer_manager::instance().get_writer(query.table_name,query.get_columns());
-                twriter.write_row(query.get_value());
-            }else{
-                m_pipe.value()(query.str());
+            try{
+                auto query = tb->handle(pos,sig_block,trace,action_trace);
+                if(query.empty)continue;
+                if(m_use_tablewriter){
+                    auto& twriter = pg::table_writer_manager::instance().get_writer(query.table_name,query.get_columns());
+                    twriter.write_row(query.get_value());
+                }else{
+                    m_pipe.value()(query.str());
+                }
+            }catch(...){
+                elog("exception when handle update on table ${table}.",("table",tb->get_name()));
             }
         }
 
 
         for(auto& tb: abi_handlers){
-            auto query = tb->handle(pos,sig_block,trace,action_trace);
-            if(query.empty)continue;
-            if(m_use_tablewriter){
-                auto& twriter = pg::table_writer_manager::instance().get_writer(query.table_name,query.get_columns());
-                twriter.write_row(query.get_value());
-            }else{
-                m_pipe.value()(query.str());
+            try{
+                auto query = tb->handle(pos,sig_block,trace,action_trace);
+                if(query.empty)continue;
+                if(m_use_tablewriter){
+                    auto& twriter = pg::table_writer_manager::instance().get_writer(query.table_name,query.get_columns());
+                    twriter.write_row(query.get_value());
+                }else{
+                    m_pipe.value()(query.str());
+                }
+            }catch(...){
+                elog("exception when handle update on abi defined table ${table}.",("table",tb->get_name()));
             }
         }
 
@@ -436,7 +469,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
                 m_pipe.value()(q);
             }
         }
-        std::cout << "=====fork happened block("<< pos.block_num <<")===" << std::endl;
+        ilog("fork happened block( ${bnum} )",("bnum",pos.block_num));
     }
 
     void handle(const state_history::block_position& pos, const state_history::block_position& lib_pos){
@@ -451,7 +484,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         */
         if(!m_use_tablewriter && pos.block_num < lib_pos.block_num){
             m_use_tablewriter = true;
-            quoted_enable = false;
+            g__quoted_enable = false;
             //init a table writer manager
             pg::table_writer_manager::instance(db_string);
         }
@@ -461,7 +494,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             //closs all table writers, switch back to normal insert.
             pg::table_writer_manager::instance().close_writers();
             m_use_tablewriter = false;
-            quoted_enable = true;
+            g__quoted_enable = true;
         }
 
         if(m_use_tablewriter){
@@ -485,18 +518,17 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
         db_string = options.count("dbstring") ? options["dbstring"].as<std::string>() : std::string();
         create_table = options.count("postgres-create");
-        drop_table = options.count("postgres-drop");
 
 
         if( options.count("action-abi") ) {
          const std::vector<std::string> key_value_pairs = options["action-abi"].as<std::vector<std::string>>();
          for (const auto& entry : key_value_pairs) {
             try {
-               std::cout << entry << std::endl;
                auto kv = parse_kv_pairs(entry);
                auto name = kv.first;
                auto abi = abi_def_from_file(kv.second, appbase::app().data_dir());
                abi_handlers.emplace_back(std::make_unique<abi_data_handler>(name, abi));
+               ilog("add abi defined table ${tname}",("tname",name));
             } catch (...) {
                elog("Malformed action-abi provider: \"${val}\"", ("val", entry));
                throw;
@@ -555,8 +587,14 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
         assert(conn.has_value());
 
-        
-        if(drop_table){
+    
+        /**
+         * create table when option set.
+         * will first try to drop exist table 
+         * then every thing will start to build up from scratch
+         */
+        if(create_table){
+
             //drop table schema in a revese direction, because type builder always the first. 
             pg::pipe p(conn.value());
             for(auto it = table_builders.rbegin();table_builders.rend() != it;it++){
@@ -569,22 +607,13 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             for(auto it = abi_handlers.rbegin();abi_handlers.rend() != it;it++){
                 auto qs = (*it)->drop();
                 for(auto& q:qs){
-                    std::cout << q << std::endl;
                     p(q);
                 }
             }
 
-            p.complete();
-            //we can't only drop without create.
-            assert(create_table);
-        }
-
-        if(create_table){
-            pg::pipe p(conn.value());
             for(auto& builder: table_builders){
                 auto queries = builder->create();
                 for(auto& query: queries){
-                    std::cout << query << std::endl;
                     p(query);
                 }
             }
@@ -592,7 +621,6 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             for(auto& builder: abi_handlers){
                 auto queries = builder->create();
                 for(auto& query: queries){
-                    std::cout << query << std::endl;
                     p(query);
                 }
             }
@@ -620,7 +648,6 @@ postgres_plugin::~postgres_plugin(){}
 void postgres_plugin::set_program_options(appbase::options_description& cli, appbase::options_description& cfg) {
     auto op = cli.add_options();
     op("postgres-create", "create tables.");
-    op("postgres-drop","drop existing tables.");
     op("dbstring", bpo::value<std::string>(), "dbstring of postgresql");
 
 

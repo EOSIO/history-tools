@@ -441,7 +441,9 @@ struct table_delta_handler:table_builder{
             std::vector<std::string> values;
             for( auto itr = data_arr.begin(); itr != data_arr.end(); ++itr ){
                 cols.push_back(itr->key());
-                values.push_back(itr->value().as_string());
+
+                values.push_back(fc::json::to_string(itr->value()));
+
 
                 std::cout << values.back() << std::endl;
             }

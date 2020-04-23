@@ -667,6 +667,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
           const std::vector<std::string> table_names = options["system-tables"].as<std::vector<std::string>>();
           for(auto& tname: table_names){
             table_delta_handlers.emplace_back(std::make_unique<table_delta_handler>(tname));
+            ilog("monitor system table ${tname}",("tname", tname));
           }
       }
 

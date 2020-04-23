@@ -1,4 +1,5 @@
 FROM ubuntu:18.04
+ARG CDT_BRANCH=eosio-cdt-2.1-staging-b
 # install ppa dependencies
 RUN apt-get update && \
     apt-get install -yq \
@@ -56,7 +57,7 @@ RUN curl -LO https://dl.bintray.com/boostorg/release/1.72.0/source/boost_1_72_0.
 ENV CC='clang-8'
 ENV CXX='clang++-8'
 # eosio.cdt
-RUN git clone --recursive --branch 'eosio-cdt-2.1-staging-b' --single-branch https://github.com/EOSIO/eosio.cdt.git && \
+RUN git clone --recursive --branch $CDT_BRANCH --single-branch https://github.com/EOSIO/eosio.cdt.git && \
     mkdir eosio.cdt/build && \
     cd eosio.cdt/build && \
     cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_AR=/usr/bin/llvm-ar-8 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-8 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld .. && \

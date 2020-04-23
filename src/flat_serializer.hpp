@@ -9,6 +9,42 @@ using namespace std::__1;
 
 using db_type = std::string;
 
+
+struct abi_holder{
+    const abieos::abi_def* abi;
+    const std::map<std::string, abieos::abi_type>* abi_types;
+
+    static abi_holder& instance(){
+        static abi_holder ah;
+        return ah;
+    }
+
+    void init(const abieos::abi_def& _abi, const std::map<std::string, abieos::abi_type>& _abi_types){
+        abi = &_abi;
+        abi_types = &_abi_types;
+    }
+
+    const abieos::abi_type& get_type(const std::string& name){
+        auto it = abi_types->find(name);
+        if(it == abi_types->end()){
+            throw std::runtime_error("abi type not found");
+        }
+        return it->second;
+    }
+
+    std::vector<std::string> get_keys(const std::string& name){
+        for(auto t: abi->tables){
+            if(t.name == abieos::name(name.c_str())){
+                return t.key_names;
+            }
+        }
+        return std::vector<std::string>();
+    }
+private:
+    abi_holder(){};
+};
+
+
 struct serilization_exception: public std::exception{
     const char* waht() const throw (){
         return "flat serilizer exception.";

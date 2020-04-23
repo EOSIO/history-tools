@@ -334,37 +334,6 @@ struct abi_data_handler:table_builder{
         for(auto& t: result){
             query(std::get<0>(t), pg_quoted(std::get<1>(t)) );
         }
-
-        // for(auto& field: abi.fields){
-        //     if(field.type == "name"){
-        //         uint64_t data = 0;
-        //         if(!abieos::read_raw(buffer,error,data)){
-        //             elog("error when parsing name");
-        //             return SQL::insert();
-        //         }
-        //         query(field.name, pg_quoted(abieos::name_to_string(data)));
-        //     }
-        //     else if(field.type == "asset"){
-        //         uint64_t amount,symbol;
-        //         if(!abieos::read_raw(buffer,error,amount)){
-        //             elog("error when parsing amount");
-        //             return SQL::insert();
-        //         }
-        //         query(field.name + "_amount",std::to_string(amount));
-        //         if(!abieos::read_raw(buffer,error,symbol)){
-        //             elog("error when parsing symbol");
-        //             return SQL::insert();
-        //         }
-        //         query(field.name + "_symbol",pg_quoted(abieos::symbol_code_to_string(symbol >> 8)));
-        //     }else{
-        //         std::string dest;
-        //         if(!abieos::read_string(buffer,error,dest)){
-        //             elog("error when parsing dest");
-        //             return SQL::insert();
-        //         }
-        //         query(field.name, pg_quoted(std::string(dest)));
-        //     }
-        // }
         return query;
     }
 
@@ -408,17 +377,134 @@ struct abi_data_handler:table_builder{
 };
 
 
+struct table_delta_handler:table_builder{
 
+
+    virtual std::vector<std::string> create(){return std::vector<std::string>();}
+    virtual std::vector<std::string> drop(){return std::vector<std::string>();}
+    virtual std::vector<std::string> truncate(const state_history::block_position& pos){return std::vector<std::string>();}
+    bool already_created = false;
+    
+    std::string dynamic_create(std::vector<std::string> cols, std::vector<std::string> primary_key){
+
+        auto query = SQL::create(name);
+        for(auto c: cols){
+            query(c, "varchar");
+        }
+        std::stringstream ss;
+        for(int i = 0;i<primary_key.size();i++){
+            if(i != 0)ss << ",";
+            ss << primary_key[i];
+        }
+        query.primary_key(ss.str());
+
+        return query.str();
+    }
+
+    std::string my_quoted(const std::string& text){
+        return "'" + text + "'";
+    }
+
+
+    std::vector<std::string> handle_delta(const state_history::block_position& pos, const state_history::table_delta_v0& delta){
+        std::vector<std::string> result;
+
+        //only handle delta update related with itself
+        if(delta.name != name)return result;
+
+        const abieos::abi_def& my_abi = *(abi_holder::instance().abi);
+        const abieos::abi_type& my_type = abi_holder::instance().get_type(name);
+
+
+        auto keys = abi_holder::instance().get_keys(name);
+        for(auto k: keys){
+            std::cout << k << "    " << std::endl;
+        }
+
+        std::string error;
+        std::string json_row;
+
+        for(auto& row: delta.rows){
+            abieos::input_buffer data = row.data;
+            if(!abieos::bin_to_json(data,error,&my_type,json_row)){
+                elog("error when serilizing data.");
+            }
+            fc::variant jdata = fc::json::from_string(json_row);
+            std::cout << json_row << std::endl;
+
+            auto& arr = jdata.get_array();
+            auto& data_arr = arr[1].get_object();
+
+            std::cout << arr[0].as_string() << std::endl;
+
+            std::vector<std::string> cols;
+            std::vector<std::string> values;
+            for( auto itr = data_arr.begin(); itr != data_arr.end(); ++itr ){
+                cols.push_back(itr->key());
+                values.push_back(itr->value().as_string());
+
+                std::cout << values.back() << std::endl;
+            }
+
+            if(!already_created){
+                result.push_back("DROP TABLE IF EXISTS " + name);
+                result.push_back( dynamic_create(cols,keys));
+                already_created = true;
+            }
+
+
+            if(row.present){
+                std::cout << "upsert" << std::endl;
+
+                auto in_query = SQL::upsert().into(name).on_conflict(keys);
+                for(int i = 0;i<cols.size();i++){
+                    in_query(cols[i],my_quoted(values[i]));
+                }
+                std::cout << in_query.str() << std::endl;
+                result.push_back(in_query.str());
+           
+            }else{
+                std::cout << "delete" << std::endl;
+
+                std::stringstream condition;
+                bool first_condition = true;
+                for(int i = 0;i<cols.size();i++){
+                    if(std::find(keys.begin(),keys.end(),cols[i]) != keys.end()){
+                        if(!first_condition)condition << " and ";
+                        condition << cols[i] << "=" << values[i];
+                        first_condition = false;
+                    }
+                }
+
+                auto de_query = SQL::del();
+                de_query.from(name).where(condition.str());
+
+                std::cout << de_query.str() << std::endl;
+                result.push_back(de_query.str());
+            }
+            
+        }
+        return result;
+    }
+
+
+    table_delta_handler(const std::string& _name){
+        name = _name;
+    }
+
+};
 
 
 struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> {
     std::optional<bsg::scoped_connection>     applied_action_connection;
     std::optional<bsg::scoped_connection>     applied_delta_connection;
+    std::optional<bsg::scoped_connection>     applied_abi_connection;
     std::optional<bsg::scoped_connection>     block_finish_connection;
     std::optional<bsg::scoped_connection>     fork_connection;
 
     std::vector<std::unique_ptr<table_builder>> table_builders;    
     std::vector<std::unique_ptr<abi_data_handler>> abi_handlers;
+    std::vector<std::unique_ptr<table_delta_handler>> table_delta_handlers;
     //datas
     postgres_plugin& m_plugin;
 
@@ -489,6 +575,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         ilog("fork happened block( ${bnum} )",("bnum",pos.block_num));
     }
 
+    //this is the endofblock
     void handle(const state_history::block_position& pos, const state_history::block_position& lib_pos){
         if(m_pipe.has_value()){
             m_pipe.value().complete();
@@ -522,8 +609,25 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
     }
 
     void handle(const state_history::block_position& pos, const state_history::table_delta_v0& delta){
-        std::cout << "pos:" << pos.block_num << "   " << delta.name << std::endl;
 
+        if(!m_pipe.has_value())m_pipe.emplace(conn.value());
+
+        for(auto& handler: table_delta_handlers){
+            auto queries = handler->handle_delta(pos,delta);
+            for(auto& q: queries){
+                if(q.size() == 0)continue;
+                m_pipe.value()(q);
+            }
+        }
+        
+    }
+
+
+    void handle(const abieos::abi_def& abi, const std::map<std::string, abieos::abi_type>& abi_types){
+        abi_holder::instance().init(abi,abi_types);
+        for(auto& m : abi_types){
+            std::cout << m.first << " --- " << m.second.name << std::endl;
+        }
     }
 
 
@@ -559,6 +663,12 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
          }
       }
 
+      if(options.count("system-tables")){
+          const std::vector<std::string> table_names = options["system-tables"].as<std::vector<std::string>>();
+          for(auto& tname: table_names){
+            table_delta_handlers.emplace_back(std::make_unique<table_delta_handler>(tname));
+          }
+      }
 
 
         applied_action_connection.emplace(
@@ -576,6 +686,15 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
                 }
             )
         );
+
+        applied_abi_connection.emplace(
+            appbase::app().find_plugin<state_history_plugin>()->applied_abi.connect(
+                [&](const abieos::abi_def& abi, const std::map<std::string, abieos::abi_type>& abi_types){
+                    handle(abi,abi_types);
+                }
+            )
+        );
+        
 
         block_finish_connection.emplace(
             appbase::app().find_plugin<parser_plugin>()->block_finish.connect(
@@ -697,7 +816,10 @@ void postgres_plugin::set_program_options(appbase::options_description& cli, app
     "   an absolute path to a file containing a valid JSON-encoded ABI\n"
     "   a relative path from `data-dir` to a file containing a valid JSON-encoded ABI\n"
     );
+
+    op("system-tables", bpo::value<std::vector<std::string>>()->composing(),"System state tables.");
 }
+
 
 
 void postgres_plugin::plugin_initialize(const appbase::variables_map& options) {

@@ -4,6 +4,7 @@
 #include "util.hpp"
 #include "state_history.hpp"
 #include <optional>
+#include "abieos.hpp"
 
 
 
@@ -11,7 +12,9 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
 
     std::optional<std::string> host;
     std::optional<std::string> port;
-    std::optional<std::string> m_abi;
+    abieos::abi_def     m_abi = {};
+    std::map<std::string, abieos::abi_type>     m_abi_types = {};
+    
 
     std::optional<uint32_t> trace_begin_block;
     std::optional<uint32_t> state_begin_block;
@@ -52,9 +55,13 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
     }
 
     //override. 
-    void received_abi(std::string_view abi) override{
+    void received_abi(std::string_view abi_sv) override{
         ilog("reaceive abi");
-        m_abi.emplace(abi);
+        json_to_native(m_abi, abi_sv);
+        abieos::check_abi_version(m_abi.version);
+        m_abi_types = abieos::create_contract(m_abi).abi_types;
+
+        m_plugin.applied_abi(m_abi,m_abi_types);        
         connection->send(state_history::get_status_request_v0{});
 
     }

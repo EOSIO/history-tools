@@ -98,8 +98,10 @@ struct connection : std::enable_shared_from_this<connection> {
         abieos::check_abi_version(abi.version);
         abi_types = abieos::create_contract(abi).abi_types;
         have_abi  = true;
-        if (callbacks)
+        if (callbacks){
             callbacks->received_abi(sv);
+        }
+
     }
 
     bool receive_result(const std::shared_ptr<flat_buffer>& p) {

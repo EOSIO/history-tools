@@ -36,11 +36,13 @@ struct pipe{
     pqxx::work w;
     pqxx::pipeline p;
     std::vector<int> ids;
+    std::vector<std::string> qqs;
     pipe(pqxx::connection& con):w(con),p(w){}
 
     pipe& operator()(std::string query){
         if(query.empty())return *this;
         ids.push_back(p.insert(query));
+        qqs.push_back(query);
         return *this;
     }
 
@@ -54,6 +56,9 @@ struct pipe{
 
         for(auto i: ids){
             if(!p.is_finished(i)){
+                for(auto& qq: qqs){
+                    std::cout << qq << std::endl;
+                }
                 throw std::runtime_error("problem!!!! pipeline is not complete.");
             }
         }

@@ -5,25 +5,26 @@
 #include <fc/log/logger.hpp>
 #include "postgres_config_utils.hpp"
 #include <abieos.hpp>
-
+#include "flat_serializer.hpp"
+#include <tuple>
 
 namespace bpo       = boost::program_options;
 
 
-// Define user defined literal "_quoted" operator.
-std::string operator"" _quoted(const char* text, std::size_t len) {
+// Define user defined literal "_pg_quoted" operator.
+std::string operator"" _pg_quoted(const char* text, std::size_t len) {
     return "'" + std::string(text, len) + "'";
 }
 
 /**
  * quote function
- * controled by g__quoted_enable globlal varible
+ * controled by g__pg_quoted_enable globlal varible
  * when we insert with insert, we need quote on string
  * wehn we use tablewriter we don't need quote
  */
-bool g__quoted_enable = true;
-std::string quoted(const std::string& text){
-    if(g__quoted_enable)return "'" + text + "'";
+bool g__pg_quoted_enable = true;
+std::string pg_quoted(const std::string& text){
+    if(g__pg_quoted_enable)return "'" + text + "'";
     return text;
 }
 
@@ -43,11 +44,11 @@ struct type_builder:table_builder{
         std::vector<std::string> queries;
 
         auto q = SQL::enum_type("transaction_status_type");
-           q("executed"_quoted)
-            ("soft_fail"_quoted)
-            ("hard_fail"_quoted)
-            ("delayed"_quoted)
-            ("expired"_quoted);
+           q("executed"_pg_quoted)
+            ("soft_fail"_pg_quoted)
+            ("hard_fail"_pg_quoted)
+            ("delayed"_pg_quoted)
+            ("expired"_pg_quoted);
 
         queries.push_back(q.str());
         return queries;
@@ -140,12 +141,12 @@ struct transaction_trace_builder:table_builder{
             ("transaction_ordinal", std::to_string(transaction_ordinal))
             ("failed_dtrx_trace",    [&]{   if(!trace_v0.failed_dtrx_trace.empty()){
                                                 auto r = std::get<state_history::transaction_trace_v0>(trace_v0.failed_dtrx_trace.front().recurse);
-                                                return quoted(std::string(r.id));
+                                                return pg_quoted(std::string(r.id));
                                             }else{
-                                                return quoted(std::string());
+                                                return pg_quoted(std::string());
                                             }}())
-            ("id",  quoted(std::string(trace_v0.id)))
-            ("status",quoted(state_history::to_string(trace_v0.status)))
+            ("id",  pg_quoted(std::string(trace_v0.id)))
+            ("status",pg_quoted(state_history::to_string(trace_v0.status)))
             ("cpu_usage_us", std::to_string(trace_v0.cpu_usage_us))
             ("net_usage_words", std::string(trace_v0.net_usage_words))
             ("elapsed", std::to_string(trace_v0.elapsed))
@@ -216,15 +217,15 @@ struct action_trace_builder: table_builder{
         state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
         
         auto query = SQL::insert("block_num",std::to_string(pos.block_num))
-             ("timestamp",quoted(std::string(sig_block.timestamp)))
-             ("transaction_id",quoted(std::string(trace_v0.id)))
-             ("transaction_status",quoted(state_history::to_string(trace_v0.status)))
-             ("action_ordinal",quoted(std::to_string(atrace.action_ordinal.value)))
+             ("timestamp",pg_quoted(std::string(sig_block.timestamp)))
+             ("transaction_id",pg_quoted(std::string(trace_v0.id)))
+             ("transaction_status",pg_quoted(state_history::to_string(trace_v0.status)))
+             ("action_ordinal",pg_quoted(std::to_string(atrace.action_ordinal.value)))
              .into("action_trace");
 
         if(atrace.act.authorization.size()){
-            query("actor",quoted(std::string(atrace.act.authorization[0].actor)))
-                 ("permission",quoted(std::string(atrace.act.authorization[0].permission)));
+            query("actor",pg_quoted(std::string(atrace.act.authorization[0].actor)))
+                 ("permission",pg_quoted(std::string(atrace.act.authorization[0].permission)));
         }
         
         return query;
@@ -277,14 +278,14 @@ struct block_info_builder: table_builder{
         state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
         
         auto query = SQL::insert("block_num",std::to_string(pos.block_num))
-             ("block_id",quoted(std::string(pos.block_id)))
-             ("timestamp",quoted(std::string(sig_block.timestamp)))
-             ("producer",quoted(std::string(sig_block.producer)))
+             ("block_id",pg_quoted(std::string(pos.block_id)))
+             ("timestamp",pg_quoted(std::string(sig_block.timestamp)))
+             ("producer",pg_quoted(std::string(sig_block.producer)))
              ("confirmed",std::to_string(sig_block.confirmed))
-             ("previous",quoted(std::string(sig_block.previous)))
+             ("previous",pg_quoted(std::string(sig_block.previous)))
              ("transaction_count",std::to_string(sig_block.transactions.size()+1))
-             ("transaction_mroot",quoted(std::string(sig_block.transaction_mroot)))
-             ("action_mroot",quoted(std::string(sig_block.action_mroot)))
+             ("transaction_mroot",pg_quoted(std::string(sig_block.transaction_mroot)))
+             ("action_mroot",pg_quoted(std::string(sig_block.action_mroot)))
              ("schedule_version",std::to_string(sig_block.schedule_version))
              .into("block_info")
              ;
@@ -312,43 +313,58 @@ struct abi_data_handler:table_builder{
         if (atrace.act.name != abieos::name(abi.name.c_str()) || atrace.act.account != abieos::name(abi.contract.c_str()))return SQL::insert();
 
         auto query = SQL::insert("block_num",std::to_string(pos.block_num))
-            ("timestamp",quoted(std::string(sig_block.timestamp)))
-            ("transaction_id",quoted(std::string(trace_v0.id)))
-            ("action_ordinal",quoted(std::to_string(atrace.action_ordinal.value)))
+            ("timestamp",pg_quoted(std::string(sig_block.timestamp)))
+            ("transaction_id",pg_quoted(std::string(trace_v0.id)))
+            ("action_ordinal",pg_quoted(std::to_string(atrace.action_ordinal.value)))
             .into(name);
 
         abieos::input_buffer buffer = atrace.act.data;
         std::string error;
+
+        std::vector<std::string> names,types;
         for(auto& field: abi.fields){
-            if(field.type == "name"){
-                uint64_t data = 0;
-                if(!abieos::read_raw(buffer,error,data)){
-                    elog("error when parsing name");
-                    return SQL::insert();
-                }
-                query(field.name, quoted(abieos::name_to_string(data)));
-            }
-            else if(field.type == "asset"){
-                uint64_t amount,symbol;
-                if(!abieos::read_raw(buffer,error,amount)){
-                    elog("error when parsing amount");
-                    return SQL::insert();
-                }
-                query(field.name + "_amount",std::to_string(amount));
-                if(!abieos::read_raw(buffer,error,symbol)){
-                    elog("error when parsing symbol");
-                    return SQL::insert();
-                }
-                query(field.name + "_symbol",quoted(abieos::symbol_code_to_string(symbol >> 8)));
-            }else{
-                std::string dest;
-                if(!abieos::read_string(buffer,error,dest)){
-                    elog("error when parsing dest");
-                    return SQL::insert();
-                }
-                query(field.name, quoted(std::string(dest)));
-            }
+            names.push_back(field.name);
+            types.push_back(field.type);
         }
+
+        flat_serializer ser(names, types);
+
+        auto result = ser.serialize(buffer);
+
+        for(auto& t: result){
+            query(std::get<0>(t), pg_quoted(std::get<1>(t)) );
+        }
+
+        // for(auto& field: abi.fields){
+        //     if(field.type == "name"){
+        //         uint64_t data = 0;
+        //         if(!abieos::read_raw(buffer,error,data)){
+        //             elog("error when parsing name");
+        //             return SQL::insert();
+        //         }
+        //         query(field.name, pg_quoted(abieos::name_to_string(data)));
+        //     }
+        //     else if(field.type == "asset"){
+        //         uint64_t amount,symbol;
+        //         if(!abieos::read_raw(buffer,error,amount)){
+        //             elog("error when parsing amount");
+        //             return SQL::insert();
+        //         }
+        //         query(field.name + "_amount",std::to_string(amount));
+        //         if(!abieos::read_raw(buffer,error,symbol)){
+        //             elog("error when parsing symbol");
+        //             return SQL::insert();
+        //         }
+        //         query(field.name + "_symbol",pg_quoted(abieos::symbol_code_to_string(symbol >> 8)));
+        //     }else{
+        //         std::string dest;
+        //         if(!abieos::read_string(buffer,error,dest)){
+        //             elog("error when parsing dest");
+        //             return SQL::insert();
+        //         }
+        //         query(field.name, pg_quoted(std::string(dest)));
+        //     }
+        // }
         return query;
     }
 
@@ -370,7 +386,7 @@ struct abi_data_handler:table_builder{
                 query(field.name,"varchar(64)");
             }
             else if(field.type == "asset"){
-                query(field.name + "_amount","bigint");
+                query(field.name + "_amount","varchar");
                 query(field.name + "_symbol","varchar");
             }else{
                 query(field.name, "varchar");
@@ -397,6 +413,7 @@ struct abi_data_handler:table_builder{
 
 struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> {
     std::optional<bsg::scoped_connection>     applied_action_connection;
+    std::optional<bsg::scoped_connection>     applied_delta_connection;
     std::optional<bsg::scoped_connection>     block_finish_connection;
     std::optional<bsg::scoped_connection>     fork_connection;
 
@@ -484,7 +501,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         */
         if(!m_use_tablewriter && pos.block_num < lib_pos.block_num){
             m_use_tablewriter = true;
-            g__quoted_enable = false;
+            g__pg_quoted_enable = false;
             //init a table writer manager
             pg::table_writer_manager::instance(db_string);
         }
@@ -494,7 +511,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             //closs all table writers, switch back to normal insert.
             pg::table_writer_manager::instance().close_writers();
             m_use_tablewriter = false;
-            g__quoted_enable = true;
+            g__pg_quoted_enable = true;
         }
 
         if(m_use_tablewriter){
@@ -503,6 +520,12 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             ilog("complete block ${num}, current lib ${lib}. normal mode.",("num",pos.block_num)("lib",lib_pos.block_num));
         }
     }
+
+    void handle(const state_history::block_position& pos, const state_history::table_delta_v0& delta){
+        std::cout << "pos:" << pos.block_num << "   " << delta.name << std::endl;
+
+    }
+
 
     uint32_t get_last_block_num(){
         assert(conn.has_value());
@@ -542,6 +565,14 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             appbase::app().find_plugin<parser_plugin>()->applied_action.connect(
                 [&](const state_history::block_position& pos, const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace){
                     handle(pos,sig_block,trace,action_trace);
+                }
+            )
+        );
+
+        applied_delta_connection.emplace(
+            appbase::app().find_plugin<parser_plugin>()->applied_delta.connect(
+                [&](const state_history::block_position& pos, const state_history::table_delta_v0& delta){
+                    handle(pos,delta);
                 }
             )
         );

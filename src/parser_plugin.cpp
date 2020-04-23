@@ -65,6 +65,19 @@ struct parser_plugin_impl: std::enable_shared_from_this<parser_plugin_impl> {
     }
 
 
+    void process_deltas(abieos::input_buffer buffer){
+        // auto     num     = abieos::read_varuint32(buffer);
+        // std::cout << "total num:" << std::endl;
+        // for (uint32_t i = 0; i < num; ++i) {
+        //     state_history::check_variant(buffer, state_history_connection::get_type("table_delta"), "table_delta_v0");
+        //     std::cout << i << std::endl;
+        //     state_history::table_delta_v0 table_delta;
+        //     bin_to_native(table_delta, buffer);
+        //     m_plugin.applied_delta(m_position.value(), table_delta);
+        // }
+    }
+
+
     void handle(const state_history::get_blocks_result_v0& result){
         if (!result.this_block)return;
         
@@ -84,7 +97,7 @@ struct parser_plugin_impl: std::enable_shared_from_this<parser_plugin_impl> {
         }
 
         if(result.deltas){
-
+            process_deltas(result.deltas.value());
         }
 
         if(m_this_block){

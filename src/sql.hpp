@@ -7,21 +7,38 @@
 
 namespace SQL{
 
-struct insert{
+
+enum sql_type: uint8_t {
+    Insert,
+    Delete,
+    Create,
+    None
+};
+
+struct sql{
+    sql_type type = sql_type::None;
+};
+
+
+struct insert: sql{
 
 std::string table_name;
 std::vector< std::tuple<std::string,std::string>> data;
 bool empty = true;
 
 
-insert(){}
+insert(){
+    type = sql_type::Insert;
+}
 
 insert(const std::tuple<std::string,std::string>& tp){
+    insert();
     data.push_back(tp);
     empty = false;
 }
 
 insert(const std::string& field, const std::string& value){
+    insert();
     data.emplace_back(field,value);
     empty = false;
 }
@@ -77,11 +94,13 @@ std::vector<std::string> get_value(){
 };
 
 
-struct del{
+struct del: sql{
     std::string table_name;
     std::string condition;
 
-    del(){}
+    del(){
+        type = sql_type::Delete;
+    }
 
     del& from(const std::string& _name){
         table_name = _name;
@@ -128,12 +147,14 @@ struct enum_type{
 
 };
 
-struct create{
+struct create: sql{
+
     std::string table_name;
     std::vector<std::tuple<std::string,std::string>> fields;
     std::string prim_key;
 
     create(const std::string& name){
+        type = sql_type::Create;
         table_name = name;
     }
 

@@ -7,6 +7,7 @@
 #include <abieos.hpp>
 #include "flat_serializer.hpp"
 #include <tuple>
+#include <deque>
 
 namespace bpo       = boost::program_options;
 
@@ -384,8 +385,104 @@ struct table_delta_handler:table_builder{
     virtual std::vector<std::string> drop(){return std::vector<std::string>();}
     virtual std::vector<std::string> truncate(const state_history::block_position& pos){return std::vector<std::string>();}
     bool already_created = false;
+    bool enable_cache = false;  
+    uint32_t block_num = 0;
+    std::optional<std::vector<std::string>> m_primary_key;
+    std::optional<std::vector<std::string>> m_column_names;
+
+    enum update_type: uint8_t{
+        insert = 0,
+        modify,
+        del
+    };
+
+    std::deque<std::tuple<uint32_t,std::vector<std::string>,std::vector<std::string>>> cache;
+    std::vector<std::string> pre_queries;
+    
+
+    void generate_pre_update_queries(const state_history::block_position& pos, const std::vector<std::string>& prim_key, const std::vector<std::string>& prim_key_value){
+
+        std::stringstream ss;
+        ss << "SELECT * FROM " << name << " WHERE ";
+        for(uint32_t i = 0; i< prim_key.size(); i++){
+            if(i != 0)ss<< " AND ";
+            ss << prim_key[i] << "=" << prim_key_value[i];
+        }
+        pre_queries.push_back(ss.str());
+    }
+
+    std::vector<std::string>& get_pre_queries(){
+        return pre_queries;
+    }
+
+    void fill_cache(std::vector<std::string> row){
+        std::map<std::string, std::string> name_to_value;
+        for(int i = 0;i<row.size();i++){
+            name_to_value.insert(std::make_pair(m_column_names.value()[i],row[i]));
+        }
+        std::vector<std::string> pk_v;
+        for(auto& k: m_primary_key.value())pk_v.push_back(name_to_value[k]);
+        cache.emplace_back(block_num,pk_v,row);
+    }
+
+    /**
+     * row table back to status before pos
+     */
+    std::vector<std::string> roll_back(const state_history::block_position& pos){
+        std::vector<std::string> result;
+        while(!cache.empty() && std::get<0>(cache.back()) >= pos.block_num){
+
+            std::map<std::string, std::string> name_to_value;
+            auto& pk_values = std::get<1>(cache.back());
+            auto& values = std::get<2>(cache.back());
+            
+            for(int i = 0;i<values.size();i++){
+                name_to_value.insert(std::make_pair(m_column_names.value()[i],values[i]));
+            }
+
+            //this mean we don't have this row previously.
+            if(values.empty()){
+
+                std::stringstream ss;
+                bool first_hit = true;
+                for(auto& k: m_primary_key.value()){
+                    if(first_hit){
+                        first_hit = false;
+                    }else{
+                        ss << " and ";
+                    }
+                    ss << k << "=" << name_to_value[k];
+                }
+
+
+                auto q = SQL::del();
+                q.from(name).where(ss.str());
+                result.push_back(q.str());
+            }else{
+                auto q = SQL::upsert();
+                q.into(name);
+                for(auto& pair: name_to_value){
+                    q(pair.first,pair.second);
+                }
+                result.push_back(q.str());
+            }
+
+            cache.pop_back();
+        }
+        return result;
+    }
+
+    void clean_cache(uint32_t lib_pos){
+        while(!cache.empty() && std::get<0>(cache.front()) < lib_pos){
+            cache.pop_front();
+        }
+    }
+
     
     std::string dynamic_create(std::vector<std::string> cols, std::vector<std::string> primary_key){
+
+        if(!m_primary_key.has_value())m_primary_key.emplace(primary_key);
+        if(!m_column_names.has_value())m_column_names.emplace(cols);
 
         auto query = SQL::create(name);
         for(auto c: cols){
@@ -408,10 +505,13 @@ struct table_delta_handler:table_builder{
 
 
     std::vector<std::string> handle_delta(const state_history::block_position& pos, const state_history::table_delta_v0& delta){
+        block_num = pos.block_num;
+
         std::vector<std::string> result;
 
         //only handle delta update related with itself
         if(delta.name != name)return result;
+
 
         const abieos::abi_def& my_abi = *(abi_holder::instance().abi);
         const abieos::abi_type& my_type = abi_holder::instance().get_type(name);
@@ -434,17 +534,24 @@ struct table_delta_handler:table_builder{
 
             std::vector<std::string> cols;
             std::vector<std::string> values;
+            std::map<std::string, std::string> name_to_value;
             for( auto itr = data_arr.begin(); itr != data_arr.end(); ++itr ){
                 cols.push_back(itr->key());
 
                 values.push_back(fc::json::to_string(itr->value()));
-
+                name_to_value.insert(std::make_pair(cols.back(),values.back()));
             }
 
             if(!already_created){
                 result.push_back("DROP TABLE IF EXISTS " + name);
                 result.push_back( dynamic_create(cols,keys));
                 already_created = true;
+            }
+
+            if(enable_cache && m_primary_key.has_value() && m_column_names.has_value()){
+                std::vector<std::string> pk_v;
+                for(auto& k: m_primary_key.value())pk_v.push_back(name_to_value[k]);
+                generate_pre_update_queries(pos, m_primary_key.value(), pk_v);
             }
 
 
@@ -455,7 +562,7 @@ struct table_delta_handler:table_builder{
                     in_query(cols[i],my_quoted(values[i]));
                 }
                 result.push_back(in_query.str());
-           
+
             }else{
 
                 std::stringstream condition;
@@ -562,6 +669,14 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
                 m_pipe.value()(q);
             }
         }
+
+        for(auto& delta_handler: table_delta_handlers){
+            auto queries = delta_handler->roll_back(pos);
+            for(auto& q: queries){
+                m_pipe.value()(q);
+            }
+        }
+
         ilog("fork happened block( ${bnum} )",("bnum",pos.block_num));
     }
 
@@ -591,6 +706,10 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             g__pg_quoted_enable = true;
         }
 
+        for(auto& handler: table_delta_handlers){
+            handler->clean_cache(lib_pos.block_num);
+        }
+
         if(m_use_tablewriter){
             ilog("complete block ${num}, current lib ${lib}. table writer enable",("num",pos.block_num)("lib",lib_pos.block_num));
         }else{
@@ -604,6 +723,24 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
         for(auto& handler: table_delta_handlers){
             auto queries = handler->handle_delta(pos,delta);
+
+            //create snapshot of current table
+            auto pre_queries = handler->get_pre_queries();
+            for(auto& preq: pre_queries){
+                auto result = m_pipe.value().retrieve(preq);
+                if (result.empty()) {
+                    handler->fill_cache(std::vector<std::string>());
+                } else {
+                    auto row = result.front();
+                    std::vector<std::string> myrow;
+                    for(auto x: row){
+                        myrow.push_back(x.as<std::string>());
+                    }
+                    handler->fill_cache(myrow);
+                }
+            }
+
+
             for(auto& q: queries){
                 if(q.size() == 0)continue;
                 m_pipe.value()(q);
@@ -615,9 +752,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
     void handle(const abieos::abi_def& abi, const std::map<std::string, abieos::abi_type>& abi_types){
         abi_holder::instance().init(abi,abi_types);
-        for(auto& m : abi_types){
-            std::cout << m.first << " --- " << m.second.name << std::endl;
-        }
+        ilog("abi_holder inited.");
     }
 
 

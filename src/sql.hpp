@@ -206,7 +206,7 @@ struct del: sql{
         return *this;
     }
 
-    del&  where(const std::string& _condidtion){
+    del&  where(const std::string _condidtion){
         condition = _condidtion;
         return *this;
     }

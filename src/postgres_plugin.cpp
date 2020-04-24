@@ -401,6 +401,7 @@ struct table_delta_handler:table_builder{
         return query.str();
     }
 
+    //use this my quote function, because delta table alway use piple via main connection, so ignore global quote enable switch.
     std::string my_quoted(const std::string& text){
         return "'" + text + "'";
     }
@@ -415,11 +416,8 @@ struct table_delta_handler:table_builder{
         const abieos::abi_def& my_abi = *(abi_holder::instance().abi);
         const abieos::abi_type& my_type = abi_holder::instance().get_type(name);
 
-
+        //primary key attached.
         auto keys = abi_holder::instance().get_keys(name);
-        for(auto k: keys){
-            std::cout << k << "    " << std::endl;
-        }
 
         std::string error;
         std::string json_row;
@@ -430,12 +428,9 @@ struct table_delta_handler:table_builder{
                 elog("error when serilizing data.");
             }
             fc::variant jdata = fc::json::from_string(json_row);
-            std::cout << json_row << std::endl;
 
             auto& arr = jdata.get_array();
             auto& data_arr = arr[1].get_object();
-
-            std::cout << arr[0].as_string() << std::endl;
 
             std::vector<std::string> cols;
             std::vector<std::string> values;
@@ -444,8 +439,6 @@ struct table_delta_handler:table_builder{
 
                 values.push_back(fc::json::to_string(itr->value()));
 
-
-                std::cout << values.back() << std::endl;
             }
 
             if(!already_created){
@@ -456,17 +449,14 @@ struct table_delta_handler:table_builder{
 
 
             if(row.present){
-                std::cout << "upsert" << std::endl;
 
                 auto in_query = SQL::upsert().into(name).on_conflict(keys);
                 for(int i = 0;i<cols.size();i++){
                     in_query(cols[i],my_quoted(values[i]));
                 }
-                std::cout << in_query.str() << std::endl;
                 result.push_back(in_query.str());
            
             }else{
-                std::cout << "delete" << std::endl;
 
                 std::stringstream condition;
                 bool first_condition = true;
@@ -480,8 +470,6 @@ struct table_delta_handler:table_builder{
 
                 auto de_query = SQL::del();
                 de_query.from(name).where(condition.str());
-
-                std::cout << de_query.str() << std::endl;
                 result.push_back(de_query.str());
             }
             

@@ -6,7 +6,7 @@ include(ExternalProject)
 cmake_minimum_required (VERSION 3.10)
 project(history-tools VERSION 0.1 LANGUAGES CXX C)
 
-cmake_policy(SET CMP0077 NEW)
+#cmake_policy(SET CMP0077 NEW)
 set(ENABLE_INSTALL OFF cache bool "")
 set(ENABLE_TOOLS OFF cache bool "")
 set(ENABLE_TESTS OFF cache bool "")

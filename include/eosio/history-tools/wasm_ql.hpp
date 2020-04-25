@@ -11,11 +11,15 @@ namespace eosio { namespace wasm_ql {
 class backend_cache;
 
 struct shared_state {
-   uint32_t                            max_console_size = {};
-   uint32_t                            wasm_cache_size  = {};
-   uint64_t                            max_exec_time_ms = {};
-   std::string                         contract_dir     = {};
-   std::unique_ptr<backend_cache>      backend_cache    = {};
+   struct backend_cache_deleter {
+      void operator()(wasm_ql::backend_cache* bc);
+   };
+   using backend_cache_ptr = std::unique_ptr<wasm_ql::backend_cache, backend_cache_deleter>;
+   uint32_t                             max_console_size = {};
+   uint32_t                             wasm_cache_size  = {};
+   uint64_t                             max_exec_time_ms = {};
+   std::string                          contract_dir     = {};
+   backend_cache_ptr                    backend_cache    = {};
    std::shared_ptr<chain_kv::database> db;
 
    shared_state(std::shared_ptr<chain_kv::database> db);

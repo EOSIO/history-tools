@@ -173,9 +173,13 @@ class backend_cache {
 };
 
 shared_state::shared_state(std::shared_ptr<chain_kv::database> db)
-    : backend_cache(std::make_unique<wasm_ql::backend_cache>(*this)), db(std::move(db)) {}
+    : backend_cache(new wasm_ql::backend_cache(*this)), db(std::move(db)) {}
 
-shared_state::~shared_state() {}
+shared_state::~shared_state() = default;
+
+void shared_state::backend_cache_deleter::operator()(wasm_ql::backend_cache* bc) {
+   delete bc;
+}
 
 std::optional<std::vector<uint8_t>> read_code(wasm_ql::thread_state& thread_state, eosio::name account) {
    std::optional<std::vector<uint8_t>> code;

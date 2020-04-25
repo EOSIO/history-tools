@@ -155,10 +155,10 @@ class table {
 template <typename T>
 class index {
   public:
-    using table    = eosio::table<T>;
+    using table_t  = eosio::table<T>;
     using iterator = table_iterator<T>;
     using proxy    = table_proxy<T>;
-    friend table;
+    friend table_t;
     friend iterator;
     friend proxy;
 
@@ -169,14 +169,17 @@ class index {
     iterator begin();
     iterator end();
 
+    auto& table() { return *t; }
+    const auto& table() const { return *t; }
+
   private:
-    eosio::name index_name                = {};
+    eosio::name index_name                 = {};
     std::vector<char> (*get_key)(const T&) = {};
-    table*            t                    = {};
+    table_t*            t                  = {};
     bool              is_primary           = false;
     std::vector<char> prefix               = {};
 
-    void initialize(table* t, bool is_primary);
+    void initialize(table_t* t, bool is_primary);
 };
 
 template <typename T>
@@ -216,7 +219,7 @@ class table_iterator {
 
     ~table_iterator() {
         if (it)
-            ind->t->environment.kv_it_destroy(it);
+            ind->table().environment.kv_it_destroy(it);
     }
 
     table_iterator& operator=(const table_iterator&) = delete;
@@ -224,8 +227,8 @@ class table_iterator {
 
     friend int compare(const table_iterator& a, const table_iterator& b) {
         check(a.ind == b.ind, "compare incompatible iterators");
-        bool a_is_end = !a.it || a.ind->t->environment.kv_it_status(a.it) == (int32_t)it_stat::end;
-        bool b_is_end = !b.it || b.ind->t->environment.kv_it_status(b.it) == (int32_t)it_stat::end;
+        bool a_is_end = !a.it || a.ind->table().environment.kv_it_status(a.it) == (int32_t)it_stat::end;
+        bool b_is_end = !b.it || b.ind->table().environment.kv_it_status(b.it) == (int32_t)it_stat::end;
         if (a_is_end && b_is_end)
             return 0;
         else if (a_is_end && b.it)
@@ -233,7 +236,7 @@ class table_iterator {
         else if (a.it && b_is_end)
             return -1;
         else
-            return a.ind->t->environment.kv_it_compare(a.it, b.it);
+            return a.ind->table().environment.kv_it_compare(a.it, b.it);
     }
 
     friend bool operator==(const table_iterator& a, const table_iterator& b) { return compare(a, b) == 0; }
@@ -245,24 +248,24 @@ class table_iterator {
 
     table_iterator& operator++() {
         if (it)
-            ind->t->environment.kv_it_next(it);
+            ind->table().environment.kv_it_next(it);
         obj.reset();
         return *this;
     }
 
     std::vector<char> get_raw_key() {
         uint32_t size;
-        check(!ind->t->environment.kv_it_key(it, 0, nullptr, 0, size), "iterator read failure");
+        check(!ind->table().environment.kv_it_key(it, 0, nullptr, 0, size), "iterator read failure");
         std::vector<char> result(size);
-        check(!ind->t->environment.kv_it_key(it, 0, result.data(), size, size), "iterator read failure");
+        check(!ind->table().environment.kv_it_key(it, 0, result.data(), size, size), "iterator read failure");
         return result;
     }
 
     std::vector<char> get_raw_value() {
         uint32_t size;
-        check(!ind->t->environment.kv_it_value(it, 0, nullptr, 0, size), "iterator read failure");
+        check(!ind->table().environment.kv_it_value(it, 0, nullptr, 0, size), "iterator read failure");
         std::vector<char> result(size);
-        check(!ind->t->environment.kv_it_value(it, 0, result.data(), size, size), "iterator read failure");
+        check(!ind->table().environment.kv_it_value(it, 0, result.data(), size, size), "iterator read failure");
         return result;
     }
 
@@ -270,15 +273,15 @@ class table_iterator {
     // Caution: object gets destroyed when iterator is destroyed or moved or if read_fresh() is called again.
     const T& read_fresh() {
         uint32_t size;
-        check(!ind->t->environment.kv_it_value(it, 0, nullptr, 0, size), "iterator read failure");
+        check(!ind->table().environment.kv_it_value(it, 0, nullptr, 0, size), "iterator read failure");
         std::vector<char> bin(size);
-        check(!ind->t->environment.kv_it_value(it, 0, bin.data(), size, size), "iterator read failure");
+        check(!ind->table().environment.kv_it_value(it, 0, bin.data(), size, size), "iterator read failure");
         if (!ind->is_primary) {
             check(
-                ind->t->environment.kv_get(ind->t->database.value, ind->t->contract.value, bin.data(), bin.size(), size),
+                ind->table().environment.kv_get(ind->table().database.value, ind->table().contract.value, bin.data(), bin.size(), size),
                 "iterator read failure");
             bin.resize(size);
-            ind->t->environment.kv_get_data(ind->t->database.value, 0, bin.data(), bin.size());
+            ind->table().environment.kv_get_data(ind->table().database.value, 0, bin.data(), bin.size());
         }
         obj = std::make_unique<T>();
         check_discard(convert_from_bin(*obj, bin));
@@ -378,7 +381,7 @@ table_iterator<T> table<T>::end() {
 }
 
 template <typename T>
-void index<T>::initialize(table* t, bool is_primary) {
+void index<T>::initialize(table_t* t, bool is_primary) {
     this->t          = t;
     this->is_primary = is_primary;
     prefix           = t->prefix;

@@ -3,6 +3,7 @@
 #include <pqxx/pqxx>
 #include <pqxx/connection>
 #include <pqxx/tablewriter>
+#include <optional>
 
 
 namespace pg{
@@ -69,19 +70,49 @@ struct pipe{
 
 struct writer{
     pqxx::connection con;
-    pqxx::work w;
-    pqxx::tablewriter tw;
+    std::optional<pqxx::work> w;
+    std::optional<pqxx::tablewriter> tw;
+    std::string m_name;
+    std::vector<std::string> m_cols;
 
-    writer(const std::string& db_str ,const std::string& name, const std::vector<std::string> cols):
-    con(db_str),w(con),tw(w,name,cols.begin(),cols.end()){}
+    //countrol refresh
+    int32_t refresh_counter = 0;
+    int32_t refresh_interval = -1;
+
+    writer(const std::string& db_str ,const std::string& name, const std::vector<std::string> cols, int32_t ritv = -1):
+    con(db_str),
+    m_name(name),
+    m_cols(cols),
+    refresh_interval(ritv){
+        w.emplace(con);
+        tw.emplace(w.value(),name,cols.begin(),cols.end());
+    }
 
     void write_row(std::vector<std::string> row){
-        tw << row;
+        if(!tw.has_value() || !w.has_value())return;
+        tw.value() << row;
+
+        if(refresh_interval != -1){
+            if(++refresh_counter == refresh_interval){
+                refresh();
+                refresh_counter = 0;
+            }
+        }
     }
 
     void complete(){
-        tw.complete();
-        w.commit();
+        if(!tw.has_value() || !w.has_value())return;
+        tw.value().complete();
+        w.value().commit();
+    }
+
+    //commit curret table writer and restart a new one.
+    void refresh(){
+        complete();
+        tw.reset();
+        w.reset();
+        w.emplace(con);
+        tw.emplace(w.value(),m_name,m_cols.begin(),m_cols.end());
     }
 
     ~writer(){
@@ -95,7 +126,7 @@ class table_writer_manager{
 
     std::map< std::string, std::shared_ptr<writer>> table_writers; 
     std::string db_str;
-
+    int32_t default_refresh_interval = 2000;
     table_writer_manager(const std::string& _db_str):db_str(_db_str){}
 public:
     static table_writer_manager& instance(std::optional<std::string> _db_str = std::nullopt){
@@ -113,7 +144,7 @@ public:
 
         auto it = table_writers.find(key.str());
         if(it == table_writers.end()){
-            it = table_writers.insert(std::make_pair(key.str(),std::make_shared<writer>(db_str,table_name,cols))).first;
+            it = table_writers.insert(std::make_pair(key.str(),std::make_shared<writer>(db_str,table_name,cols,default_refresh_interval))).first;
         }
 
         return *(it->second);

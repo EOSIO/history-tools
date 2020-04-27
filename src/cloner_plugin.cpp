@@ -65,7 +65,8 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
    std::optional<rodeos_db_snapshot>          rodeos_snapshot;
    std::shared_ptr<ship_protocol::connection> connection;
    bool                                       reported_block = false;
-   std::unique_ptr<rodeos_filter>             filter         = {}; // todo: remove
+   std::unique_ptr<rodeos_filter>             filter         = {};                                   // todo: remove
+   streamer_plugin*                           streamer       = app().find_plugin<streamer_plugin>(); // todo: add config
 
    cloner_session(cloner_plugin_impl* my) : my(my), config(my->config) {
       // todo: remove
@@ -156,8 +157,12 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       rodeos_snapshot->write_deltas(result, [] { return app().is_quiting(); });
 
       // todo: remove
-      if (filter)
-         filter->process(*rodeos_snapshot, result, bin, [](const char*, uint64_t) {});
+      if (filter && streamer)
+         filter->process(*rodeos_snapshot, result, bin,
+                         [this](const char* data, uint64_t data_size) { streamer->stream_data(data, data_size); });
+
+      // if (filter && streamer)
+      //    filter->process(*rodeos_snapshot, result, bin, streamer->stream_data);
 
       rodeos_snapshot->end_block(result, false);
       return true;

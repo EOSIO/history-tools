@@ -76,12 +76,10 @@ struct flat_serializer{
             }
             else if(t == "name"){
                 uint64_t data = 0;
-                std::cout << t << std::endl;
                 SER_ASSERT(abieos::read_raw(buffer,error,data));
                 result.emplace_back(n,abieos::name_to_string(data));
             }
             else if(t == "asset"){
-                std::cout << t << std::endl;
                 uint64_t amount,symbol;
                 SER_ASSERT(abieos::read_raw(buffer,error,amount));
                 result.emplace_back(n+"_amount",std::to_string(amount));
@@ -90,13 +88,11 @@ struct flat_serializer{
                 
             }
             else if(t == "bool"){
-                std::cout << t << std::endl;
                 bool data;
                 SER_ASSERT(abieos::read_raw(buffer,error,data));
                 result.emplace_back(n,std::to_string(data));
             }
             else if(t == "uint64"){
-                std::cout << t << std::endl;
                 uint64_t data;
                 SER_ASSERT(abieos::read_raw(buffer,error,data));
                 result.emplace_back(n,std::to_string(data));

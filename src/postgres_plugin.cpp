@@ -398,21 +398,24 @@ struct table_delta_handler:table_builder{
 
     std::deque<std::tuple<uint32_t,std::vector<std::string>,std::vector<std::string>>> cache;
     std::vector<std::string> pre_queries;
+    std::vector<std::string> creation_queries;
     
 
     void generate_pre_update_queries(const state_history::block_position& pos, const std::vector<std::string>& prim_key, const std::vector<std::string>& prim_key_value){
-
+        if(already_created == false)return;
         std::stringstream ss;
         ss << "SELECT * FROM " << name << " WHERE ";
         for(uint32_t i = 0; i< prim_key.size(); i++){
             if(i != 0)ss<< " AND ";
-            ss << prim_key[i] << "=" << prim_key_value[i];
+            ss << prim_key[i] << "=" << my_quoted(prim_key_value[i]);
         }
         pre_queries.push_back(ss.str());
     }
 
-    std::vector<std::string>& get_pre_queries(){
-        return pre_queries;
+    std::vector<std::string> get_pre_queries(){
+        std::vector<std::string> tmp(std::move(pre_queries));
+        pre_queries.clear();
+        return tmp;
     }
 
     void fill_cache(std::vector<std::string> row){
@@ -429,6 +432,7 @@ struct table_delta_handler:table_builder{
      * row table back to status before pos
      */
     std::vector<std::string> roll_back(const state_history::block_position& pos){
+        std::cout << "roll back::" <<  cache.size() <<std::endl;
         std::vector<std::string> result;
         while(!cache.empty() && std::get<0>(cache.back()) >= pos.block_num){
 
@@ -451,7 +455,7 @@ struct table_delta_handler:table_builder{
                     }else{
                         ss << " and ";
                     }
-                    ss << k << "=" << name_to_value[k];
+                    ss << k << "=" << my_quoted(name_to_value[k]);
                 }
 
 
@@ -460,9 +464,9 @@ struct table_delta_handler:table_builder{
                 result.push_back(q.str());
             }else{
                 auto q = SQL::upsert();
-                q.into(name);
+                q.into(name).on_conflict(m_primary_key.value());
                 for(auto& pair: name_to_value){
-                    q(pair.first,pair.second);
+                    q(pair.first,my_quoted(pair.second));
                 }
                 result.push_back(q.str());
             }
@@ -474,6 +478,11 @@ struct table_delta_handler:table_builder{
 
     void clean_cache(uint32_t lib_pos){
         while(!cache.empty() && std::get<0>(cache.front()) < lib_pos){
+            // std::cout << "cache:" << std::get<0>(cache.front()) << " cache size:" << cache.size() << std::endl;
+            // for(auto s: std::get<1>(cache.front()))std::cout << s;
+            // std::cout << std::endl;
+            // for(auto s: std::get<2>(cache.front()))std::cout << s;
+            // std::cout << std::endl;
             cache.pop_front();
         }
     }
@@ -503,6 +512,13 @@ struct table_delta_handler:table_builder{
         return "'" + text + "'";
     }
 
+    std::string remove_quote(const std::string& text){
+        std::string tmp = text;
+        if(tmp.size()<2)return tmp;
+        if(tmp.at(0) == '"')tmp = tmp.substr(1,tmp.size()-1);
+        if(tmp.at(tmp.size()-1) == '"')tmp = tmp.substr(0,tmp.size()-1);
+        return tmp;
+    }
 
     std::vector<std::string> handle_delta(const state_history::block_position& pos, const state_history::table_delta_v0& delta){
         block_num = pos.block_num;
@@ -528,7 +544,6 @@ struct table_delta_handler:table_builder{
                 elog("error when serilizing data.");
             }
             fc::variant jdata = fc::json::from_string(json_row);
-
             auto& arr = jdata.get_array();
             auto& data_arr = arr[1].get_object();
 
@@ -543,8 +558,8 @@ struct table_delta_handler:table_builder{
             }
 
             if(!already_created){
-                result.push_back("DROP TABLE IF EXISTS " + name);
-                result.push_back( dynamic_create(cols,keys));
+                creation_queries.push_back("DROP TABLE IF EXISTS " + name);
+                creation_queries.push_back( dynamic_create(cols,keys));
                 already_created = true;
             }
 
@@ -586,6 +601,7 @@ struct table_delta_handler:table_builder{
 
 
     table_delta_handler(const std::string& _name){
+        ilog("create delta table handler [${name}]",("name",_name));
         name = _name;
     }
 
@@ -682,8 +698,10 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         ilog("rollback database to block( ${bnum} )",("bnum",pos.block_num-1));
     }
 
-    //this is the endofblock
+    // ANCHOR :: this is the endofblock
     void handle(const state_history::block_position& pos, const state_history::block_position& lib_pos){
+
+
         if(m_pipe.has_value()){
             m_pipe.value().complete();
             m_pipe.reset();
@@ -714,6 +732,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
         m_current_lib = lib_pos;
 
+
         if(m_use_tablewriter){
             //only log per 1000 block
             if(pos.block_num%1000 == 0)ilog("complete block ${num}, current lib ${lib}. table writer enable",("num",pos.block_num)("lib",lib_pos.block_num));
@@ -727,7 +746,13 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         if(!m_pipe.has_value())m_pipe.emplace(conn.value());
 
         for(auto& handler: table_delta_handlers){
-            auto queries = handler->handle_delta(pos,delta);
+
+            if(!handler->creation_queries.empty()){
+                for(auto q: handler->creation_queries){
+                    m_pipe.value()(q);
+                }
+                handler->creation_queries.clear();
+            }
 
             //create snapshot of current table
             auto pre_queries = handler->get_pre_queries();
@@ -746,11 +771,13 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             }
 
 
+            auto queries = handler->handle_delta(pos,delta);
             for(auto& q: queries){
                 if(q.size() == 0)continue;
                 m_pipe.value()(q);
             }
         }
+
         
     }
 
@@ -794,7 +821,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
       }
 
       if(options.count("system-table")){
-          const std::vector<std::string> table_names = options["system-tables"].as<std::vector<std::string>>();
+          const std::vector<std::string> table_names = options["system-table"].as<std::vector<std::string>>();
           for(auto& tname: table_names){
             table_delta_handlers.emplace_back(std::make_unique<table_delta_handler>(tname));
             if(!create_table)table_delta_handlers.back()->already_created = true; //if we don't want to create table, directly set already created tag to true
@@ -957,7 +984,7 @@ void postgres_plugin::set_program_options(appbase::options_description& cli, app
     "   a relative path from `data-dir` to a file containing a valid JSON-encoded ABI\n"
     );
 
-    op("system-tables", bpo::value<std::vector<std::string>>()->composing(),"System state tables.");
+    op("system-table", bpo::value<std::vector<std::string>>()->composing(),"System state tables.");
 }
 
 

@@ -432,7 +432,6 @@ struct table_delta_handler:table_builder{
      * row table back to status before pos
      */
     std::vector<std::string> roll_back(const state_history::block_position& pos){
-        std::cout << "roll back::" <<  cache.size() <<std::endl;
         std::vector<std::string> result;
         while(!cache.empty() && std::get<0>(cache.back()) >= pos.block_num){
 

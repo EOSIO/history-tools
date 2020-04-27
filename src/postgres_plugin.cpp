@@ -788,10 +788,11 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
          }
       }
 
-      if(options.count("system-tables")){
+      if(options.count("system-table")){
           const std::vector<std::string> table_names = options["system-tables"].as<std::vector<std::string>>();
           for(auto& tname: table_names){
             table_delta_handlers.emplace_back(std::make_unique<table_delta_handler>(tname));
+            if(!create_table)table_delta_handlers.back()->already_created = true; //if we don't want to create table, directly set already created tag to true
             ilog("monitor system table ${tname}",("tname", tname));
           }
       }

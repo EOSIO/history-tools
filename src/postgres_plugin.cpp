@@ -385,7 +385,7 @@ struct table_delta_handler:table_builder{
     virtual std::vector<std::string> drop(){return std::vector<std::string>();}
     virtual std::vector<std::string> truncate(const state_history::block_position& pos){return std::vector<std::string>();}
     bool already_created = false;
-    bool enable_cache = false;  
+    bool enable_cache = true;  
     uint32_t block_num = 0;
     std::optional<std::vector<std::string>> m_primary_key;
     std::optional<std::vector<std::string>> m_column_names;
@@ -604,6 +604,8 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
     std::vector<std::unique_ptr<table_delta_handler>> table_delta_handlers;
     //datas
     postgres_plugin& m_plugin;
+    //status
+    state_history::block_position m_current_lib;
 
     //database 
     std::string db_string;
@@ -677,7 +679,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             }
         }
 
-        ilog("fork happened block( ${bnum} )",("bnum",pos.block_num));
+        ilog("rollback database to block( ${bnum} )",("bnum",pos.block_num-1));
     }
 
     //this is the endofblock
@@ -710,8 +712,11 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             handler->clean_cache(lib_pos.block_num);
         }
 
+        m_current_lib = lib_pos;
+
         if(m_use_tablewriter){
-            ilog("complete block ${num}, current lib ${lib}. table writer enable",("num",pos.block_num)("lib",lib_pos.block_num));
+            //only log per 1000 block
+            if(pos.block_num%1000 == 0)ilog("complete block ${num}, current lib ${lib}. table writer enable",("num",pos.block_num)("lib",lib_pos.block_num));
         }else{
             ilog("complete block ${num}, current lib ${lib}. normal mode.",("num",pos.block_num)("lib",lib_pos.block_num));
         }
@@ -911,6 +916,14 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
 
     void stop(){
+
+
+        //roll every table back to status on LIB
+        //just treat this as a fork.
+        handle_fork(m_current_lib);
+
+        if(m_pipe.has_value())m_pipe.value().complete();
+
         //when app stop, disconnect main database connection.
         if(conn.has_value()){
             conn.value().disconnect();

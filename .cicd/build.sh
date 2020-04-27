@@ -8,10 +8,10 @@ echo "$ $DOCKER_BUILD"
 eval $DOCKER_BUILD
 echo '+++ :package: Create rodeos Installer'
 [[ -z "$PACKAGE_REVISION" ]] && export PACKAGE_REVISION='1'
-export RODEOS_VERSION="$(echo "$(docker run -it "$IMAGE" rodeos --version || :)" | tr -d '\r')"
+export RODEOS_VERSION="$(docker run "$IMAGE" rodeos --version || :)"
 [[ -z "$VERSION_STRING" ]] && export VERSION_STRING="$(echo "$RODEOS_VERSION" | sed -rne "s/v(.*)/\1-$PACKAGE_REVISION/p")"
 echo "Using version string \"$VERSION_STRING\" with rodeos version \"$RODEOS_VERSION\"."
-DOCKER_RUN="docker run -e BUILDKITE -e PACKAGE_REVISION -e VERSION_STRING -w /eosio.cdt/libraries/history-tools -t \"$IMAGE\" ./scripts/package-rodeos.sh"
+DOCKER_RUN="docker run -e BUILDKITE -e PACKAGE_REVISION -e VERSION_STRING -w /eosio.cdt/libraries/history-tools \"$IMAGE\" ./scripts/package-rodeos.sh"
 echo "$ $DOCKER_RUN"
 eval $DOCKER_RUN
 echo '+++ :arrow_up: Uploading Artifacts'

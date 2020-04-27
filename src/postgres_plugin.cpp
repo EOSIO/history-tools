@@ -746,6 +746,8 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
         for(auto& handler: table_delta_handlers){
 
+            auto queries = handler->handle_delta(pos,delta);
+            
             if(!handler->creation_queries.empty()){
                 for(auto q: handler->creation_queries){
                     m_pipe.value()(q);
@@ -770,7 +772,6 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             }
 
 
-            auto queries = handler->handle_delta(pos,delta);
             for(auto& q: queries){
                 if(q.size() == 0)continue;
                 m_pipe.value()(q);

@@ -8,7 +8,9 @@ echo "$ $DOCKER_BUILD"
 eval $DOCKER_BUILD
 echo '+++ :package: Create rodeos Installer'
 [[ -z "$PACKAGE_REVISION" ]] && export PACKAGE_REVISION='1'
-[[ -z "$VERSION_STRING" ]] && export VERSION_STRING="$(docker run -it "$IMAGE" rodeos --version || : | sed 's/^v//' | sed "s/$/-$PACKAGE_REVISION/")"
+export RODEOS_VERSION="$(echo "$(docker run -it "$IMAGE" rodeos --version || :)" | tr -d '\r')"
+[[ -z "$VERSION_STRING" ]] && export VERSION_STRING="$(echo "$RODEOS_VERSION" | sed -rne "s/v(.*)/\1-$PACKAGE_REVISION/p")"
+echo "Using version string \"$VERSION_STRING\" with rodeos version \"$RODEOS_VERSION\"."
 DOCKER_RUN="docker run -e BUILDKITE -e PACKAGE_REVISION -e VERSION_STRING -w /eosio.cdt/libraries/history-tools -t \"$IMAGE\" ./scripts/package-rodeos.sh"
 echo "$ $DOCKER_RUN"
 eval $DOCKER_RUN

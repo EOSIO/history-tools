@@ -2,7 +2,7 @@
 
 #include "streamer_plugin.hpp"
 #include "streams/logger.hpp"
-// #include "streams/rabbitmq.hpp"
+#include "streams/rabbitmq.hpp"
 #include "streams/stream.hpp"
 
 #include <memory>
@@ -38,8 +38,11 @@ void streamer_plugin::plugin_initialize(const variables_map& options) {
          auto rabbits = options.at("stream-rabbits").as<std::vector<std::string>>();
          for (auto& rabbit : rabbits) {
             size_t pos        = rabbit.find_last_of("/");
-            auto   queue_name = pos == std::string::npos ? "default" : rabbit.substr(pos + 1, rabbit.length());
-            rabbit.erase(pos, rabbit.length());
+            std::string queue_name = "stream.default";
+            if (pos != std::string::npos) {
+               queue_name = rabbit.substr(pos + 1, rabbit.length());
+               rabbit.erase(pos, rabbit.length());
+            }
 
             std::string user     = "guest";
             std::string password = "guest";
@@ -47,7 +50,7 @@ void streamer_plugin::plugin_initialize(const variables_map& options) {
             if (pos != std::string::npos) {
                auto auth_pos = rabbit.substr(0, pos).find(":");
                user          = rabbit.substr(0, auth_pos);
-               password      = rabbit.substr(auth_pos + 1, pos);
+               password      = rabbit.substr(auth_pos + 1, pos - auth_pos - 1);
                rabbit.erase(0, pos + 1);
             }
 
@@ -55,8 +58,10 @@ void streamer_plugin::plugin_initialize(const variables_map& options) {
             std::string host = rabbit.substr(0, pos);
             int         port = std::stoi(rabbit.substr(pos + 1, rabbit.length()));
 
-            // rabbitmq rmq{ host, port, user, password, queue_name };
-            // my->streams.emplace_back(std::make_unique<stream_handler>(rmq));
+            ilog("adding rabbitmq stream ${h}:${p} -- queue: ${queue} | auth: ${user}/****",
+               ("h", host)("p", port)("queue", queue_name)("user", user));
+            rabbitmq rmq{ host, port, user, password, queue_name };
+            my->streams.emplace_back(std::make_unique<rabbitmq>(rmq));
          }
       }
    }

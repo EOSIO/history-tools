@@ -18,4 +18,6 @@ class streamer_plugin : public appbase::plugin<streamer_plugin> {
 
  private:
    std::shared_ptr<struct streamer_plugin_impl> my;
+
+   void initialize_rabbits(const std::vector<std::string>& rabbits);
 };

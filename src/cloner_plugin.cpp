@@ -159,10 +159,7 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       // todo: remove
       if (filter && streamer)
          filter->process(*rodeos_snapshot, result, bin,
-                         [this](const char* data, uint64_t data_size) { streamer->stream_data(data, data_size); });
-
-      // if (filter && streamer)
-      //    filter->process(*rodeos_snapshot, result, bin, streamer->stream_data);
+                         [&](const char* data, uint64_t data_size) { streamer->stream_data(data, data_size); });
 
       rodeos_snapshot->end_block(result, false);
       return true;

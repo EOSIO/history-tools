@@ -10,7 +10,7 @@ class rabbitmq : public stream_handler {
 
  public:
    rabbitmq(std::string host, int port, std::string user, std::string password, std::string name) {
-      name_    = name;
+      name_ = name;
       ilog("connecting AMQP...");
       channel_ = AmqpClient::Channel::Create(host, port, user, password);
       ilog("AMQP connected");
@@ -19,7 +19,7 @@ class rabbitmq : public stream_handler {
 
    void publish(const char* data, uint64_t data_size) {
       std::string message(data, data_size);
-      auto amqp_message = AmqpClient::BasicMessage::Create(message);
+      auto        amqp_message = AmqpClient::BasicMessage::Create(message);
       channel_->BasicPublish("", name_, amqp_message);
    }
 };

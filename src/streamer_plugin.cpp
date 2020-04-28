@@ -5,8 +5,8 @@
 #include "streams/rabbitmq.hpp"
 #include "streams/stream.hpp"
 
-#include <memory>
 #include <fc/exception/exception.hpp>
+#include <memory>
 
 using namespace appbase;
 using namespace std::literals;
@@ -44,7 +44,7 @@ void streamer_plugin::plugin_initialize(const variables_map& options) {
 
 void streamer_plugin::initialize_rabbits(const std::vector<std::string>& rabbits) {
    for (auto rabbit : rabbits) {
-      size_t pos        = rabbit.find_last_of("/");
+      size_t      pos        = rabbit.find_last_of("/");
       std::string queue_name = "stream.default";
       if (pos != std::string::npos) {
          queue_name = rabbit.substr(pos + 1, rabbit.length());
@@ -66,7 +66,7 @@ void streamer_plugin::initialize_rabbits(const std::vector<std::string>& rabbits
       int         port = std::stoi(rabbit.substr(pos + 1, rabbit.length()));
 
       ilog("adding rabbitmq stream ${h}:${p} -- queue: ${queue} | auth: ${user}/****",
-         ("h", host)("p", port)("queue", queue_name)("user", user));
+           ("h", host)("p", port)("queue", queue_name)("user", user));
       rabbitmq rmq{ host, port, user, password, queue_name };
       my->streams.emplace_back(std::make_unique<rabbitmq>(rmq));
    }

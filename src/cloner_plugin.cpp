@@ -62,11 +62,11 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
    std::shared_ptr<chain_kv::database>  db = app().find_plugin<rocksdb_plugin>()->get_db();
    std::shared_ptr<rodeos_db_partition> partition =
          std::make_shared<rodeos_db_partition>(db, std::vector<char>{}); // todo: prefix
-   std::optional<rodeos_db_snapshot>          rodeos_snapshot;
-   std::shared_ptr<ship_protocol::connection> connection;
-   bool                                       reported_block = false;
-   std::unique_ptr<rodeos_filter>             filter         = {};                                   // todo: remove
-   streamer_plugin*                           streamer       = app().find_plugin<streamer_plugin>(); // todo: add config
+   std::optional<rodeos_db_snapshot>                         rodeos_snapshot;
+   std::shared_ptr<ship_protocol::connection>                connection;
+   bool                                                      reported_block = false;
+   std::unique_ptr<rodeos_filter>                            filter         = {}; // todo: remove
+   std::optional<std::function<void(const char* data, uint64_t data_size)>> streamer = {};
 
    cloner_session(cloner_plugin_impl* my) : my(my), config(my->config) {
       // todo: remove
@@ -156,10 +156,10 @@ struct cloner_session : connection_callbacks, std::enable_shared_from_this<clone
       rodeos_snapshot->write_block_info(result);
       rodeos_snapshot->write_deltas(result, [] { return app().is_quiting(); });
 
-      // todo: remove
       if (filter && streamer)
-         filter->process(*rodeos_snapshot, result, bin,
-                         [&](const char* data, uint64_t data_size) { streamer->stream_data(data, data_size); });
+         filter->process(*rodeos_snapshot, result, bin, [&](const char* data, uint64_t data_size) {
+            (*streamer)(data, data_size);
+         });
 
       rodeos_snapshot->end_block(result, false);
       return true;
@@ -233,4 +233,9 @@ void cloner_plugin::plugin_shutdown() {
       my->session->connection->close(false);
    my->timer.cancel();
    ilog("cloner_plugin stopped");
+}
+
+void cloner_plugin::set_streamer(std::function<void(const char* data, uint64_t data_size)> streamer_func) {
+   if (my->session)
+      my->session->streamer = streamer_func;
 }

@@ -2,10 +2,11 @@
 
 #pragma once
 #include <appbase/application.hpp>
+#include "cloner_plugin.hpp"
 
 class streamer_plugin : public appbase::plugin<streamer_plugin> {
  public:
-   APPBASE_PLUGIN_REQUIRES()
+   APPBASE_PLUGIN_REQUIRES((cloner_plugin))
 
    streamer_plugin();
    virtual ~streamer_plugin();

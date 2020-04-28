@@ -72,7 +72,14 @@ void streamer_plugin::initialize_rabbits(const std::vector<std::string>& rabbits
    }
 }
 
-void streamer_plugin::plugin_startup() {}
+void streamer_plugin::plugin_startup() {
+   cloner_plugin* cloner = app().find_plugin<cloner_plugin>();
+   if (cloner) {
+      cloner->set_streamer([&](const char* data, uint64_t data_size) {
+         stream_data(data, data_size);
+      });
+   }
+}
 
 void streamer_plugin::plugin_shutdown() {}
 

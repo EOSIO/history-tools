@@ -385,10 +385,14 @@ struct table_delta_handler:table_builder{
     virtual std::vector<std::string> drop(){return std::vector<std::string>();}
     virtual std::vector<std::string> truncate(const state_history::block_position& pos){return std::vector<std::string>();}
     bool already_created = false;
-    bool enable_cache = true;  
+    bool enable_cache = false;  
     uint32_t block_num = 0;
     std::optional<std::vector<std::string>> m_primary_key;
     std::optional<std::vector<std::string>> m_column_names;
+
+    //for performence concern, we don't need to change database on every update before reach lib.
+    bool enable_bef_lib_cache = true;
+    std::map<std::string, std::string> m_cache_before_lib;
 
     enum update_type: uint8_t{
         insert = 0,
@@ -575,7 +579,13 @@ struct table_delta_handler:table_builder{
                 for(int i = 0;i<cols.size();i++){
                     in_query(cols[i],my_quoted(values[i]));
                 }
-                result.push_back(in_query.str());
+                if(enable_bef_lib_cache){
+                    std::string kstr;
+                    for(auto& k: keys)kstr+=name_to_value[k];
+                    m_cache_before_lib[kstr] = in_query.str();
+                }else{
+                    result.push_back(in_query.str());
+                }
 
             }else{
 
@@ -591,7 +601,15 @@ struct table_delta_handler:table_builder{
 
                 auto de_query = SQL::del();
                 de_query.from(name).where(condition.str());
-                result.push_back(de_query.str());
+
+                if(enable_bef_lib_cache){
+                    std::string kstr;
+                    for(auto& k: keys)kstr+=name_to_value[k];
+                    m_cache_before_lib.erase(kstr);
+                }else{
+                    result.push_back(de_query.str());
+                }
+
             }
             
         }
@@ -701,11 +719,6 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
     void handle(const state_history::block_position& pos, const state_history::block_position& lib_pos){
 
 
-        if(m_pipe.has_value()){
-            m_pipe.value().complete();
-            m_pipe.reset();
-        }
-
         /*
         use tablewrite to accelerate table building 
         when current receive block number is smaller than current lib number.
@@ -726,11 +739,28 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         }
 
         for(auto& handler: table_delta_handlers){
+            if(pos.block_num >= lib_pos.block_num && !handler->enable_cache){
+                handler->enable_cache = true;
+            }
+            
+            //clean up cache when reach lib;
+            if(pos.block_num >= lib_pos.block_num && handler->enable_bef_lib_cache){
+                for(auto& q: handler->m_cache_before_lib){
+                    m_pipe.value()(q.second);
+                }
+                handler->m_cache_before_lib.clear();
+                handler->enable_bef_lib_cache = false;
+            }
             handler->clean_cache(lib_pos.block_num);
         }
 
         m_current_lib = lib_pos;
 
+
+        if(m_pipe.has_value()){
+            m_pipe.value().complete();
+            m_pipe.reset();
+        }
 
         if(m_use_tablewriter){
             //only log per 1000 block
@@ -747,7 +777,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         for(auto& handler: table_delta_handlers){
 
             auto queries = handler->handle_delta(pos,delta);
-            
+
             if(!handler->creation_queries.empty()){
                 for(auto q: handler->creation_queries){
                     m_pipe.value()(q);

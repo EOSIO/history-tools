@@ -1,3 +1,15 @@
+# Branch obsolete
+
+* `rodeos`: moved to https://github.com/EOSIO/eos/pull/9018
+  * formally known as `combo-rocksdb`/`fill-rocksdb`/`wasm-ql-rocksdb`
+* `wasm-ql`:
+  * rodeos support: https://github.com/EOSIO/eos/pull/9018
+  * nodeos support: https://github.com/EOSIO/eos/tree/develop
+  * cdt support: https://github.com/EOSIO/eosio.cdt/tree/eosio-cdt-2.1-staging-c
+* `abi-wasm`:
+  * cdt support: https://github.com/EOSIO/eosio.cdt/tree/eosio-cdt-2.1-staging-c
+  * eosjs support: https://github.com/EOSIO/eosjs/tree/wasmAbi
+
 # EOSIO History Tools ![EOSIO Alpha](https://img.shields.io/badge/EOSIO-Alpha-blue.svg)
 
 [![Software License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](./LICENSE)

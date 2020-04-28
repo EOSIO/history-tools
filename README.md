@@ -1,7 +1,7 @@
 # Branch obsolete
 
 * `rodeos`: moved to https://github.com/EOSIO/eos/pull/9018
-  * formally known as `combo-rocksdb`/`fill-rocksdb`/`wasm-ql-rocksdb`
+  * formerly known as `combo-rocksdb`/`fill-rocksdb`/`wasm-ql-rocksdb`
 * `wasm-ql`:
   * rodeos support: https://github.com/EOSIO/eos/pull/9018
   * nodeos support: https://github.com/EOSIO/eos/tree/develop

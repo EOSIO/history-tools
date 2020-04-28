@@ -24,10 +24,6 @@
 #   include "cloner_plugin.hpp"
 #endif
 
-#ifdef INCLUDE_STREAMER_PLUGIN
-#   include "streamer_plugin.hpp"
-#endif
-
 #ifdef INCLUDE_WASM_QL_PLUGIN
 #   include "wasm_ql_plugin.hpp"
 #endif

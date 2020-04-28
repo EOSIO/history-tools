@@ -31,6 +31,7 @@ void streamer_plugin::set_program_options(options_description& cli, options_desc
 void streamer_plugin::plugin_initialize(const variables_map& options) {
    try {
       if (options.at("stream-logger").as<bool>()) {
+         ilog("adding logger stream");
          my->streams.emplace_back(std::make_unique<logger>(logger{}));
       }
 

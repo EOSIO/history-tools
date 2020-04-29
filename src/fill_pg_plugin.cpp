@@ -520,9 +520,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             bulk = false;
         }
 
-		// if (config->remove_old_delta_row) {
-		// 	bulk = false;
-		// }
+		if (config->remove_old_delta_row) {
+			bulk = false;
+		}
 
         if (!bulk || large_deltas || !(result.this_block->block_num % 200))
             close_streams();
@@ -572,14 +572,14 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         pipeline.complete();
         t.commit();
         auto finish_time = boost::posix_time::microsec_clock::local_time();
-        std::cout << "benchmark:" << (finish_time-start_time).total_milliseconds() <<"," << result.this_block->block_num << "," << block.transactions.size() << std::endl;
+        // std::cout << "benchmark:" << (finish_time-start_time).total_milliseconds() <<"," << result.this_block->block_num << "," << block.transactions.size() << std::endl;
         if (large_deltas)
             close_streams();
         return true;
     } // receive_result()
 
     void write_stream(uint32_t block_num, pqxx::work& t, const std::string& name, const std::string& fields, const std::string& values) {
-        std::cout << "write with stream:" << block_num << std::endl;
+        // std::cout << "write with stream:" << block_num << std::endl;
         if (!first_bulk)
             first_bulk = block_num;
         auto& ts = table_streams[name+fields];
@@ -589,7 +589,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             boost::split(cols,fields,boost::is_any_of(","));
             ts = std::make_unique<table_stream>(config->dbstring,t.quote_name(config->schema) + "." + t.quote_name(name),cols);
         }
-        std::cout << name << ":" << values << std::endl;
+        // std::cout << name << ":" << values << std::endl;
         ts->writer.write_raw_line(values);
     }
 
@@ -729,7 +729,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     receive_block(uint32_t block_num, const checksum256& block_id, input_buffer bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline, signed_block &block) {
         bin_to_native(block, bin);
 
-        std::string fields = "block_num, block_id, timestamp, producer, confirmed, , transaction_count, transaction_mroot, action_mroot, "
+        std::string fields = "block_num, block_id, timestamp, producer, confirmed, previous, transaction_count, transaction_mroot, action_mroot, "
                              "schedule_version, new_producers_version"; // , new_producers";
         std::string values = sql_str(bulk, block_num) + sep(bulk) +                                 //
                              sql_str(bulk, block_id) + sep(bulk) +                                  //
@@ -780,7 +780,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 			auto& primary_keys = abi_table_keys[table_delta.name];
 
 
-            std::cout << "table delta name::" << table_delta.name << std::endl;
+            // std::cout << "table delta name::" << table_delta.name << std::endl;
             size_t num_processed = 0;
             for (auto& row : table_delta.rows) {
                 if (table_delta.rows.size() > 10000 && !(num_processed % 10000))
@@ -792,7 +792,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 std::string values = std::to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);
 				std::string delete_query;
                 for (auto& field : type.fields) {
-                    std::cout << "field:" << field.name << std::endl;
+                    // std::cout << "field:" << field.name << std::endl;
                     bool is_key_field = false;
 					if (config->remove_old_delta_row ) {
 						for (auto& key : primary_keys) {
@@ -806,8 +806,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 }
 				if (config->remove_old_delta_row && !bulk && delete_query.length()) {
 					delete_query = "delete from " + t.quote_name(config->schema) + "." + table_delta.name + " where " + delete_query;
-                    std::cout << delete_query << std::endl;
-                    std::cout << "the insert after:" << fields << "----" << values << std::endl;
+                    // std::cout << delete_query << std::endl;
+                    // std::cout << "the insert after:" << fields << "----" << values << std::endl;
 					pipeline.insert(std::move(delete_query));
                     // t.exec(delete_query);
 				}

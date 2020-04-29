@@ -7,7 +7,7 @@
 #include "cloner_plugin.hpp"
 
 struct stream_wrapper_v0 {
-   eosio::name route;
+   eosio::name       route;
    std::vector<char> data;
 };
 EOSIO_REFLECT(stream_wrapper_v0, route, data);

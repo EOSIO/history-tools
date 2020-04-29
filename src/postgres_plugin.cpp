@@ -77,30 +77,30 @@ struct transaction_trace_builder:table_builder{
     std::vector<std::string> create() override final {
         
         auto query = SQL::create("transaction_trace");
-        query("block_num",                  "bigint")
-             ("transaction_ordinal",        "integer")
-             ("failed_dtrx_trace",          "varchar(64)")
-             ("id",                         "varchar(64)")
-             ("status",                     "transaction_status_type")
-             ("cpu_usage_us",               "bigint")
-             ("net_usage_words",            "bigint")
-             ("elapsed",                    "bigint")
-             ("net_usage",                  "numeric")
-             ("scheduled",                  "boolean")
-             ("account_ram_delta_present",  "boolean")
-             ("account_ram_delta_account",  "varchar(13)")
-             ("account_ram_delta_delta",    "bigint")
-             ("exception",                  "varchar")
-             ("error_code",                 "numeric")
-             ("partial_present",            "boolean")
-             ("partial_expiration",         "timestamp")
-             ("partial_ref_block_num",      "integer")
-             ("partial_ref_block_prefix",   "bigint")
-             ("partial_max_net_usage_words","bigint")
-             ("partial_max_cpu_usage_ms",   "smallint")
-             ("partial_delay_sec",          "bigint")
-             ("partial_signatures",         "varchar")
-             ("partial_context_free_data",  "bytea")
+        query("block_num",                      "bigint")
+             ("transaction_ordinal",            "integer")
+             ("failed_dtrx_trace",              "varchar(64)")
+             ("id",                             "varchar(64)")
+             ("status",                         "transaction_status_type")
+             ("cpu_usage_us",                   "bigint")
+             ("net_usage_words",                "bigint")
+             ("elapsed",                        "bigint")
+             ("net_usage",                      "numeric")
+             ("scheduled",                      "boolean")
+             ("account_ram_delta_present",      "boolean")
+             ("account_ram_delta_account",      "varchar(13)")
+             ("account_ram_delta_delta",        "bigint")
+             ("exception",                      "varchar")
+             ("error_code",                     "numeric")
+             ("transaction_present",            "boolean")   //renamed from partial present
+             ("transaction_expiration",         "timestamp")
+             ("transaction_ref_block_num",      "integer")
+             ("transaction_ref_block_prefix",   "bigint")
+             ("transaction_max_net_usage_words","bigint")
+             ("transaction_max_cpu_usage_ms",   "smallint")
+             ("transaction_delay_sec",          "bigint")
+             ("transaction_signatures",         "varchar")   //renamed from partial_signatures 
+             ("transaction_context_free_data",  "bytea")
              .primary_key("block_num, transaction_ordinal");
 
         std::vector<std::string> ret{query.str()};
@@ -152,8 +152,41 @@ struct transaction_trace_builder:table_builder{
             ("net_usage_words", std::string(trace_v0.net_usage_words))
             ("elapsed", std::to_string(trace_v0.elapsed))
             ("net_usage", std::to_string(trace_v0.net_usage))
-            ("scheduled", (trace_v0.scheduled?"true":"false"))
-            .into("transaction_trace");
+            ("scheduled", (trace_v0.scheduled?"true":"false"));
+
+        if(trace_v0.account_ram_delta.has_value()){
+            query("account_ram_delta_present","true")
+                 ("account_ram_delta_account",pg_quoted(std::string(trace_v0.account_ram_delta.value().account)))
+                 ("account_ram_delta_delta",pg_quoted(std::to_string(trace_v0.account_ram_delta.value().delta)));
+        }else{
+            query("account_ram_delta_present","false");
+        }
+
+        if(trace_v0.partial.has_value()){
+            state_history::partial_transaction_v0 pv0 = std::get<state_history::partial_transaction_v0>(trace_v0.partial.value());
+            query("transaction_present","true")
+                ("transaction_expiration",         pg_quoted(std::string(pv0.expiration)))
+                ("transaction_ref_block_num",      pg_quoted(std::to_string(pv0.ref_block_num)))
+                ("transaction_ref_block_prefix",   pg_quoted(std::to_string(pv0.ref_block_prefix)))
+                ("transaction_max_net_usage_words",pg_quoted(std::to_string(pv0.max_net_usage_words.value)))
+                ("transaction_max_cpu_usage_ms",   pg_quoted(std::to_string(pv0.max_cpu_usage_ms)))
+                ("transaction_delay_sec",          pg_quoted(std::to_string(pv0.delay_sec.value)))
+                ("transaction_signatures",         pg_quoted([&]()->std::string{
+                                                                std::stringstream ss;
+                                                                int counter = 0;
+                                                                for(auto& s:pv0.signatures){
+                                                                    std::string sstr,error;
+                                                                    if(!abieos::signature_to_string(sstr,error,s))continue;
+                                                                    if(0 != counter++)ss << ";";
+                                                                    ss<<sstr;
+                                                                }
+                                                                return ss.str();
+                                                            }()));
+        }else{
+            query("transaction_present","false");
+        }
+
+        query.into("transaction_trace");
         return query;
     }
 
@@ -182,20 +215,27 @@ struct action_trace_builder: table_builder{
              ("action_oridinal",        "bigint")
              ("creator_action_oridnal", "bigint")
              ("receipt_present",        "boolean")
-             ("receipt_receiver",       "varchar(13)")
-             ("receipt_act_digesst",    "varchar(64)")
+             ("receipt_act_digest",    "varchar(64)")
              ("receipt_global_sequence","numeric")
              ("receipt_recv_sequence",  "numeric")
-             ("receipt_code_sequence",  "bigint")
-             ("receipt_abi_sequence",   "bigint")
+             ("receiver",               "varchar(13)")
              ("act_account",            "varchar(13)")
              ("act_name",               "varchar(13)")
-             ("act_data",               "varchar(13)")
              ("context_free",           "boolean")
-             ("elapsed",                "bigint")
              ("error_code",             "numeric")
              ("action_ordinal",         "varchar")
              .primary_key("block_num, transaction_id, action_ordinal");
+
+        /**
+             based on desscussion in blockchain team, remove following fields.
+             ("receipt_receiver",       "varchar(13)")
+             ("receipt_code_sequence",  "bigint")
+             ("receipt_abi_sequence",   "bigint")
+             ("act_data",               "varchar(13)") //this is binary... useless
+             ("elapsed",                "bigint")
+             ("console",                "varchar")
+             ("except",                 "varchar")
+         */
         
         queries.push_back(query.str());
         return queries;
@@ -222,7 +262,28 @@ struct action_trace_builder: table_builder{
              ("transaction_id",pg_quoted(std::string(trace_v0.id)))
              ("transaction_status",pg_quoted(state_history::to_string(trace_v0.status)))
              ("action_ordinal",pg_quoted(std::to_string(atrace.action_ordinal.value)))
-             .into("action_trace");
+             ("creator_action_oridnal",pg_quoted(std::to_string(atrace.creator_action_ordinal.value)))
+             ("receiver",pg_quoted(std::string(atrace.receiver)))
+             ("act_account",pg_quoted(std::string(atrace.act.account)))
+             ("act_name",pg_quoted(std::string(atrace.act.name)))
+             ("context_free", pg_quoted((atrace.context_free ? "true":"false")));
+
+        if(atrace.error_code.has_value()){
+             query("error_code", pg_quoted(std::to_string(atrace.error_code.value())));
+
+        }
+
+        if(atrace.receipt.has_value()){
+            state_history::action_receipt_v0 rcp = std::get<state_history::action_receipt_v0>(atrace.receipt.value());
+             query("receipt_present",pg_quoted("true"))
+                  ("receipt_act_digest",pg_quoted(std::string(rcp.act_digest)))
+                  ("receipt_global_sequence",pg_quoted(std::to_string(rcp.global_sequence)))
+                  ("receipt_recv_sequence",pg_quoted(std::to_string(rcp.recv_sequence)));
+        }else{
+            query("receipt_present",pg_quoted("false"));
+        }
+        
+        query.into("action_trace");
 
         if(atrace.act.authorization.size()){
             query("actor",pg_quoted(std::string(atrace.act.authorization[0].actor)))

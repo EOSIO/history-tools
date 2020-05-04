@@ -8,6 +8,7 @@
 #include "flat_serializer.hpp"
 #include <tuple>
 #include <deque>
+#include <fc/crypto/public_key.hpp>
 
 namespace bpo       = boost::program_options;
 
@@ -551,6 +552,19 @@ struct table_delta_handler:table_builder{
         }
     }
 
+
+    inline std::string public_key_to_string_EOS(const std::string& keystr) {
+        abieos::public_key pkey;
+        std::string error;
+        if(!abieos::string_to_public_key(pkey,error,keystr))return keystr;
+        std::string key_str = abieos::public_key_to_string(pkey);
+        if (pkey.type == abieos::key_type::k1) {
+            fc::crypto::public_key key(key_str);
+            return std::string(key);
+        }
+        return key_str;
+    }
+
     
     std::string dynamic_create(std::vector<std::string> cols, const std::vector<std::string>& coltypes,std::vector<std::string> primary_key){
 
@@ -585,6 +599,22 @@ struct table_delta_handler:table_builder{
         return tmp;
     }
 
+
+    //specify some preprocess of delta table row json.
+    void pre_process(fc::variant& jdata){
+        if(name != "permission")return;
+        //this is the hack for permission table, we want public key in database to be stored with eos format.
+        auto& auth = jdata.get_array()[1].get_object()["auth"].get_object();
+        auto& keys = auth["keys"].get_array();
+        for(int i = 0;i<keys.size();i++){
+            auto k = keys[i].get_object()["key"];
+            fc::variant& var = const_cast<fc::variant&>(keys[i].get_object()["key"]);
+            var = public_key_to_string_EOS(k.as_string());
+        }
+
+
+    }
+
     std::vector<std::string> handle_delta(const state_history::block_position& pos, const state_history::table_delta_v0& delta){
         block_num = pos.block_num;
 
@@ -609,6 +639,9 @@ struct table_delta_handler:table_builder{
                 elog("error when serilizing data.");
             }
             fc::variant jdata = fc::json::from_string(json_row);
+
+            pre_process(jdata);
+
             auto& arr = jdata.get_array();
             auto& data_arr = arr[1].get_object();
 

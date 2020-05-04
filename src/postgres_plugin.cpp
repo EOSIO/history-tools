@@ -552,15 +552,16 @@ struct table_delta_handler:table_builder{
     }
 
     
-    std::string dynamic_create(std::vector<std::string> cols, std::vector<std::string> primary_key){
+    std::string dynamic_create(std::vector<std::string> cols, const std::vector<std::string>& coltypes,std::vector<std::string> primary_key){
 
         if(!m_primary_key.has_value())m_primary_key.emplace(primary_key);
         if(!m_column_names.has_value())m_column_names.emplace(cols);
 
         auto query = SQL::create(name);
-        for(auto c: cols){
-            query(c, "varchar");
+        for(int i = 0;i<cols.size();i++){
+            query(cols[i], coltypes[i]);
         }
+
         std::stringstream ss;
         for(int i = 0;i<primary_key.size();i++){
             if(i != 0)ss << ",";
@@ -612,18 +613,27 @@ struct table_delta_handler:table_builder{
             auto& data_arr = arr[1].get_object();
 
             std::vector<std::string> cols;
+            std::vector<std::string> coltypes;
             std::vector<std::string> values;
             std::map<std::string, std::string> name_to_value;
             for( auto itr = data_arr.begin(); itr != data_arr.end(); ++itr ){
                 cols.push_back(itr->key());
-
+                if(itr->value().is_object() || itr->value().is_array()){
+                    coltypes.push_back("jsonb");
+                }
+                else if(itr->value().is_numeric()){
+                    coltypes.push_back("numeric");
+                }
+                else{
+                    coltypes.push_back("varchar");
+                }
                 values.push_back(fc::json::to_string(itr->value()));
                 name_to_value.insert(std::make_pair(cols.back(),values.back()));
             }
 
             if(!already_created){
                 creation_queries.push_back("DROP TABLE IF EXISTS " + name);
-                creation_queries.push_back( dynamic_create(cols,keys));
+                creation_queries.push_back( dynamic_create(cols,coltypes,keys));
                 already_created = true;
             }
 

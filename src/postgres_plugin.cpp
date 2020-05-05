@@ -102,7 +102,11 @@ struct transaction_trace_builder:table_builder{
              ("transaction_delay_sec",          "bigint")
              ("transaction_signatures",         "varchar")   //renamed from partial_signatures 
              ("transaction_context_free_data",  "bytea")
-             .primary_key("block_num, transaction_ordinal");
+             .primary_key("block_num, id");
+
+        // * fields required by Baas web team.
+        query("actor", "varchar(13)")
+             ("permission", "varchar");
 
         std::vector<std::string> ret{query.str()};
         return ret;
@@ -162,6 +166,15 @@ struct transaction_trace_builder:table_builder{
         }else{
             query("account_ram_delta_present","false");
         }
+
+
+        //* fields required by baas web team
+        //? I feel this is more related with action, does it make sense to put into action trace ? 
+        if (atrace.act.authorization.size()) {
+            query("actor", pg_quoted(std::string(atrace.act.authorization[0].actor)))
+                 ("permission", pg_quoted(std::string(atrace.act.authorization[0].permission)));
+        }
+
 
         if(trace_v0.partial.has_value()){
             state_history::partial_transaction_v0 pv0 = std::get<state_history::partial_transaction_v0>(trace_v0.partial.value());
@@ -359,8 +372,6 @@ struct block_info_builder: table_builder{
 
 };
 
-
-
 struct abi_data_handler:table_builder{
 
     const ABI::action_def abi;
@@ -372,7 +383,7 @@ struct abi_data_handler:table_builder{
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
         state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
 
-        //if this action is not our target, return.
+        //* if this action is not our target, return.
         if (atrace.act.name != abieos::name(abi.name.c_str()) || atrace.act.account != abieos::name(abi.contract.c_str()))return SQL::insert();
 
         auto query = SQL::insert("block_num",std::to_string(pos.block_num))

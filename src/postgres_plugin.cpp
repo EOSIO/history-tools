@@ -216,6 +216,9 @@ struct action_trace_builder: table_builder{
         name = "action_trace";
     }
 
+    uint64_t m_sequence = 0;
+    std::map< uint32_t, uint64_t> blocknum_lastseq;
+
     std::vector<std::string> create() override final {
         std::vector<std::string> queries;
 
@@ -238,6 +241,7 @@ struct action_trace_builder: table_builder{
              ("context_free",           "boolean")
              ("error_code",             "numeric")
              ("action_ordinal",         "varchar")
+             ("sequence",               "numeric")
              .primary_key("block_num, transaction_id, action_ordinal");
 
         /**
@@ -264,13 +268,22 @@ struct action_trace_builder: table_builder{
     std::vector<std::string> truncate(const state_history::block_position& pos) override final {
         std::vector<std::string> queries;
         queries.push_back( SQL::del().from("action_trace").where("block_num >= " + std::to_string(pos.block_num)).str());
+        
+        m_sequence = blocknum_lastseq[pos.block_num-1];
+
         return queries;
+    }
+
+    void endofblock(const state_history::block_position& pos, const state_history::block_position& lib_pos) override final {
+        auto it = blocknum_lastseq.find(lib_pos.block_num -2);
+        if( it != blocknum_lastseq.end()) blocknum_lastseq.erase(it);
     }
 
     SQL::insert handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
         state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
-        
+        m_sequence++;
+
         auto query = SQL::insert("block_num",std::to_string(pos.block_num))
              ("timestamp",pg_quoted(std::string(sig_block.timestamp)))
              ("transaction_id",pg_quoted(std::string(trace_v0.id)))
@@ -280,7 +293,10 @@ struct action_trace_builder: table_builder{
              ("receiver",pg_quoted(std::string(atrace.receiver)))
              ("act_account",pg_quoted(std::string(atrace.act.account)))
              ("act_name",pg_quoted(std::string(atrace.act.name)))
-             ("context_free", pg_quoted((atrace.context_free ? "true":"false")));
+             ("context_free", pg_quoted((atrace.context_free ? "true":"false")))
+             ("sequence", pg_quoted(std::to_string(m_sequence)));
+        
+        blocknum_lastseq[pos.block_num] = m_sequence;
 
         if(atrace.error_code.has_value()){
              query("error_code", pg_quoted(std::to_string(atrace.error_code.value())));
@@ -852,6 +868,12 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             m_use_tablewriter = false;
             g__pg_quoted_enable = true;
         }
+
+
+        for(auto& handler: table_builders){
+            handler->endofblock(pos,lib_pos);
+        }
+
 
         for(auto& handler: table_delta_handlers){
             if(pos.block_num >= lib_pos.block_num && !handler->enable_cache){

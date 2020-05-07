@@ -18,6 +18,8 @@ struct table_builder{
     virtual std::vector<std::string> create(){return std::vector<std::string>();}
     virtual std::vector<std::string> drop(){return std::vector<std::string>();}
     virtual std::vector<std::string> truncate(const state_history::block_position& pos){return std::vector<std::string>();}
+    virtual void endofblock(const state_history::block_position& pos, const state_history::block_position& lib_pos){};
+
     virtual ~table_builder(){}
 };
 

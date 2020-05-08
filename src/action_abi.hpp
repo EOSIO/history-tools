@@ -36,17 +36,17 @@ struct field_def {
 struct action_def{
 
    action_def() = default;
-   action_def(const type_name& name, const type_name& base, const type_name& contract, const vector<field_def>& fields)
-   :name(name), base(base), fields(fields)
+   action_def(const type_name& name, const type_name& receiver, const type_name& contract, const vector<field_def>& fields)
+   :name(name), receiver(receiver), fields(fields)
    {}
 
    type_name            name;
-   type_name            base;
+   type_name            receiver;
    type_name            contract;
    vector<field_def>    fields;
 
    bool operator==(const action_def& other) const {
-      return std::tie(name, base, contract, fields) == std::tie(other.name, other.base, other.contract, other.fields);
+      return std::tie(name, receiver, contract, fields) == std::tie(other.name, other.receiver, other.contract, other.fields);
    }
 
 };
@@ -55,7 +55,7 @@ struct action_def{
 }
 
 FC_REFLECT( ABI::field_def, (name)(type) )
-FC_REFLECT( ABI::action_def, (name)(base)(contract)(fields) )
+FC_REFLECT( ABI::action_def, (name)(receiver)(contract)(fields) )
 
 
 void from_variant( const fc::variant& var,  ABI::field_def& vo ){
@@ -66,7 +66,7 @@ void from_variant( const fc::variant& var,  ABI::field_def& vo ){
 
 void from_variant( const fc::variant& var,  ABI::action_def& vo ){
     vo.contract = var["contract"].as<std::string>();
-    vo.base = var["base"].as<std::string>();
+    vo.receiver = var["receiver"].as<std::string>();
     vo.name = var["name"].as<std::string>();
 
     auto& vars = var["fields"].get_array();
@@ -81,7 +81,7 @@ void from_variant( const fc::variant& var,  ABI::action_def& vo ){
 * Given a path (absolute or relative) to a file that contains a JSON-encoded ABI, return the parsed ABI
 *
 * @param file_name - a path to the ABI
-* @param data_dir - the base path for relative file_name values
+* @param data_dir - the receiver path for relative file_name values
 * @return the ABI implied
 * @throws json_parse_exception if the JSON is malformed
 */

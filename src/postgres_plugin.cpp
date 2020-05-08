@@ -400,14 +400,19 @@ struct abi_data_handler:table_builder{
     const ABI::action_def abi;
 
 
-    abi_data_handler(const std::string& _name, ABI::action_def& _abi):abi(_abi){name = _name;}
+    abi_data_handler(const std::string& _name, ABI::action_def& _abi):abi(_abi){
+        name = _name;
+        ilog("add action table, condition [name/contract/receiver]:${name}/${account}/${receiver}.", ("name",abi.name)("account",abi.contract)("receiver",abi.receiver));
+    }
 
     SQL::insert handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
         state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
 
         //* if this action is not our target, return.
-        if (atrace.act.name != abieos::name(abi.name.c_str()) || atrace.act.account != abieos::name(abi.contract.c_str()))return SQL::insert();
+        if (atrace.act.name != abieos::name(abi.name.c_str()) || 
+            atrace.act.account != abieos::name(abi.contract.c_str()) ||
+            atrace.receiver != abieos::name(abi.receiver.c_str()))return SQL::insert();
 
         auto query = SQL::insert("block_num",std::to_string(pos.block_num))
             ("timestamp",pg_quoted(std::string(sig_block.timestamp)))

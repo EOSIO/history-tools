@@ -217,6 +217,7 @@ struct action_trace_builder: table_builder{
     }
 
     uint64_t m_sequence = 0;
+    bool m_drop_empty_block = false;
     std::map< uint32_t, uint64_t> blocknum_lastseq;
 
     std::vector<std::string> create() override final {
@@ -281,7 +282,13 @@ struct action_trace_builder: table_builder{
 
     SQL::insert handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
-        state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
+        state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);        
+        
+        //* drop empty block, if option is setted. 
+        if(m_drop_empty_block && atrace.act.name == abieos::name("onblock")){
+            return SQL::insert();
+        }
+
         m_sequence++;
 
         auto query = SQL::insert("block_num",std::to_string(pos.block_num))
@@ -1043,6 +1050,18 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         table_builders.push_back(std::make_unique<action_trace_builder>());
         table_builders.push_back(std::make_unique<block_info_builder>());
         table_builders.push_back(std::make_unique<transaction_trace_builder>());
+
+
+
+        if(options.count("action-trace-drop-empty-block")){
+          for(auto& tbb: table_builders){
+              if(tbb->name == "action_trace"){
+                    action_trace_builder& builder = *(dynamic_cast<action_trace_builder*>(tbb.get()));
+                    builder.m_drop_empty_block = true;
+                    ilog("set drop empty block.");
+              }
+          }
+        }
     }
 
 
@@ -1104,6 +1123,20 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         }else{
             auto block_num = get_last_block_num();
             appbase::app().find_plugin<state_history_plugin>()->set_initial_block_num(block_num+1);
+
+
+            for(auto it = table_builders.rbegin();table_builders.rend() != it;it++){
+
+                // * this is for init the sequence of action trace table.
+                if((*it)->name == "action_trace"){
+                    std::cout << "trying to init table builder" << std::endl;
+                    action_trace_builder& builder = *(dynamic_cast<action_trace_builder*>(it->get()));
+                    pqxx::work w(conn.value());
+                    pqxx::row row = w.exec1("select sequence from action_trace order by sequence desc limit 1");
+                    uint64_t last_sequence = row[0].as<uint64_t>();
+                    builder.m_sequence = last_sequence;
+                }
+            }
         }
 
     }
@@ -1152,6 +1185,7 @@ void postgres_plugin::set_program_options(appbase::options_description& cli, app
     );
 
     op("system-table", bpo::value<std::vector<std::string>>()->composing(),"System state tables.");
+    op("action-trace-drop-empty-block", "all onblock action will be dropped from action_trace.");
 }
 
 

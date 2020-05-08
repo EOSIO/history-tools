@@ -102,6 +102,7 @@ struct transaction_trace_builder:table_builder{
              ("transaction_delay_sec",          "bigint")
              ("transaction_signatures",         "varchar")   //renamed from partial_signatures 
              ("transaction_context_free_data",  "bytea")
+             ("number_of_actions",              "numeric")
              .primary_key("block_num, id");
 
         // * fields required by Baas web team.
@@ -151,7 +152,8 @@ struct transaction_trace_builder:table_builder{
             ("net_usage_words", std::string(trace_v0.net_usage_words))
             ("elapsed", std::to_string(trace_v0.elapsed))
             ("net_usage", std::to_string(trace_v0.net_usage))
-            ("scheduled", (trace_v0.scheduled?"true":"false"));
+            ("scheduled", (trace_v0.scheduled?"true":"false"))
+            ("number_of_actions", std::to_string(trace_v0.action_traces.size()));
 
         if(!trace_v0.failed_dtrx_trace.empty()){
             auto r = std::get<state_history::transaction_trace_v0>(trace_v0.failed_dtrx_trace.front().recurse);

@@ -14,7 +14,7 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
     std::optional<std::string> port;
     abieos::abi_def     m_abi = {};
     std::map<std::string, abieos::abi_type>     m_abi_types = {};
-    
+    bool m_irrversible_only = false;
 
     std::optional<uint32_t> trace_begin_block;
     std::optional<uint32_t> state_begin_block;
@@ -41,13 +41,13 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
     }
 
 
-    void request_blocks(uint32_t start_block_num) {
+    void request_blocks(uint32_t start_block_num, bool irrversible_only = false) {
         state_history::get_blocks_request_v0 req;
         req.start_block_num        = start_block_num;
         req.end_block_num          = 0xffff'ffff;
         req.max_messages_in_flight = 0xffff'ffff;
         req.have_positions         = {};
-        req.irreversible_only      = false;
+        req.irreversible_only      = irrversible_only;
         req.fetch_block            = true;
         req.fetch_traces           = true;
         req.fetch_deltas           = true;
@@ -84,7 +84,7 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
                 request_start_block = initial_block_num.value();
             }
         }
-        request_blocks(request_start_block);
+        request_blocks(request_start_block,m_irrversible_only);
         return true;
     }
 
@@ -99,7 +99,12 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
 
 
     void set_initial_block_num(uint32_t block_num){
+        if(!initial_block_num.has_value())return;
         initial_block_num.emplace(block_num);
+    }
+
+    void irrversible_only(){
+        m_irrversible_only = true;
     }
 
 };
@@ -116,6 +121,8 @@ void state_history_plugin::set_program_options(appbase::options_description& cli
     auto op = cfg.add_options();
     op("state_history_host", appbase::bpo::value<std::string>()->default_value("127.0.0.1"), "State History Plugin server");
     op("state_history_port", appbase::bpo::value<std::string>()->default_value("8080"), "State History Plugin port");
+    op("start_block_number", "manual start block number");
+    op("irrversible-only","irrversible only mode.");
     ilog("state history plugin set option.");
 }
 
@@ -124,6 +131,16 @@ void state_history_plugin::plugin_initialize(const appbase::variables_map& optio
     std::string host = options["state_history_host"].as<std::string>();
     std::string port = options["state_history_port"].as<std::string>();
     my->set(host,port);
+    
+    if(options.count("start_block_number")){
+        uint64_t number = options["start_block_number"].as<uint64_t>();
+        my->set_initial_block_num(number);
+    }
+
+    if(options.count("irrversible-only")){
+        my->irrversible_only();
+    }
+
     ilog("state history plugin init.");
 }
 void state_history_plugin::plugin_startup() {

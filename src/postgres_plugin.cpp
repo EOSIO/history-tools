@@ -145,12 +145,6 @@ struct transaction_trace_builder:table_builder{
 
         auto query = SQL::insert("block_num",std::to_string(pos.block_num))
             ("transaction_ordinal", std::to_string(transaction_ordinal))
-            ("failed_dtrx_trace",    [&]{   if(!trace_v0.failed_dtrx_trace.empty()){
-                                                auto r = std::get<state_history::transaction_trace_v0>(trace_v0.failed_dtrx_trace.front().recurse);
-                                                return pg_quoted(std::string(r.id));
-                                            }else{
-                                                return pg_quoted(std::string());
-                                            }}())
             ("id",  pg_quoted(std::string(trace_v0.id)))
             ("status",pg_quoted(state_history::to_string(trace_v0.status)))
             ("cpu_usage_us", std::to_string(trace_v0.cpu_usage_us))
@@ -158,6 +152,11 @@ struct transaction_trace_builder:table_builder{
             ("elapsed", std::to_string(trace_v0.elapsed))
             ("net_usage", std::to_string(trace_v0.net_usage))
             ("scheduled", (trace_v0.scheduled?"true":"false"));
+
+        if(!trace_v0.failed_dtrx_trace.empty()){
+            auto r = std::get<state_history::transaction_trace_v0>(trace_v0.failed_dtrx_trace.front().recurse);
+            query("failed_dtrx_trace", pg_quoted(std::string(r.id)));
+        }
 
         if(trace_v0.account_ram_delta.has_value()){
             query("account_ram_delta_present","true")
@@ -216,9 +215,11 @@ struct action_trace_builder: table_builder{
         name = "action_trace";
     }
 
-    uint64_t m_sequence = 0;
+    uint64_t m_sequence = 1;
     bool m_drop_empty_block = false;
-    std::map< uint32_t, uint64_t> blocknum_lastseq;
+    bool m_keep_sub_actions = false;
+    std::deque< std::pair<uint32_t, uint64_t>> blocknum_lastseq;
+    uint64_t m_current_block = 0;
 
     std::vector<std::string> create() override final {
         std::vector<std::string> queries;
@@ -243,7 +244,7 @@ struct action_trace_builder: table_builder{
              ("error_code",             "numeric")
              ("action_ordinal",         "varchar")
              ("sequence",               "numeric")
-             .primary_key("block_num, transaction_id, action_ordinal");
+             .primary_key("block_num, transaction_id, action_ordinal, sequence");
 
         /**
              based on desscussion in blockchain team, remove following fields.
@@ -255,41 +256,69 @@ struct action_trace_builder: table_builder{
              ("console",                "varchar")
              ("except",                 "varchar")
          */
-        
         queries.push_back(query.str());
+        queries.push_back("create sequence action_trace_sequence start with 1");
+
         return queries;
     }
 
     std::vector<std::string> drop() override final {
         std::vector<std::string> queries;
         queries.push_back("DROP TABLE IF EXISTS action_trace");
+        queries.push_back("DROP sequence if exists action_trace_sequence");
         return queries;
     }
 
     std::vector<std::string> truncate(const state_history::block_position& pos) override final {
+        ilog("truncate table to block number: ${num}",("num",pos.block_num));
         std::vector<std::string> queries;
         queries.push_back( SQL::del().from("action_trace").where("block_num >= " + std::to_string(pos.block_num)).str());
         
-        m_sequence = blocknum_lastseq[pos.block_num-1];
+        //when truncate flush sequence to database incase we need to restarts
+        if(m_current_block >= pos.block_num){
+            for(auto& pa: blocknum_lastseq){
+                if(pa.first == pos.block_num-1){
+                    m_sequence = pa.second;
+                }
+            }
+        }
+
+        while(!blocknum_lastseq.empty() && blocknum_lastseq.back().first > pos.block_num-1){
+            blocknum_lastseq.pop_back();
+        }
+
+        queries.push_back("select setval('action_trace_sequence'," + std::to_string(m_sequence) + ")");
 
         return queries;
     }
 
     void endofblock(const state_history::block_position& pos, const state_history::block_position& lib_pos) override final {
-        auto it = blocknum_lastseq.find(lib_pos.block_num -2);
-        if( it != blocknum_lastseq.end()) blocknum_lastseq.erase(it);
+        
+        if(pos.block_num > lib_pos.block_num){
+            if(blocknum_lastseq.empty() || blocknum_lastseq.size() < pos.block_num - blocknum_lastseq.front().first){
+                blocknum_lastseq.push_back(std::make_pair(pos.block_num,m_sequence));
+            }else{
+                blocknum_lastseq.back().second = m_sequence;
+            }
+        }
+
+        while(!blocknum_lastseq.empty() && blocknum_lastseq.front().first < lib_pos.block_num-1){
+            blocknum_lastseq.pop_front();
+        }
     }
 
     SQL::insert handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace) override final{
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
         state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);        
-        
+        m_current_block = pos.block_num;
         //* drop empty block, if option is setted. 
         if(m_drop_empty_block && atrace.act.name == abieos::name("onblock")){
             return SQL::insert();
         }
 
-        m_sequence++;
+        if(!m_keep_sub_actions && atrace.creator_action_ordinal.value != 0){
+            return SQL::insert();
+        }
 
         auto query = SQL::insert("block_num",std::to_string(pos.block_num))
              ("timestamp",pg_quoted(std::string(sig_block.timestamp)))
@@ -301,9 +330,9 @@ struct action_trace_builder: table_builder{
              ("act_account",pg_quoted(std::string(atrace.act.account)))
              ("act_name",pg_quoted(std::string(atrace.act.name)))
              ("context_free", pg_quoted((atrace.context_free ? "true":"false")))
-             ("sequence", pg_quoted(std::to_string(m_sequence)));
+             ("sequence", pg_quoted(std::to_string(++m_sequence)));
         
-        blocknum_lastseq[pos.block_num] = m_sequence;
+
 
         if(atrace.error_code.has_value()){
              query("error_code", pg_quoted(std::to_string(atrace.error_code.value())));
@@ -809,6 +838,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
                 }
             }catch(...){
                 elog("exception when handle update on table ${table}.",("table",tb->get_name()));
+                appbase::app().quit();
             }
         }
 
@@ -1063,10 +1093,22 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
               if(tbb->name == "action_trace"){
                     action_trace_builder& builder = *(dynamic_cast<action_trace_builder*>(tbb.get()));
                     builder.m_drop_empty_block = true;
-                    ilog("set drop empty block.");
+                    ilog("[action trace]::set drop empty block.");
               }
           }
         }
+
+        if(options.count("action-trace-keep-sub-actions")){
+          for(auto& tbb: table_builders){
+              if(tbb->name == "action_trace"){
+                    action_trace_builder& builder = *(dynamic_cast<action_trace_builder*>(tbb.get()));
+                    builder.m_keep_sub_actions = true;
+                    ilog("[action trace]::set keep sub actions.");
+              }
+          }
+        }
+
+        
     }
 
 
@@ -1137,8 +1179,10 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
                     std::cout << "trying to init table builder" << std::endl;
                     action_trace_builder& builder = *(dynamic_cast<action_trace_builder*>(it->get()));
                     pqxx::work w(conn.value());
-                    pqxx::row row = w.exec1("select sequence from action_trace order by sequence desc limit 1");
+                    pqxx::row row = w.exec1("select nextval('action_trace_sequence')");
+
                     uint64_t last_sequence = row[0].as<uint64_t>();
+                    std::cout << last_sequence << std::endl;
                     builder.m_sequence = last_sequence;
                 }
             }
@@ -1191,6 +1235,7 @@ void postgres_plugin::set_program_options(appbase::options_description& cli, app
 
     op("system-table", bpo::value<std::vector<std::string>>()->composing(),"System state tables.");
     op("action-trace-drop-empty-block", "all onblock action will be dropped from action_trace.");
+    op("action-trace-keep-sub-actions", "action with creator creator_action_oridnal not 0 will also be include.");
 }
 
 

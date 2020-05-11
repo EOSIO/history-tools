@@ -12,6 +12,11 @@ namespace bsg = boost::signals2;
 
 struct table_builder{
     std::string name;
+    std::optional<std::string> schema;
+    
+    void set_schema(const std::string& schema_str){
+      schema.emplace(schema_str);
+    }
 
     const std::string& get_name(){return name;}
     virtual SQL::insert handle(const state_history::block_position& pos,const state_history::signed_block& sig_block, const state_history::transaction_trace& trace, const state_history::action_trace& action_trace){return SQL::insert();}

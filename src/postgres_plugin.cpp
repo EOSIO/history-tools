@@ -45,7 +45,12 @@ struct type_builder:table_builder{
     std::vector<std::string> create() override final{
         std::vector<std::string> queries;
 
-        auto q = SQL::enum_type("transaction_status_type");
+        std::string type_name = "transaction_status_type";
+        if(schema.has_value()){
+            type_name = schema.value() + "." + type_name;
+        }
+
+        auto q = SQL::enum_type(type_name);
            q("executed"_pg_quoted)
             ("soft_fail"_pg_quoted)
             ("hard_fail"_pg_quoted)
@@ -57,9 +62,12 @@ struct type_builder:table_builder{
     }
 
     std::vector<std::string> drop() override final{
-
+        std::string type_name = "transaction_status_type";
+        if(schema.has_value()){
+            type_name = schema.value() + "." + type_name;
+        }
         std::vector<std::string> queries;
-        queries.push_back("DROP TYPE IF EXISTS transaction_status_type");
+        queries.push_back("DROP TYPE IF EXISTS "+ type_name);
         return queries;
 
     }
@@ -77,7 +85,12 @@ struct transaction_trace_builder:table_builder{
 
     std::vector<std::string> create() override final {
         
-        auto query = SQL::create("transaction_trace");
+        std::string table_name = name;
+        if(schema.has_value()){
+            table_name = schema.value() + "." + name;
+        }
+
+        auto query = SQL::create(table_name);
         query("block_num",                      "bigint")
              ("transaction_ordinal",            "integer")
              ("failed_dtrx_trace",              "varchar(64)")
@@ -114,14 +127,23 @@ struct transaction_trace_builder:table_builder{
     }
 
     std::vector<std::string> drop() override final {
+
+        std::string table_name = name;
+        if(schema.has_value()){
+            table_name = schema.value() + "." + name;
+        }
         std::vector<std::string> queries;
-        queries.push_back("DROP TABLE IF EXISTS transaction_trace");
+        queries.push_back("DROP TABLE IF EXISTS " + table_name);
         return queries;
     }
 
     std::vector<std::string> truncate(const state_history::block_position& pos) override final {
+        std::string table_name = name;
+        if(schema.has_value()){
+            table_name = schema.value() + "." + name;
+        }
         std::vector<std::string> queries;
-        queries.push_back( SQL::del().from("transaction_trace").where("block_num >= " + std::to_string(pos.block_num)).str());
+        queries.push_back( SQL::del().from(table_name).where("block_num >= " + std::to_string(pos.block_num)).str());
         return queries;
     }
 
@@ -201,7 +223,12 @@ struct transaction_trace_builder:table_builder{
             query("transaction_present","false");
         }
 
-        query.into("transaction_trace");
+        std::string table_name = name;
+        if(schema.has_value()){
+            table_name = schema.value() + "." + name;
+        }
+
+        query.into(table_name);
         return query;
     }
 
@@ -226,7 +253,12 @@ struct action_trace_builder: table_builder{
     std::vector<std::string> create() override final {
         std::vector<std::string> queries;
 
-        auto query = SQL::create("action_trace");
+        std::string table_name = name;
+        if(schema.has_value()){
+            table_name = schema.value() + "." + name;
+        }
+
+        auto query = SQL::create(table_name);
         query("block_num",              "bigint")
              ("timestamp",              "timestamp")
              ("transaction_id",         "varchar(64)")
@@ -259,28 +291,36 @@ struct action_trace_builder: table_builder{
              ("except",                 "varchar")
          */
         queries.push_back(query.str());
-        queries.push_back("create sequence action_trace_sequence start with 1");
+        queries.push_back("create sequence " + table_name +"_sequence start with 1");
 
 
         //put indexes here
         //let's stay with all btree type, hash is super slow when building index. 
-        queries.push_back("CREATE INDEX IF NOT EXISTS index_action_trace_sequence ON action_trace ( sequence )");
-        queries.push_back("CREATE INDEX IF NOT EXISTS index_action_trace_contract_name ON action_trace ( act_account)");
-        queries.push_back("CREATE INDEX IF NOT EXISTS index_action_trace_action_name ON action_trace ( act_name)");
+        queries.push_back("CREATE INDEX IF NOT EXISTS " + name +"_sequence_index ON "+table_name+" ( sequence )");
+        queries.push_back("CREATE INDEX IF NOT EXISTS " + name +"_contract_name_index ON "+table_name+" ( act_account)");
+        queries.push_back("CREATE INDEX IF NOT EXISTS " + name +"_action_name_index ON "+table_name+" ( act_name)");
         return queries;
     }
 
     std::vector<std::string> drop() override final {
+        std::string table_name = name;
+        if(schema.has_value()){
+            table_name = schema.value() + "." + name;
+        }
         std::vector<std::string> queries;
-        queries.push_back("DROP TABLE IF EXISTS action_trace");
-        queries.push_back("DROP sequence if exists action_trace_sequence");
+        queries.push_back("DROP TABLE IF EXISTS "+table_name);
+        queries.push_back("DROP sequence if exists "+table_name+"_sequence");
         return queries;
     }
 
     std::vector<std::string> truncate(const state_history::block_position& pos) override final {
         ilog("truncate table to block number: ${num}",("num",pos.block_num));
+        std::string table_name = name;
+        if(schema.has_value()){
+            table_name = schema.value() + "." + name;
+        }
         std::vector<std::string> queries;
-        queries.push_back( SQL::del().from("action_trace").where("block_num >= " + std::to_string(pos.block_num)).str());
+        queries.push_back( SQL::del().from(table_name).where("block_num >= " + std::to_string(pos.block_num)).str());
         
         //when truncate flush sequence to database incase we need to restarts
         if(m_current_block >= pos.block_num){
@@ -295,7 +335,7 @@ struct action_trace_builder: table_builder{
             blocknum_lastseq.pop_back();
         }
 
-        queries.push_back("select setval('action_trace_sequence'," + std::to_string(m_sequence-1) + ")");
+        queries.push_back("select setval('"+table_name+"_sequence'," + std::to_string(m_sequence-1) + ")");
 
         return queries;
     }
@@ -357,12 +397,17 @@ struct action_trace_builder: table_builder{
             query("receipt_present",pg_quoted("false"));
         }
         
-        query.into("action_trace");
 
         if(atrace.act.authorization.size()){
             query("actor",pg_quoted(std::string(atrace.act.authorization[0].actor)))
                  ("permission",pg_quoted(std::string(atrace.act.authorization[0].permission)));
         }
+
+        std::string table_name = name;
+        if(schema.has_value()){
+            table_name = schema.value() + "." + name;
+        }
+        query.into(table_name);
         
         return query;
     }
@@ -378,7 +423,14 @@ struct block_info_builder: table_builder{
     }
 
     std::vector<std::string> create() override final {
-        auto query = SQL::create("block_info");
+
+        std::string table_name = name;
+        if(schema.has_value()){
+            table_name = schema.value() + "." + name;
+        }
+
+
+        auto query = SQL::create(table_name);
         query("block_num",              "bigint")
              ("block_id",               "varchar(64)")
              ("timestamp",              "timestamp")
@@ -397,14 +449,22 @@ struct block_info_builder: table_builder{
     }
 
     std::vector<std::string> drop() override final {
+        std::string table_name = name;
+        if(schema.has_value()){
+            table_name = schema.value() + "." + name;
+        }
         std::vector<std::string> queries;
-        queries.push_back("DROP TABLE IF EXISTS block_info");
+        queries.push_back("DROP TABLE IF EXISTS " + table_name);
         return queries;
     }
 
     std::vector<std::string> truncate(const state_history::block_position& pos) override final {
+        std::string table_name = name;
+        if(schema.has_value()){
+            table_name = schema.value() + "." + name;
+        }
         std::vector<std::string> queries;
-        queries.push_back( SQL::del().from("block_info").where("block_num >= " + std::to_string(pos.block_num)).str());
+        queries.push_back( SQL::del().from(table_name).where("block_num >= " + std::to_string(pos.block_num)).str());
         return queries;
     }
 
@@ -413,6 +473,11 @@ struct block_info_builder: table_builder{
         state_history::transaction_trace_v0 trace_v0 = std::get<state_history::transaction_trace_v0>(trace);
         state_history::action_trace_v0 atrace = std::get<state_history::action_trace_v0>(action_trace);
         
+        std::string table_name = name;
+        if(schema.has_value()){
+            table_name = schema.value() + "." + name;
+        }
+
         auto query = SQL::insert("block_num",std::to_string(pos.block_num))
              ("block_id",pg_quoted(std::string(pos.block_id)))
              ("timestamp",pg_quoted(std::string(sig_block.timestamp)))
@@ -423,7 +488,7 @@ struct block_info_builder: table_builder{
              ("transaction_mroot",pg_quoted(std::string(sig_block.transaction_mroot)))
              ("action_mroot",pg_quoted(std::string(sig_block.action_mroot)))
              ("schedule_version",std::to_string(sig_block.schedule_version))
-             .into("block_info")
+             .into(table_name)
              ;
         last_block = pos.block_num; //avoid multiple insert
 
@@ -647,7 +712,12 @@ struct table_delta_handler:table_builder{
         if(!m_primary_key.has_value())m_primary_key.emplace(primary_key);
         if(!m_column_names.has_value())m_column_names.emplace(cols);
 
-        auto query = SQL::create(name);
+        std::string table_name = name;
+        if(schema.has_value()){
+            table_name = schema.value() + "." + name;
+        }
+        
+        auto query = SQL::create(table_name);
         for(int i = 0;i<cols.size();i++){
             query(cols[i], coltypes[i]);
         }
@@ -702,7 +772,10 @@ struct table_delta_handler:table_builder{
 
         const abieos::abi_def& my_abi = *(abi_holder::instance().abi);
         const abieos::abi_type& my_type = abi_holder::instance().get_type(name);
-
+        std::string table_name = name;
+        if(schema.has_value()){
+            table_name = schema.value() + "." + name;
+        }
         //primary key attached.
         auto keys = abi_holder::instance().get_keys(name);
 
@@ -741,7 +814,7 @@ struct table_delta_handler:table_builder{
             }
 
             if(!already_created){
-                creation_queries.push_back("DROP TABLE IF EXISTS " + name);
+                creation_queries.push_back("DROP TABLE IF EXISTS " + table_name);
                 creation_queries.push_back( dynamic_create(cols,coltypes,keys));
                 already_created = true;
             }
@@ -755,7 +828,7 @@ struct table_delta_handler:table_builder{
 
             if(row.present){
 
-                auto in_query = SQL::upsert().into(name).on_conflict(keys);
+                auto in_query = SQL::upsert().into(table_name).on_conflict(keys);
                 for(int i = 0;i<cols.size();i++){
                     in_query(cols[i],my_quoted(values[i]));
                 }
@@ -780,7 +853,7 @@ struct table_delta_handler:table_builder{
                 }
 
                 auto de_query = SQL::del();
-                de_query.from(name).where(condition.str());
+                de_query.from(table_name).where(condition.str());
 
                 if(enable_bef_lib_cache){
                     std::string kstr;
@@ -825,6 +898,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
     bool create_table = false;
     std::optional<pqxx::connection> conn;
     std::optional<pg::pipe> m_pipe;
+    std::optional<std::string> m_pg_schema;
 
     bool m_use_tablewriter = false; //bulk
 
@@ -1021,6 +1095,11 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         create_table = options.count("postgres-create");
 
 
+        if(options.count("postgres-schema")){
+            m_pg_schema.emplace(options["postgres-schema"].as<std::string>());
+        }
+
+
         if( options.count("action-abi") ) {
          const std::vector<std::string> key_value_pairs = options["action-abi"].as<std::vector<std::string>>();
          for (const auto& entry : key_value_pairs) {
@@ -1028,7 +1107,11 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
                auto kv = parse_kv_pairs(entry);
                auto name = kv.first;
                auto abi = abi_def_from_file(kv.second, appbase::app().data_dir());
-               abi_handlers.emplace_back(std::make_unique<abi_data_handler>(name, abi));
+               if(m_pg_schema.has_value()){
+                    abi_handlers.emplace_back(std::make_unique<abi_data_handler>(m_pg_schema.value() +"." +name, abi));
+               }else{
+                    abi_handlers.emplace_back(std::make_unique<abi_data_handler>(name, abi));
+               }
                ilog("add abi defined table ${tname}",("tname",name));
             } catch (...) {
                elog("Malformed action-abi provider: \"${val}\"", ("val", entry));
@@ -1041,6 +1124,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
           const std::vector<std::string> table_names = options["system-table"].as<std::vector<std::string>>();
           for(auto& tname: table_names){
             table_delta_handlers.emplace_back(std::make_unique<table_delta_handler>(tname));
+            if(m_pg_schema.has_value())table_delta_handlers.back()->set_schema(m_pg_schema.value());
             if(!create_table)table_delta_handlers.back()->already_created = true; //if we don't want to create table, directly set already created tag to true
             ilog("monitor system table ${tname}",("tname", tname));
           }
@@ -1094,6 +1178,11 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         table_builders.push_back(std::make_unique<block_info_builder>());
         table_builders.push_back(std::make_unique<transaction_trace_builder>());
 
+        if(m_pg_schema.has_value()){
+            for(auto& tbb: table_builders){
+                tbb->set_schema(m_pg_schema.value());
+            }
+        }
 
 
         if(options.count("action-trace-drop-empty-block")){
@@ -1138,6 +1227,13 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         assert(conn.has_value());
 
     
+        if(m_pg_schema.has_value()){
+            pqxx::work w(conn.value());
+            w.exec("create schema if not exists " + m_pg_schema.value());
+            ilog("create schema ${s}",("s",m_pg_schema.value()));
+        }
+
+
         /**
          * create table when option set.
          * will first try to drop exist table 
@@ -1228,7 +1324,7 @@ void postgres_plugin::set_program_options(appbase::options_description& cli, app
     auto op = cli.add_options();
     op("postgres-create", "create tables.");
     op("dbstring", bpo::value<std::string>(), "dbstring of postgresql");
-
+    op("postgres-schema", bpo::value<std::string>(), "database schema nanme");
 
     op("action-abi", bpo::value<std::vector<std::string>>()->composing(),
     "ABIs used when decoding action trace.\n"

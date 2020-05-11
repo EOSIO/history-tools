@@ -1,9 +1,9 @@
 # Branch obsolete
 
-* `rodeos`: moved to https://github.com/EOSIO/eos/pull/9018
+* `rodeos`: moved to https://github.com/EOSIO/eos/tree/develop via pull 9018
   * formerly known as `combo-rocksdb`/`fill-rocksdb`/`wasm-ql-rocksdb`
 * `wasm-ql`:
-  * rodeos support: https://github.com/EOSIO/eos/pull/9018
+  * rodeos support: https://github.com/EOSIO/eos/tree/develop
   * nodeos support: https://github.com/EOSIO/eos/tree/develop
   * cdt support: https://github.com/EOSIO/eosio.cdt/tree/eosio-cdt-2.1-staging-c
 * `abi-wasm`:

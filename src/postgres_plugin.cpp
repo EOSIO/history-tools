@@ -295,7 +295,7 @@ struct action_trace_builder: table_builder{
             blocknum_lastseq.pop_back();
         }
 
-        queries.push_back("select setval('action_trace_sequence'," + std::to_string(m_sequence) + ")");
+        queries.push_back("select setval('action_trace_sequence'," + std::to_string(m_sequence-1) + ")");
 
         return queries;
     }
@@ -1184,13 +1184,11 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
                 // * this is for init the sequence of action trace table.
                 if((*it)->name == "action_trace"){
-                    std::cout << "trying to init table builder" << std::endl;
                     action_trace_builder& builder = *(dynamic_cast<action_trace_builder*>(it->get()));
                     pqxx::work w(conn.value());
                     pqxx::row row = w.exec1("select nextval('action_trace_sequence')");
 
                     uint64_t last_sequence = row[0].as<uint64_t>();
-                    std::cout << last_sequence << std::endl;
                     builder.m_sequence = last_sequence;
                 }
             }

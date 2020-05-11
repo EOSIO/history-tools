@@ -261,6 +261,12 @@ struct action_trace_builder: table_builder{
         queries.push_back(query.str());
         queries.push_back("create sequence action_trace_sequence start with 1");
 
+
+        //put indexes here
+        //let's stay with all btree type, hash is super slow when building index. 
+        queries.push_back("CREATE INDEX IF NOT EXISTS index_action_trace_sequence ON action_trace ( sequence )");
+        queries.push_back("CREATE INDEX IF NOT EXISTS index_action_trace_contract_name ON action_trace ( act_account)");
+        queries.push_back("CREATE INDEX IF NOT EXISTS index_action_trace_action_name ON action_trace ( act_name)");
         return queries;
     }
 

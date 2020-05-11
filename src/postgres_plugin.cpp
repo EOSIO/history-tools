@@ -1327,13 +1327,7 @@ void postgres_plugin::set_program_options(appbase::options_description& cli, app
     op("postgres-schema", bpo::value<std::string>(), "database schema nanme");
 
     op("action-abi", bpo::value<std::vector<std::string>>()->composing(),
-    "ABIs used when decoding action trace.\n"
-    "There must be at least one ABI specified OR the flag action-no-abis must be used.\n"
-    "ABIs are specified as \"Key=Value\" pairs in the form <account-name>=<abi-def>\n"
-    "Where <abi-def> can be:\n"
-    "   an absolute path to a file containing a valid JSON-encoded ABI\n"
-    "   a relative path from `data-dir` to a file containing a valid JSON-encoded ABI\n"
-    );
+    "ABIs used when decoding action trace.");
 
     op("system-table", bpo::value<std::vector<std::string>>()->composing(),"System state tables.");
     op("action-trace-drop-empty-block", "all onblock action will be dropped from action_trace.");

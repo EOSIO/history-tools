@@ -1,4 +1,6 @@
 .vscode/
+.idea/
+cmake*
 build*/
 .DS_Store
 node_modules

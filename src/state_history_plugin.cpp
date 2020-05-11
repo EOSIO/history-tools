@@ -99,7 +99,7 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
 
 
     void set_initial_block_num(uint32_t block_num){
-        if(!initial_block_num.has_value())return;
+        if(initial_block_num.has_value())return;
         initial_block_num.emplace(block_num);
     }
 

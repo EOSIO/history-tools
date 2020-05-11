@@ -1082,7 +1082,8 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
     uint32_t get_last_block_num(){
         assert(conn.has_value());
         pqxx::work w(conn.value());
-        pqxx::row row = w.exec1("select block_num from block_info order by block_num desc limit 1");
+        std::string schema_str = (m_pg_schema.has_value()?(m_pg_schema.value()+"."):"");
+        pqxx::row row = w.exec1("select block_num from " + schema_str + "block_info order by block_num desc limit 1");
         uint32_t block_num = row[0].as<uint32_t>();
         ilog("latest block number exist in database is ${n}",("n",block_num));
         return block_num;

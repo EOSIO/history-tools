@@ -169,8 +169,8 @@ message(STATUS "Enabled plugins:")
 
 if (PostgreSQL_INCLUDE_DIR)
     #pg inserter
-    add_app(pg_inserter "-DDEFAULT_PLUGINS=state_history_plugin,parser_plugin,postgres_plugin;-DINCLUDE_DATA_TOOL" "${PQXX_LIBRARIES}")
-    target_sources(pg_inserter PRIVATE src/state_history_plugin.cpp src/parser_plugin.cpp src/postgres_plugin.cpp)
+    add_app(pg-inserter "-DDEFAULT_PLUGINS=state_history_plugin,parser_plugin,postgres_plugin;-DINCLUDE_DATA_TOOL" "${PQXX_LIBRARIES}")
+    target_sources(pg-inserter PRIVATE src/state_history_plugin.cpp src/parser_plugin.cpp src/postgres_plugin.cpp)
 
     message(STATUS "    fill_pg_plugin")
     add_app(fill-pg "-DDEFAULT_PLUGINS=fill_pg_plugin;-DINCLUDE_FILL_PG_PLUGIN" "${PQXX_LIBRARIES}")

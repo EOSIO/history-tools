@@ -166,11 +166,12 @@ show_found("    rocksdb:    " "${FOUND_ROCKSDB}" "not found; will not build rock
 message(STATUS "Enabled plugins:")
 
 
-add_app(data_tool "-DDEFAULT_PLUGINS=state_history_plugin,parser_plugin,postgres_plugin;-DINCLUDE_DATA_TOOL" "${PQXX_LIBRARIES}")
-target_sources(data_tool PRIVATE src/state_history_plugin.cpp src/parser_plugin.cpp src/postgres_plugin.cpp)
-
 
 if (PostgreSQL_INCLUDE_DIR)
+    #pg inserter
+    add_app(pg_inserter "-DDEFAULT_PLUGINS=state_history_plugin,parser_plugin,postgres_plugin;-DINCLUDE_DATA_TOOL" "${PQXX_LIBRARIES}")
+    target_sources(pg_inserter PRIVATE src/state_history_plugin.cpp src/parser_plugin.cpp src/postgres_plugin.cpp)
+
     message(STATUS "    fill_pg_plugin")
     add_app(fill-pg "-DDEFAULT_PLUGINS=fill_pg_plugin;-DINCLUDE_FILL_PG_PLUGIN" "${PQXX_LIBRARIES}")
     target_sources(history-tools PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp)

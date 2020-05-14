@@ -123,6 +123,8 @@ struct transaction_trace_builder:table_builder{
              ("permission", "varchar");
 
         std::vector<std::string> ret{query.str()};
+
+        ret.push_back("CREATE INDEX IF NOT EXISTS " + name +"_id_index ON "+table_name+" ( id)");
         return ret;
     }
 
@@ -299,6 +301,7 @@ struct action_trace_builder: table_builder{
         queries.push_back("CREATE INDEX IF NOT EXISTS " + name +"_sequence_index ON "+table_name+" ( sequence )");
         queries.push_back("CREATE INDEX IF NOT EXISTS " + name +"_contract_name_index ON "+table_name+" ( act_account)");
         queries.push_back("CREATE INDEX IF NOT EXISTS " + name +"_action_name_index ON "+table_name+" ( act_name)");
+        queries.push_back("CREATE INDEX IF NOT EXISTS " + name +"_actor_index ON "+table_name+" ( actor)");
         return queries;
     }
 

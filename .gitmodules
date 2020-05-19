@@ -16,3 +16,6 @@
 [submodule "external/rocksdb"]
 	path = external/rocksdb
 	url = https://github.com/facebook/rocksdb.git
+[submodule "external/amqp"]
+	path = external/amqp
+	url = git@github.com:CopernicaMarketingSoftware/AMQP-CPP.git

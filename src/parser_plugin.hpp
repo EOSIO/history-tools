@@ -25,4 +25,5 @@ class parser_plugin : public appbase::plugin<parser_plugin> {
     bsg::signal<void(const state_history::block_position& pos,const state_history::block_position& lib_pos)> block_finish;
     bsg::signal<void(const state_history::block_position& pos)> signal_fork;
     std::shared_ptr<struct parser_plugin_impl> my;
+    void set_streamer(std::function<void(const char* data, uint64_t data_size)> streamer_func);
 };

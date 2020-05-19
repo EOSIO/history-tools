@@ -14,6 +14,7 @@
 #include "state_history_plugin.hpp"
 #include "parser_plugin.hpp"
 #include "postgres_plugin.hpp"
+#include "streamer_plugin.hpp"
 #endif
 
 #ifdef INCLUDE_FILL_PG_PLUGIN

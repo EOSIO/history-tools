@@ -1,12 +1,15 @@
+#!python3
+import os, sys
 import psycopg2
 import pandas as pd
 import datetime as dt
+import argparse as ap
 
 class eospg:
-    def __init__(self):
+    def __init__(self,db_str,schema):
         try:
-            self.conn = psycopg2.connect("user='postgres' host='localhost' password='123456'")
-            self.schema = "testschema"
+            self.conn = psycopg2.connect(db_str)
+            self.schema = schema
         except:
             print("I am unable to connect to the database")
 
@@ -29,6 +32,7 @@ class eospg:
         cur = self.conn.cursor()
         cur.execute("select block_num from %s.block_info where timestamp >= '%s' order by block_num limit 1" % (self.schema,start_time))
         rows = cur.fetchall()
+        if(len(rows) == 0):return None
         start_block = rows[0][0]
         cur.execute("select * from %s.transaction_trace where block_num >= '%s'" % (self.schema,start_block))
         rows = cur.fetchall()
@@ -38,16 +42,36 @@ class eospg:
 
 
 def main():
-    pg = eospg()
+    parser = ap.ArgumentParser()
+    parser.add_argument("-l",help="day, week, month",choices=["day","month","week"],required=True)
+    parser.add_argument("--db",help="db string",default="user='postgres' host='localhost' password='123456'")
+    parser.add_argument("--schema",help="schema",default="public")
+    
+    args = parser.parse_args()
 
-    print("block count in last 24 hours:")
-    print(pg.get_blocks_after().shape[0])
+    if args.l == "day":
+        s_time = dt.datetime.now()-dt.timedelta(days=1)
+    elif args.l == "week":
+        s_time = dt.datetime.now()-dt.timedelta(weeks=1)
+    elif args.l == "month":
+        s_time = dt.datetime.now()-dt.timedelta(days=30)
 
-    print("transaction count in last 24 hours:")
-    print(pg.get_transactions_after().shape[0])
 
+    pg = eospg(args.db,args.schema)
+    df_blocks = pg.get_blocks_after(s_time)
+    assert(df_blocks is not None)
+    df_trxs = pg.get_transactions_after(s_time)
+    assert(df_trxs is not None)
+    
+
+
+
+    print(df_trxs.sort_values(by=["cpu_usage_us"]).head(10))
+
+    
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
     pass
 

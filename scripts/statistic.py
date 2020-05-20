@@ -89,7 +89,9 @@ def main():
     engin = pg.get_engine()
 
     print("write %s active contract statistic into table %s_statistic" % (args.l, args.l))
-    ddf = df_action.groupby(["act_account"]).size().sort_values(ascending=False).head(5)
+    ddf = df_action.groupby(["act_account","act_name"]).size().sort_values(ascending=False)
+    top5_idx = ddf.index.get_level_values(0).unique()[:5]
+    ddf = ddf.iloc[ ddf.index.get_level_values(0).isin(top5_idx)]
     ddf.to_sql("%s_active_contract_statistic" % args.l, engin, schema = args.schema, if_exists = "replace" )
 
     print("write %s active account statistic into table %s_statistic" % (args.l, args.l))

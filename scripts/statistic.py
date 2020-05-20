@@ -4,12 +4,19 @@ import psycopg2
 import pandas as pd
 import datetime as dt
 import argparse as ap
+import pytz
+from sqlalchemy import create_engine
 
 class eospg:
     def __init__(self,db_str,schema):
         try:
             self.conn = psycopg2.connect(db_str)
+            self.conn.autocommit = True
             self.schema = schema
+            self._db_info = {}
+            for s in db_str.split(" "):
+                ss = s.split("=")
+                self._db_info[ss[0]] = ss[1].replace("'","")
         except:
             print("I am unable to connect to the database")
 
@@ -23,14 +30,14 @@ class eospg:
 
     def get_blocks_after(self, start_time = dt.datetime.now() - dt.timedelta(days=1)):
         cur = self.conn.cursor()
-        cur.execute("select * from %s.block_info where timestamp >= '%s'" % (self.schema,start_time))
+        cur.execute("select * from %s.block_info where timestamp >= '%s'" % (self.schema,start_time.astimezone(pytz.utc)))
         rows = cur.fetchall()
         colnames = [desc[0] for desc in cur.description]
         return pd.DataFrame(rows,columns = colnames)
 
     def get_transactions_after(self, start_time = dt.datetime.now() - dt.timedelta(days=1)):
         cur = self.conn.cursor()
-        cur.execute("select block_num from %s.block_info where timestamp >= '%s' order by block_num limit 1" % (self.schema,start_time))
+        cur.execute("select block_num from %s.block_info where timestamp >= '%s' order by block_num limit 1" % (self.schema,start_time.astimezone(pytz.utc)))
         rows = cur.fetchall()
         if(len(rows) == 0):return None
         start_block = rows[0][0]
@@ -41,7 +48,7 @@ class eospg:
 
     def get_action_after(self, start_time = dt.datetime.now() - dt.timedelta(days=1)):
         cur = self.conn.cursor()
-        cur.execute("select block_num from %s.block_info where timestamp >= '%s' order by block_num limit 1" % (self.schema,start_time))
+        cur.execute("select block_num from %s.block_info where timestamp >= '%s' order by block_num limit 1" % (self.schema,start_time.astimezone(pytz.utc)))
         rows = cur.fetchall()
         if(len(rows) == 0):return None
         start_block = rows[0][0]
@@ -49,6 +56,11 @@ class eospg:
         rows = cur.fetchall()
         colnames = [desc[0] for desc in cur.description]
         return pd.DataFrame(rows,columns = colnames)
+
+
+    def get_engine(self):
+        return create_engine("postgresql://%s:%s@%s" % (self._db_info["user"],self._db_info["password"], self._db_info["host"]))
+
 
 
 
@@ -69,21 +81,21 @@ def main():
 
 
     pg = eospg(args.db,args.schema)
-    # df_blocks = pg.get_blocks_after(s_time)
-    # assert(df_blocks is not None)
-    # df_trxs = pg.get_transactions_after(s_time)
-    # assert(df_trxs is not None)
+
     df_action = pg.get_action_after(s_time)
     assert(df_action is not None)
-    # print(df_action[df_action['act_account'] == "addressbook"])
-    print("start from %s to now:" % s_time)
-    print()
-    print("top active contract:")
-    print(df_action.groupby(["act_account"]).size().sort_values(ascending=False).head(5).to_string())
-    print()
-    print("top active account")
-    print(df_action.groupby(["actor"]).size().sort_values(ascending=False).head(5).to_string())
-    
+
+    print("start",dt.datetime.now())
+    engin = pg.get_engine()
+
+    print("write %s active contract statistic into table %s_statistic" % (args.l, args.l))
+    ddf = df_action.groupby(["act_account"]).size().sort_values(ascending=False).head(5)
+    ddf.to_sql("%s_active_contract_statistic" % args.l, engin, schema = args.schema, if_exists = "replace" )
+
+    print("write %s active account statistic into table %s_statistic" % (args.l, args.l))
+    ddf = df_action.groupby(["actor"]).size().sort_values(ascending=False).head(5)
+    ddf.to_sql("%s_active_account_statistic" % args.l, engin, schema = args.schema, if_exists = "replace" )
+    print("finish",dt.datetime.now())
     return 0
 
 if __name__ == "__main__":

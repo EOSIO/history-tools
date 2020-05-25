@@ -1229,11 +1229,12 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         
 
         assert(conn.has_value());
-
+        assert(conn.is_open());
     
         if(m_pg_schema.has_value()){
             pqxx::work w(conn.value());
             w.exec("create schema if not exists " + m_pg_schema.value());
+            w.commit();
             ilog("create schema ${s}",("s",m_pg_schema.value()));
         }
 

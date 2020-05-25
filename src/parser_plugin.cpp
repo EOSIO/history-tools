@@ -35,6 +35,7 @@ struct parser_plugin_impl: std::enable_shared_from_this<parser_plugin_impl> {
         if(streamer){
             m_ss << "{";
             m_ss << "\"block_num\":" << m_position.value().block_num << ",";
+            m_ss << "\"timestamp\":\"" << std::string(block.timestamp) << "\",";
             m_ss << "\"blcok_id\":\"" << std::string(m_position.value().block_id) << "\",";
             m_ss << "\"lib_block_num\":\"" << std::to_string(m_lib_position.value().block_num) << "\",";
             m_ss << "\"head_block_num\":\"" << std::to_string(m_head_position.value().block_num) << "\",";

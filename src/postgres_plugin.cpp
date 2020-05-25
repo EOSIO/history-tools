@@ -125,6 +125,7 @@ struct transaction_trace_builder:table_builder{
         std::vector<std::string> ret{query.str()};
 
         ret.push_back("CREATE INDEX IF NOT EXISTS " + name +"_id_index ON "+table_name+" ( id)");
+        if(enable_timescaledb)ret.push_back("select create_hypertable('"+table_name+"','block_num', migrate_data=>true, chunk_time_interval => 100000)");
         return ret;
     }
 
@@ -302,6 +303,7 @@ struct action_trace_builder: table_builder{
         queries.push_back("CREATE INDEX IF NOT EXISTS " + name +"_contract_name_index ON "+table_name+" ( act_account)");
         queries.push_back("CREATE INDEX IF NOT EXISTS " + name +"_action_name_index ON "+table_name+" ( act_name)");
         queries.push_back("CREATE INDEX IF NOT EXISTS " + name +"_actor_index ON "+table_name+" ( actor)");
+        if(enable_timescaledb)ret.push_back("select create_hypertable('"+table_name+"','block_num', migrate_data=>true, chunk_time_interval => 100000)");
         return queries;
     }
 
@@ -448,6 +450,7 @@ struct block_info_builder: table_builder{
              .primary_key("block_num");
 
         std::vector<std::string> ret{query.str()};
+        if(enable_timescaledb)ret.push_back("select create_hypertable('"+table_name+"','block_num', migrate_data=>true, chunk_time_interval => 100000)");
         return ret;
     }
 
@@ -902,6 +905,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
     std::optional<pqxx::connection> conn;
     std::optional<pg::pipe> m_pipe;
     std::optional<std::string> m_pg_schema;
+    bool m_timescaledb_enable = false;
 
     bool m_use_tablewriter = false; //bulk
 
@@ -1103,6 +1107,9 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             m_pg_schema.emplace(options["postgres-schema"].as<std::string>());
         }
 
+        if(option.count("timescaledb")){
+            m_timescaledb_enable = true;
+        }
 
         if( options.count("action-abi") ) {
          const std::vector<std::string> key_value_pairs = options["action-abi"].as<std::vector<std::string>>();
@@ -1185,6 +1192,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
         if(m_pg_schema.has_value()){
             for(auto& tbb: table_builders){
                 tbb->set_schema(m_pg_schema.value());
+                tbb->enable_timescaledb = m_timescaledb_enable;
             }
         }
 
@@ -1337,6 +1345,7 @@ void postgres_plugin::set_program_options(appbase::options_description& cli, app
     op("system-table", bpo::value<std::vector<std::string>>()->composing(),"System state tables.");
     op("action-trace-drop-empty-block", "all onblock action will be dropped from action_trace.");
     op("action-trace-keep-sub-actions", "action with creator creator_action_oridnal not 0 will also be include.");
+    op("timescaledb", "enable timescaledb support.");
 }
 
 

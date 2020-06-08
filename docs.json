@@ -1,0 +1,11 @@
+{
+    "name": "history-tools",
+    "generators": [
+        {
+            "name": "collate_markdown",
+            "options": {
+                "docs_dir": "doc"
+            }
+        }
+    ]
+}

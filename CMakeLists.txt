@@ -6,7 +6,7 @@ include(ExternalProject)
 cmake_minimum_required (VERSION 3.10)
 project(history-tools VERSION 0.1 LANGUAGES CXX)
 
-cmake_policy(SET CMP0077 NEW)
+#cmake_policy(SET CMP0077 NEW)
 set(ENABLE_INSTALL OFF cache bool "")
 set(ENABLE_TOOLS OFF cache bool "")
 set(ENABLE_TESTS OFF cache bool "")
@@ -98,9 +98,9 @@ add_compile_options(-Wno-error=shadow)
 
 add_subdirectory(external/appbase EXCLUDE_FROM_ALL)
 add_subdirectory(external/fc EXCLUDE_FROM_ALL)
-add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
+#add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
 
-set(FOUND_ROCKSDB ON)
+set(FOUND_ROCKSDB OFF)
 set(ROCKSDB_LIB rocksdb)
 set(ROCKSDB_INCLUDE_DIR external/rocksdb/include)
 
@@ -143,7 +143,7 @@ function(add_app APP FLAGS LIBS)
     endif()
 endfunction(add_app)
 
-add_app(history-tools "-DDEFAULT_PLUGINS=" "${PQXX_LIBRARIES};${ROCKSDB_LIB}")
+#add_app(history-tools "-DDEFAULT_PLUGINS=" "${PQXX_LIBRARIES};${ROCKSDB_LIB}")
 
 message(STATUS "----------------------------------------------------")
 message(STATUS "Checked libraries:")
@@ -170,9 +170,8 @@ message(STATUS "Enabled plugins:")
 
 if (PostgreSQL_INCLUDE_DIR)
     #pg inserter
-    add_app(pg-inserter "-DDEFAULT_PLUGINS=state_history_plugin,parser_plugin,postgres_plugin,streamer_plugin;-DINCLUDE_DATA_TOOL" "${PQXX_LIBRARIES}")
-    target_sources(pg-inserter PRIVATE src/state_history_plugin.cpp src/parser_plugin.cpp src/postgres_plugin.cpp src/streamer_plugin.cpp)
-    target_link_libraries(pg-inserter amqpcpp)
+    add_app(pg-inserter "-DDEFAULT_PLUGINS=state_history_plugin,parser_plugin,postgres_plugin;-DINCLUDE_DATA_TOOL" "${PQXX_LIBRARIES}")
+    target_sources(pg-inserter PRIVATE src/state_history_plugin.cpp src/parser_plugin.cpp src/postgres_plugin.cpp )
 #
 #    message(STATUS "    fill_pg_plugin")
 #    add_app(fill-pg "-DDEFAULT_PLUGINS=fill_pg_plugin;-DINCLUDE_FILL_PG_PLUGIN" "${PQXX_LIBRARIES}")
@@ -198,7 +197,7 @@ endif ()
 #endif()
 
 message(STATUS "    wasm_ql_plugin")
-target_sources(history-tools PRIVATE src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
+#target_sources(history-tools PRIVATE src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
 
 message(STATUS "Enabled apps:")
 foreach(APP ${APPS})
@@ -211,16 +210,16 @@ if (NOT PostgreSQL_INCLUDE_DIR AND NOT FOUND_ROCKSDB)
     message(WARNING "No database libraries found. Only building WASM files.")
 endif()
 
-if (eosio.cdt_FOUND)
-    ExternalProject_Add(
-        wasms_project
-        SOURCE_DIR ${CMAKE_SOURCE_DIR}/wasms
-        BINARY_DIR ${CMAKE_BINARY_DIR}/wasms
-        CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${EOSIO_CDT_ROOT}/lib/cmake/eosio.cdt/EosioWasmToolchain.cmake
-        UPDATE_COMMAND ""
-        PATCH_COMMAND ""
-        TEST_COMMAND ""
-        INSTALL_COMMAND ""
-        BUILD_ALWAYS 1
-    )
-endif()
+#if (eosio.cdt_FOUND)
+#    ExternalProject_Add(
+#        wasms_project
+#        SOURCE_DIR ${CMAKE_SOURCE_DIR}/wasms
+#        BINARY_DIR ${CMAKE_BINARY_DIR}/wasms
+#        CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${EOSIO_CDT_ROOT}/lib/cmake/eosio.cdt/EosioWasmToolchain.cmake
+#        UPDATE_COMMAND ""
+#        PATCH_COMMAND ""
+#        TEST_COMMAND ""
+#        INSTALL_COMMAND ""
+#        BUILD_ALWAYS 1
+#    )
+#endif()

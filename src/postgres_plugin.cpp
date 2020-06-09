@@ -86,16 +86,20 @@ struct transaction_trace_builder:table_builder{
     std::vector<std::string> create() override final {
         
         std::string table_name = name;
+	std::string schema_prefix = "";
         if(schema.has_value()){
             table_name = schema.value() + "." + name;
+	    schema_prefix = schema.value() + ".";
         }
+
+	
 
         auto query = SQL::create(table_name);
         query("block_num",                      "bigint")
              ("transaction_ordinal",            "integer")
              ("failed_dtrx_trace",              "varchar(64)")
              ("id",                             "varchar(64)")
-             ("status",                         "transaction_status_type")
+             ("status",                         schema_prefix + "transaction_status_type")
              ("cpu_usage_us",                   "bigint")
              ("net_usage_words",                "bigint")
              ("elapsed",                        "bigint")
@@ -257,15 +261,17 @@ struct action_trace_builder: table_builder{
         std::vector<std::string> queries;
 
         std::string table_name = name;
+	std::string schema_prefix = "";
         if(schema.has_value()){
             table_name = schema.value() + "." + name;
+	    schema_prefix = schema.value() + ".";
         }
 
         auto query = SQL::create(table_name);
         query("block_num",              "bigint")
              ("timestamp",              "timestamp")
              ("transaction_id",         "varchar(64)")
-             ("transaction_status",     "transaction_status_type")
+             ("transaction_status",     schema_prefix + "transaction_status_type")
              ("actor",                  "varchar(13)")
              ("permission",             "varchar(13)")
              ("action_oridinal",        "bigint")
@@ -303,7 +309,7 @@ struct action_trace_builder: table_builder{
         queries.push_back("CREATE INDEX IF NOT EXISTS " + name +"_contract_name_index ON "+table_name+" ( act_account)");
         queries.push_back("CREATE INDEX IF NOT EXISTS " + name +"_action_name_index ON "+table_name+" ( act_name)");
         queries.push_back("CREATE INDEX IF NOT EXISTS " + name +"_actor_index ON "+table_name+" ( actor)");
-        if(enable_timescaledb)ret.push_back("select create_hypertable('"+table_name+"','block_num', migrate_data=>true, chunk_time_interval => 100000)");
+        if(enable_timescaledb)queries.push_back("select create_hypertable('"+table_name+"','block_num', migrate_data=>true, chunk_time_interval => 100000)");
         return queries;
     }
 
@@ -1107,7 +1113,7 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
             m_pg_schema.emplace(options["postgres-schema"].as<std::string>());
         }
 
-        if(option.count("timescaledb")){
+        if(options.count("timescaledb")){
             m_timescaledb_enable = true;
         }
 

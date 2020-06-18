@@ -1,5 +1,8 @@
 # History Tools
 
+[[info | Disclaimer]]
+| The History Tools presented here is a legacy, proof-of-concept application that demonstrates scalable and efficient access to finalized blockchain data. Some components have been or will be integrated with future versions of the EOSIO software suite.
+
 The history tools repo has these components:
 
 * Database fillers connect to the nodeos state-history plugin and populate databases

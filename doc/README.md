@@ -139,13 +139,13 @@ this option may be simpler to administer. RocksDB also saves space and fills qui
 
 ## Contributing
 
-[Contributing Guide](./CONTRIBUTING.md)
+[Contributing Guide](CONTRIBUTING.md)
 
-[Code of Conduct](./CONTRIBUTING.md#conduct)
+[Code of Conduct](CONTRIBUTING.md#conduct)
 
 ## License
 
-[MIT](./LICENSE)
+[MIT](LICENSE)
 
 ## Important
 

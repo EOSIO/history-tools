@@ -496,7 +496,7 @@ struct block_info_builder: table_builder{
              ("producer",pg_quoted(std::string(sig_block.producer)))
              ("confirmed",std::to_string(sig_block.confirmed))
              ("previous",pg_quoted(std::string(sig_block.previous)))
-             ("transaction_count",std::to_string(sig_block.transactions.size()+1))
+             ("transaction_count",std::to_string(sig_block.transactions.size()))
              ("transaction_mroot",pg_quoted(std::string(sig_block.transaction_mroot)))
              ("action_mroot",pg_quoted(std::string(sig_block.action_mroot)))
              ("schedule_version",std::to_string(sig_block.schedule_version))

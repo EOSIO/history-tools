@@ -22,6 +22,3 @@
     * [struct_reflection.hpp](generated/doc_struct_reflection.md)
     * [tagged_variant.hpp](generated/doc_tagged_variant.md)
     * [to_json.hpp](generated/doc_to_json.md)
-* [Contributing Guide](CONTRIBUTING.md)
-* [Important Notice](important.md)
-* [License](LICENSE)

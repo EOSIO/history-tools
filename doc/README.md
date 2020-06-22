@@ -1,14 +1,31 @@
 # EOSIO History Tools ![EOSIO Alpha](https://img.shields.io/badge/EOSIO-Alpha-blue.svg)
 
+The EOSIO History Tools is a legacy, proof-of-concept (PoC) application that demonstrates scalable and efficient access to finalized blockchain data via the nodeos state-history plugin.
+
 [[info | Disclaimer]]
-| The History Tools is a legacy, proof-of-concept application that demonstrates scalable and efficient access to finalized blockchain data using the [`state_history_plugin`](https://developers.eos.io/manuals/eos/latest/nodeos/plugins/state_history_plugin/index). It was originally designed to request community feedback. Therefore, some components presented here have been or will be integrated with future versions of the EOSIO software suite.
+| History Tools was originally devised as a PoC to request community feedback. Therefore, some of its components have been or will be integrated with future versions of the EOSIO software.
 
-The history tools repo has these components:
+## Migration Notice
 
-* Database fillers connect to the nodeos state-history plugin and populate databases
-* wasm-ql servers answer incoming queries by running server WASMs, which have read-only access to the databases
-* The wasm-ql library, when combined with the CDT library, provides utilities that server WASMs and client WASMs need
-* A set of example server WASMs and client WASMs
+The following History Tools components have been migrated to the following EOSIO repositories:
+* `rodeos` (formerly `combo-rocksdb`, `fill-rocksdb`, `wasm-ql-rocksdb`):
+  * service daemon: https://github.com/EOSIO/eos
+* `wasm-ql`:
+  * rodeos support: https://github.com/EOSIO/eos
+  * nodeos support: https://github.com/EOSIO/eos
+  * cdt support: https://github.com/EOSIO/eosio.cdt
+* `abi-wasm`:
+  * cdt support: https://github.com/EOSIO/eosio.cdt
+  * eosjs support: https://github.com/EOSIO/eosjs
+
+## Components
+
+History Tools consists of the following components:
+
+* **database fillers** -  connect to the nodeos state-history plugin and populate databases
+* **wasm-ql servers** - answer incoming queries by running server WASMs, which have read-only access to the databases
+* **wasm-ql library** - when combined with the CDT library, provides utilities that server WASMs and client WASMs need
+* **examples** of server WASMs and client WASMs
 
 | App               | Fills RocksDB | wasm-ql with RocksDB       | Fills PostgreSQL | wasm-ql with PostgreSQL |
 | ----------------- | ------------- | -------------------------- | ---------------- | ---------------- |
@@ -21,7 +38,7 @@ The history tools repo has these components:
 
 Note: by default, `history-tools` does nothing; use the `--plugin` option to select plugins.
 
-# Alpha Release
+## Alpha Release
 
 This is an alpha release of the EOSIO History Tools. It includes database fillers
 (`fill-pg`, `fill-rocksdb`) which pull data from nodeos's State History Plugin, and a new
@@ -38,7 +55,7 @@ future. Some of these may be driven by community feedback.
 This release supports nodeos 1.8.x. It does not support 1.7.x or the 1.8 RC versions. This release
 includes the following:
 
-## Alpha 0.3.0
+### Alpha 0.3.0
 
 This release adds temporary workarounds to `fill-pg` to support Nodeos 2.0. It also disables the remaining tools. If you would
 like to test rocksdb support or wasm-ql support, stick with Nodeos 1.8 and the Alpha 0.2.0 release of History Tools.
@@ -48,7 +65,7 @@ like to test rocksdb support or wasm-ql support, stick with Nodeos 1.8 and the A
   * Removed `new_producers` from the `block_info` table
 * Temporarily disabled building everything except `fill-pg`
 
-## Alpha 0.2.0
+### Alpha 0.2.0
 
 * There are now 2 self-contained demonstrations in public Docker images. See [container-demos](doc/container-demos.md) for details.
   * Talk: this demonstrates using wasm-ql to provide messages from on-chain conversations to clients in threaded order.
@@ -66,7 +83,7 @@ like to test rocksdb support or wasm-ql support, stick with Nodeos 1.8 and the A
 * SHiP connection handling moved to `state_history_connection.hpp`. This file may aid users needing
   to write custom solutions which connect to the State History Plugin.
 
-## fill-pg
+### fill-pg
 
 `fill-pg` fills postgresql with data from nodeos's State History Plugin. It provides nearly all
 data that applications which monitor the chain need. It provides the following:
@@ -104,7 +121,7 @@ don't need the blocks since:
 to make their own tradeoffs. They can choose between supporting queries covering the entire
 history of the chain, or save space by only covering recent history.
 
-## wasm-ql-pg
+### wasm-ql-pg
 
 EOSIO contracts store their data in a format which is convenient for them, but hard
 on general-purpose query engines. e.g. the `/v1/get_table_rows` RPC API struggles to provide 
@@ -125,7 +142,7 @@ wasm-ql supports two kinds of queries:
 We're considering dropping client-side wasms and switching the format of the first type
 of query to JSON RPC, Graph QL, or another format. We're seeking feedback on this switch.
 
-## combo-rocksdb, fill-rocksdb, wasm-ql-rocksdb
+### combo-rocksdb, fill-rocksdb, wasm-ql-rocksdb
 
 These function identically to `fill-pg` and `wasm-ql-pg`, but store data using RocksDB
 instead of postgresql. Since RocksDB is an embedded database instead of a database server,

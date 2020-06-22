@@ -11,7 +11,6 @@
 * Building
     * [OSX](build-osx.md)
     * [Ubuntu 18.04](build-ubuntu-1804.md)
-    * [Documentation](build-doc.md)
 * [HistoryTools.js](generated/HistoryTools_js.md)
 * wasm-ql library
     * [block_select.hpp](generated/doc_block_select.md)

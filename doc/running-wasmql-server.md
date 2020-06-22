@@ -1,4 +1,6 @@
-# Running a wasm-ql Server
+---
+content_title: Running a wasm-ql Server
+---
 
 A wasm-ql system needs:
 * nodeos running the state-history plugin, with either full or recent history

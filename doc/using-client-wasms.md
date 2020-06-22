@@ -1,4 +1,6 @@
-# Using the client WASMs
+---
+content_title: Using the client WASMs
+---
 
 The client WASMs convert queries and query results between JSON and binary form. Usage:
 

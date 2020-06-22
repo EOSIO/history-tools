@@ -1,4 +1,6 @@
-# nodeos State History
+---
+content_title: nodeos State History
+---
 
 ## nodeos Configuration
 

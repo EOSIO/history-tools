@@ -1,4 +1,6 @@
-# Ubuntu Server 18.04 instructions
+---
+content_title: Ubuntu Server 18.04 instructions
+---
 
 These instructions assume:
 * You are using a minimal Ubuntu Server 18.04 image; other versions may not work

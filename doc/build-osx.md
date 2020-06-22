@@ -1,4 +1,6 @@
-# OSX Mojave instructions
+---
+content_title: OSX Mojave instructions
+---
 
 These instructions assume:
 * You are using OSX Mojave; prior versions won't work

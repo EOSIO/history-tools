@@ -1,4 +1,6 @@
-# Creating WASMs
+---
+content_title: Creating WASMs
+---
 
 The sources for a minimal WASM pair include:
 * A common header (`my.hpp`)

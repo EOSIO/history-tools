@@ -2,15 +2,41 @@
 content_title: wasm-ql
 ---
 
-```
-+----------+    +------------+    +---------------+       +-------------------+
-| database |    | database   |    | wasm-ql       |       | web browser       |
-| filler   |    |            |    | ------------- |       | ---------------   |
-|          | => | PostgreSQL | => | Server WASM A |  <=>  | Client WASM A     |
-|          |    |     or     |    | Server WASM B |  <=>  | Client WASM B     |
-|          |    |   RocksDB  |    | ...           |       |                   |
-|          |    |            |    | Legacy WASM   |  <=>  | js using /v1/ RPC |
-+----------+    +------------+    +---------------+       +-------------------+
+```dot-svg
+
+#db filler, db, wasm-ql, web browser - db_wasmql_web_flow.dot
+#
+#notes: * to see image copy/paste to https://dreampuf.github.io/GraphvizOnline
+#       * image will be rendered by gatsby-remark-graphviz plugin in eosio docs.
+#
+#+----------+    +------------+    +---------------+       +-------------------+
+#| database |    | database   |    | wasm-ql       |       | web browser       |
+#| filler   |    |            |    | ------------- |       | ---------------   |
+#|          | => | PostgreSQL | => | Server WASM A |  <=>  | Client WASM A     |
+#|          |    |     or     |    | Server WASM B |  <=>  | Client WASM B     |
+#|          |    |   RocksDB  |    | ...           |       |                   |
+#|          |    |            |    | Legacy WASM   |  <=>  | js using /v1/ RPC |
+#+----------+    +------------+    +---------------+       +-------------------+
+
+digraph {
+    graph [rankdir=LR]
+    node [shape=box, height=1.5, labelloc=top]
+    edge [arrowsize=.75]
+
+    db_filler [label="database\nfiller"]
+    db [label="database\n\nPostgreSQL\nor\nRocksDB"]
+    wasmql [label="wasm-ql\n\nServer WASM A\nServer WASM B\n...\nLegacy WASM"]
+    web_browser [label="web browser\n\nClient WASM A\nClient WASM B\n \njs using /v1/ RPC"]
+
+    db_filler -> db -> wasmql
+    wasmql -> web_browser [dir=both]
+    wasmql -> web_browser [color=invis]
+    wasmql -> web_browser [color=invis]
+    wasmql -> web_browser [dir=both]
+    wasmql -> web_browser [dir=both]
+    wasmql -> web_browser [color=invis]
+    wasmql -> web_browser [color=invis]
+}
 ```
 
 wasm-ql listens on an http port and answers the following:

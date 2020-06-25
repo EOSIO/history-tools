@@ -19,8 +19,8 @@ content_title: wasm-ql
 #+----------+    +------------+    +---------------+       +-------------------+
 
 digraph {
-    graph [rankdir=LR]
-    node [shape=box, height=1.5, labelloc=top]
+    graph [rankdir=LR, splines=ortho]
+    node [shape=box, height=1.2, fontname=arial, fontsize=11]
     edge [arrowsize=.75]
 
     db_filler [label="database\nfiller"]
@@ -29,12 +29,11 @@ digraph {
     web_browser [label="web browser\n\nClient WASM A\nClient WASM B\n \njs using /v1/ RPC"]
 
     db_filler -> db -> wasmql
-    wasmql -> web_browser [dir=both]
-    wasmql -> web_browser [color=invis]
     wasmql -> web_browser [color=invis]
     wasmql -> web_browser [dir=both]
-    wasmql -> web_browser [dir=both]
     wasmql -> web_browser [color=invis]
+    wasmql -> web_browser [dir=both]
+    wasmql -> web_browser [dir=both]
     wasmql -> web_browser [color=invis]
 }
 ```

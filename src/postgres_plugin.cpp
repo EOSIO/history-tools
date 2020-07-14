@@ -285,7 +285,6 @@ struct action_trace_builder: table_builder{
              ("act_name",               "varchar(13)")
              ("context_free",           "boolean")
              ("error_code",             "numeric")
-             ("action_ordinal",         "varchar")
              ("sequence",               "numeric")
              .primary_key("block_num, transaction_id, action_ordinal, sequence");
 

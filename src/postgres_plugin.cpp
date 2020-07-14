@@ -274,7 +274,7 @@ struct action_trace_builder: table_builder{
              ("transaction_status",     schema_prefix + "transaction_status_type")
              ("actor",                  "varchar(13)")
              ("permission",             "varchar(13)")
-             ("action_oridinal",        "bigint")
+             ("action_ordinal",        "bigint")
              ("creator_action_oridnal", "bigint")
              ("receipt_present",        "boolean")
              ("receipt_act_digest",    "varchar(64)")

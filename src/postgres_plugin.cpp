@@ -275,7 +275,7 @@ struct action_trace_builder: table_builder{
              ("actor",                  "varchar(13)")
              ("permission",             "varchar(13)")
              ("action_ordinal",        "bigint")
-             ("creator_action_oridnal", "bigint")
+             ("creator_action_ordinal", "bigint")
              ("receipt_present",        "boolean")
              ("receipt_act_digest",    "varchar(64)")
              ("receipt_global_sequence","numeric")
@@ -383,7 +383,7 @@ struct action_trace_builder: table_builder{
              ("transaction_id",pg_quoted(std::string(trace_v0.id)))
              ("transaction_status",pg_quoted(state_history::to_string(trace_v0.status)))
              ("action_ordinal",pg_quoted(std::to_string(atrace.action_ordinal.value)))
-             ("creator_action_oridnal",pg_quoted(std::to_string(atrace.creator_action_ordinal.value)))
+             ("creator_action_ordinal",pg_quoted(std::to_string(atrace.creator_action_ordinal.value)))
              ("receiver",pg_quoted(std::string(atrace.receiver)))
              ("act_account",pg_quoted(std::string(atrace.act.account)))
              ("act_name",pg_quoted(std::string(atrace.act.name)))
@@ -1349,7 +1349,7 @@ void postgres_plugin::set_program_options(appbase::options_description& cli, app
 
     op("system-table", bpo::value<std::vector<std::string>>()->composing(),"System state tables.");
     op("action-trace-drop-empty-block", "all onblock action will be dropped from action_trace.");
-    op("action-trace-keep-sub-actions", "action with creator creator_action_oridnal not 0 will also be include.");
+    op("action-trace-keep-sub-actions", "action with creator creator_action_ordinal not 0 will also be include.");
     op("timescaledb", "enable timescaledb support.");
 }
 

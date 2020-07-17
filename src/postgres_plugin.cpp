@@ -1298,9 +1298,18 @@ struct postgres_plugin_impl: std::enable_shared_from_this<postgres_plugin_impl> 
 
                 // * this is for init the sequence of action trace table.
                 if((*it)->name == "action_trace"){
+                    std::string& name =  (*it)->name;
+                    std::string table_name = name;
+                    std::string schema_prefix = "";
+                    if(m_pg_schema.has_value()){
+                            table_name = m_pg_schema.value() + "." + name;
+                            schema_prefix = m_pg_schema.value() + ".";
+                    }
+
+
                     action_trace_builder& builder = *(dynamic_cast<action_trace_builder*>(it->get()));
                     pqxx::work w(conn.value());
-                    pqxx::row row = w.exec1("select nextval('action_trace_sequence')");
+                    pqxx::row row = w.exec1("select nextval('"+table_name+"_sequence')");
 
                     uint64_t last_sequence = row[0].as<uint64_t>();
                     builder.m_sequence = last_sequence;

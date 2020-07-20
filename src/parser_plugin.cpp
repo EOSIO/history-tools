@@ -109,7 +109,7 @@ struct parser_plugin_impl: std::enable_shared_from_this<parser_plugin_impl> {
     }
 
     void handle(const state_history::get_status_result_v0& result){
-        if(mstatus.has_value())m_status.reset();
+        if(m_status.has_value())m_status.reset();
         m_status.emplace(result);
     }
 

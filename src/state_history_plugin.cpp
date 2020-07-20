@@ -15,7 +15,7 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
     abieos::abi_def     m_abi = {};
     std::map<std::string, abieos::abi_type>     m_abi_types = {};
     bool m_irrversible_only = false;
-
+    bool first_connect = true;
     std::optional<uint32_t> trace_begin_block;
     std::optional<uint32_t> state_begin_block;
     state_history_plugin&   m_plugin;
@@ -58,12 +58,15 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
     //override. 
     void received_abi(std::string_view abi_sv) override{
         ilog("reaceive abi");
-        json_to_native(m_abi, abi_sv);
-        abieos::check_abi_version(m_abi.version);
-        m_abi_types = abieos::create_contract(m_abi).abi_types;
+        if(first_connect){
+            json_to_native(m_abi, abi_sv);
+            abieos::check_abi_version(m_abi.version);
+            m_abi_types = abieos::create_contract(m_abi).abi_types;
 
-        m_plugin.applied_abi(m_abi,m_abi_types);        
-        connection->send(state_history::get_status_request_v0{});
+            m_plugin.applied_abi(m_abi,m_abi_types);        
+            connection->send(state_history::get_status_request_v0{});
+            first_connect = false;
+        }
 
     }
     bool received(state_history::get_status_result_v0& status) override{

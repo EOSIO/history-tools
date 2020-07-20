@@ -62,11 +62,10 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
             json_to_native(m_abi, abi_sv);
             abieos::check_abi_version(m_abi.version);
             m_abi_types = abieos::create_contract(m_abi).abi_types;
-
             m_plugin.applied_abi(m_abi,m_abi_types);        
-            connection->send(state_history::get_status_request_v0{});
             first_connect = false;
         }
+            connection->send(state_history::get_status_request_v0{});
 
     }
     bool received(state_history::get_status_result_v0& status) override{

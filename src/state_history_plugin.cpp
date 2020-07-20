@@ -80,7 +80,7 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
             ("f",status.chain_state_end_block)
         );
         if(!trace_begin_block.has_value()){
-            ilog("first time receive status.")
+            ilog("first time receive status.");
             trace_begin_block.emplace(status.trace_begin_block);
             state_begin_block.emplace(status.chain_state_begin_block);
 
@@ -92,8 +92,8 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
             }
             request_blocks(request_start_block,m_irrversible_only);
         }else{
-            ilog("reconnect receive status.")
-            request_blocks(m_last_received_block_num,m_irrversible_only);
+            ilog("reconnect receive status.");
+            request_blocks(m_last_received_block_num+1,m_irrversible_only);
         }
         return true;
     }

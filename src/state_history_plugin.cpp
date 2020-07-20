@@ -24,6 +24,7 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
     //define signals 
     std::optional<uint32_t> initial_block_num;
     boost::asio::deadline_timer             timer;
+    uint32_t m_last_received_block_num = 0;
 
     state_history_plugin_impl(state_history_plugin& plugin):m_plugin(plugin),timer(appbase::app().get_io_service()){
     }
@@ -78,16 +79,20 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
             ("e",status.chain_state_begin_block)
             ("f",status.chain_state_end_block)
         );
-        trace_begin_block.emplace(status.trace_begin_block);
-        state_begin_block.emplace(status.chain_state_begin_block);
+        if(!trace_begin_block.has_value()){
+            trace_begin_block.emplace(status.trace_begin_block);
+            state_begin_block.emplace(status.chain_state_begin_block);
 
-        uint32_t request_start_block = trace_begin_block.value();
-        if(initial_block_num.has_value()){
-            if(initial_block_num.value()>request_start_block){
-                request_start_block = initial_block_num.value();
+            uint32_t request_start_block = trace_begin_block.value();
+            if(initial_block_num.has_value()){
+                if(initial_block_num.value()>request_start_block){
+                    request_start_block = initial_block_num.value();
+                }
             }
+            request_blocks(request_start_block,m_irrversible_only);
+        }else{
+            request_blocks(m_last_received_block_num,m_irrversible_only);
         }
-        request_blocks(request_start_block,m_irrversible_only);
         return true;
     }
 
@@ -95,6 +100,7 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
     virtual bool received(state_history::get_blocks_result_v0& result) override{ 
         m_plugin.applied_blocks(result);
         // ilog("receive block ${num} ${bid}",("num",result.this_block.value().block_num)("bid",std::string(result.this_block.value().block_id)));
+        m_last_received_block_num = result.this_block.value().block_num;
         return true;
     }
 

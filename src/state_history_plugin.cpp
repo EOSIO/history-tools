@@ -23,8 +23,9 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
     std::shared_ptr<state_history::connection>   connection;
     //define signals 
     std::optional<uint32_t> initial_block_num;
+    boost::asio::deadline_timer             timer;
 
-    state_history_plugin_impl(state_history_plugin& plugin):m_plugin(plugin){
+    state_history_plugin_impl(state_history_plugin& plugin):m_plugin(plugin),timer(appbase::app().get_io_service()){
     }
 
     void set(const std::string& host, const std::string& port){
@@ -95,7 +96,18 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
         return true;
     }
 
-    void closed(bool retry) override {}
+    void schedule_retry() {
+        timer.expires_from_now(boost::posix_time::seconds(1));
+        timer.async_wait([this](auto&) {
+            ilog("retry...");
+            start(appbase::app().get_io_service());
+        });
+    }
+
+    void closed(bool retry) override {
+            connection.reset();
+            schedule_retry();
+    }
 
 
     void set_initial_block_num(uint32_t block_num){
@@ -105,6 +117,10 @@ struct state_history_plugin_impl: state_history::connection_callbacks, std::enab
 
     void irrversible_only(){
         m_irrversible_only = true;
+    }
+
+    void shutdown(){
+        timer.cancel();
     }
 
 };
@@ -149,6 +165,7 @@ void state_history_plugin::plugin_startup() {
 }
 void state_history_plugin::plugin_shutdown() {
     ilog("state history plugin shutdown.");
+    my->shutdown();
 }
 
 void state_history_plugin::set_initial_block_num(uint32_t block_num){

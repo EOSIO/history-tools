@@ -2,6 +2,7 @@
 
 #include "fill_plugin.hpp"
 #include "util.hpp"
+#include <eosio/ship_protocol.hpp>
 
 #include <boost/algorithm/string.hpp>
 #include <fc/exception/exception.hpp>
@@ -49,7 +50,7 @@ std::vector<state_history::trx_filter> fill_plugin::get_trx_filters(const variab
                     throw std::runtime_error("include must be '+' or '-'");
 
                 if (split.size() > 1 && !split[1].empty())
-                    filt.status = state_history::get_transaction_status(split[1]);
+                    filt.status = eosio::ship_protocol::get_transaction_status(split[1]);
                 if (split.size() > 2 && !split[2].empty())
                     filt.receiver = abieos::name{split[2].c_str()};
                 if (split.size() > 3 && !split[3].empty())

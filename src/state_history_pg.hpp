@@ -3,6 +3,11 @@
 #pragma once
 #include "query_config.hpp"
 #include "state_history.hpp"
+#include <eosio/chain_conversions.hpp>
+#include <eosio/check.hpp>
+#include <eosio/from_string.hpp>
+#include <eosio/time.hpp>
+#include <eosio/varint.hpp>
 
 #include <pqxx/pqxx>
 
@@ -145,48 +150,75 @@ inline std::string sql_str(bool bulk, uint32_t v)                               
 inline std::string sql_str(bool bulk, int32_t v)                                        { return std::to_string(v); }
 inline std::string sql_str(bool bulk, uint64_t v)                                       { return std::to_string(v); }
 inline std::string sql_str(bool bulk, int64_t v)                                        { return std::to_string(v); }
-inline std::string sql_str(bool bulk, abieos::varuint32 v)                              { return std::string(v); }
-inline std::string sql_str(bool bulk, abieos::varint32 v)                               { return std::string(v); }
-inline std::string sql_str(bool bulk, const abieos::int128& v)                          { return std::string(v); }
-inline std::string sql_str(bool bulk, const abieos::uint128& v)                         { return std::string(v); }
-inline std::string sql_str(bool bulk, const abieos::float128& v)                        { return quote_bytea(bulk, std::string(v)); }
-inline std::string sql_str(bool bulk, abieos::name v)                                   { return quote(bulk, v.value ? std::string(v) : std::string()); }
-inline std::string sql_str(bool bulk, abieos::time_point v)                             { return v.microseconds ? quote(bulk, std::string(v)): null_value(bulk); }
-inline std::string sql_str(bool bulk, abieos::time_point_sec v)                         { return v.utc_seconds ? quote(bulk, std::string(v)): null_value(bulk); }
-inline std::string sql_str(bool bulk, abieos::block_timestamp v)                        { return v.slot ?  quote(bulk, std::string(v)) : null_value(bulk); }
-inline std::string sql_str(bool bulk, const abieos::checksum256& v)                     { return quote(bulk, v.value == abieos::checksum256{}.value ? "" : std::string(v)); }
-inline std::string sql_str(bool bulk, const abieos::public_key& v)                      { return quote(bulk, public_key_to_string(v)); }
-inline std::string sql_str(bool bulk, const abieos::signature& v)                       { return quote(bulk, signature_to_string(v)); }
-inline std::string sql_str(bool bulk, const abieos::bytes&)                             { throw std::runtime_error("sql_str(bytes): not implemented"); }
-inline std::string sql_str(bool bulk, transaction_status v)                             { return quote(bulk, to_string(v)); }
-inline std::string sql_str(bool bulk, abieos::symbol v)                                 { return quote(bulk, abieos::symbol_to_string(v.value)); }
+inline std::string sql_str(bool bulk, eosio::varuint32 v)                               { return std::string(v); }
+inline std::string sql_str(bool bulk, eosio::varint32 v)                                { return std::to_string(v); }
+#ifndef ABIEOS_NO_INT128
+inline std::string sql_str(bool bulk, const abieos::int128& v)                          { auto nv = -v; return v < 0 ? std::string("-") + abieos::binary_to_decimal(eosio::fixed_bytes<16, uint8_t>(reinterpret_cast<const uint8_t(&)[16]>(nv)).get_array()) : abieos::binary_to_decimal(eosio::fixed_bytes<16, uint8_t>(reinterpret_cast<const uint8_t(&)[16]>(v)).get_array()); }
+inline std::string sql_str(bool bulk, const abieos::uint128& v)                         { return abieos::binary_to_decimal(eosio::fixed_bytes<16, uint8_t>(reinterpret_cast<const uint8_t(&)[16]>(v)).get_array()); }
+#endif
+inline std::string sql_str(bool bulk, const abieos::float128& v)                        { return quote_bytea(bulk, abieos::hex(v.value.begin(), v.value.end())); }
+inline std::string sql_str(bool bulk, eosio::name v)                                    { return quote(bulk, v.value ? std::string(v) : std::string()); }
+inline std::string sql_str(bool bulk, eosio::time_point v)                              { return v.elapsed.count() ? quote(bulk, eosio::microseconds_to_str(v.elapsed.count())): null_value(bulk); }
+inline std::string sql_str(bool bulk, eosio::time_point_sec v)                          { return v.utc_seconds ? quote(bulk, eosio::microseconds_to_str(uint64_t(v.utc_seconds) * 1'000'000)): null_value(bulk); }
+inline std::string sql_str(bool bulk, abieos::block_timestamp v)                        { return v.slot ?  sql_str(bulk, v.to_time_point()) : null_value(bulk); }
+inline std::string sql_str(bool bulk, const eosio::checksum256& v)                      { return quote(bulk, v.value == abieos::checksum256{}.value ? "" : abieos::hex(v.value.begin(), v.value.end())); }
+inline std::string sql_str(bool bulk, const eosio::public_key& v)                       { return quote(bulk, public_key_to_string(v)); }
+inline std::string sql_str(bool bulk, const eosio::signature& v)                        { return quote(bulk, signature_to_string(v)); }
+inline std::string sql_str(bool bulk, const eosio::bytes&)                              { throw std::runtime_error("sql_str(bytes): not implemented"); }
+inline std::string sql_str(bool bulk, eosio::ship_protocol::transaction_status v)       { return quote(bulk, to_string(v)); }
+inline std::string sql_str(bool bulk, eosio::symbol v)                                  { return quote(bulk, eosio::symbol_to_string(v.value)); }
 
 inline std::string sql_str(pqxx::connection&, bool bulk, bool v)                        { return sql_str(bulk, v); }
-inline std::string sql_str(pqxx::connection&, bool bulk, abieos::varuint32 v)           { return sql_str(bulk, v); }
-inline std::string sql_str(pqxx::connection&, bool bulk, abieos::varint32 v)            { return sql_str(bulk, v); }
+inline std::string sql_str(pqxx::connection&, bool bulk, eosio::varuint32 v)            { return sql_str(bulk, v); }
+inline std::string sql_str(pqxx::connection&, bool bulk, eosio::varint32 v)             { return sql_str(bulk, v); }
 inline std::string sql_str(pqxx::connection&, bool bulk, const abieos::int128& v)       { return sql_str(bulk, v); }
 inline std::string sql_str(pqxx::connection&, bool bulk, const abieos::uint128& v)      { return sql_str(bulk, v); }
-inline std::string sql_str(pqxx::connection&, bool bulk, const abieos::float128& v)     { return sql_str(bulk, v); }
-inline std::string sql_str(pqxx::connection&, bool bulk, abieos::name v)                { return sql_str(bulk, v); }
-inline std::string sql_str(pqxx::connection&, bool bulk, abieos::time_point v)          { return sql_str(bulk, v); }
-inline std::string sql_str(pqxx::connection&, bool bulk, abieos::time_point_sec v)      { return sql_str(bulk, v); }
-inline std::string sql_str(pqxx::connection&, bool bulk, abieos::block_timestamp v)     { return sql_str(bulk, v); }
-inline std::string sql_str(pqxx::connection&, bool bulk, abieos::checksum256 v)         { return sql_str(bulk, v); }
-inline std::string sql_str(pqxx::connection&, bool bulk, const abieos::public_key& v)   { return sql_str(bulk, v); }
-inline std::string sql_str(pqxx::connection&, bool bulk, const abieos::signature& v)    { return sql_str(bulk, v); }
-inline std::string sql_str(pqxx::connection&, bool bulk, transaction_status v)          { return sql_str(bulk, v); }
-inline std::string sql_str(pqxx::connection&, bool bulk, abieos::symbol v)              { return sql_str(bulk, v); }
+inline std::string sql_str(pqxx::connection&, bool bulk, const eosio::float128& v)      { return sql_str(bulk, v); }
+inline std::string sql_str(pqxx::connection&, bool bulk, eosio::name v)                 { return sql_str(bulk, v); }
+inline std::string sql_str(pqxx::connection&, bool bulk, eosio::time_point v)           { return sql_str(bulk, v); }
+inline std::string sql_str(pqxx::connection&, bool bulk, eosio::time_point_sec v)       { return sql_str(bulk, v); }
+inline std::string sql_str(pqxx::connection&, bool bulk, eosio::block_timestamp v)      { return sql_str(bulk, v); }
+inline std::string sql_str(pqxx::connection&, bool bulk, eosio::checksum256 v)          { return sql_str(bulk, v); }
+inline std::string sql_str(pqxx::connection&, bool bulk, const eosio::public_key& v)    { return sql_str(bulk, v); }
+inline std::string sql_str(pqxx::connection&, bool bulk, const eosio::signature& v)     { return sql_str(bulk, v); }
+inline std::string sql_str(pqxx::connection&, bool bulk,
+                           eosio::ship_protocol::transaction_status v)                  { return sql_str(bulk, v); }
+inline std::string sql_str(pqxx::connection&, bool bulk, eosio::symbol v)               { return sql_str(bulk, v); }
 // clang-format on
+
+template <typename T>
+inline constexpr bool is_vector_v = false;
+
+template <typename T>
+inline constexpr bool is_vector_v<std::vector<T>> = true;
+
+template <typename T>
+inline constexpr bool is_optional_v = false;
+
+template <typename T>
+inline constexpr bool is_optional_v<std::optional<T>> = true;
+
+template <typename T>
+inline constexpr bool is_variant_v = false;
+
+template <typename... Ts>
+inline constexpr bool is_variant_v<std::variant<Ts...>> = true;
+
+template <typename T>
+inline constexpr bool is_string_v = false;
+
+template <>
+inline constexpr bool is_string_v<std::string> = true;
 
 template <typename T>
 std::string sql_str(pqxx::connection& c, bool bulk, const T& obj) {
     using std::to_string;
-    if constexpr (abieos::is_optional_v<T>) {
+    if constexpr (is_optional_v<T>) {
         if (obj)
             return sql_str(c, bulk, *obj);
         else if (std::is_arithmetic_v<typename T::value_type>)
             return "0";
-        else if (abieos::is_string_v<typename T::value_type>)
+        else if (is_string_v<typename T::value_type>)
             return quote(bulk, "");
         else
             return null_value(bulk);
@@ -196,18 +228,22 @@ std::string sql_str(pqxx::connection& c, bool bulk, const T& obj) {
 }
 
 template <typename T>
-std::string bin_to_sql(pqxx::connection& c, bool bulk, abieos::input_buffer& bin) {
-    if constexpr (abieos::is_optional_v<T>) {
-        if (abieos::read_raw<bool>(bin))
+std::string bin_to_sql(pqxx::connection& c, bool bulk, eosio::input_stream& bin) {
+    if constexpr (is_optional_v<T>) {
+        bool has_value;
+        bin.read_raw<bool>(has_value);
+        if (has_value)
             return bin_to_sql<typename T::value_type>(c, bulk, bin);
         else if (std::is_arithmetic_v<typename T::value_type>)
             return "0";
-        else if (abieos::is_string_v<typename T::value_type>)
+        else if (is_string_v<typename T::value_type>)
             return quote(bulk, "");
         else
             return null_value(bulk);
     } else {
-        return sql_str(c, bulk, abieos::read_raw<T>(bin));
+        T v;
+        bin.read_raw<T>(v);
+        return sql_str(c, bulk, v);
     }
 }
 
@@ -222,15 +258,17 @@ std::string empty_to_sql(pqxx::connection& c, bool bulk) {
 }
 
 template <>
-inline std::string bin_to_sql<std::string>(pqxx::connection& c, bool bulk, abieos::input_buffer& bin) {
-    return sql_str(c, bulk, read_string(bin));
+inline std::string bin_to_sql<std::string>(pqxx::connection& c, bool bulk, eosio::input_stream& bin) {
+    std::string str;
+    from_bin(str, bin);
+    return sql_str(c, bulk, str);
 }
 
 template <>
-inline std::string bin_to_sql<abieos::bytes>(pqxx::connection&, bool bulk, abieos::input_buffer& bin) {
-    auto size = abieos::read_varuint32(bin);
-    if (size > bin.end - bin.pos)
-        throw abieos::error("invalid bytes size");
+inline std::string bin_to_sql<abieos::bytes>(pqxx::connection&, bool bulk, eosio::input_stream& bin) {
+    uint32_t size;
+    eosio::varuint32_from_bin(size, bin);
+    eosio::check(size > bin.end - bin.pos, "invalid bytes size");
     std::string result;
     abieos::hex(bin.pos, bin.pos + size, back_inserter(result));
     bin.pos += size;
@@ -251,20 +289,20 @@ inline std::string empty_to_sql<abieos::bytes>(pqxx::connection&, bool bulk) {
 }
 
 template <>
-inline std::string bin_to_sql<abieos::input_buffer>(pqxx::connection&, bool, abieos::input_buffer& bin) {
-    throw abieos::error("bin_to_sql: input_buffer unsupported");
+inline std::string bin_to_sql<eosio::input_stream>(pqxx::connection&, bool, eosio::input_stream& bin) {
+    eosio::check(false, "bin_to_sql: input_buffer unsupported");
 }
 
 template <>
-inline std::string native_to_sql<abieos::input_buffer>(pqxx::connection&, bool bulk, const void* p) {
-    auto&       obj = *reinterpret_cast<const abieos::input_buffer*>(p);
+inline std::string native_to_sql<eosio::input_stream>(pqxx::connection&, bool bulk, const void* p) {
+    auto&       obj = *reinterpret_cast<const eosio::input_stream*>(p);
     std::string result;
     abieos::hex(obj.pos, obj.end, back_inserter(result));
     return quote_bytea(bulk, result);
 }
 
 template <>
-inline std::string empty_to_sql<abieos::input_buffer>(pqxx::connection&, bool bulk) {
+inline std::string empty_to_sql<eosio::input_stream>(pqxx::connection&, bool bulk) {
     return quote_bytea(bulk, "");
 }
 
@@ -272,62 +310,64 @@ inline abieos::time_point sql_to_time_point(std::string s) {
     if (s.empty())
         return {};
     std::replace(s.begin(), s.end(), ' ', 'T');
-    return abieos::string_to_time_point(s);
+    abieos::time_point tp;
+    from_json(tp, s);
+    return tp;
 }
 
 inline abieos::block_timestamp sql_to_block_timestamp(std::string s) {
     if (s.empty())
         return {};
     std::replace(s.begin(), s.end(), ' ', 'T');
-    return abieos::block_timestamp{abieos::string_to_time_point(s)};
+    return abieos::block_timestamp{eosio::from_string<eosio::time_point>(s)};
 }
 
 template <typename T>
 void sql_to_bin(std::vector<char>& bin, const pqxx::field& f) {
-    if constexpr (abieos::is_optional_v<T>)
+    if constexpr (is_optional_v<T>)
         throw std::runtime_error("sql_to_bin<optional<T>> not implemented");
     else
-        abieos::native_to_bin(f.as<T>(), bin);
+        eosio::to_bin(f.as<T>(), bin);
 }
 
 // clang-format off
 template <>
-inline void sql_to_bin<transaction_status>(std::vector<char>& bin, const pqxx::field& f) {
+inline void sql_to_bin<eosio::ship_protocol::transaction_status>(std::vector<char>& bin, const pqxx::field& f) {
     if (false) {}
-    else if (!strcmp("executed",  f.c_str())) abieos::native_to_bin( (uint8_t)transaction_status::executed, bin);
-    else if (!strcmp("soft_fail", f.c_str())) abieos::native_to_bin( (uint8_t)transaction_status::soft_fail, bin);
-    else if (!strcmp("hard_fail", f.c_str())) abieos::native_to_bin( (uint8_t)transaction_status::hard_fail, bin);
-    else if (!strcmp("delayed",   f.c_str())) abieos::native_to_bin( (uint8_t)transaction_status::delayed, bin);
-    else if (!strcmp("expired",   f.c_str())) abieos::native_to_bin( (uint8_t)transaction_status::expired, bin);
+    else if (!strcmp("executed",  f.c_str())) eosio::to_bin( (uint8_t)eosio::ship_protocol::transaction_status::executed, bin);
+    else if (!strcmp("soft_fail", f.c_str())) eosio::to_bin( (uint8_t)eosio::ship_protocol::transaction_status::soft_fail, bin);
+    else if (!strcmp("hard_fail", f.c_str())) eosio::to_bin( (uint8_t)eosio::ship_protocol::transaction_status::hard_fail, bin);
+    else if (!strcmp("delayed",   f.c_str())) eosio::to_bin( (uint8_t)eosio::ship_protocol::transaction_status::delayed, bin);
+    else if (!strcmp("expired",   f.c_str())) eosio::to_bin( (uint8_t)eosio::ship_protocol::transaction_status::expired, bin);
     else
         throw std::runtime_error("invalid value for transaction_status: " + f.as<std::string>());
 }
 // clang-format on
 
 // clang-format off
-template <> inline void sql_to_bin<uint8_t>                    (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( (uint8_t)f.as<uint16_t>(), bin); }
-template <> inline void sql_to_bin<int8_t>                     (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( (int8_t)f.as<int16_t>(), bin); }
-template <> inline void sql_to_bin<abieos::varuint32>          (std::vector<char>& bin, const pqxx::field& f) { abieos::push_varuint32(bin, f.as<uint32_t>()); }
-template <> inline void sql_to_bin<abieos::varint32>           (std::vector<char>& bin, const pqxx::field& f) { abieos::push_varint32(bin, f.as<int32_t>()); }
+template <> inline void sql_to_bin<uint8_t>                    (std::vector<char>& bin, const pqxx::field& f) { eosio::to_bin( (uint8_t)f.as<uint16_t>(), bin); }
+template <> inline void sql_to_bin<int8_t>                     (std::vector<char>& bin, const pqxx::field& f) { eosio::to_bin( (int8_t)f.as<int16_t>(), bin); }
+template <> inline void sql_to_bin<abieos::varuint32>          (std::vector<char>& bin, const pqxx::field& f) { eosio::push_varuint32(bin, f.as<uint32_t>()); }
+template <> inline void sql_to_bin<abieos::varint32>           (std::vector<char>& bin, const pqxx::field& f) { int32_t v = f.as<int32_t>(); eosio::push_varuint32(bin, (uint32_t(v) << 1) ^ uint32_t(v >> 31)); }
 template <> inline void sql_to_bin<abieos::int128>             (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<int128> not implemented"); }
 template <> inline void sql_to_bin<abieos::uint128>            (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<uint128> not implemented"); }
 template <> inline void sql_to_bin<abieos::float128>           (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<float128> not implemented"); }
-template <> inline void sql_to_bin<abieos::name>               (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( abieos::name{f.c_str()}, bin); }
-template <> inline void sql_to_bin<abieos::time_point>         (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( sql_to_time_point(f.c_str()), bin); }
+template <> inline void sql_to_bin<abieos::name>               (std::vector<char>& bin, const pqxx::field& f) { eosio::to_bin( abieos::name{f.c_str()}, bin); }
+template <> inline void sql_to_bin<abieos::time_point>         (std::vector<char>& bin, const pqxx::field& f) { eosio::to_bin( sql_to_time_point(f.c_str()), bin); }
 template <> inline void sql_to_bin<abieos::time_point_sec>     (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<time_point_sec> not implemented"); }
-template <> inline void sql_to_bin<abieos::block_timestamp>    (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( sql_to_block_timestamp(f.c_str()), bin); }
-template <> inline void sql_to_bin<abieos::checksum256>        (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( sql_to_checksum256(f.c_str()), bin); }
+template <> inline void sql_to_bin<abieos::block_timestamp>    (std::vector<char>& bin, const pqxx::field& f) { eosio::to_bin( sql_to_block_timestamp(f.c_str()), bin); }
+template <> inline void sql_to_bin<abieos::checksum256>        (std::vector<char>& bin, const pqxx::field& f) { eosio::to_bin( sql_to_checksum256(f.c_str()), bin); }
 template <> inline void sql_to_bin<abieos::public_key>         (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<public_key> not implemented"); }
 template <> inline void sql_to_bin<abieos::signature>          (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<signature> not implemented"); }
-template <> inline void sql_to_bin<abieos::bytes>              (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( sql_to_bytes(f.c_str()), bin); }
-template <> inline void sql_to_bin<std::string>                (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( std::string{f.c_str()}, bin); } // todo: unescape
-template <> inline void sql_to_bin<abieos::input_buffer>       (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<input_buffer> not implemented"); }
-template <> inline void sql_to_bin<abieos::symbol>             (std::vector<char>& bin, const pqxx::field& f) { abieos::native_to_bin( abieos::string_to_symbol(f.c_str()), bin); }
+template <> inline void sql_to_bin<abieos::bytes>              (std::vector<char>& bin, const pqxx::field& f) { eosio::to_bin( sql_to_bytes(f.c_str()), bin); }
+template <> inline void sql_to_bin<std::string>                (std::vector<char>& bin, const pqxx::field& f) { eosio::to_bin( std::string{f.c_str()}, bin); } // todo: unescape
+template <> inline void sql_to_bin<eosio::input_stream>        (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<input_stream> not implemented"); }
+template <> inline void sql_to_bin<abieos::symbol>             (std::vector<char>& bin, const pqxx::field& f) { uint64_t sym; eosio::string_to_symbol(sym, f.c_str(), f.c_str() + f.size() - 1); eosio::to_bin( sym, bin); }
 // clang-format on
 
 struct type {
     const char* name                                                          = "";
-    std::string (*bin_to_sql)(pqxx::connection&, bool, abieos::input_buffer&) = nullptr;
+    std::string (*bin_to_sql)(pqxx::connection&, bool, eosio::input_stream&)  = nullptr;
     std::string (*native_to_sql)(pqxx::connection&, bool, const void*)        = nullptr;
     std::string (*empty_to_sql)(pqxx::connection&, bool)                      = nullptr;
     void (*sql_to_bin)(std::vector<char>& bin, const pqxx::field&)            = nullptr;
@@ -376,9 +416,10 @@ template<> inline constexpr type type_for<abieos::block_timestamp>  = make_type_
 template<> inline constexpr type type_for<abieos::public_key>       = make_type_for<abieos::public_key>(        "varchar"                   );
 template<> inline constexpr type type_for<abieos::signature>        = make_type_for<abieos::signature>(         "varchar"                   );
 template<> inline constexpr type type_for<abieos::bytes>            = make_type_for<abieos::bytes>(             "bytea"                     );
-template<> inline constexpr type type_for<abieos::input_buffer>     = make_type_for<abieos::input_buffer>(      "bytea"                     );
-template<> inline constexpr type type_for<transaction_status>       = make_type_for<transaction_status>(        "transaction_status_type"   );
+template<> inline constexpr type type_for<eosio::input_stream>      = make_type_for<eosio::input_stream>(       "bytea"                     );
 template<> inline constexpr type type_for<abieos::symbol>           = make_type_for<abieos::symbol>(            "varchar(10)"               );
+template<> inline constexpr type type_for<eosio::ship_protocol::transaction_status>
+                                                                    = make_type_for<eosio::ship_protocol::transaction_status>("transaction_status_type");
 // clang-format on
 
 template <typename T>
@@ -419,7 +460,7 @@ inline const std::map<std::string_view, type> abi_type_to_sql_type = {
     {"public_key",              type_for<abieos::public_key>},
     {"signature",               type_for<abieos::signature>},
     {"bytes",                   type_for<abieos::bytes>},
-    {"transaction_status",      type_for<transaction_status>},
+    {"transaction_status",      type_for<eosio::ship_protocol::transaction_status>},
     {"symbol",                  type_for<abieos::symbol>},
 };
 

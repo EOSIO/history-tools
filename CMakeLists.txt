@@ -4,7 +4,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET 10.14)
 include(ExternalProject)
 
 cmake_minimum_required (VERSION 3.10)
-project(history-tools VERSION 0.1 LANGUAGES CXX)
+project(history-tools VERSION 0.3 LANGUAGES CXX)
 
 cmake_policy(SET CMP0077 NEW)
 set(ENABLE_INSTALL OFF cache bool "")
@@ -111,7 +111,7 @@ function(add_app APP FLAGS LIBS)
     target_include_directories(${APP}
         PRIVATE
             external/abieos/src
-            external/abieos/external/date/include
+            external/abieos/include
             external/abieos/external/rapidjson/include
             external/appbase/include
             external/eos-vm/include

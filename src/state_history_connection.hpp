@@ -18,8 +18,9 @@ namespace state_history {
 struct connection_callbacks {
     virtual ~connection_callbacks() = default;
     virtual void received_abi(std::string_view abi) {}
-    virtual bool received(eosio::ship_protocol::get_status_result_v0& status) { return true; }
-    virtual bool received(eosio::ship_protocol::get_blocks_result_v0& result) { return true; }
+    virtual bool received(eosio::ship_protocol::get_status_result_v0& /*status*/) { return true; }
+    virtual bool received(eosio::ship_protocol::get_blocks_result_v0& /*result*/) { return true; }
+    virtual bool received(eosio::ship_protocol::get_blocks_result_v1& /*result*/) { return true; }
     virtual void closed(bool retry) = 0;
 };
 
@@ -97,12 +98,18 @@ struct connection : std::enable_shared_from_this<connection> {
     void receive_abi(const std::shared_ptr<flat_buffer>& p) {
         auto data = p->data();
         auto sv   = std::string_view{(const char*)data.data(), data.size()};
-        from_json(abi, sv);
+        auto buf  = new char[data.size()];
+        memcpy(buf, data.data(), data.size());
+        auto is   = eosio::json_token_stream{buf};
+        delete[] buf;
+        from_json(abi, is);
         std::string error;
         if(!abieos::check_abi_version(abi.version, error)) {
             eosio::check(error.empty(), error);
         }
-        abi_types = abieos::create_contract(abi).abi_types;
+        eosio::abi a;
+        eosio::convert(abi, a);
+        abi_types = a.abi_types;
         have_abi  = true;
         if (callbacks)
             callbacks->received_abi(sv);

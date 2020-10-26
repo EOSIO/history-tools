@@ -177,8 +177,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             fields += ", "s + t.quote_name(base_name + field.name + "_present") + " boolean";
             for (auto& f : field.type->optional_of()->as_struct()->fields)
                 fill_field(t, base_name + field.name + "_", fields, f);
-        } else if (field.type->as_variant() && field.type->as_variant()->size() == 1 && field.type->as_variant()[0].type->as_struct()) {
-            for (auto& f : field.type->fields[0].type->fields)
+        } else if (field.type->as_variant() && field.type->as_variant()->size() == 1 && field.type->as_variant()->at(0).type->as_struct()) {
+            for (auto& f : field.type->as_variant()->at(0).type->as_struct()->fields)
                 fill_field(t, base_name + field.name + "_", fields, f);
         } else if (field.type->array_of() && field.type->array_of()->as_struct()) {
             std::string sub_fields;
@@ -189,15 +189,16 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             t.exec(query);
             fields += ", " + t.quote_name(base_name + field.name) + " " + t.quote_name(config->schema) + "." +
                       t.quote_name(field.type->array_of()->name) + "[]";
-        } else if (field.type->array_of() && field.type->array_of()->filled_variant && field.type->array_of()->fields[0].type->filled_struct) {
-            auto*       s = field.type->array_of()->fields[0].type;
+        } else if (field.type->array_of() && field.type->array_of()->as_variant() && field.type->array_of()->as_variant()->at(0).type->as_struct()) {
+            const abi_type* at = field.type->array_of()->as_variant()->at(0).type;
+            auto* s = at->as_struct();
             std::string sub_fields;
             for (auto& f : s->fields)
                 fill_field(t, "", sub_fields, f);
             std::string query =
-                "create type " + t.quote_name(config->schema) + "." + t.quote_name(s->name) + " as (" + sub_fields.substr(2) + ")";
+                "create type " + t.quote_name(config->schema) + "." + t.quote_name(at->name) + " as (" + sub_fields.substr(2) + ")";
             t.exec(query);
-            fields += ", " + t.quote_name(base_name + field.name) + " " + t.quote_name(config->schema) + "." + t.quote_name(s->name) + "[]";
+            fields += ", " + t.quote_name(base_name + field.name) + " " + t.quote_name(config->schema) + "." + t.quote_name(at->name) + "[]";
         } else {
             auto abi_type = field.type->name;
             if (abi_type.size() >= 1 && abi_type.back() == '?')
@@ -241,11 +242,11 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             if (table.type == "global_property")
                 continue;
             auto& variant_type = get_type(table.type);
-            if (!variant_type.as_variant() || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
+            if (!variant_type.as_variant() || variant_type.as_variant()->size() != 1 || !variant_type.as_variant()->at(0).type->as_struct())
                 throw std::runtime_error("don't know how to proccess " + variant_type.name);
-            auto&       type   = *variant_type.fields[0].type;
+            auto&       type   = *variant_type.as_variant()->at(0).type;
             std::string fields = "block_num bigint, present bool";
-            for (auto& field : type.fields)
+            for (auto& field : type.as_struct()->fields)
                 fill_field(t, "", fields, field);
             std::string keys = "block_num, present";
             for (auto& key : table.key_names)

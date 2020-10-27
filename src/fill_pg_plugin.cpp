@@ -8,6 +8,7 @@
 #include "state_history_pg.hpp"
 #include "util.hpp"
 
+#include <eosio/for_each_field.hpp>
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
@@ -152,7 +153,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
     template <typename T>
     void add_table_fields(pqxx::work& t, std::string& fields, const std::string& prefix) {
-        eosio_for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
+        eosio::for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
             add_table_field<typename decltype(member_ptr)::member_type>(t, fields, prefix + field_name);
         });
     }
@@ -582,12 +583,12 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                     values += sep(bulk) + it->second.empty_to_sql(*sql_connection, bulk);
                 }
             }
-        } else if (field.type->as_variant() && field.type->fields.size() == 1 && field.type->fields[0].type->filled_struct) {
+        } else if (field.type->as_variant() && field.type->as_variant()->size() == 1 && field.type->as_variant()->at(0).type->as_struct()) {
             uint32_t v;
             varuint32_from_bin(v, bin);
             if (v)
                 throw std::runtime_error("invalid variant in " + field.type->name);
-            for (auto& f : field.type->fields[0].type->fields)
+            for (auto& f : *field.type->as_variant()->at(0).type->as_variant())
                 fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
         } else if (field.type->array_of() && field.type->array_of()->as_struct()) {
             fields += ", " + t.quote_name(base_name + field.name);
@@ -600,7 +601,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 values += begin_object_in_array(bulk);
                 std::string struct_fields;
                 std::string struct_values;
-                for (auto& f : field.type->array_of()->fields)
+                for (auto& f : *field.type->array_of()->as_variant())
                     fill_value(bulk, true, t, "", struct_fields, struct_values, bin, f);
                 if (bulk)
                     values += struct_values.substr(1);
@@ -608,9 +609,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                     values += struct_values.substr(2);
                 values += end_object_in_array(bulk);
             }
-            values += end_array(bulk, t, config->schema, field.type->array_of->name);
-        } else if (field.type->array_of() && field.type->array_of()->filled_variant && field.type->array_of()->fields[0].type->filled_struct) {
-            auto* s = field.type->array_of()->fields[0].type;
+            values += end_array(bulk, t, config->schema, field.type->array_of()->name);
+        } else if (field.type->array_of() && field.type->array_of()->as_variant() && field.type->array_of()->as_variant()->at(0).type->as_struct()) {
+            auto* s = field.type->array_of()->as_variant()->at(0).type;
             fields += ", " + t.quote_name(base_name + field.name);
             values += sep(bulk) + begin_array(bulk);
             uint32_t n;
@@ -625,7 +626,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 values += begin_object_in_array(bulk);
                 std::string struct_fields;
                 std::string struct_values;
-                for (auto& f : s->fields)
+                for (auto& f : *s->as_variant())
                     fill_value(bulk, true, t, "", struct_fields, struct_values, bin, f);
                 if (bulk)
                     values += struct_values.substr(1);
@@ -705,7 +706,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     } // receive_block
 
     void receive_deltas(uint32_t block_num, eosio::input_stream bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
-        auto     num;
+        uint32_t num;
         unsigned numRows = 0;
         varuint32_from_bin(num, bin);
         for (uint32_t i = 0; i < num; ++i) {
@@ -717,9 +718,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 continue;
 
             auto& variant_type = get_type(table_delta.name);
-            if (!variant_type.as_variant() || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
+            if (!variant_type.as_variant() || variant_type.as_variant()->size() != 1 || !variant_type.as_variant()->at(0).type->as_struct())
                 throw std::runtime_error("don't know how to proccess " + variant_type.name);
-            auto& type = *variant_type.fields[0].type;
+            auto& type = *variant_type.as_variant()->at(0).type;
 
             size_t num_processed = 0;
             for (auto& row : table_delta.rows) {
@@ -730,7 +731,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 check_variant(row.data, variant_type, 0u);
                 std::string fields = "block_num, present";
                 std::string values = std::to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);
-                for (auto& field : type.fields)
+                for (auto& field : type.as_struct()->fields)
                     fill_value(bulk, false, t, "", fields, values, row.data, field);
                 write(block_num, t, pipeline, bulk, table_delta.name, fields, values);
                 ++num_processed;
@@ -740,7 +741,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     } // receive_deltas
 
     void receive_traces(uint32_t block_num, eosio::input_stream bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
-        auto     num;
+        uint32_t num;
         uint32_t num_ordinals = 0;
         varuint32_from_bin(num, bin);
         for (uint32_t i = 0; i < num; ++i) {
@@ -869,7 +870,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     void write_table_fields(
         const T& obj, std::string& fields, std::string& values, const std::string& prefix, bool bulk, pqxx::work& t,
         pqxx::pipeline& pipeline) {
-        eosio_for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
+        eosio::for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
             write_table_field(member_from_void(member_ptr, &obj), fields, values, prefix + field_name, bulk, t, pipeline);
         });
     }

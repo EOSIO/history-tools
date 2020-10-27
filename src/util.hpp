@@ -1,6 +1,5 @@
 #pragma once
 
-//#include "abieos_exception.hpp"
 #include <eosio/stream.hpp>
 
 #include <boost/iostreams/device/back_inserter.hpp>

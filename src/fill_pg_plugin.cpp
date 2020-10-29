@@ -153,8 +153,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
     template <typename T>
     void add_table_fields(pqxx::work& t, std::string& fields, const std::string& prefix) {
-        eosio::for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
-            add_table_field<typename decltype(member_ptr)::member_type>(t, fields, prefix + field_name);
+        eosio::for_each_field<T>([&](const std::string_view field_name, auto member) {
+            using field_type = std::decay_t<decltype(member(std::declval<T*>()))>;
+            add_table_field<field_type>(t, fields, prefix + (std::string)field_name);
         });
     }
 
@@ -678,14 +679,14 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                              "schedule_version, new_producers_version";
         std::string values = sql_str(bulk, block_num) + sep(bulk) +                                 //
                              sql_str(bulk, block_id) + sep(bulk) +                                  //
-                             sql_str(bulk, block.timestamp) + sep(bulk) +                           //
-                             sql_str(bulk, block.producer) + sep(bulk) +                            //
-                             sql_str(bulk, block.confirmed) + sep(bulk) +                           //
-                             sql_str(bulk, block.previous) + sep(bulk) +                            //
-                             sql_str(bulk, block.transaction_mroot) + sep(bulk) +                   //
-                             sql_str(bulk, block.action_mroot) + sep(bulk) +                        //
-                             sql_str(bulk, block.schedule_version) + sep(bulk) +                    //
-                             sql_str(bulk, block.new_producers ? block.new_producers->version : 0); //
+                             sql_str(bulk, std::visit([](auto&& arg){return arg.timestamp;}, block)) + sep(bulk) +                           //
+                             sql_str(bulk, std::visit([](auto&& arg){return arg.producer;}, block)) + sep(bulk) +                            //
+                             sql_str(bulk, std::visit([](auto&& arg){return arg.confirmed;}, block)) + sep(bulk) +                           //
+                             sql_str(bulk, std::visit([](auto&& arg){return arg.previous;}, block)) + sep(bulk) +                            //
+                             sql_str(bulk, std::visit([](auto&& arg){return arg.transaction_mroot;}, block)) + sep(bulk) +                   //
+                             sql_str(bulk, std::visit([](auto&& arg){return arg.action_mroot;}, block)) + sep(bulk) +                        //
+                             sql_str(bulk, std::visit([](auto&& arg){return arg.schedule_version;}, block)) + sep(bulk) +                    //
+                             sql_str(bulk, std::visit([](auto&& arg){return arg.new_producers;}, block) ? std::visit([](auto&& arg){return arg.new_producers->version;}, block) : 0); //
 
         /*
         if (block.new_producers) {
@@ -870,8 +871,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     void write_table_fields(
         const T& obj, std::string& fields, std::string& values, const std::string& prefix, bool bulk, pqxx::work& t,
         pqxx::pipeline& pipeline) {
-        eosio::for_each_field((T*)nullptr, [&](const char* field_name, auto member_ptr) {
-            write_table_field(member_from_void(member_ptr, &obj), fields, values, prefix + field_name, bulk, t, pipeline);
+        eosio::for_each_field<T>([&](const std::string_view field_name, auto member) {
+            write_table_field(member(&obj), fields, values, prefix + (std::string)field_name, bulk, t, pipeline);
         });
     }
 

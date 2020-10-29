@@ -95,6 +95,7 @@ set(WITH_TESTS OFF)
 
 add_compile_options(-Wno-error=shadow)
 
+add_subdirectory(external/abieos EXCLUDE_FROM_ALL)
 add_subdirectory(external/appbase EXCLUDE_FROM_ALL)
 add_subdirectory(external/fc EXCLUDE_FROM_ALL)
 #add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
@@ -121,7 +122,7 @@ function(add_app APP FLAGS LIBS)
             ${JS_INCLUDE_DIRS}
             ${ROCKSDB_INCLUDE_DIR}
     )
-    target_link_libraries(${APP} appbase fc eos-vm Boost::date_time Boost::filesystem Boost::chrono Boost::system Boost::iostreams Boost::program_options Boost::unit_test_framework ${LIBS} -lpthread)
+    target_link_libraries(${APP} appbase fc abieos eos-vm Boost::date_time Boost::filesystem Boost::chrono Boost::system Boost::iostreams Boost::program_options Boost::unit_test_framework ${LIBS} -lpthread)
 
     if(APPLE)
     else()

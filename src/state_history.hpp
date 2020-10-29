@@ -2,6 +2,7 @@
 
 #pragma once
 #include "abieos.hpp"
+#include <eosio/ship_protocol.hpp>
 
 namespace eosio { namespace ship_protocol {
     enum class transaction_status : uint8_t;
@@ -56,30 +57,29 @@ inline bool json_to_native(recurse_transaction_trace& obj, abieos::json_to_nativ
 inline void native_to_bin(const recurse_transaction_trace& obj, std::vector<char>& bin) { abieos::native_to_bin(obj.recurse, bin); }
 #endif
 
-#if 0
 inline void check_variant(eosio::input_stream& bin, const abieos::abi_type& type, uint32_t expected) {
     using namespace std::literals;
-    abieos::varuint32 index;
-    from_bin(index, bin);
-    if (!type.filled_variant)
+    uint32_t index;
+    varuint32_from_bin(index, bin);
+    if (!type.as_variant())
         throw std::runtime_error(type.name + " is not a variant"s);
-    if (index >= type.fields.size())
-        throw std::runtime_error("expected "s + type.fields[expected].name + " got " + std::to_string(index));
+    if (index >= type.as_variant()->size())
+        throw std::runtime_error("expected "s + type.as_variant()->at(expected).name + " got " + std::to_string(index));
     if (index != expected)
-        throw std::runtime_error("expected "s + type.fields[expected].name + " got " + type.fields[index].name);
+        throw std::runtime_error("expected "s + type.as_variant()->at(expected).name + " got " + type.as_variant()->at(index).name);
 }
 
 inline void check_variant(eosio::input_stream& bin, const abieos::abi_type& type, const char* expected) {
     using namespace std::literals;
-    auto index = eosio::read_varuint32(bin);
-    if (!type.filled_variant)
+    uint32_t index;
+    eosio::varuint32_from_bin(index, bin);
+    if (!type.as_variant())
         throw std::runtime_error(type.name + " is not a variant"s);
-    if (index >= type.fields.size())
+    if (index >= type.as_variant()->size())
         throw std::runtime_error("expected "s + expected + " got " + std::to_string(index));
-    if (type.fields[index].name != expected)
-        throw std::runtime_error("expected "s + expected + " got " + type.fields[index].name);
+    if (type.as_variant()->at(index).name != expected)
+        throw std::runtime_error("expected "s + expected + " got " + type.as_variant()->at(index).name);
 }
-#endif
 
 struct trx_filter {
     bool                                                    include     = {};
@@ -88,8 +88,8 @@ struct trx_filter {
     std::optional<abieos::name>                             act_account = {};
     std::optional<abieos::name>                             act_name    = {};
 };
-#if 0
-inline bool matches(const trx_filter& filter, const transaction_trace_v0& ttrace, const action_trace_v0& atrace) {
+
+inline bool matches(const trx_filter& filter, const eosio::ship_protocol::transaction_trace_v0& ttrace, const eosio::ship_protocol::action_trace_v0& atrace) {
     if (filter.status && ttrace.status != *filter.status)
         return false;
     if (filter.receiver && atrace.receiver != *filter.receiver)
@@ -101,7 +101,7 @@ inline bool matches(const trx_filter& filter, const transaction_trace_v0& ttrace
     return true;
 }
 
-inline bool filter(const std::vector<trx_filter>& filters, const transaction_trace_v0& ttrace, const action_trace_v0& atrace) {
+inline bool filter(const std::vector<trx_filter>& filters, const eosio::ship_protocol::transaction_trace_v0& ttrace, const eosio::ship_protocol::action_trace_v0& atrace) {
     for (auto& filt : filters) {
         if (matches(filt, ttrace, atrace)) {
             if (filt.include)
@@ -113,11 +113,11 @@ inline bool filter(const std::vector<trx_filter>& filters, const transaction_tra
     return false;
 }
 
-inline bool filter(const std::vector<trx_filter>& filters, const transaction_trace_v0& ttrace) {
+inline bool filter(const std::vector<trx_filter>& filters, const eosio::ship_protocol::transaction_trace_v0& ttrace) {
     for (auto& atrace : ttrace.action_traces)
         if (filter(filters, ttrace, std::get<0>(atrace)))
             return true;
     return false;
 }
-#endif
+
 } // namespace state_history

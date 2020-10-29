@@ -47,7 +47,7 @@ struct connection : std::enable_shared_from_this<connection> {
     boost::beast::websocket::stream<tcp::socket> stream;
     bool                                         have_abi  = false;
     abi_def                                      abi       = {};
-    std::map<std::string, abi_type>              abi_types = {};
+    std::map<std::string, abi_type>              abi_types{};
 
     connection(boost::asio::io_context& ioc, const connection_config& config, std::shared_ptr<connection_callbacks> callbacks)
         : config(config)
@@ -98,10 +98,8 @@ struct connection : std::enable_shared_from_this<connection> {
     void receive_abi(const std::shared_ptr<flat_buffer>& p) {
         auto data = p->data();
         auto sv   = std::string_view{(const char*)data.data(), data.size()};
-        auto buf  = new char[data.size()];
-        memcpy(buf, data.data(), data.size());
-        auto is   = eosio::json_token_stream{buf};
-        delete[] buf;
+        std::string buf((const char *)data.data(), data.size());
+        auto is   = eosio::json_token_stream{buf.data()};
         from_json(abi, is);
         std::string error;
         if(!abieos::check_abi_version(abi.version, error)) {
@@ -109,7 +107,7 @@ struct connection : std::enable_shared_from_this<connection> {
         }
         eosio::abi a;
         eosio::convert(abi, a);
-        abi_types = a.abi_types;
+        abi_types = std::move(a.abi_types);
         have_abi  = true;
         if (callbacks)
             callbacks->received_abi(sv);

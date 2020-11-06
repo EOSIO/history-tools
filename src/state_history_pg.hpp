@@ -11,6 +11,19 @@
 
 #include <pqxx/pqxx>
 
+namespace eosio {
+
+template<>
+inline time_point convert_from_string(std::string_view s) {
+    uint64_t utc_microseconds;
+    if (!string_to_utc_microseconds(utc_microseconds, s.data(), s.data() + s.size())) {
+       check(false, "Expected time point in string conversion");
+    }
+    return time_point(eosio::microseconds(utc_microseconds));
+}
+
+}
+
 namespace state_history {
 namespace pg {
 
@@ -311,26 +324,14 @@ inline abieos::time_point sql_to_time_point(std::string s) {
     if (s.empty())
         return {};
     std::replace(s.begin(), s.end(), ' ', 'T');
-    abieos::time_point tp;
-    auto ts = eosio::json_token_stream(s.data());
-    from_json(tp, ts);
-    return tp;
-}
-
-template <typename T>
-inline eosio::time_point convert_from_string(std::string_view s) {
-    uint64_t utc_microseconds;
-    if (!eosio::string_to_utc_microseconds(utc_microseconds, s.data(), s.data() + s.size())) {
-       eosio::check(false, "Expected time point in string conversion");
-    }
-    return eosio::time_point(eosio::microseconds(utc_microseconds));
+    return eosio::convert_from_string<eosio::time_point>(s);
 }
 
 inline abieos::block_timestamp sql_to_block_timestamp(std::string s) {
     if (s.empty())
         return {};
     std::replace(s.begin(), s.end(), ' ', 'T');
-    return abieos::block_timestamp{convert_from_string<eosio::time_point>(s)};
+    return abieos::block_timestamp{eosio::convert_from_string<eosio::time_point>(s)};
 }
 
 template <typename T>
@@ -373,7 +374,7 @@ template <> inline void sql_to_bin<abieos::signature>          (std::vector<char
 template <> inline void sql_to_bin<abieos::bytes>              (std::vector<char>& bin, const pqxx::field& f) { eosio::convert_to_bin( sql_to_bytes(f.c_str()), bin); }
 template <> inline void sql_to_bin<std::string>                (std::vector<char>& bin, const pqxx::field& f) { eosio::convert_to_bin( std::string{f.c_str()}, bin); } // todo: unescape
 template <> inline void sql_to_bin<eosio::input_stream>        (std::vector<char>& bin, const pqxx::field& f) { throw std::runtime_error("sql_to_bin<input_stream> not implemented"); }
-template <> inline void sql_to_bin<abieos::symbol>             (std::vector<char>& bin, const pqxx::field& f) { uint64_t sym; eosio::string_to_symbol(sym, f.c_str(), f.c_str() + f.size() - 1); eosio::convert_to_bin(sym, bin); }
+template <> inline void sql_to_bin<abieos::symbol>             (std::vector<char>& bin, const pqxx::field& f) { uint64_t sym; eosio::check(eosio::string_to_symbol(sym, f.c_str(), f.c_str() + f.size() - 1), "sql_to_bin<symbol> failed to convert"); eosio::convert_to_bin(sym, bin); }
 // clang-format on
 
 struct type {

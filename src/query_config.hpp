@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "abieos_exception.hpp"
+#include <eosio/reflection.hpp>
 
 namespace query_config {
 
@@ -17,10 +17,10 @@ struct field {
 
 template <typename Defs, typename F>
 constexpr void for_each_field(field<Defs>*, F f) {
-    ABIEOS_MEMBER(field<Defs>, name);
-    ABIEOS_MEMBER(field<Defs>, type);
-    ABIEOS_MEMBER(field<Defs>, begin_optional);
-    ABIEOS_MEMBER(field<Defs>, end_optional);
+    EOSIO_REFLECT_MEMBER(field<Defs>, name);
+    EOSIO_REFLECT_MEMBER(field<Defs>, type);
+    EOSIO_REFLECT_MEMBER(field<Defs>, begin_optional);
+    EOSIO_REFLECT_MEMBER(field<Defs>, end_optional);
 };
 
 template <typename Defs>
@@ -35,11 +35,11 @@ struct key {
 
 template <typename Defs, typename F>
 constexpr void for_each_field(key<Defs>*, F f) {
-    ABIEOS_MEMBER(key<Defs>, name);
-    ABIEOS_MEMBER(key<Defs>, join_src_name);
-    ABIEOS_MEMBER(key<Defs>, join_new_name);
-    ABIEOS_MEMBER(key<Defs>, expression);
-    ABIEOS_MEMBER(key<Defs>, arg_expression);
+    EOSIO_REFLECT_MEMBER(key<Defs>, name);
+    EOSIO_REFLECT_MEMBER(key<Defs>, join_src_name);
+    EOSIO_REFLECT_MEMBER(key<Defs>, join_new_name);
+    EOSIO_REFLECT_MEMBER(key<Defs>, expression);
+    EOSIO_REFLECT_MEMBER(key<Defs>, arg_expression);
 };
 
 template <typename Defs>
@@ -58,12 +58,12 @@ struct table {
 
 template <typename Defs, typename F>
 constexpr void for_each_field(table<Defs>*, F f) {
-    ABIEOS_MEMBER(table<Defs>, name);
-    ABIEOS_MEMBER(table<Defs>, short_name);
-    ABIEOS_MEMBER(table<Defs>, fields);
-    ABIEOS_MEMBER(table<Defs>, is_delta);
-    ABIEOS_MEMBER(table<Defs>, trim_index);
-    ABIEOS_MEMBER(table<Defs>, keys);
+    EOSIO_REFLECT_MEMBER(table<Defs>, name);
+    EOSIO_REFLECT_MEMBER(table<Defs>, short_name);
+    EOSIO_REFLECT_MEMBER(table<Defs>, fields);
+    EOSIO_REFLECT_MEMBER(table<Defs>, is_delta);
+    EOSIO_REFLECT_MEMBER(table<Defs>, trim_index);
+    EOSIO_REFLECT_MEMBER(table<Defs>, keys);
 };
 
 template <typename Defs>
@@ -80,12 +80,12 @@ struct index {
 
 template <typename Defs, typename F>
 constexpr void for_each_field(index<Defs>*, F f) {
-    ABIEOS_MEMBER(index<Defs>, short_name);
-    ABIEOS_MEMBER(index<Defs>, index);
-    ABIEOS_MEMBER(index<Defs>, table);
-    ABIEOS_MEMBER(index<Defs>, include_in_pg);
-    ABIEOS_MEMBER(index<Defs>, only_for_trim);
-    ABIEOS_MEMBER(index<Defs>, sort_keys);
+    EOSIO_REFLECT_MEMBER(index<Defs>, short_name);
+    EOSIO_REFLECT_MEMBER(index<Defs>, index);
+    EOSIO_REFLECT_MEMBER(index<Defs>, table);
+    EOSIO_REFLECT_MEMBER(index<Defs>, include_in_pg);
+    EOSIO_REFLECT_MEMBER(index<Defs>, only_for_trim);
+    EOSIO_REFLECT_MEMBER(index<Defs>, sort_keys);
 };
 
 template <typename Defs>
@@ -110,16 +110,16 @@ struct query {
 
 template <typename Defs, typename F>
 constexpr void for_each_field(query<Defs>*, F f) {
-    ABIEOS_MEMBER(query<Defs>, short_name);
-    ABIEOS_MEMBER(query<Defs>, index);
-    ABIEOS_MEMBER(query<Defs>, function);
-    ABIEOS_MEMBER(query<Defs>, table);
-    ABIEOS_MEMBER(query<Defs>, has_block_snapshot);
-    ABIEOS_MEMBER(query<Defs>, max_results);
-    ABIEOS_MEMBER(query<Defs>, join);
-    ABIEOS_MEMBER(query<Defs>, join_query_short_name);
-    ABIEOS_MEMBER(query<Defs>, join_key_values);
-    ABIEOS_MEMBER(query<Defs>, fields_from_join);
+    EOSIO_REFLECT_MEMBER(query<Defs>, short_name);
+    EOSIO_REFLECT_MEMBER(query<Defs>, index);
+    EOSIO_REFLECT_MEMBER(query<Defs>, function);
+    EOSIO_REFLECT_MEMBER(query<Defs>, table);
+    EOSIO_REFLECT_MEMBER(query<Defs>, has_block_snapshot);
+    EOSIO_REFLECT_MEMBER(query<Defs>, max_results);
+    EOSIO_REFLECT_MEMBER(query<Defs>, join);
+    EOSIO_REFLECT_MEMBER(query<Defs>, join_query_short_name);
+    EOSIO_REFLECT_MEMBER(query<Defs>, join_key_values);
+    EOSIO_REFLECT_MEMBER(query<Defs>, fields_from_join);
 };
 
 template <typename Defs, typename Key>
@@ -250,9 +250,9 @@ struct config {
 
 template <typename Defs, typename F>
 constexpr void for_each_field(config<Defs>*, F f) {
-    ABIEOS_MEMBER(config<Defs>, tables);
-    ABIEOS_MEMBER(config<Defs>, indexes);
-    ABIEOS_MEMBER(config<Defs>, queries);
+    EOSIO_REFLECT_MEMBER(config<Defs>, tables);
+    EOSIO_REFLECT_MEMBER(config<Defs>, indexes);
+    EOSIO_REFLECT_MEMBER(config<Defs>, queries);
 };
 
 } // namespace query_config

@@ -168,6 +168,9 @@ inline std::string sql_str(bool bulk, eosio::varint32 v)                        
 #ifndef ABIEOS_NO_INT128
 inline std::string sql_str(bool bulk, const abieos::int128& v)                          { std::array<uint8_t, 128/8> t; auto nv = -v; return v < 0 ? std::string("-") + abieos::binary_to_decimal(eosio::fixed_bytes<128/8, uint8_t>([&](){std::memcpy(&t, &nv, sizeof(uint8_t)*128/8); return t;}()).get_array()) : abieos::binary_to_decimal(eosio::fixed_bytes<128/8, uint8_t>([&](){std::memcpy(&t, &v, sizeof(uint8_t)*128/8); return t;}()).get_array()); }
 inline std::string sql_str(bool bulk, const abieos::uint128& v)                         { std::array<uint8_t, 128/8> t; std::memcpy(&t, &v, sizeof(uint8_t)*128/8); return abieos::binary_to_decimal(eosio::fixed_bytes<128/8, uint8_t>(t).get_array()); }
+#else
+inline std::string sql_str(bool bulk, const abieos::int128& v)                          { auto nv = v; abieos::negate(nv.data); return abieos::is_negative(v.data) ? std::string("-") + abieos::binary_to_decimal(eosio::fixed_bytes<128/8, uint8_t>(nv.data).get_array()) : abieos::binary_to_decimal(eosio::fixed_bytes<128/8, uint8_t>(v.data).get_array()); }
+inline std::string sql_str(bool bulk, const abieos::uint128& v)                         { return abieos::binary_to_decimal(eosio::fixed_bytes<128/8, uint8_t>(v.data).get_array()); }
 #endif
 inline std::string sql_str(bool bulk, const abieos::float128& v)                        { return quote_bytea(bulk, abieos::hex(v.value.begin(), v.value.end())); }
 inline std::string sql_str(bool bulk, eosio::name v)                                    { return quote(bulk, v.value ? std::string(v) : std::string()); }

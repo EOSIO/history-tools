@@ -711,33 +711,37 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         unsigned numRows = 0;
         varuint32_from_bin(num, bin);
         for (uint32_t i = 0; i < num; ++i) {
-            check_variant(bin, get_type("table_delta"), "table_delta_v0");
-            table_delta_v0 table_delta;
-            from_bin(table_delta, bin);
+            uint32_t index;
+            eosio::varuint32_from_bin(index, bin);
+            table_delta t_delta;
+            from_bin(t_delta, bin);
 
-            if (table_delta.name == "global_property")
+            if (std::visit([](auto&& arg){return arg.name;}, t_delta) == "global_property")
                 continue;
 
-            auto& variant_type = get_type(table_delta.name);
-            if (!variant_type.as_variant() || variant_type.as_variant()->size() != 1 || !variant_type.as_variant()->at(0).type->as_struct())
-                throw std::runtime_error("don't know how to proccess " + variant_type.name);
-            auto& type = *variant_type.as_variant()->at(0).type;
+            auto& variant_type = get_type(std::visit([](auto&& arg){return arg.name;}, t_delta));
+            if (!variant_type.as_variant() || variant_type.as_variant()->size() != 2 || !variant_type.as_variant()->at(0).type->as_struct() || !variant_type.as_variant()->at(1).type->as_struct())
+                throw std::runtime_error("don't know how to process " + variant_type.name);
 
-            size_t num_processed = 0;
-            for (auto& row : table_delta.rows) {
-                if (table_delta.rows.size() > 10000 && !(num_processed % 10000))
-                    ilog(
-                        "block ${b} ${t} ${n} of ${r} bulk=${bulk}",
-                        ("b", block_num)("t", table_delta.name)("n", num_processed)("r", table_delta.rows.size())("bulk", bulk));
-                check_variant(row.data, variant_type, 0u);
-                std::string fields = "block_num, present";
-                std::string values = std::to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);
-                for (auto& field : type.as_struct()->fields)
-                    fill_value(bulk, false, t, "", fields, values, row.data, field);
-                write(block_num, t, pipeline, bulk, table_delta.name, fields, values);
-                ++num_processed;
-            }
-            numRows += table_delta.rows.size();
+            std::visit([&block_num, &bulk, &t, &pipeline, this](auto t_delta){
+               size_t num_processed = 0;
+               auto& variant_type = get_type(t_delta.name);
+               auto& type = *variant_type.as_variant()->at(0).type;
+               for (auto& row : t_delta.rows) {
+                  if (t_delta.rows.size() > 10000 && !(num_processed % 10000))
+                     ilog("block ${b} ${t} ${n} of ${r} bulk=${bulk}",
+                          ("b", block_num)("t", t_delta.name)("n", num_processed)("r", t_delta.rows.size())("bulk", bulk));
+                  check_variant(row.data, variant_type, 0u);
+                  std::string fields = "block_num, present";
+                  std::string values = std::to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);
+                  for (auto& field : type.as_struct()->fields)
+                      fill_value(bulk, false, t, "", fields, values, row.data, field);
+                  write(block_num, t, pipeline, bulk, t_delta.name, fields, values);
+                  ++num_processed;
+               }
+            },
+            t_delta);
+            numRows += std::visit([](auto&& arg){return arg.rows.size();}, t_delta);
         }
     } // receive_deltas
 

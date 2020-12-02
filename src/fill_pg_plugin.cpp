@@ -711,16 +711,17 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         unsigned numRows = 0;
         varuint32_from_bin(num, bin);
         for (uint32_t i = 0; i < num; ++i) {
-            uint32_t index;
-            eosio::varuint32_from_bin(index, bin);
             table_delta t_delta;
             from_bin(t_delta, bin);
 
             if (std::visit([](auto&& arg){return arg.name;}, t_delta) == "global_property")
                 continue;
 
+            if (std::visit([](auto&& arg){return arg.name;}, t_delta) == "chain_config")
+                continue;
+
             auto& variant_type = get_type(std::visit([](auto&& arg){return arg.name;}, t_delta));
-            if (!variant_type.as_variant() || variant_type.as_variant()->size() != 2 || !variant_type.as_variant()->at(0).type->as_struct() || !variant_type.as_variant()->at(1).type->as_struct())
+            if (!variant_type.as_variant() || variant_type.as_variant()->size() != 1 || !variant_type.as_variant()->at(0).type->as_struct())
                 throw std::runtime_error("don't know how to process " + variant_type.name);
 
             std::visit([&block_num, &bulk, &t, &pipeline, this](auto t_delta){

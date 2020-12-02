@@ -243,6 +243,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         for (auto& table : connection->abi.tables) {
             if (table.type == "global_property")
                 continue;
+            if (table.type == "chain_config")
+                continue;
             auto& variant_type = get_type(table.type);
             if (!variant_type.as_variant() || variant_type.as_variant()->size() != 1 || !variant_type.as_variant()->at(0).type->as_struct())
                 throw std::runtime_error("don't know how to proccess " + variant_type.name);
@@ -283,6 +285,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         ilog("create_trim");
         for (auto& table : connection->abi.tables) {
             if (table.type == "global_property")
+                continue;
+            if (table.type == "chain_config")
                 continue;
             if (table.key_names.empty())
                 continue;
@@ -363,6 +367,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
         for (auto& table : connection->abi.tables) {
             if (table.type == "global_property")
+                continue;
+            if (table.type == "chain_config")
                 continue;
             if (table.key_names.empty()) {
                 query += R"(
@@ -452,6 +458,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         trunc("block_info");
         for (auto& table : connection->abi.tables) {
             if (table.type == "global_property")
+                continue;
+            if (table.type == "chain_config")
                 continue;
             trunc(table.type);
         }

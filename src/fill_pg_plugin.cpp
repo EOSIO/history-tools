@@ -905,8 +905,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                             else
                                 throw std::runtime_error("don't know how to handle new prunable_data variant");
                         };
-                        for (auto& sig : std::visit(sig_extractor, partial.prunable_data->prunable_data)) {
-                            if (&sig != &std::visit(sig_extractor, partial.prunable_data->prunable_data)[0])
+                        const auto& signatures = std::visit(sig_extractor, partial.prunable_data->prunable_data);
+                        for (auto& sig : signatures) {
+                            if (&sig != &signatures[0])
                                 suffix_values += ",";
                             suffix_values += native_to_sql<abieos::signature>(*sql_connection, bulk, &sig);
                         }

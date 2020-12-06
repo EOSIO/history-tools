@@ -20,3 +20,19 @@ class fill_pg_plugin : public appbase::plugin<fill_pg_plugin> {
   private:
     std::shared_ptr<struct fill_postgresql_plugin_impl> my;
 };
+
+template<std::size_t I = 0, typename FuncT, typename... Tp>
+inline typename std::enable_if<I == sizeof...(Tp), void>::type
+variant_for_each(std::variant<Tp...>, FuncT)
+{ }
+
+template<std::size_t I = 0, typename FuncT, typename... Tp>
+inline typename std::enable_if<I < sizeof...(Tp), void>::type
+variant_for_each(std::variant<Tp...> t, FuncT f)
+{
+    if (I == t.index())
+        f(I, std::get<I>(t));
+    else
+        f(I, std::variant_alternative_t<I, decltype(t)>());
+    variant_for_each<I + 1, FuncT, Tp...>(t, f);
+}

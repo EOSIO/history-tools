@@ -136,6 +136,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     template <typename T>
     void add_table_field(pqxx::work& t, std::string& fields, const std::string& field_name) {
         if constexpr (is_known_type(type_for<T>)) {
+            if (field_name.length() > 64)
+                throw std::runtime_error("field name '" + field_name + "' exceeds postgres column name length limit");
             std::string type_name = type_for<T>.name;
             if (type_name == "transaction_status_type")
                 type_name = t.quote_name(config->schema) + "." + type_name;
@@ -145,10 +147,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             add_table_field<typename T::value_type>(t, fields, field_name);
         } else if constexpr (is_variant_v<T>) {
             fields += ", "s + t.quote_name(field_name + "_variant_populated") + " integer";
-            add_table_fields<std::variant_alternative_t<0, T>>(t, fields, field_name + "_");
-            if constexpr (std::variant_size_v<T> == 2) {
-                add_table_fields<std::variant_alternative_t<1, T>>(t, fields, field_name + "_v1_");
-            }
+            variant_for_each(T(), [&](size_t index, auto arg) {
+                add_table_fields<decltype(arg)>(t, fields, field_name + std::to_string(index) + "_");
+            });
         } else if constexpr (is_vector_v<T>) {
         } else {
             add_table_fields<T>(t, fields, field_name + "_");
@@ -183,9 +184,13 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             fields += ", "s + t.quote_name(base_name + field.name + "_present") + " boolean";
             for (auto& f : field.type->optional_of()->as_struct()->fields)
                 fill_field(t, base_name + field.name + "_", fields, f);
-        } else if (field.type->as_variant() && field.type->as_variant()->size() == 1 && field.type->as_variant()->at(0).type->as_struct()) {
-            for (auto& f : field.type->as_variant()->at(0).type->as_struct()->fields)
-                fill_field(t, base_name + field.name + "_", fields, f);
+        } else if (field.type->as_variant()) {
+            for(size_t i = 0; i < field.type->as_variant()->size(); ++i) {
+                if (field.type->as_variant()->at(i).type->as_struct()) {
+                    for (auto& f : field.type->as_variant()->at(i).type->as_struct()->fields)
+                        fill_field(t, base_name + field.name + "_", fields, f);
+                }
+            }
         } else if (field.type->array_of() && field.type->array_of()->as_struct()) {
             std::string sub_fields;
             for (auto& f : field.type->array_of()->as_struct()->fields)
@@ -330,6 +335,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             "action_trace_auth_sequence",
             "action_trace_ram_delta",
             "action_trace",
+            "action_trace_v1",
             "transaction_trace",
             "block_info",
         };
@@ -459,6 +465,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         trunc("action_trace_auth_sequence");
         trunc("action_trace_ram_delta");
         trunc("action_trace");
+        trunc("action_trace_v1");
         trunc("transaction_trace");
         trunc("block_info");
         for (auto& table : connection->abi.tables) {
@@ -539,6 +546,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
            std::to_string(result.this_block->block_num) + ", " + quote(to_string(result.this_block->block_id)) + ")");
 
        pipeline.complete();
+       while(!pipeline.empty())
+           pipeline.retrieve();
        t.commit();
        if (large_deltas)
            close_streams();
@@ -601,6 +610,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             std::to_string(result.this_block->block_num) + ", " + quote(to_string(result.this_block->block_id)) + ")");
 
         pipeline.complete();
+        while(!pipeline.empty())
+            pipeline.retrieve();
         t.commit();
         if (large_deltas)
             close_streams();
@@ -661,12 +672,10 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                     values += sep(bulk) + it->second.empty_to_sql(*sql_connection, bulk);
                 }
             }
-        } else if (field.type->as_variant() && field.type->as_variant()->size() == 1 && field.type->as_variant()->at(0).type->as_struct()) {
+        } else if (field.type->as_variant() && field.type->as_variant()->at(0).type->as_struct()) {
             uint32_t v;
             varuint32_from_bin(v, bin);
-            if (v)
-                throw std::runtime_error("invalid variant in " + field.type->name);
-            for (auto& f : *field.type->as_variant()->at(0).type->as_variant())
+            for (auto& f : *field.type->as_variant()->at(v).type->as_variant())
                 fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
         } else if (field.type->array_of() && field.type->array_of()->as_struct()) {
             fields += ", " + t.quote_name(base_name + field.name);
@@ -1014,17 +1023,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             fields += ", "s + t.quote_name(field_name + "_variant_populated");
             int in_use = obj.index();
             values += sep(bulk) + type_for<int>.native_to_sql(*sql_connection, bulk, &in_use);
-            if (std::get_if<0>(&obj))
-                write_table_fields(std::get<0>(obj), fields, values, field_name + "_", bulk, t, pipeline);
-            else if constexpr (std::variant_size_v<T> > 1) {
-                if (std::get_if<1>(&obj)) {
-                    write_table_fields(std::variant_alternative_t<0, T>(), fields, values, field_name + "_", bulk, t, pipeline);
-                    write_table_fields(std::get<1>(obj), fields, values, field_name + "_v1_", bulk, t, pipeline);
-                }
-                else {
-                    write_table_fields(std::variant_alternative_t<1, T>(), fields, values, field_name + "_v1_", bulk, t, pipeline);
-                }
-            }
+            variant_for_each(obj, [&](size_t index, auto&& arg) {
+                write_table_fields(arg, fields, values, field_name + std::to_string(index) + "_", bulk, t, pipeline);
+            });
         } else if constexpr (is_vector_v<T>) {
         } else {
             write_table_fields<T>(obj, fields, values, field_name + "_", bulk, t, pipeline);

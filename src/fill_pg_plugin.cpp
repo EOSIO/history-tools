@@ -136,6 +136,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     template <typename T>
     void add_table_field(pqxx::work& t, std::string& fields, const std::string& field_name) {
         if constexpr (is_known_type(type_for<T>)) {
+            if (field_name.length() > 64)
+                throw std::runtime_error("field name '" + field_name + "' exceeds postgres column name length limit");
             std::string type_name = type_for<T>.name;
             if (type_name == "transaction_status_type")
                 type_name = t.quote_name(config->schema) + "." + type_name;
@@ -144,7 +146,10 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             fields += ", "s + t.quote_name(field_name + "_present") + " boolean";
             add_table_field<typename T::value_type>(t, fields, field_name);
         } else if constexpr (is_variant_v<T>) {
-            add_table_fields<std::variant_alternative_t<0, T>>(t, fields, field_name + "_");
+            fields += ", "s + t.quote_name(field_name + "_variant_populated") + " integer";
+            variant_for_each(T(), [&](size_t index, auto arg) {
+                add_table_fields<decltype(arg)>(t, fields, field_name + std::to_string(index) + "_");
+            });
         } else if constexpr (is_vector_v<T>) {
         } else {
             add_table_fields<T>(t, fields, field_name + "_");
@@ -179,9 +184,13 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             fields += ", "s + t.quote_name(base_name + field.name + "_present") + " boolean";
             for (auto& f : field.type->optional_of()->as_struct()->fields)
                 fill_field(t, base_name + field.name + "_", fields, f);
-        } else if (field.type->as_variant() && field.type->as_variant()->size() == 1 && field.type->as_variant()->at(0).type->as_struct()) {
-            for (auto& f : field.type->as_variant()->at(0).type->as_struct()->fields)
-                fill_field(t, base_name + field.name + "_", fields, f);
+        } else if (field.type->as_variant()) {
+            for(size_t i = 0; i < field.type->as_variant()->size(); ++i) {
+                if (field.type->as_variant()->at(i).type->as_struct()) {
+                    for (auto& f : field.type->as_variant()->at(i).type->as_struct()->fields)
+                        fill_field(t, base_name + field.name + "_", fields, f);
+                }
+            }
         } else if (field.type->array_of() && field.type->array_of()->as_struct()) {
             std::string sub_fields;
             for (auto& f : field.type->array_of()->as_struct()->fields)
@@ -237,6 +246,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         create_table<account_auth_sequence>(    t, "action_trace_auth_sequence",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<account_delta>(            t, "action_trace_ram_delta",      "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<action_trace_v0>(          t, "action_trace",                "block_num, transaction_id, action_ordinal",          "block_num bigint, transaction_id varchar(64),                                          transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+        create_table<action_trace_v1>(          t, "action_trace_v1",             "block_num, transaction_id, action_ordinal",          "block_num bigint, transaction_id varchar(64),                                          transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_num, transaction_ordinal",                     "block_num bigint, transaction_ordinal integer, failed_dtrx_trace varchar(64)", "partial_signatures varchar[], partial_context_free_data bytea[]");
         // clang-format on
 
@@ -325,6 +335,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             "action_trace_auth_sequence",
             "action_trace_ram_delta",
             "action_trace",
+            "action_trace_v1",
             "transaction_trace",
             "block_info",
         };
@@ -454,6 +465,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         trunc("action_trace_auth_sequence");
         trunc("action_trace_ram_delta");
         trunc("action_trace");
+        trunc("action_trace_v1");
         trunc("transaction_trace");
         trunc("block_info");
         for (auto& table : connection->abi.tables) {
@@ -475,6 +487,72 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         }
         first = std::min(first, head);
     } // truncate
+
+    bool received(get_blocks_result_v1& result) override {
+       if (!result.this_block)
+           return true;
+       bool bulk         = result.this_block->block_num + 4 < result.last_irreversible.block_num;
+       bool large_deltas = false;
+       auto deltas       = result.deltas.unpack();
+       auto deltas_size  = deltas.size();
+       if (!bulk && deltas_size >= 10 * 1024 * 1024) {
+           ilog("large deltas size: ${s}", ("s", uint64_t(deltas_size)));
+           bulk         = true;
+           large_deltas = true;
+       }
+
+       if (config->stop_before && result.this_block->block_num >= config->stop_before) {
+           close_streams();
+           ilog("block ${b}: stop requested", ("b", result.this_block->block_num));
+           return false;
+       }
+
+       if (result.this_block->block_num <= head) {
+           close_streams();
+           ilog("switch forks at block ${b}", ("b", result.this_block->block_num));
+           bulk = false;
+       }
+
+       if (!bulk || large_deltas || !(result.this_block->block_num % 200))
+           close_streams();
+       if (table_streams.empty())
+           trim();
+       if (!bulk)
+           ilog("block ${b}", ("b", result.this_block->block_num));
+
+       pqxx::work     t(*sql_connection);
+       pqxx::pipeline pipeline(t);
+       if (result.this_block->block_num <= head)
+           truncate(t, pipeline, result.this_block->block_num);
+       if (!head_id.empty() && (!result.prev_block || to_string(result.prev_block->block_id) != head_id))
+           throw std::runtime_error("prev_block does not match");
+       if (result.block)
+           receive_block(result.this_block->block_num, result.this_block->block_id, result.block.value(), bulk, t, pipeline);
+       if (!result.deltas.empty())
+           receive_deltas(result.this_block->block_num, std::move(deltas), bulk, t, pipeline);
+       if (!result.traces.empty())
+           receive_traces(result.this_block->block_num, result.traces.unpack(), bulk, t, pipeline);
+
+       head            = result.this_block->block_num;
+       head_id         = to_string(result.this_block->block_id);
+       irreversible    = result.last_irreversible.block_num;
+       irreversible_id = to_string(result.last_irreversible.block_id);
+       if (!first)
+           first = head;
+       if (!bulk)
+           write_fill_status(t, pipeline);
+       pipeline.insert(
+           "insert into " + t.quote_name(config->schema) + ".received_block (block_num, block_id) values (" +
+           std::to_string(result.this_block->block_num) + ", " + quote(to_string(result.this_block->block_id)) + ")");
+
+       pipeline.complete();
+       while(!pipeline.empty())
+           pipeline.retrieve();
+       t.commit();
+       if (large_deltas)
+           close_streams();
+       return true;
+    }
 
     bool received(get_blocks_result_v0& result) override {
         if (!result.this_block)
@@ -532,6 +610,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             std::to_string(result.this_block->block_num) + ", " + quote(to_string(result.this_block->block_id)) + ")");
 
         pipeline.complete();
+        while(!pipeline.empty())
+            pipeline.retrieve();
         t.commit();
         if (large_deltas)
             close_streams();
@@ -592,12 +672,10 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                     values += sep(bulk) + it->second.empty_to_sql(*sql_connection, bulk);
                 }
             }
-        } else if (field.type->as_variant() && field.type->as_variant()->size() == 1 && field.type->as_variant()->at(0).type->as_struct()) {
+        } else if (field.type->as_variant() && field.type->as_variant()->at(0).type->as_struct()) {
             uint32_t v;
             varuint32_from_bin(v, bin);
-            if (v)
-                throw std::runtime_error("invalid variant in " + field.type->name);
-            for (auto& f : *field.type->as_variant()->at(0).type->as_variant())
+            for (auto& f : *field.type->as_variant()->at(v).type->as_variant())
                 fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
         } else if (field.type->array_of() && field.type->array_of()->as_struct()) {
             fields += ", " + t.quote_name(base_name + field.name);
@@ -679,10 +757,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     } // fill_value
 
     void
-    receive_block(uint32_t block_num, const checksum256& block_id, eosio::input_stream bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
-        signed_block_variant block;
-        from_bin(block, bin);
-
+    receive_block(uint32_t block_num, const checksum256& block_id, signed_block_variant& block, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
         std::string fields = "block_num, block_id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, "
                              "schedule_version, new_producers_version";
         std::string values = sql_str(bulk, block_num) + sep(bulk) +                                 //
@@ -714,45 +789,68 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         write(block_num, t, pipeline, bulk, "block_info", fields, values);
     } // receive_block
 
+    void
+    receive_block(uint32_t block_num, const checksum256& block_id, eosio::input_stream bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        signed_block_variant block;
+        from_bin(block, bin);
+        receive_block(block_num, block_id, block, bulk, t, pipeline);
+
+    }
+
+    void receive_deltas(uint32_t block_num, const std::vector<std::variant<table_delta_v0, table_delta_v1>>&& traces, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        for(auto t_delta : traces) {
+            write_table_delta(block_num, t_delta, bulk, t, pipeline);
+        }
+    }
+
     void receive_deltas(uint32_t block_num, eosio::input_stream bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
         uint32_t num;
-        unsigned numRows = 0;
         varuint32_from_bin(num, bin);
         for (uint32_t i = 0; i < num; ++i) {
             table_delta t_delta;
             from_bin(t_delta, bin);
-
-            if (std::visit([](auto&& arg){return arg.name;}, t_delta) == "global_property")
-                continue;
-
-            if (std::visit([](auto&& arg){return arg.name;}, t_delta) == "chain_config")
-                continue;
-
-            auto& variant_type = get_type(std::visit([](auto&& arg){return arg.name;}, t_delta));
-            if (!variant_type.as_variant() || variant_type.as_variant()->size() != 1 || !variant_type.as_variant()->at(0).type->as_struct())
-                throw std::runtime_error("don't know how to process " + variant_type.name);
-
-            std::visit([&block_num, &bulk, &t, &pipeline, this](auto t_delta){
-               size_t num_processed = 0;
-               auto& variant_type = get_type(t_delta.name);
-               auto& type = *variant_type.as_variant()->at(0).type;
-               for (auto& row : t_delta.rows) {
-                  if (t_delta.rows.size() > 10000 && !(num_processed % 10000))
-                     ilog("block ${b} ${t} ${n} of ${r} bulk=${bulk}",
-                          ("b", block_num)("t", t_delta.name)("n", num_processed)("r", t_delta.rows.size())("bulk", bulk));
-                  check_variant(row.data, variant_type, 0u);
-                  std::string fields = "block_num, present";
-                  std::string values = std::to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);
-                  for (auto& field : type.as_struct()->fields)
-                      fill_value(bulk, false, t, "", fields, values, row.data, field);
-                  write(block_num, t, pipeline, bulk, t_delta.name, fields, values);
-                  ++num_processed;
-               }
-            },
-            t_delta);
-            numRows += std::visit([](auto&& arg){return arg.rows.size();}, t_delta);
+            write_table_delta(block_num, t_delta, bulk, t, pipeline);
         }
-    } // receive_deltas
+    }
+
+    void write_table_delta(uint32_t block_num, table_delta& t_delta, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        if (std::visit([](auto&& arg){return arg.name;}, t_delta) == "global_property")
+            return;
+
+        if (std::visit([](auto&& arg){return arg.name;}, t_delta) == "chain_config")
+            return;
+
+        auto& variant_type = get_type(std::visit([](auto&& arg){return arg.name;}, t_delta));
+        if (!variant_type.as_variant() || variant_type.as_variant()->size() != 1 || !variant_type.as_variant()->at(0).type->as_struct())
+            throw std::runtime_error("don't know how to process " + variant_type.name);
+
+        std::visit([&block_num, &bulk, &t, &pipeline, this](auto t_delta){
+            size_t num_processed = 0;
+            auto& variant_type = get_type(t_delta.name);
+            auto& type = *variant_type.as_variant()->at(0).type;
+            for (auto& row : t_delta.rows) {
+                if (t_delta.rows.size() > 10000 && !(num_processed % 10000))
+                    ilog("block ${b} ${t} ${n} of ${r} bulk=${bulk}",
+                         ("b", block_num)("t", t_delta.name)("n", num_processed)("r", t_delta.rows.size())("bulk", bulk));
+                check_variant(row.data, variant_type, 0u);
+                std::string fields = "block_num, present";
+                std::string values = std::to_string(block_num) + sep(bulk) + sql_str(bulk, row.present);
+                for (auto& field : type.as_struct()->fields)
+                    fill_value(bulk, false, t, "", fields, values, row.data, field);
+                write(block_num, t, pipeline, bulk, t_delta.name, fields, values);
+                ++num_processed;
+            }
+        },
+        t_delta);
+    }
+
+    void receive_traces(uint32_t block_num, const std::vector<std::variant<transaction_trace_v0>>&& traces, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        uint32_t num_ordinals = 0;
+        for (auto trace : traces) {
+            if (filter(config->trx_filters, std::get<0>(trace)))
+                write_transaction_trace(block_num, num_ordinals, std::get<transaction_trace_v0>(trace), bulk, t, pipeline);
+        }
+    }
 
     void receive_traces(uint32_t block_num, eosio::input_stream bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
         uint32_t num;
@@ -782,20 +880,67 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         std::string suffix_fields = ", partial_signatures, partial_context_free_data";
         std::string suffix_values = sep(bulk) + begin_array(bulk);
         if (ttrace.partial) {
-            auto& partial = std::get<partial_transaction_v0>(*ttrace.partial);
-            for (auto& sig : partial.signatures) {
-                if (&sig != &partial.signatures[0])
-                    suffix_values += ",";
-                suffix_values += native_to_sql<abieos::signature>(*sql_connection, bulk, &sig);
+            if (std::holds_alternative<partial_transaction_v0>(*ttrace.partial)) {
+                auto& partial = std::get<partial_transaction_v0>(*ttrace.partial);
+                for (auto& sig : partial.signatures) {
+                    if (&sig != &partial.signatures[0])
+                        suffix_values += ",";
+                    suffix_values += native_to_sql<abieos::signature>(*sql_connection, bulk, &sig);
+                }
+            }
+            else {
+                auto& partial = std::get<partial_transaction_v1>(*ttrace.partial);
+                if (partial.prunable_data) {
+                    if (!std::holds_alternative<prunable_data_type::none>(partial.prunable_data->prunable_data)) {
+                        auto sig_extractor = [](auto&& arg) {
+                            using T = std::decay_t<decltype(arg)>;
+                            if constexpr (std::is_same_v<T, prunable_data_type::none>)
+                                return std::vector<eosio::signature>();
+                            else if constexpr (std::is_same_v<T, prunable_data_type::full_legacy>)
+                                return arg.signatures;
+                            else if constexpr (std::is_same_v<T, prunable_data_type::partial>)
+                                return arg.signatures;
+                            else if constexpr (std::is_same_v<T, prunable_data_type::full>)
+                                return arg.signatures;
+                            else
+                                throw std::runtime_error("don't know how to handle new prunable_data variant");
+                        };
+                        const auto& signatures = std::visit(sig_extractor, partial.prunable_data->prunable_data);
+                        for (auto& sig : signatures) {
+                            if (&sig != &signatures[0])
+                                suffix_values += ",";
+                            suffix_values += native_to_sql<abieos::signature>(*sql_connection, bulk, &sig);
+                        }
+                    }
+                    else
+                        suffix_values += "";
+                }
+                else
+                    suffix_values += "";
             }
         }
         suffix_values += end_array(bulk, "varchar") + sep(bulk) + begin_array(bulk);
         if (ttrace.partial) {
-            auto& partial = std::get<partial_transaction_v0>(*ttrace.partial);
-            for (auto& cfd : partial.context_free_data) {
-                if (&cfd != &partial.context_free_data[0])
-                    suffix_values += ",";
-                suffix_values += native_to_sql<eosio::input_stream>(*sql_connection, bulk, &cfd);
+            if (std::holds_alternative<partial_transaction_v0>(*ttrace.partial)) {
+                auto& partial = std::get<partial_transaction_v0>(*ttrace.partial);
+                for (auto& cfd : partial.context_free_data) {
+                    if (&cfd != &partial.context_free_data[0])
+                        suffix_values += ",";
+                    suffix_values += native_to_sql<eosio::input_stream>(*sql_connection, bulk, &cfd);
+                }
+            }
+            else if (std::holds_alternative<partial_transaction_v1>(*ttrace.partial)) {
+                auto& partial = std::get<partial_transaction_v1>(*ttrace.partial);
+                if (partial.prunable_data) {
+                    if (std::holds_alternative<prunable_data_type::full>(partial.prunable_data->prunable_data)) {
+                        auto& context_free_data = std::get<prunable_data_type::full>(partial.prunable_data->prunable_data);
+                        for (auto& cfd : context_free_data.context_free_segments) {
+                            if (&cfd != &context_free_data.context_free_segments[0])
+                                suffix_values += ",";
+                            suffix_values += native_to_sql<eosio::input_stream>(*sql_connection, bulk, &cfd);
+                        }
+                    }
+                }
             }
         }
         suffix_values += end_array(bulk, "bytea");
@@ -804,30 +949,33 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             std::move(suffix_values));
 
         for (auto& atrace : ttrace.action_traces)
-            write_action_trace(block_num, ttrace, std::get<action_trace_v0>(atrace), bulk, t, pipeline);
+            write_action_trace(block_num, ttrace, atrace, bulk, t, pipeline);
     } // write_transaction_trace
 
     void write_action_trace(
-        uint32_t block_num, transaction_trace_v0& ttrace, action_trace_v0& atrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        uint32_t block_num, transaction_trace_v0& ttrace, action_trace& atrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
 
         std::string fields = "block_num, transaction_id, transaction_status";
         std::string values =
             std::to_string(block_num) + sep(bulk) + quote(bulk, to_string(ttrace.id)) + sep(bulk) + quote(bulk, to_string(ttrace.status));
 
-        write("action_trace", block_num, atrace, fields, values, bulk, t, pipeline);
+        if (std::get_if<0>(&atrace))
+            write("action_trace", block_num, std::get<0>(atrace), fields, values, bulk, t, pipeline);
+        else if (std::get_if<1>(&atrace))
+            write("action_trace_v1", block_num, std::get<1>(atrace), fields, values, bulk, t, pipeline);
         write_action_trace_subtable(
-            "action_trace_authorization", block_num, ttrace, atrace.action_ordinal.value, atrace.act.authorization, bulk, t, pipeline);
-        if (atrace.receipt)
+            "action_trace_authorization", block_num, ttrace, std::visit([](auto&& arg){return arg.action_ordinal.value;}, atrace), std::visit([](auto&& arg){ return arg.act.authorization;}, atrace), bulk, t, pipeline);
+        if (std::visit([](auto&& arg){ return arg.receipt;}, atrace))
             write_action_trace_subtable(
-                "action_trace_auth_sequence", block_num, ttrace, atrace.action_ordinal.value,
-                std::get<action_receipt_v0>(*atrace.receipt).auth_sequence, bulk, t, pipeline);
+                "action_trace_auth_sequence", block_num, ttrace, std::visit([](auto&& arg){return arg.action_ordinal.value;}, atrace),
+                std::get<action_receipt_v0>(*std::visit([](auto&& arg){return arg.receipt;}, atrace)).auth_sequence, bulk, t, pipeline);
         write_action_trace_subtable(
-            "action_trace_ram_delta", block_num, ttrace, atrace.action_ordinal.value, atrace.account_ram_deltas, bulk, t, pipeline);
+            "action_trace_ram_delta", block_num, ttrace, std::visit([](auto&& arg){return arg.action_ordinal.value;}, atrace), std::visit([](auto&& arg){return arg.account_ram_deltas;}, atrace), bulk, t, pipeline);
     } // write_action_trace
 
     template <typename T>
     void write_action_trace_subtable(
-        const std::string& name, uint32_t block_num, transaction_trace_v0& ttrace, int32_t action_ordinal, T& objects, bool bulk,
+        const std::string& name, uint32_t block_num, transaction_trace_v0& ttrace, int32_t action_ordinal, const T&& objects, bool bulk,
         pqxx::work& t, pqxx::pipeline& pipeline) {
 
         int32_t num = 0;
@@ -873,7 +1021,12 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             values += sep(bulk) + type_for<bool>.native_to_sql(*sql_connection, bulk, &hv);
             write_table_field(obj ? *obj : typename T::value_type{}, fields, values, field_name, bulk, t, pipeline);
         } else if constexpr (is_variant_v<T>) {
-            write_table_fields(std::get<0>(obj), fields, values, field_name + "_", bulk, t, pipeline);
+            fields += ", "s + t.quote_name(field_name + "_variant_populated");
+            int in_use = obj.index();
+            values += sep(bulk) + type_for<int>.native_to_sql(*sql_connection, bulk, &in_use);
+            variant_for_each(obj, [&](size_t index, auto&& arg) {
+                write_table_fields(arg, fields, values, field_name + std::to_string(index) + "_", bulk, t, pipeline);
+            });
         } else if constexpr (is_vector_v<T>) {
         } else {
             write_table_fields<T>(obj, fields, values, field_name + "_", bulk, t, pipeline);

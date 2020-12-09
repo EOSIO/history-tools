@@ -89,19 +89,19 @@ struct trx_filter {
     std::optional<abieos::name>                             act_name    = {};
 };
 
-inline bool matches(const trx_filter& filter, const eosio::ship_protocol::transaction_trace_v0& ttrace, const eosio::ship_protocol::action_trace_v0& atrace) {
+inline bool matches(const trx_filter& filter, const eosio::ship_protocol::transaction_trace_v0& ttrace, const eosio::ship_protocol::action_trace& atrace) {
     if (filter.status && ttrace.status != *filter.status)
         return false;
-    if (filter.receiver && atrace.receiver != *filter.receiver)
+    if (filter.receiver && std::visit([](auto&& arg){return arg.receiver;}, atrace) != *filter.receiver)
         return false;
-    if (filter.act_account && atrace.act.account != *filter.act_account)
+    if (filter.act_account && std::visit([](auto&& arg){return arg.act.account;}, atrace) != *filter.act_account)
         return false;
-    if (filter.act_name && atrace.act.name != *filter.act_name)
+    if (filter.act_name && std::visit([](auto&& arg){return arg.act.name;}, atrace) != *filter.act_name)
         return false;
     return true;
 }
 
-inline bool filter(const std::vector<trx_filter>& filters, const eosio::ship_protocol::transaction_trace_v0& ttrace, const eosio::ship_protocol::action_trace_v0& atrace) {
+inline bool filter(const std::vector<trx_filter>& filters, const eosio::ship_protocol::transaction_trace_v0& ttrace, const eosio::ship_protocol::action_trace& atrace) {
     for (auto& filt : filters) {
         if (matches(filt, ttrace, atrace)) {
             if (filt.include)
@@ -115,7 +115,7 @@ inline bool filter(const std::vector<trx_filter>& filters, const eosio::ship_pro
 
 inline bool filter(const std::vector<trx_filter>& filters, const eosio::ship_protocol::transaction_trace_v0& ttrace) {
     for (auto& atrace : ttrace.action_traces)
-        if (filter(filters, ttrace, std::get<0>(atrace)))
+        if (filter(filters, ttrace, atrace))
             return true;
     return false;
 }

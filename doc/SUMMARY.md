@@ -1,6 +1,7 @@
 # Summary
 
 * [History Tools](README.md)
+* [What's New](revision-history.md)
 * [Containerized Demos](container-demos.md)
 * [Database Fillers](database-fillers.md)
     * [nodeos State History](nodeos-state-history.md)

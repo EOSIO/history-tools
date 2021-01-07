@@ -63,7 +63,7 @@ like to test rocksdb support or wasm-ql support, stick with Nodeos 1.8 and the A
 * Database fillers now automatically reconnect to the State History Plugin.
 * wasm-ql now uses a thread pool to handle queries. `--wql-threads` controls the thread pool size.
 * wasm-ql now uses eos-vm instead of SpiderMonkey. This simplifies the build process.
-* wasm-ql can now serve static files. Enabled by the new `--wql-static-dir` option.
+* wasm-ql can now serve static file. Enabled by the new `--wql-static-dir` option.
 * SHiP connection handling moved to `state_history_connection.hpp`. This file may aid users needing
   to write custom solutions which connect to the State History Plugin.
 

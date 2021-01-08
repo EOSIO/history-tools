@@ -12,8 +12,7 @@ useful. Please create issues about changes you'd like to see going forward.
 Since this is an alpha release, it will likely have incompatible changes in the
 future. Some of these may be driven by community feedback.
 
-This release supports nodeos 1.8.x. It does not support 1.7.x or the 1.8 RC versions. This release
-includes the following:
+This release includes the following:
 
 ## Alpha 0.4.0
 

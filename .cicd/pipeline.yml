@@ -1,3 +1,13 @@
 steps:
-  - label: "Example Test"
-    command: echo "Hello!"
+
+  - wait
+
+  - label: ":ubuntu: Ubuntu 18.04 - Build"
+    command:
+      - "docker build -f ./ubuntu-18.04.dockerfile ."
+    env:
+      IMAGE_TAG: "ubuntu-18.04"
+    agents:
+      queue: "automation-eks-eos-builder-fleet"
+    timeout: ${TIMEOUT:-10}
+    skip: $SKIP_UBUNTU_18

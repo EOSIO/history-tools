@@ -705,7 +705,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
             auto& variant_type = get_type(table_delta.name);
             if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
-                throw std::runtime_error("don't know how to proccess " + variant_type.name);
+                throw std::runtime_error("I don't know how to proccess " + variant_type.name);
             auto& type = *variant_type.fields[0].type;
 
             size_t num_processed = 0;

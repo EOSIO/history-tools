@@ -118,7 +118,7 @@ actions in the transaction, including ones that didn't pass.
 
 ## PostgreSQL configuration
 
-fill-postgresql relies on PostgreSQL environment variables to establish connections; see the PostgreSQL manual.
+fill-pg relies on PostgreSQL environment variables to establish connections; see the PostgreSQL manual.
 
 A quick-and-dirty way to connect to PostgreSQL server running on another machine is to set these:
 * PGUSER

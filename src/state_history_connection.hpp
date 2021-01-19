@@ -3,6 +3,9 @@
 #pragma once
 
 #include "state_history.hpp"
+#include <eosio/check.hpp>
+#include <eosio/ship_protocol.hpp>
+#include <eosio/stream.hpp>
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -15,8 +18,9 @@ namespace state_history {
 struct connection_callbacks {
     virtual ~connection_callbacks() = default;
     virtual void received_abi(std::string_view abi) {}
-    virtual bool received(get_status_result_v0& status) { return true; }
-    virtual bool received(get_blocks_result_v0& result) { return true; }
+    virtual bool received(eosio::ship_protocol::get_status_result_v0& /*status*/) { return true; }
+    virtual bool received(eosio::ship_protocol::get_blocks_result_v0& /*result*/) { return true; }
+    virtual bool received(eosio::ship_protocol::get_blocks_result_v1& /*result*/) { return true; }
     virtual void closed(bool retry) = 0;
 };
 
@@ -32,7 +36,7 @@ struct connection : std::enable_shared_from_this<connection> {
 
     using abi_def      = abieos::abi_def;
     using abi_type     = abieos::abi_type;
-    using input_buffer = abieos::input_buffer;
+    using input_buffer = eosio::input_stream;
     using jarray       = abieos::jarray;
     using jobject      = abieos::jobject;
     using jvalue       = abieos::jvalue;
@@ -43,7 +47,7 @@ struct connection : std::enable_shared_from_this<connection> {
     boost::beast::websocket::stream<tcp::socket> stream;
     bool                                         have_abi  = false;
     abi_def                                      abi       = {};
-    std::map<std::string, abi_type>              abi_types = {};
+    std::map<std::string, abi_type>              abi_types{};
 
     connection(boost::asio::io_context& ioc, const connection_config& config, std::shared_ptr<connection_callbacks> callbacks)
         : config(config)
@@ -94,24 +98,31 @@ struct connection : std::enable_shared_from_this<connection> {
     void receive_abi(const std::shared_ptr<flat_buffer>& p) {
         auto data = p->data();
         auto sv   = std::string_view{(const char*)data.data(), data.size()};
-        json_to_native(abi, sv);
-        abieos::check_abi_version(abi.version);
-        abi_types = abieos::create_contract(abi).abi_types;
+        std::string buf((const char *)data.data(), data.size());
+        auto is   = eosio::json_token_stream{buf.data()};
+        from_json(abi, is);
+        std::string error;
+        if(!abieos::check_abi_version(abi.version, error)) {
+            eosio::check(error.empty(), error);
+        }
+        eosio::abi a;
+        eosio::convert(abi, a);
+        abi_types = std::move(a.abi_types);
         have_abi  = true;
         if (callbacks)
             callbacks->received_abi(sv);
     }
 
     bool receive_result(const std::shared_ptr<flat_buffer>& p) {
-        auto                  data = p->data();
-        input_buffer          bin{(const char*)data.data(), (const char*)data.data() + data.size()};
-        state_history::result result;
-        bin_to_native(result, bin);
+        auto                         data = p->data();
+        input_buffer                 bin{(const char*)data.data(), (const char*)data.data() + data.size()};
+        eosio::ship_protocol::result result;
+        from_bin(result, bin);
         return callbacks && std::visit([&](auto& r) { return callbacks->received(r); }, result);
     }
 
-    void request_blocks(uint32_t start_block_num, const std::vector<block_position>& positions) {
-        get_blocks_request_v0 req;
+    void request_blocks(uint32_t start_block_num, const std::vector<eosio::ship_protocol::block_position>& positions) {
+        eosio::ship_protocol::get_blocks_request_v0 req;
         req.start_block_num        = start_block_num;
         req.end_block_num          = 0xffff'ffff;
         req.max_messages_in_flight = 0xffff'ffff;
@@ -123,7 +134,7 @@ struct connection : std::enable_shared_from_this<connection> {
         send(req);
     }
 
-    void request_blocks(const get_status_result_v0& status, uint32_t start_block_num, const std::vector<block_position>& positions) {
+    void request_blocks(const eosio::ship_protocol::get_status_result_v0& status, uint32_t start_block_num, const std::vector<eosio::ship_protocol::block_position>& positions) {
         uint32_t nodeos_start = 0xffff'ffff;
         if (status.trace_begin_block < status.trace_end_block)
             nodeos_start = std::min(nodeos_start, status.trace_begin_block);
@@ -141,9 +152,9 @@ struct connection : std::enable_shared_from_this<connection> {
         return it->second;
     }
 
-    void send(const request& req) {
+    void send(const eosio::ship_protocol::request& req) {
         auto bin = std::make_shared<std::vector<char>>();
-        abieos::native_to_bin(req, *bin);
+        eosio::convert_to_bin(req, *bin);
         stream.async_write(boost::asio::buffer(*bin), [self = shared_from_this(), bin, this](error_code ec, size_t) {
             enter_callback(ec, "async_write", [&] {});
         });

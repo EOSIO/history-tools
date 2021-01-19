@@ -4,7 +4,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET 10.14)
 include(ExternalProject)
 
 cmake_minimum_required (VERSION 3.10)
-project(history-tools VERSION 0.1 LANGUAGES CXX)
+project(history-tools VERSION 0.3 LANGUAGES CXX)
 
 cmake_policy(SET CMP0077 NEW)
 set(ENABLE_INSTALL OFF cache bool "")
@@ -95,6 +95,7 @@ set(WITH_TESTS OFF)
 
 add_compile_options(-Wno-error=shadow)
 
+add_subdirectory(external/abieos EXCLUDE_FROM_ALL)
 add_subdirectory(external/appbase EXCLUDE_FROM_ALL)
 add_subdirectory(external/fc EXCLUDE_FROM_ALL)
 #add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
@@ -111,7 +112,7 @@ function(add_app APP FLAGS LIBS)
     target_include_directories(${APP}
         PRIVATE
             external/abieos/src
-            external/abieos/external/date/include
+            external/abieos/include
             external/abieos/external/rapidjson/include
             external/appbase/include
             external/eos-vm/include
@@ -121,7 +122,7 @@ function(add_app APP FLAGS LIBS)
             ${JS_INCLUDE_DIRS}
             ${ROCKSDB_INCLUDE_DIR}
     )
-    target_link_libraries(${APP} appbase fc eos-vm Boost::date_time Boost::filesystem Boost::chrono Boost::system Boost::iostreams Boost::program_options Boost::unit_test_framework ${LIBS} -lpthread)
+    target_link_libraries(${APP} appbase fc abieos eos-vm Boost::date_time Boost::filesystem Boost::chrono Boost::system Boost::iostreams Boost::program_options Boost::unit_test_framework ${LIBS} -lpthread)
 
     if(APPLE)
     else()

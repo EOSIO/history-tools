@@ -1,6 +1,6 @@
 #pragma once
 
-#include "abieos_exception.hpp"
+#include <eosio/stream.hpp>
 
 #include <boost/iostreams/device/back_inserter.hpp>
 #include <boost/iostreams/filter/zlib.hpp>
@@ -21,7 +21,7 @@ inline std::string read_string(const char* filename) {
     }
 }
 
-inline std::vector<char> zlib_decompress(abieos::input_buffer data) {
+inline std::vector<char> zlib_decompress(eosio::input_stream data) {
     std::vector<char>                   out;
     boost::iostreams::filtering_ostream decomp;
     decomp.push(boost::iostreams::zlib_decompressor());

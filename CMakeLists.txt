@@ -98,6 +98,10 @@ add_compile_options(-Wno-error=shadow)
 add_subdirectory(external/abieos EXCLUDE_FROM_ALL)
 add_subdirectory(external/appbase EXCLUDE_FROM_ALL)
 add_subdirectory(external/fc EXCLUDE_FROM_ALL)
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/testnet.template ${CMAKE_CURRENT_BINARY_DIR}/etc/eosio/launcher/testnet.template COPYONLY)
+enable_testing()
+add_subdirectory( tests )
 #add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
 
 #set(FOUND_ROCKSDB ON)

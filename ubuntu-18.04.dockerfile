@@ -65,6 +65,8 @@ copy external /root/history-tools/external
 copy libraries /root/history-tools/libraries
 copy src /root/history-tools/src
 copy wasms /root/history-tools/wasms
+copy testnet.template /root/history-tools
+copy tests /root/history-tools/tests
 
 run mkdir /root/history-tools/build
 workdir /root/history-tools/build

@@ -28,6 +28,9 @@ run apt-get update && apt-get install -y \
     postgresql-server-dev-all   \
     python2.7                   \
     python2.7-dev               \
+    python-configparser         \
+    python-requests             \
+    python-pip                  \
     python3-dev                 \
     rustc                       \
     zlib1g-dev

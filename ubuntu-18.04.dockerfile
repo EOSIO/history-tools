@@ -26,6 +26,7 @@ run apt-get update && apt-get install -y \
     npm                         \
     pkg-config                  \
     postgresql-server-dev-all   \
+    python2.7                   \
     python2.7-dev               \
     python3-dev                 \
     rustc                       \

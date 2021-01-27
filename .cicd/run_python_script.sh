@@ -1,3 +1,4 @@
 cd .cicd/helpers/
-pip install
-python2.7 .cicd/helpers/get_eos.py
+pip install configparser
+pip install requests
+python2.7 get_eos.py

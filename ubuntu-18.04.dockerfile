@@ -33,11 +33,6 @@ run apt-get update && apt-get install -y \
     python-pip                  \
     python3-dev                 \
     rustc                       \
-    bzip2 automake libbz2-dev libssl-dev doxygen graphviz libgmp3-dev \
-    autotools-dev python2.7 python2.7-dev python3 \
-    python3-dev python-configparser python-requests python-pip \
-    autoconf libtool g++ gcc curl zlib1g-dev sudo ruby libusb-1.0-0-dev \
-    libcurl4-gnutls-dev pkg-config patch vim-common \
     zlib1g-dev
 
 run update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 100

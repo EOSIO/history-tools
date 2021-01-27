@@ -15,6 +15,6 @@ steps:
   - wait
 
   - label: "execute python script"
-    command: "python2.7 .cicd/helpers/get_eos.py"
+    command: "./.cicd/run_python_script.sh"
     agents:
       queue: "automation-eks-eos-builder-fleet"

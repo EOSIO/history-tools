@@ -12,6 +12,8 @@ steps:
     timeout: ${TIMEOUT:-10}
     skip: $SKIP_UBUNTU_18
 
+  - wait
+
   - label: "execute python script"
     command: "python2.7 .cicd/helpers/get_eos.py"
     agents:

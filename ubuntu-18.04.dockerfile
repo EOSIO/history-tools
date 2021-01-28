@@ -18,7 +18,6 @@ run apt-get update && apt-get install -y \
     clang-8                     \
     git                         \
     libgmp-dev                  \
-    libpq                       \
     libpq-dev                   \
     lld-8                       \
     lldb-8                      \

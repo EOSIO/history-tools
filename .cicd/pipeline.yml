@@ -10,7 +10,7 @@ steps:
     agents:
       queue: "automation-eks-eos-builder-fleet"
     timeout: ${TIMEOUT:-15}
-    skip: $SKIP_UBUNTU_18
+    skip: true
 
   - wait
 

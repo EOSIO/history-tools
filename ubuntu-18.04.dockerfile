@@ -35,21 +35,6 @@ run apt-get update && apt-get install -y \
     rustc                       \
     zlib1g-dev
 
-# install libpq, postgresql-13
-ENV TZ=America/Chicago
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
-    echo "deb http://apt.postgresql.org/pub/repos/apt bionic-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
-    curl -sL https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
-    apt-get update && apt-get -y install libpq-dev postgresql-13 && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-#build libpqxx
-RUN curl -L https://github.com/jtv/libpqxx/archive/7.2.1.tar.gz | tar zxvf - && \
-    cd  libpqxx-7.2.1  && \
-    cmake -DCMAKE_TOOLCHAIN_FILE=/tmp/clang.cmake -DSKIP_BUILD_TEST=ON -DPostgreSQL_TYPE_INCLUDE_DIR=/usr/include/postgresql -DCMAKE_BUILD_TYPE=Release -S . -B build && \
-    cmake --build build && cmake --install build && \
-    cd .. && rm -rf libpqxx-7.2.1
-
 run update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 100
 run update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-8 100
 
@@ -67,6 +52,21 @@ workdir /root/cmake-3.14.5
 run ./bootstrap --parallel=10
 run make -j10
 run make -j10 install
+
+# install libpq, postgresql-13
+ENV TZ=America/Chicago
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
+    echo "deb http://apt.postgresql.org/pub/repos/apt bionic-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
+    curl -sL https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
+    apt-get update && apt-get -y install libpq-dev postgresql-13 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+#build libpqxx
+RUN curl -L https://github.com/jtv/libpqxx/archive/7.2.1.tar.gz | tar zxvf - && \
+    cd  libpqxx-7.2.1  && \
+    cmake -DCMAKE_TOOLCHAIN_FILE=/tmp/clang.cmake -DSKIP_BUILD_TEST=ON -DPostgreSQL_TYPE_INCLUDE_DIR=/usr/include/postgresql -DCMAKE_BUILD_TYPE=Release -S . -B build && \
+    cmake --build build && cmake --install build && \
+    cd .. && rm -rf libpqxx-7.2.1
 
 workdir /root
 run wget https://github.com/EOSIO/eos/releases/download/v1.8.6/eosio_1.8.6-1-ubuntu-18.04_amd64.deb

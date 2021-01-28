@@ -61,6 +61,9 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone &
     apt-get update && apt-get -y install libpq-dev postgresql-13 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+COPY ./.cicd/helpers/clang.make /tmp/clang.cmake
+
 #build libpqxx
 RUN curl -L https://github.com/jtv/libpqxx/archive/7.2.1.tar.gz | tar zxvf - && \
     cd  libpqxx-7.2.1  && \

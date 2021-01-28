@@ -61,7 +61,14 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone &
     apt-get update && apt-get -y install libpq-dev postgresql-13 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
+# build clang10
+RUN git clone --single-branch --branch llvmorg-10.0.0 https://github.com/llvm/llvm-project clang10 && \
+    mkdir /clang10/build && cd /clang10/build && \
+    cmake -G 'Unix Makefiles' -DCMAKE_INSTALL_PREFIX='/usr/local' -DLLVM_ENABLE_PROJECTS='lld;polly;clang;clang-tools-extra;libcxx;libcxxabi;libunwind;compiler-rt' -DLLVM_BUILD_LLVM_DYLIB=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_INCLUDE_DOCS=OFF -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_BUILD_TYPE=Release ../llvm && \
+    make -j $(nproc) && \
+    make install && \
+    cd / && \
+    rm -rf /clang10
 COPY ./.cicd/helpers/clang.make /tmp/clang.cmake
 
 #build libpqxx

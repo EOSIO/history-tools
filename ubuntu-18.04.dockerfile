@@ -16,6 +16,7 @@ run apt-get update && apt-get install -y \
     bzip2                       \
     cargo                       \
     clang-8                     \
+    curl                        \
     git                         \
     libgmp-dev                  \
     lld-8                       \

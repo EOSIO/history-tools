@@ -9,7 +9,7 @@ steps:
       IMAGE_TAG: "ubuntu-18.04"
     agents:
       queue: "automation-eks-eos-builder-fleet"
-    timeout: ${TIMEOUT:-25}
+    timeout: ${TIMEOUT:-50}
     skip: $SKIP_UBUNTU_18
 
   - wait

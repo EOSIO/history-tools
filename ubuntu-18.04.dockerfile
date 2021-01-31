@@ -18,6 +18,9 @@ run apt-get update && apt-get install -y \
     clang-8                     \
     curl                        \
     git                         \
+    libicu60                    \
+    libusb-1.0-0-dev            \
+    libcurl3-gnutls             \
     libgmp-dev                  \
     lld-8                       \
     lldb-8                      \
@@ -80,7 +83,6 @@ RUN curl -L https://github.com/jtv/libpqxx/archive/7.2.1.tar.gz | tar zxvf - && 
     cd .. && rm -rf libpqxx-7.2.1
 
 workdir /root
-run apt-get install libicu60 libusb-1.0-0 libcurl3-gnutls
 run wget https://github.com/EOSIO/eos/releases/download/v1.8.6/eosio_1.8.6-1-ubuntu-18.04_amd64.deb
 run apt-get install -y ./eosio_1.8.6-1-ubuntu-18.04_amd64.deb
 

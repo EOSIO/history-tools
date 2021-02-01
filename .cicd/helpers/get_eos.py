@@ -7,7 +7,6 @@ import requests
 import shutil
 import subprocess
 import sys
-import tarfile
 
 def is_tag(ref):
     regex = re.compile('v[0-9]+\.[0-9]+\..*')
@@ -67,11 +66,7 @@ if CURRENT_COMMIT:
                             download_url = dir_r.json().pop().get('download_url')
                             if download_url:
                                 dl_r = requests.get(download_url, headers=headers)
-                                open('current_build.tar.gz', 'wb').write(dl_r.content)
-                                tar = tarfile.open('current_build.tar.gz')
-                                tar.extractall(path='builds/current')
-                                tar.close()
-                                os.remove('current_build.tar.gz')
+                                open('eosio.deb', 'wb').write(dl_r.content)
                                 existing_build_found = True
         else:
             print 'No builds found for this branch ({})'.format(CURRENT_COMMIT)

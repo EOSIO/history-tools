@@ -61,7 +61,7 @@ if CURRENT_COMMIT:
             for build in resp:
                 for job in build.get('jobs'):
                     job_name = job.get('name')
-                    if job_name and re.search(r":ubuntu:.+18.04.+Build$", job_name):
+                    if job_name and re.search(r":ubuntu:.+18.04.+Package Builder$", job_name):
                         dir_r = requests.get(job.get('artifacts_url'), headers=headers)
                         if dir_r.status_code == 200:
                             download_url = dir_r.json().pop().get('download_url')

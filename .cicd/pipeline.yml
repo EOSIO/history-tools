@@ -4,7 +4,8 @@ steps:
 
   - label: ":ubuntu: Ubuntu 18.04 - Build"
     command:
-      - "docker build -f ./ubuntu-18.04.dockerfile ."
+      - "docker build -t eosio/history-tools:$BUILDKITE_COMMIT -f ./ubuntu-18.04.dockerfile ."
+      - "docker push eosio/history-tools:$BUILDKITE_COMMIT"
     env:
       IMAGE_TAG: "ubuntu-18.04"
     agents:

@@ -31,6 +31,9 @@ run apt-get update && apt-get install -y \
     rustc                       \
     zlib1g-dev
 
+env DEBIAN_FRONTEND=noninteractive
+run apt-get install -y postgresql
+
 run update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 100
 run update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-8 100
 
@@ -50,14 +53,6 @@ run make -j10
 run make -j10 install
 
 workdir /root
-run wget https://github.com/EOSIO/eos/releases/download/v1.8.6/eosio_1.8.6-1-ubuntu-18.04_amd64.deb
-run apt-get install -y ./eosio_1.8.6-1-ubuntu-18.04_amd64.deb
-
-workdir /root
-run wget https://github.com/EOSIO/eosio.cdt/releases/download/v1.6.2/eosio.cdt_1.6.2-1-ubuntu-18.04_amd64.deb
-run apt-get install -y ./eosio.cdt_1.6.2-1-ubuntu-18.04_amd64.deb
-
-workdir /root
 run mkdir /root/history-tools
 copy cmake /root/history-tools/cmake
 copy CMakeLists.txt /root/history-tools
@@ -73,3 +68,23 @@ workdir /root/history-tools/build
 run cmake -GNinja -DSKIP_SUBMODULE_CHECK=1 -DCMAKE_CXX_COMPILER=clang++-8 -DCMAKE_C_COMPILER=clang-8 ..
 run bash -c "cd ../src && npm install node-fetch"
 run ninja
+
+USER postgres
+
+# Create a PostgreSQL role named ``root`` with ``root`` as the password and
+# then create a database `root` owned by the ``root`` role.
+# Note: here we use ``&&\`` to run commands one after the other - the ``\``
+#       allows the RUN command to span multiple lines.
+RUN    /etc/init.d/postgresql start &&\
+    psql --command "CREATE ROLE root SUPERUSER CREATEDB CREATEROLE LOGIN PASSWORD 'root';" &&\
+    psql --command "CREATE DATABASE root WITH OWNER root;"
+
+USER root
+
+run wget https://github.com/eosio/eos/releases/download/v2.1.0-rc2/eosio_2.1.0-rc2-ubuntu-18.04_amd64.deb
+run apt-get install -y ./eosio_2.1.0-rc2-ubuntu-18.04_amd64.deb
+
+run nodeos -e -p eosio --plugin eosio::producer_plugin --plugin eosio::producer_api_plugin --plugin eosio::chain_api_plugin --plugin eosio::http_plugin --plugin eosio::history_plugin --plugin eosio::history_api_plugin --plugin eosio::state_history_plugin --trace-history --chain-state-history --disable-replay-opts --filter-on='*' --access-control-allow-origin='*' --contracts-console --http-validate-host=false --verbose-http-errors
+
+RUN /etc/init.d/postgresql start &&\
+    ./fill-pg --fpg-drop

@@ -63,11 +63,13 @@ if CURRENT_COMMIT:
                     if job_name and re.search(r":ubuntu:.+18.04.+Package Builder$", job_name):
                         dir_r = requests.get(job.get('artifacts_url'), headers=headers)
                         if dir_r.status_code == 200:
-                            download_url = dir_r.json().pop().get('download_url')
-                            if download_url:
-                                dl_r = requests.get(download_url, headers=headers)
-                                open('eosio.deb', 'wb').write(dl_r.content)
-                                existing_build_found = True
+                            dir_r_json = dir_r.json()
+                            if dir_r_json:
+                                download_url = dir_r_json.pop().get('download_url')
+                                if download_url:
+                                    dl_r = requests.get(download_url, headers=headers)
+                                    open('eosio.deb', 'wb').write(dl_r.content)
+                                    existing_build_found = True
         else:
             print 'No builds found for this branch ({})'.format(CURRENT_COMMIT)
 

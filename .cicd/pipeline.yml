@@ -1,6 +1,14 @@
 steps:
 
   - wait
+  - name: "Docker Compose Test 2222"
+      plugins:
+        - docker-compose#v3.0.3:
+            run: nodeos
+      agents:
+        queue: "automation-eks-eos-builder-fleet"
+      timeout: ${TIMEOUT:-15}
+      skip: $SKIP_UBUNTU_18
 
   - name: "Docker Compose Test %n"
     plugins:

@@ -1,0 +1,31 @@
+version: "3.3"
+
+services:
+  nodeos:
+    image: docker.io/eosio/ci-contracts-builder:base-ubuntu-18.04-develop
+    command: nodeos -e -p eosio --plugin eosio::producer_plugin --plugin eosio::producer_api_plugin --plugin eosio::chain_api_plugin --plugin eosio::http_plugin --plugin eosio::history_plugin --plugin eosio::history_api_plugin --plugin eosio::state_history_plugin --trace-history --chain-state-history --disable-replay-opts --filter-on='*' --access-control-allow-origin='*' --contracts-console --http-validate-host=false --verbose-http-errors
+  db:
+    build:
+      context: .
+      dockerfile: ./postgres.dockerfile
+    environment:
+      - POSTGRES_DB=root
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=root
+    volumes:
+      - type: 'volume'
+        source: postgres-run
+        target: /var/run/postgresql/
+  history-tools:
+    image: eosio/history-tools:935650a6fb9ca596affe0a3c42e6a1966675061d
+    volumes:
+      - type: 'volume'
+        source: postgres-run
+        target: /var/run/postgresql/
+    command: ./fill-pg --fpg-drop --fpg-create --fill-connect-to=nodeos:8080
+    depends_on:
+      - nodeos
+      - db
+
+volumes:
+  postgres-run:

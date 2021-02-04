@@ -23,6 +23,7 @@ services:
         source: postgres-run
         target: /var/run/postgresql/
     command: ./fill-pg --fpg-drop --fpg-create --fill-connect-to=nodeos:8080
+    tty: true
     depends_on:
       - nodeos
       - db

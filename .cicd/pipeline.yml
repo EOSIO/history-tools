@@ -8,5 +8,5 @@ steps:
           run: history-tools
     agents:
       queue: "automation-eks-eos-builder-fleet"
-    timeout: ${TIMEOUT:-10}
+    timeout: ${TIMEOUT:-15}
     skip: $SKIP_UBUNTU_18

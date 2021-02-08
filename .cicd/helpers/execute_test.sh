@@ -8,10 +8,6 @@ function execute-psql-command(){
   RET_SQL_CMD=`eval $CMD`
 }
 
-if [[ "$BUILDKITE" == 'true' ]]; then
-    apt-get update && apt-get -y install wget
-fi
-
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 bash $DIR/get_snapshot.sh

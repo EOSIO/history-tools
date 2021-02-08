@@ -1,5 +1,5 @@
 #get xml with info about snapshots
-wget -O snapshots.xml https://snapshot.testnet.eos.io
+curl -L https://snapshot.testnet.eos.io > snapshots.xml
 
 #parse xml to get latest snaspshot
 read_dom () {
@@ -18,6 +18,5 @@ while read_dom; do
 done < snapshots.xml
 
 #get actual snapshot file and unzip
-wget https://snapshot.testnet.eos.io/$LATEST_SNAPSHOT
-tar -xzvf snapshots.tar.gz
+curl -L https://snapshot.testnet.eos.io/$LATEST_SNAPSHOT | tar -xzf -
 

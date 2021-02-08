@@ -1,0 +1,50 @@
+version: "3.3"
+
+services:
+  nodeos:
+    image: docker.io/eosio/eos:${DOCKER_EOSIO_TAG:-develop}
+    command:
+      - nodeos
+      - --plugin
+      - eosio::producer_plugin
+      - --plugin
+      - eosio::chain_api_plugin
+      - --plugin
+      - eosio::http_plugin
+      - --plugin
+      - eosio::producer_api_plugin
+      - --chain-state-db-size-mb
+      - "65536"
+      - --plugin
+      - eosio::state_history_plugin
+      - --state-history-endpoint
+      - 0.0.0.0:8080
+      - --trace-history
+      - --chain-state-history
+      - --disable-replay-opts
+      - --p2p-peer-address=${PEER_ADDR:-seed.testnet.eos.io:9876}
+      - --snapshot
+      - /snapshots/snapshot.bin
+    volumes:
+      - type: bind
+        source: ${SNAPSHOT_FILE:-./snapshot.bin}
+        target: /snapshots/snapshot.bin
+  postgres:
+    image: postgres
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=password
+  history-tools:
+    image: eosio/history-tools:${DOCKER_HISTORY_TOOLS_TAG:-latest}
+    command:
+      - ./fill-pg
+      - --fpg-create
+      - --fill-connect-to=nodeos:8080
+    environment:
+      - PGUSER=root
+      - PGPASSWORD=password
+      - PGHOST=postgres
+    restart: always
+    depends_on:
+      - postgres
+      - nodeos

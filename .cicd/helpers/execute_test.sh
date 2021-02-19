@@ -11,7 +11,7 @@ function execute-psql-command(){
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 bash $DIR/get_snapshot.sh
-bash $DIR/create_env_file.sh
+bash $DIR/create_env_file.sh $1
 
 docker-compose up -d
 
@@ -42,3 +42,5 @@ do
   fi
   sleep 5
 done
+
+docker-compose down

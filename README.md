@@ -122,6 +122,47 @@ don't need the blocks since:
 to make their own tradeoffs. They can choose between supporting queries covering the entire
 history of the chain, or save space by only covering recent history.
 
+#### Getting Started
+
+You can use the docker-compose file to see how fill-pg interacts with nodeos and postgresql.
+For example, if you want to run fill-pg with some snapshot and setup one peer address, create a
+.env file such as:
+
+```
+SNAPSHOT_FILE=/root/history-tools/snapshot-2021-03-05-10-eos-v4@0171570460.bin
+PEER_ADDR=peer.main.alohaeos.com:9876
+```
+
+Then execute the command:
+
+```
+docker-compose up
+```
+
+And you will start seeing logs from the 3 containers, showing how they interact between each other.
+
+Further customization can be achieved with other environment variables for example to set an specific
+branch/commit for nodeos or history-tools, such as:
+
+```
+DOCKER_EOSIO_TAG=develop
+DOCKER_HISTORY_TOOLS_TAG=935650a6fb9ca596affe0a3c42e6a1966675061d
+```
+
+You can also modify the provided docker-compose.yml so that, for example, it takes more p2p peer addresses,
+for example:
+
+```
+       ...
+       - --p2p-peer-address=peer.main.alohaeos.com:9876
+       - --p2p-peer-address=p2p.eosflare.io:9876
+       - --p2p-peer-address=p2p.eosargentina.io:5222
+       - --p2p-peer-address=eos-bp.index.pro:9876
+       - --p2p-peer-address=eosbp-0.atticlab.net:9876
+       - --p2p-peer-address=mainnet.eosarabia.net:3571
+       ...
+```
+
 ## wasm-ql-pg
 
 EOSIO contracts store their data in a format which is convenient for them, but hard

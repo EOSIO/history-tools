@@ -493,8 +493,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
            return true;
        bool bulk         = result.this_block->block_num + 4 < result.last_irreversible.block_num;
        bool large_deltas = false;
-       auto deltas       = result.deltas.unpack();
-       auto deltas_size  = deltas.size();
+       auto deltas_size  = result.deltas.num_bytes();
        if (!bulk && deltas_size >= 10 * 1024 * 1024) {
            ilog("large deltas size: ${s}", ("s", uint64_t(deltas_size)));
            bulk         = true;
@@ -528,8 +527,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
            throw std::runtime_error("prev_block does not match");
        if (result.block)
            receive_block(result.this_block->block_num, result.this_block->block_id, result.block.value(), bulk, t, pipeline);
-       if (!result.deltas.empty())
-           receive_deltas(result.this_block->block_num, std::move(deltas), bulk, t, pipeline);
+       if (deltas_size)
+           receive_deltas(result.this_block->block_num, result.deltas.unpack(), bulk, t, pipeline);
        if (!result.traces.empty())
            receive_traces(result.this_block->block_num, result.traces.unpack(), bulk, t, pipeline);
 

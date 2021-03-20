@@ -32,12 +32,63 @@ using asio::ip::tcp;
 using boost::beast::flat_buffer;
 using boost::system::error_code;
 
-inline std::string to_string(const eosio::checksum256& v) { return abieos::hex(v.value.begin(), v.value.end()); }
+inline std::string to_string(const eosio::checksum256& v) { return sql_str(true, v); }
+
+/// a wrapper class for pqxx::work to log the SQL command sent to database
+struct work_t {
+    pqxx::work w;
+    
+    work_t(pqxx::connection& conn) : w(conn) {}
+
+    auto exec(std::string stmt)  {
+        dlog(stmt.c_str());
+        return w.exec(stmt);
+    }
+
+    void commit() { w.commit();  }
+
+    auto quote_name(const std::string& str) { return w.quote_name(str);}
+};
+
+/// a wrapper class for pqxx::pipeline to log the SQL command sent to database
+struct pipeline_t {
+    pqxx::pipeline p;
+
+    pipeline_t(work_t& w): p(w.w) {}
+
+    auto insert(std::string stmt) -> decltype(p.insert(stmt)) {
+        dlog(stmt.c_str());
+        return p.insert(stmt);
+    }
+
+    template <typename T>
+    auto retrieve(T&& t) {
+        return p.retrieve(std::move(t));
+    }
+
+    auto retrieve() { return p.retrieve(); }
+
+    bool empty() const { return p.empty(); }
+
+    void complete() { p.complete(); }
+};
+
+/// a wrapper class for pqxx::tablewriter to log the write_raw_line() 
+struct tablewriter {    
+    pqxx::tablewriter wr;
+    tablewriter(work_t& t, const std::string& name) : wr(t.w, name) {}
+
+    void write_raw_line(std::string v) {
+        dlog("write table ${name} : ${value}", ("name", wr.name())("value", v));
+        wr.write_raw_line(v);
+    }
+    void complete() { wr.complete(); }
+};
 
 struct table_stream {
     pqxx::connection  c;
-    pqxx::work        t;
-    pqxx::tablewriter writer;
+    work_t        t;
+    tablewriter   writer;
 
     table_stream(const std::string& name)
         : t(c)
@@ -101,8 +152,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
     void start(asio::io_context& ioc) {
         if (config->drop_schema) {
-            pqxx::work t(*sql_connection);
-            ilog("drop schema ${s}", ("s", t.quote_name(config->schema)));
+            work_t t(*sql_connection);
             t.exec("drop schema if exists " + t.quote_name(config->schema) + " cascade");
             t.commit();
             config->drop_schema = false;
@@ -121,10 +171,10 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     }
 
     bool received(get_status_result_v0& status) override {
-        pqxx::work t(*sql_connection);
+        work_t t(*sql_connection);
         load_fill_status(t);
         auto           positions = get_positions(t);
-        pqxx::pipeline pipeline(t);
+        pipeline_t pipeline(t);
         truncate(t, pipeline, head + 1);
         pipeline.complete();
         t.commit();
@@ -134,7 +184,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     }
 
     template <typename T>
-    void add_table_field(pqxx::work& t, std::string& fields, const std::string& field_name) {
+    void add_table_field(work_t& t, std::string& fields, const std::string& field_name) {
         if constexpr (is_known_type(type_for<T>)) {
             if (field_name.length() > 64)
                 throw std::runtime_error("field name '" + field_name + "' exceeds postgres column name length limit");
@@ -157,7 +207,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     }
 
     template <typename T>
-    void add_table_fields(pqxx::work& t, std::string& fields, const std::string& prefix) {
+    void add_table_fields(work_t& t, std::string& fields, const std::string& prefix) {
         eosio::for_each_field<T>([&](const std::string_view field_name, auto member) {
             using field_type = std::decay_t<decltype(member(std::declval<T*>()))>;
             add_table_field<field_type>(t, fields, prefix + (std::string)field_name);
@@ -166,7 +216,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
     template <typename T>
     void create_table( //
-        pqxx::work& t, const std::string& name, const std::string& pk, std::string fields, const char* suffix_fields = nullptr) {
+        work_t& t, const std::string& name, const std::string& pk, std::string fields, const char* suffix_fields = nullptr) {
 
         add_table_fields<T>(t, fields, "");
         if (suffix_fields)
@@ -176,7 +226,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         t.exec(query);
     }
 
-    void fill_field(pqxx::work& t, const std::string& base_name, std::string& fields, const eosio::abi_field& field) {
+    void fill_field(work_t& t, const std::string& base_name, std::string& fields, const eosio::abi_field& field) {
         if (field.type->as_struct()) {
             for (auto& f : field.type->as_struct()->fields)
                 fill_field(t, base_name + field.name + "_", fields, f);
@@ -225,7 +275,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     }; // fill_field
 
     void create_tables() {
-        pqxx::work t(*sql_connection);
+        work_t t(*sql_connection);
 
         ilog("create schema ${s}", ("s", t.quote_name(config->schema)));
         t.exec("create schema " + t.quote_name(config->schema));
@@ -259,7 +309,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             if (!variant_type.as_variant() || variant_type.as_variant()->size() != 1 || !variant_type.as_variant()->at(0).type->as_struct())
                 throw std::runtime_error("don't know how to proccess " + variant_type.name);
             auto&       type   = *variant_type.as_variant()->at(0).type;
-            std::string fields = "block_num bigint, present bool";
+            std::string fields = "block_num bigint, present smallint";
             for (auto& field : type.as_struct()->fields)
                 fill_field(t, "", fields, field);
             std::string keys = "block_num, present";
@@ -291,7 +341,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     void create_trim() {
         if (created_trim)
             return;
-        pqxx::work t(*sql_connection);
+        work_t t(*sql_connection);
         ilog("create_trim");
         for (auto& table : connection->abi.tables) {
             if (table.type == "global_property")
@@ -424,7 +474,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         created_trim = true;
     } // create_trim
 
-    void load_fill_status(pqxx::work& t) {
+    void load_fill_status(work_t& t) {
         auto r =
             t.exec("select head, head_id, irreversible, irreversible_id, first from " + t.quote_name(config->schema) + ".fill_status")[0];
         head            = r[0].as<uint32_t>();
@@ -434,7 +484,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         first           = r[4].as<uint32_t>();
     }
 
-    std::vector<block_position> get_positions(pqxx::work& t) {
+    std::vector<block_position> get_positions(work_t& t) {
         std::vector<block_position> result;
         auto                        rows = t.exec(
             "select block_num, block_id from " + t.quote_name(config->schema) + ".received_block where block_num >= " +
@@ -444,7 +494,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         return result;
     }
 
-    void write_fill_status(pqxx::work& t, pqxx::pipeline& pipeline) {
+    void write_fill_status(work_t& t, pipeline_t& pipeline) {
         std::string query = "update " + t.quote_name(config->schema) + ".fill_status set head=" + std::to_string(head) +
                             ", head_id=" + quote(head_id) + ", ";
         if (irreversible < head)
@@ -455,10 +505,10 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         pipeline.insert(query);
     }
 
-    void truncate(pqxx::work& t, pqxx::pipeline& pipeline, uint32_t block) {
+    void truncate(work_t& t, pipeline_t& pipeline, uint32_t block) {
         auto trunc = [&](const std::string& name) {
-            pipeline.insert(
-                "delete from " + t.quote_name(config->schema) + "." + t.quote_name(name) + " where block_num >= " + std::to_string(block));
+            std::string query{"delete from " + t.quote_name(config->schema) + "." + t.quote_name(name) + " where block_num >= " + std::to_string(block)};        
+            pipeline.insert(query);
         };
         trunc("received_block");
         trunc("action_trace_authorization");
@@ -519,8 +569,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
        if (!bulk)
            ilog("block ${b}", ("b", result.this_block->block_num));
 
-       pqxx::work     t(*sql_connection);
-       pqxx::pipeline pipeline(t);
+       work_t t(*sql_connection);
+       pipeline_t pipeline(t);
        if (result.this_block->block_num <= head)
            truncate(t, pipeline, result.this_block->block_num);
        if (!head_id.empty() && (!result.prev_block || to_string(result.prev_block->block_id) != head_id))
@@ -583,8 +633,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         if (!bulk)
             ilog("block ${b}", ("b", result.this_block->block_num));
 
-        pqxx::work     t(*sql_connection);
-        pqxx::pipeline pipeline(t);
+        work_t     t(*sql_connection);
+        pipeline_t pipeline(t);
         if (result.this_block->block_num <= head)
             truncate(t, pipeline, result.this_block->block_num);
         if (!head_id.empty() && (!result.prev_block || to_string(result.prev_block->block_id) != head_id))
@@ -617,7 +667,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         return true;
     } // receive_result()
 
-    void write_stream(uint32_t block_num, pqxx::work& t, const std::string& name, const std::string& values) {
+    void write_stream(uint32_t block_num, work_t& t, const std::string& name, const std::string& values) {
         if (!first_bulk)
             first_bulk = block_num;
         auto& ts = table_streams[name];
@@ -636,8 +686,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         }
         table_streams.clear();
 
-        pqxx::work     t(*sql_connection);
-        pqxx::pipeline pipeline(t);
+        work_t     t(*sql_connection);
+        pipeline_t pipeline(t);
         write_fill_status(t, pipeline);
         pipeline.complete();
         t.commit();
@@ -647,7 +697,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     }
 
     void fill_value(
-        bool bulk, bool nested_bulk, pqxx::work& t, const std::string& base_name, std::string& fields, std::string& values,
+        bool bulk, bool nested_bulk, work_t& t, const std::string& base_name, std::string& fields, std::string& values,
         eosio::input_stream& bin, const eosio::abi_field& field) {
         if (field.type->as_struct()) {
             for (auto& f : field.type->as_struct()->fields)
@@ -674,7 +724,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         } else if (field.type->as_variant() && field.type->as_variant()->at(0).type->as_struct()) {
             uint32_t v;
             varuint32_from_bin(v, bin);
-            for (auto& f : *field.type->as_variant()->at(v).type->as_variant())
+            for (auto& f : field.type->as_variant()->at(v).type->as_struct()->fields)
                 fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
         } else if (field.type->array_of() && field.type->array_of()->as_struct()) {
             fields += ", " + t.quote_name(base_name + field.name);
@@ -687,15 +737,15 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 values += begin_object_in_array(bulk);
                 std::string struct_fields;
                 std::string struct_values;
-                for (auto& f : *field.type->array_of()->as_variant())
-                    fill_value(bulk, true, t, "", struct_fields, struct_values, bin, f);
+                for (auto& f : field.type->array_of()->as_struct()->fields)
+                    fill_value(bulk, bulk, t, "", struct_fields, struct_values, bin, f);
                 if (bulk)
                     values += struct_values.substr(1);
                 else
                     values += struct_values.substr(2);
                 values += end_object_in_array(bulk);
             }
-            values += end_array(bulk, t, config->schema, field.type->array_of()->name);
+            values += end_array(bulk, t.w, config->schema, field.type->array_of()->name);
         } else if (field.type->array_of() && field.type->array_of()->as_variant() && field.type->array_of()->as_variant()->at(0).type->as_struct()) {
             auto* s = field.type->array_of()->as_variant()->at(0).type;
             fields += ", " + t.quote_name(base_name + field.name);
@@ -712,15 +762,15 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 values += begin_object_in_array(bulk);
                 std::string struct_fields;
                 std::string struct_values;
-                for (auto& f : *s->as_variant())
-                    fill_value(bulk, true, t, "", struct_fields, struct_values, bin, f);
+                for (auto& f : s->as_struct()->fields)
+                    fill_value(bulk, bulk, t, "", struct_fields, struct_values, bin, f);
                 if (bulk)
                     values += struct_values.substr(1);
                 else
                     values += struct_values.substr(2);
                 values += end_object_in_array(bulk);
             }
-            values += end_array(bulk, t, config->schema, s->name);
+            values += end_array(bulk, t.w, config->schema, s->name);
         } else {
             auto abi_type    = field.type->name;
             bool is_optional = false;
@@ -735,28 +785,22 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 throw std::runtime_error("don't know how to process " + field.type->name);
 
             fields += ", " + t.quote_name(base_name + field.name);
-            if (bulk) {
-                if (nested_bulk)
-                    values += ",";
-                else
-                    values += "\t";
-                if (!is_optional || [&bin]() {bool present; bin.read_raw(present); return present; }())
-                    values += it->second.bin_to_sql(*sql_connection, bulk, bin);
-                else
-                    values += "\\N";
-            } else {
-                bool present;
+
+            bool present = true;
+            if (is_optional)
                 bin.read_raw(present);
-                if (!is_optional || present)
-                    values += ", " + it->second.bin_to_sql(*sql_connection, bulk, bin);
-                else
-                    values += ", null";
-            }
+
+            values += (!bulk || nested_bulk ? "," : "\t");
+
+            if (present)
+                values += it->second.bin_to_sql(*sql_connection, bulk, bin);
+            else
+                values += bulk ? "\\N" : "null";
         }
     } // fill_value
 
     void
-    receive_block(uint32_t block_num, const checksum256& block_id, signed_block_variant& block, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+    receive_block(uint32_t block_num, const checksum256& block_id, signed_block_variant& block, bool bulk, work_t& t, pipeline_t& pipeline) {
         std::string fields = "block_num, block_id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, "
                              "schedule_version, new_producers_version";
         std::string values = sql_str(bulk, block_num) + sep(bulk) +                                 //
@@ -789,20 +833,20 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     } // receive_block
 
     void
-    receive_block(uint32_t block_num, const checksum256& block_id, eosio::input_stream bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+    receive_block(uint32_t block_num, const checksum256& block_id, eosio::input_stream bin, bool bulk, work_t& t, pipeline_t& pipeline) {
         signed_block_variant block;
         from_bin(block, bin);
         receive_block(block_num, block_id, block, bulk, t, pipeline);
 
     }
 
-    void receive_deltas(uint32_t block_num, const std::vector<std::variant<table_delta_v0, table_delta_v1>>&& traces, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+    void receive_deltas(uint32_t block_num, const std::vector<std::variant<table_delta_v0, table_delta_v1>>&& traces, bool bulk, work_t& t, pipeline_t& pipeline) {
         for(auto t_delta : traces) {
             write_table_delta(block_num, t_delta, bulk, t, pipeline);
         }
     }
 
-    void receive_deltas(uint32_t block_num, eosio::input_stream bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+    void receive_deltas(uint32_t block_num, eosio::input_stream bin, bool bulk, work_t& t, pipeline_t& pipeline) {
         uint32_t num;
         varuint32_from_bin(num, bin);
         for (uint32_t i = 0; i < num; ++i) {
@@ -812,7 +856,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         }
     }
 
-    void write_table_delta(uint32_t block_num, table_delta& t_delta, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+    void write_table_delta(uint32_t block_num, table_delta& t_delta, bool bulk, work_t& t, pipeline_t& pipeline) {
         if (std::visit([](auto&& arg){return arg.name;}, t_delta) == "global_property")
             return;
 
@@ -843,7 +887,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         t_delta);
     }
 
-    void receive_traces(uint32_t block_num, const std::vector<std::variant<transaction_trace_v0>>&& traces, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+    void receive_traces(uint32_t block_num, const std::vector<std::variant<transaction_trace_v0>>&& traces, bool bulk, work_t& t, pipeline_t& pipeline) {
         uint32_t num_ordinals = 0;
         for (auto trace : traces) {
             if (filter(config->trx_filters, std::get<0>(trace)))
@@ -851,7 +895,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         }
     }
 
-    void receive_traces(uint32_t block_num, eosio::input_stream bin, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+    void receive_traces(uint32_t block_num, eosio::input_stream bin, bool bulk, work_t& t, pipeline_t& pipeline) {
         uint32_t num;
         uint32_t num_ordinals = 0;
         varuint32_from_bin(num, bin);
@@ -864,7 +908,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     }
 
     void write_transaction_trace(
-        uint32_t block_num, uint32_t& num_ordinals, transaction_trace_v0& ttrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        uint32_t block_num, uint32_t& num_ordinals, transaction_trace_v0& ttrace, bool bulk, work_t& t, pipeline_t& pipeline) {
         auto* failed = !ttrace.failed_dtrx_trace.empty() ? &std::get<transaction_trace_v0>(ttrace.failed_dtrx_trace[0].recurse) : nullptr;
         if (failed) {
             if (!filter(config->trx_filters, *failed))
@@ -952,7 +996,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     } // write_transaction_trace
 
     void write_action_trace(
-        uint32_t block_num, transaction_trace_v0& ttrace, action_trace& atrace, bool bulk, pqxx::work& t, pqxx::pipeline& pipeline) {
+        uint32_t block_num, transaction_trace_v0& ttrace, action_trace& atrace, bool bulk, work_t& t, pipeline_t& pipeline) {
 
         std::string fields = "block_num, transaction_id, transaction_status";
         std::string values =
@@ -964,10 +1008,13 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             write("action_trace_v1", block_num, std::get<1>(atrace), fields, values, bulk, t, pipeline);
         write_action_trace_subtable(
             "action_trace_authorization", block_num, ttrace, std::visit([](auto&& arg){return arg.action_ordinal.value;}, atrace), std::visit([](auto&& arg){ return arg.act.authorization;}, atrace), bulk, t, pipeline);
-        if (std::visit([](auto&& arg){ return arg.receipt;}, atrace))
+        const auto& receipt = std::visit([](auto&& arg) { return arg.receipt; }, atrace);
+        if (receipt)
             write_action_trace_subtable(
                 "action_trace_auth_sequence", block_num, ttrace, std::visit([](auto&& arg){return arg.action_ordinal.value;}, atrace),
-                std::get<action_receipt_v0>(*std::visit([](auto&& arg){return arg.receipt;}, atrace)).auth_sequence, bulk, t, pipeline);
+                std::visit([](auto&& arg){return arg.auth_sequence;}, *receipt),
+                bulk, t, pipeline);
+
         write_action_trace_subtable(
             "action_trace_ram_delta", block_num, ttrace, std::visit([](auto&& arg){return arg.action_ordinal.value;}, atrace), std::visit([](auto&& arg){return arg.account_ram_deltas;}, atrace), bulk, t, pipeline);
     } // write_action_trace
@@ -975,7 +1022,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     template <typename T>
     void write_action_trace_subtable(
         const std::string& name, uint32_t block_num, transaction_trace_v0& ttrace, int32_t action_ordinal, const T&& objects, bool bulk,
-        pqxx::work& t, pqxx::pipeline& pipeline) {
+        work_t& t, pipeline_t& pipeline) {
 
         int32_t num = 0;
         for (auto& obj : objects)
@@ -985,18 +1032,18 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     template <typename T>
     void write_action_trace_subtable(
         const std::string& name, uint32_t block_num, transaction_trace_v0& ttrace, int32_t action_ordinal, int32_t& num, T& obj, bool bulk,
-        pqxx::work& t, pqxx::pipeline& pipeline) {
+        work_t& t, pipeline_t& pipeline) {
         ++num;
         std::string fields = "block_num, transaction_id, action_ordinal, ordinal, transaction_status";
         std::string values = std::to_string(block_num) + sep(bulk) + quote(bulk, to_string(ttrace.id)) + sep(bulk) +
                              std::to_string(action_ordinal) + sep(bulk) + std::to_string(num) + sep(bulk) +
                              quote(bulk, to_string(ttrace.status));
-
+    
         write(name, block_num, obj, fields, values, bulk, t, pipeline);
     }
 
     void write(
-        uint32_t block_num, pqxx::work& t, pqxx::pipeline& pipeline, bool bulk, const std::string& name, const std::string& fields,
+        uint32_t block_num, work_t& t, pipeline_t& pipeline, bool bulk, const std::string& name, const std::string& fields,
         const std::string& values) {
         if (bulk) {
             write_stream(block_num, t, name, values);
@@ -1009,8 +1056,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
     template <typename T>
     void write_table_field(
-        const T& obj, std::string& fields, std::string& values, const std::string& field_name, bool bulk, pqxx::work& t,
-        pqxx::pipeline& pipeline) {
+        const T& obj, std::string& fields, std::string& values, const std::string& field_name, bool bulk, work_t& t,
+        pipeline_t& pipeline) {
         if constexpr (is_known_type(type_for<T>)) {
             fields += ", " + t.quote_name(field_name);
             values += sep(bulk) + type_for<T>.native_to_sql(*sql_connection, bulk, &obj);
@@ -1034,8 +1081,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
     template <typename T>
     void write_table_fields(
-        const T& obj, std::string& fields, std::string& values, const std::string& prefix, bool bulk, pqxx::work& t,
-        pqxx::pipeline& pipeline) {
+        const T& obj, std::string& fields, std::string& values, const std::string& prefix, bool bulk, work_t& t,
+        pipeline_t& pipeline) {
         eosio::for_each_field<T>([&](const std::string_view field_name, auto member) {
             write_table_field(member(&obj), fields, values, prefix + (std::string)field_name, bulk, t, pipeline);
         });
@@ -1043,8 +1090,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
     template <typename T>
     void write(
-        const std::string& name, uint32_t block_num, T& obj, std::string fields, std::string values, bool bulk, pqxx::work& t,
-        pqxx::pipeline& pipeline, std::string suffix_fields = "", std::string suffix_values = "") {
+        const std::string& name, uint32_t block_num, T& obj, std::string fields, std::string values, bool bulk, work_t& t,
+        pipeline_t& pipeline, std::string suffix_fields = "", std::string suffix_values = "") {
 
         write_table_fields(obj, fields, values, "", bulk, t, pipeline);
         fields += suffix_fields;
@@ -1059,7 +1106,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         if (first >= end_trim)
             return;
         create_trim();
-        pqxx::work t(*sql_connection);
+        work_t t(*sql_connection);
         ilog("trim  ${b} - ${e}", ("b", first)("e", end_trim));
         t.exec(
             "select * from " + t.quote_name(config->schema) + ".trim_history(" + std::to_string(first) + ", " + std::to_string(end_trim) +

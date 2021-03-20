@@ -150,6 +150,20 @@ inline std::string sql_str(pqxx::connection& c, bool bulk, const std::string& s)
     }
 }
 
+std::string sql_str(bool bulk, const eosio::checksum256& v) {
+    std::string result;
+    if (v.value != abieos::checksum256{}.value) {
+        const auto& bytes = v.extract_as_byte_array();
+        result = abieos::hex(bytes.begin(), bytes.end());
+    }
+    return quote(bulk, result);
+}
+
+std::string sql_str(bool bulk, const abieos::float128& v) { 
+    const auto& bytes = v.extract_as_byte_array();
+    return quote_bytea(bulk, abieos::hex(bytes.begin(), bytes.end())); 
+}
+
 template <typename T>
 std::string sql_str(bool bulk, const T& v);
 
@@ -172,12 +186,10 @@ inline std::string sql_str(bool bulk, const abieos::uint128& v)                 
 inline std::string sql_str(bool bulk, const abieos::int128& v)                          { auto nv = v; abieos::negate(nv.data); return abieos::is_negative(v.data) ? std::string("-") + abieos::binary_to_decimal(nv.data) : abieos::binary_to_decimal(v.data); }
 inline std::string sql_str(bool bulk, const abieos::uint128& v)                         { return abieos::binary_to_decimal(v.data); }
 #endif
-inline std::string sql_str(bool bulk, const abieos::float128& v)                        { return quote_bytea(bulk, abieos::hex(v.value.begin(), v.value.end())); }
 inline std::string sql_str(bool bulk, eosio::name v)                                    { return quote(bulk, v.value ? std::string(v) : std::string()); }
 inline std::string sql_str(bool bulk, eosio::time_point v)                              { return v.elapsed.count() ? quote(bulk, eosio::microseconds_to_str(v.elapsed.count())): null_value(bulk); }
 inline std::string sql_str(bool bulk, eosio::time_point_sec v)                          { return v.utc_seconds ? quote(bulk, eosio::microseconds_to_str(uint64_t(v.utc_seconds) * 1'000'000)): null_value(bulk); }
 inline std::string sql_str(bool bulk, abieos::block_timestamp v)                        { return v.slot ?  sql_str(bulk, v.to_time_point()) : null_value(bulk); }
-inline std::string sql_str(bool bulk, const eosio::checksum256& v)                      { return quote(bulk, v.value == abieos::checksum256{}.value ? "" : abieos::hex(v.value.begin(), v.value.end())); }
 inline std::string sql_str(bool bulk, const eosio::public_key& v)                       { return quote(bulk, public_key_to_string(v)); }
 inline std::string sql_str(bool bulk, const eosio::signature& v)                        { return quote(bulk, signature_to_string(v)); }
 inline std::string sql_str(bool bulk, const eosio::bytes&)                              { throw std::runtime_error("sql_str(bytes): not implemented"); }
@@ -258,7 +270,7 @@ std::string bin_to_sql(pqxx::connection& c, bool bulk, eosio::input_stream& bin)
             return null_value(bulk);
     } else {
         T v;
-        bin.read_raw<T>(v);
+        from_bin(v, bin);
         return sql_str(c, bulk, v);
     }
 }
@@ -284,7 +296,7 @@ template <>
 inline std::string bin_to_sql<abieos::bytes>(pqxx::connection&, bool bulk, eosio::input_stream& bin) {
     uint32_t size;
     eosio::varuint32_from_bin(size, bin);
-    eosio::check(size > bin.end - bin.pos, "invalid bytes size");
+    eosio::check(size <= bin.end - bin.pos, "invalid bytes size");
     std::string result;
     abieos::hex(bin.pos, bin.pos + size, back_inserter(result));
     bin.pos += size;

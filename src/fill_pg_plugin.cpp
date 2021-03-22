@@ -578,9 +578,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
        if (result.block)
            receive_block(result.this_block->block_num, result.this_block->block_id, result.block.value(), bulk, t, pipeline);
        if (deltas_size)
-           receive_deltas(result.this_block->block_num, result.deltas.unpack(), bulk, t, pipeline);
+           receive_deltas(result.this_block->block_num, result.deltas, bulk, t, pipeline);
        if (!result.traces.empty())
-           receive_traces(result.this_block->block_num, result.traces.unpack(), bulk, t, pipeline);
+           receive_traces(result.this_block->block_num, result.traces, bulk, t, pipeline);
 
        head            = result.this_block->block_num;
        head_id         = to_string(result.this_block->block_id);
@@ -642,9 +642,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         if (result.block)
             receive_block(result.this_block->block_num, result.this_block->block_id, *result.block, bulk, t, pipeline);
         if (result.deltas)
-            receive_deltas(result.this_block->block_num, *result.deltas, bulk, t, pipeline);
+            receive_deltas(result.this_block->block_num, eosio::as_opaque<std::vector<eosio::ship_protocol::table_delta>>(*result.deltas), bulk, t, pipeline);
         if (result.traces)
-            receive_traces(result.this_block->block_num, *result.traces, bulk, t, pipeline);
+            receive_traces(result.this_block->block_num, eosio::as_opaque<std::vector<eosio::ship_protocol::transaction_trace>>(*result.traces), bulk, t, pipeline);
 
         head            = result.this_block->block_num;
         head_id         = to_string(result.this_block->block_id);
@@ -840,23 +840,14 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
     }
 
-    void receive_deltas(uint32_t block_num, const std::vector<std::variant<table_delta_v0, table_delta_v1>>&& traces, bool bulk, work_t& t, pipeline_t& pipeline) {
-        for(auto t_delta : traces) {
-            write_table_delta(block_num, t_delta, bulk, t, pipeline);
-        }
-    }
-
-    void receive_deltas(uint32_t block_num, eosio::input_stream bin, bool bulk, work_t& t, pipeline_t& pipeline) {
-        uint32_t num;
-        varuint32_from_bin(num, bin);
+    void receive_deltas(uint32_t block_num, eosio::opaque<std::vector<eosio::ship_protocol::table_delta>> traces, bool bulk, work_t& t, pipeline_t& pipeline) {
+        uint32_t num = traces.unpack_size();
         for (uint32_t i = 0; i < num; ++i) {
-            table_delta t_delta;
-            from_bin(t_delta, bin);
-            write_table_delta(block_num, t_delta, bulk, t, pipeline);
+            write_table_delta(block_num, traces.unpack_next(), bulk, t, pipeline);
         }
     }
 
-    void write_table_delta(uint32_t block_num, table_delta& t_delta, bool bulk, work_t& t, pipeline_t& pipeline) {
+    void write_table_delta(uint32_t block_num, table_delta&& t_delta, bool bulk, work_t& t, pipeline_t& pipeline) {
         if (std::visit([](auto&& arg){return arg.name;}, t_delta) == "global_property")
             return;
 
@@ -887,21 +878,11 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         t_delta);
     }
 
-    void receive_traces(uint32_t block_num, const std::vector<std::variant<transaction_trace_v0>>&& traces, bool bulk, work_t& t, pipeline_t& pipeline) {
+    void receive_traces(uint32_t block_num, eosio::opaque<std::vector<eosio::ship_protocol::transaction_trace>> traces, bool bulk, work_t& t, pipeline_t& pipeline) {
+        uint32_t num = traces.unpack_size();
         uint32_t num_ordinals = 0;
-        for (auto trace : traces) {
-            if (filter(config->trx_filters, std::get<0>(trace)))
-                write_transaction_trace(block_num, num_ordinals, std::get<transaction_trace_v0>(trace), bulk, t, pipeline);
-        }
-    }
-
-    void receive_traces(uint32_t block_num, eosio::input_stream bin, bool bulk, work_t& t, pipeline_t& pipeline) {
-        uint32_t num;
-        uint32_t num_ordinals = 0;
-        varuint32_from_bin(num, bin);
         for (uint32_t i = 0; i < num; ++i) {
-            transaction_trace trace;
-            from_bin(trace, bin);
+            transaction_trace trace = traces.unpack_next();
             if (filter(config->trx_filters, std::get<0>(trace)))
                 write_transaction_trace(block_num, num_ordinals, std::get<transaction_trace_v0>(trace), bulk, t, pipeline);
         }

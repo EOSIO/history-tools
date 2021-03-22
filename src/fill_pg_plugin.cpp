@@ -141,6 +141,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     uint32_t                                             first           = 0;
     uint32_t                                             first_bulk      = 0;
     std::map<std::string, std::unique_ptr<table_stream>> table_streams;
+    std::string                                          schema_name;
 
     fpg_session(fill_postgresql_plugin_impl* my)
         : my(my)
@@ -148,12 +149,17 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
         ilog("connect to postgresql");
         sql_connection.emplace();
+        schema_name = sql_connection->quote_name(config->schema);
+    }
+
+    std::string quote_name(std::string name) {
+        return sql_connection->quote_name(name);
     }
 
     void start(asio::io_context& ioc) {
         if (config->drop_schema) {
             work_t t(*sql_connection);
-            t.exec("drop schema if exists " + t.quote_name(config->schema) + " cascade");
+            t.exec("drop schema if exists " + schema_name + " cascade");
             t.commit();
             config->drop_schema = false;
         }
@@ -190,13 +196,13 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 throw std::runtime_error("field name '" + field_name + "' exceeds postgres column name length limit");
             std::string type_name = type_for<T>.name;
             if (type_name == "transaction_status_type")
-                type_name = t.quote_name(config->schema) + "." + type_name;
-            fields += ", "s + t.quote_name(field_name) + " " + type_name;
+                type_name = schema_name + "." + type_name;
+            fields += ", "s + quote_name(field_name) + " " + type_name;
         } else if constexpr (is_optional_v<T>) {
-            fields += ", "s + t.quote_name(field_name + "_present") + " boolean";
+            fields += ", "s + quote_name(field_name + "_present") + " boolean";
             add_table_field<typename T::value_type>(t, fields, field_name);
         } else if constexpr (is_variant_v<T>) {
-            fields += ", "s + t.quote_name(field_name + "_variant_populated") + " integer";
+            fields += ", "s + quote_name(field_name + "_variant_populated") + " integer";
             variant_for_each(T(), [&](size_t index, auto arg) {
                 add_table_fields<decltype(arg)>(t, fields, field_name + std::to_string(index) + "_");
             });
@@ -222,7 +228,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         if (suffix_fields)
             fields += ","s + suffix_fields;
         std::string query =
-            "create table " + t.quote_name(config->schema) + "." + t.quote_name(name) + "(" + fields + ", primary key (" + pk + "))";
+            "create table " + schema_name + "." + quote_name(name) + "(" + fields + ", primary key (" + pk + "))";
         t.exec(query);
     }
 
@@ -231,7 +237,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             for (auto& f : field.type->as_struct()->fields)
                 fill_field(t, base_name + field.name + "_", fields, f);
         } else if (field.type->optional_of() && field.type->optional_of()->as_struct()) {
-            fields += ", "s + t.quote_name(base_name + field.name + "_present") + " boolean";
+            fields += ", "s + quote_name(base_name + field.name + "_present") + " boolean";
             for (auto& f : field.type->optional_of()->as_struct()->fields)
                 fill_field(t, base_name + field.name + "_", fields, f);
         } else if (field.type->as_variant()) {
@@ -245,11 +251,11 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             std::string sub_fields;
             for (auto& f : field.type->array_of()->as_struct()->fields)
                 fill_field(t, "", sub_fields, f);
-            std::string query = "create type " + t.quote_name(config->schema) + "." + t.quote_name(field.type->array_of()->name) + " as (" +
+            std::string query = "create type " + schema_name + "." + quote_name(field.type->array_of()->name) + " as (" +
                                 sub_fields.substr(2) + ")";
             t.exec(query);
-            fields += ", " + t.quote_name(base_name + field.name) + " " + t.quote_name(config->schema) + "." +
-                      t.quote_name(field.type->array_of()->name) + "[]";
+            fields += ", " + quote_name(base_name + field.name) + " " + schema_name + "." +
+                      quote_name(field.type->array_of()->name) + "[]";
         } else if (field.type->array_of() && field.type->array_of()->as_variant() && field.type->array_of()->as_variant()->at(0).type->as_struct()) {
             const abi_type* at = field.type->array_of()->as_variant()->at(0).type;
             auto* s = at->as_struct();
@@ -257,9 +263,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             for (auto& f : s->fields)
                 fill_field(t, "", sub_fields, f);
             std::string query =
-                "create type " + t.quote_name(config->schema) + "." + t.quote_name(at->name) + " as (" + sub_fields.substr(2) + ")";
+                "create type " + schema_name + "." + quote_name(at->name) + " as (" + sub_fields.substr(2) + ")";
             t.exec(query);
-            fields += ", " + t.quote_name(base_name + field.name) + " " + t.quote_name(config->schema) + "." + t.quote_name(at->name) + "[]";
+            fields += ", " + quote_name(base_name + field.name) + " " + schema_name + "." + quote_name(at->name) + "[]";
         } else {
             auto abi_type = field.type->name;
             if (abi_type.size() >= 1 && abi_type.back() == '?')
@@ -269,34 +275,34 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 throw std::runtime_error("don't know sql type for abi type: " + abi_type);
             std::string type = it->second.name;
             if (type == "transaction_status_type")
-                type = t.quote_name(config->schema) + "." + type;
-            fields += ", " + t.quote_name(base_name + field.name) + " " + it->second.name;
+                type = schema_name + "." + type;
+            fields += ", " + quote_name(base_name + field.name) + " " + it->second.name;
         }
     }; // fill_field
 
     void create_tables() {
         work_t t(*sql_connection);
 
-        ilog("create schema ${s}", ("s", t.quote_name(config->schema)));
-        t.exec("create schema " + t.quote_name(config->schema));
+        ilog("create schema ${s}", ("s", schema_name));
+        t.exec("create schema " + schema_name);
         t.exec(
-            "create type " + t.quote_name(config->schema) +
+            "create type " + schema_name +
             ".transaction_status_type as enum('executed', 'soft_fail', 'hard_fail', 'delayed', 'expired')");
         t.exec(
-            "create table " + t.quote_name(config->schema) +
+            "create table " + schema_name +
             R"(.received_block ("block_num" bigint, "block_id" varchar(64), primary key("block_num")))");
         t.exec(
-            "create table " + t.quote_name(config->schema) +
+            "create table " + schema_name +
             R"(.fill_status ("head" bigint, "head_id" varchar(64), "irreversible" bigint, "irreversible_id" varchar(64), "first" bigint))");
-        t.exec("create unique index on " + t.quote_name(config->schema) + R"(.fill_status ((true)))");
-        t.exec("insert into " + t.quote_name(config->schema) + R"(.fill_status values (0, '', 0, '', 0))");
+        t.exec("create unique index on " + schema_name + R"(.fill_status ((true)))");
+        t.exec("insert into " + schema_name + R"(.fill_status values (0, '', 0, '', 0))");
 
         // clang-format off
-        create_table<permission_level>(         t, "action_trace_authorization",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<account_auth_sequence>(    t, "action_trace_auth_sequence",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<account_delta>(            t, "action_trace_ram_delta",      "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<action_trace_v0>(          t, "action_trace",                "block_num, transaction_id, action_ordinal",          "block_num bigint, transaction_id varchar(64),                                          transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
-        create_table<action_trace_v1>(          t, "action_trace_v1",             "block_num, transaction_id, action_ordinal",          "block_num bigint, transaction_id varchar(64),                                          transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
+        create_table<permission_level>(         t, "action_trace_authorization",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + schema_name + ".transaction_status_type");
+        create_table<account_auth_sequence>(    t, "action_trace_auth_sequence",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + schema_name + ".transaction_status_type");
+        create_table<account_delta>(            t, "action_trace_ram_delta",      "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + schema_name + ".transaction_status_type");
+        create_table<action_trace_v0>(          t, "action_trace",                "block_num, transaction_id, action_ordinal",          "block_num bigint, transaction_id varchar(64),                                          transaction_status " + schema_name + ".transaction_status_type");
+        create_table<action_trace_v1>(          t, "action_trace_v1",             "block_num, transaction_id, action_ordinal",          "block_num bigint, transaction_id varchar(64),                                          transaction_status " + schema_name + ".transaction_status_type");
         create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_num, transaction_ordinal",                     "block_num bigint, transaction_ordinal integer, failed_dtrx_trace varchar(64)", "partial_signatures varchar[], partial_context_free_data bytea[]");
         // clang-format on
 
@@ -314,14 +320,14 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 fill_field(t, "", fields, field);
             std::string keys = "block_num, present";
             for (auto& key : table.key_names)
-                keys += ", " + t.quote_name(key);
+                keys += ", " + quote_name(key);
             std::string query =
-                "create table " + t.quote_name(config->schema) + "." + table.type + "(" + fields + ", primary key(" + keys + "))";
+                "create table " + schema_name + "." + table.type + "(" + fields + ", primary key(" + keys + "))";
             t.exec(query);
         }
 
         t.exec(
-            "create table " + t.quote_name(config->schema) +
+            "create table " + schema_name +
             R"(.block_info(                   
                 "block_num" bigint,
                 "block_id" varchar(64),
@@ -353,9 +359,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             std::string query = "create index if not exists " + table.type;
             for (auto& k : table.key_names)
                 query += "_" + k;
-            query += "_block_present_idx on " + t.quote_name(config->schema) + "." + t.quote_name(table.type) + "(\n";
+            query += "_block_present_idx on " + schema_name + "." + quote_name(table.type) + "(\n";
             for (auto& k : table.key_names)
-                query += "    " + t.quote_name(k) + ",\n";
+                query += "    " + quote_name(k) + ",\n";
             query += "    \"block_num\" desc,\n    \"present\" desc\n)";
             // std::cout << query << ";\n\n";
             t.exec(query);
@@ -363,14 +369,14 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
         std::string query = R"(
             drop function if exists )" +
-                            t.quote_name(config->schema) + R"(.trim_history;
+                            schema_name + R"(.trim_history;
         )";
         // std::cout << query << "\n";
         t.exec(query);
 
         query = R"(
             create function )" +
-                t.quote_name(config->schema) + R"(.trim_history(
+                schema_name + R"(.trim_history(
                 prev_block_num bigint,
                 irrev_block_num bigint
             ) returns void
@@ -393,7 +399,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         for (const char* table : simple_cases) {
             query += R"(
                     delete from )" +
-                     t.quote_name(config->schema) + "." + t.quote_name(table) + R"(
+                     schema_name + "." + quote_name(table) + R"(
                     where
                         block_num >= prev_block_num
                         and block_num < irrev_block_num;
@@ -410,14 +416,14 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                      keys + R"(, block_num
                         from
                             )" +
-                     t.quote_name(config->schema) + "." + t.quote_name(table) + R"(
+                     schema_name + "." + quote_name(table) + R"(
                         where
                             block_num > prev_block_num and block_num <= irrev_block_num
                         order by )" +
                      keys + R"(, block_num desc, present desc
                     loop
                         delete from )" +
-                     t.quote_name(config->schema) + "." + t.quote_name(table) + R"(
+                     schema_name + "." + quote_name(table) + R"(
                         where
                             ()" +
                      keys + R"() = ()" + search_keys + R"()
@@ -438,14 +444,14 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                             block_num
                         from
                             )" +
-                         t.quote_name(config->schema) + "." + t.quote_name(table.type) + R"(
+                         schema_name + "." + quote_name(table.type) + R"(
                         where
                             block_num > prev_block_num and block_num <= irrev_block_num
                         order by block_num desc, present desc
                         limit 1
                     loop
                         delete from )" +
-                         t.quote_name(config->schema) + "." + t.quote_name(table.type) + R"(
+                         schema_name + "." + quote_name(table.type) + R"(
                         where
                             block_num < key_search.block_num;
                     end loop;
@@ -457,8 +463,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                         keys += ", ";
                         search_keys += ", ";
                     }
-                    keys += t.quote_name(k);
-                    search_keys += "key_search." + t.quote_name(k);
+                    keys += quote_name(k);
+                    search_keys += "key_search." + quote_name(k);
                 }
                 add_trim(table.type, keys, search_keys);
             };
@@ -476,7 +482,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
     void load_fill_status(work_t& t) {
         auto r =
-            t.exec("select head, head_id, irreversible, irreversible_id, first from " + t.quote_name(config->schema) + ".fill_status")[0];
+            t.exec("select head, head_id, irreversible, irreversible_id, first from " + schema_name + ".fill_status")[0];
         head            = r[0].as<uint32_t>();
         head_id         = r[1].as<std::string>();
         irreversible    = r[2].as<uint32_t>();
@@ -487,7 +493,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     std::vector<block_position> get_positions(work_t& t) {
         std::vector<block_position> result;
         auto                        rows = t.exec(
-            "select block_num, block_id from " + t.quote_name(config->schema) + ".received_block where block_num >= " +
+            "select block_num, block_id from " + schema_name + ".received_block where block_num >= " +
             std::to_string(irreversible) + " and block_num <= " + std::to_string(head) + " order by block_num");
         for (auto row : rows)
             result.push_back({row[0].as<uint32_t>(), sql_to_checksum256(row[1].as<std::string>().c_str())});
@@ -495,7 +501,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     }
 
     void write_fill_status(work_t& t, pipeline_t& pipeline) {
-        std::string query = "update " + t.quote_name(config->schema) + ".fill_status set head=" + std::to_string(head) +
+        std::string query = "update " + schema_name + ".fill_status set head=" + std::to_string(head) +
                             ", head_id=" + quote(head_id) + ", ";
         if (irreversible < head)
             query += "irreversible=" + std::to_string(irreversible) + ", irreversible_id=" + quote(irreversible_id);
@@ -507,7 +513,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
     void truncate(work_t& t, pipeline_t& pipeline, uint32_t block) {
         auto trunc = [&](const std::string& name) {
-            std::string query{"delete from " + t.quote_name(config->schema) + "." + t.quote_name(name) + " where block_num >= " + std::to_string(block)};        
+            std::string query{"delete from " + schema_name + "." + quote_name(name) + " where block_num >= " + std::to_string(block)};        
             pipeline.insert(query);
         };
         trunc("received_block");
@@ -527,7 +533,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         }
 
         auto result = pipeline.retrieve(pipeline.insert(
-            "select block_id from " + t.quote_name(config->schema) + ".received_block where block_num=" + std::to_string(block - 1)));
+            "select block_id from " + schema_name + ".received_block where block_num=" + std::to_string(block - 1)));
         if (result.empty()) {
             head    = 0;
             head_id = "";
@@ -591,7 +597,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
        if (!bulk)
            write_fill_status(t, pipeline);
        pipeline.insert(
-           "insert into " + t.quote_name(config->schema) + ".received_block (block_num, block_id) values (" +
+           "insert into " + schema_name + ".received_block (block_num, block_id) values (" +
            std::to_string(result.this_block->block_num) + ", " + quote(to_string(result.this_block->block_id)) + ")");
 
        pipeline.complete();
@@ -655,7 +661,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         if (!bulk)
             write_fill_status(t, pipeline);
         pipeline.insert(
-            "insert into " + t.quote_name(config->schema) + ".received_block (block_num, block_id) values (" +
+            "insert into " + schema_name + ".received_block (block_num, block_id) values (" +
             std::to_string(result.this_block->block_num) + ", " + quote(to_string(result.this_block->block_id)) + ")");
 
         pipeline.complete();
@@ -672,7 +678,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             first_bulk = block_num;
         auto& ts = table_streams[name];
         if (!ts)
-            ts = std::make_unique<table_stream>(t.quote_name(config->schema) + "." + t.quote_name(name));
+            ts = std::make_unique<table_stream>(schema_name + "." + quote_name(name));
         ts->writer.write_raw_line(values);
     }
 
@@ -705,7 +711,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         } else if (field.type->optional_of() && field.type->optional_of()->as_struct()) {
             bool present;
             bin.read_raw<bool>(present);
-            fields += ", " + t.quote_name(base_name + field.name + "_present");
+            fields += ", " + quote_name(base_name + field.name + "_present");
             values += sep(bulk) + sql_str(bulk, present);
             if (present) {
                 for (auto& f : field.type->optional_of()->as_struct()->fields)
@@ -717,7 +723,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                         throw std::runtime_error("don't know sql type for abi type: " + f.type->name);
                     if (!it->second.empty_to_sql)
                         throw std::runtime_error("don't know how to process empty " + field.type->name);
-                    fields += ", " + t.quote_name(base_name + field.name + "_" + f.name);
+                    fields += ", " + quote_name(base_name + field.name + "_" + f.name);
                     values += sep(bulk) + it->second.empty_to_sql(*sql_connection, bulk);
                 }
             }
@@ -727,7 +733,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             for (auto& f : field.type->as_variant()->at(v).type->as_struct()->fields)
                 fill_value(bulk, nested_bulk, t, base_name + field.name + "_", fields, values, bin, f);
         } else if (field.type->array_of() && field.type->array_of()->as_struct()) {
-            fields += ", " + t.quote_name(base_name + field.name);
+            fields += ", " + quote_name(base_name + field.name);
             values += sep(bulk) + begin_array(bulk);
             uint32_t n;
             varuint32_from_bin(n, bin);
@@ -748,7 +754,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             values += end_array(bulk, t.w, config->schema, field.type->array_of()->name);
         } else if (field.type->array_of() && field.type->array_of()->as_variant() && field.type->array_of()->as_variant()->at(0).type->as_struct()) {
             auto* s = field.type->array_of()->as_variant()->at(0).type;
-            fields += ", " + t.quote_name(base_name + field.name);
+            fields += ", " + quote_name(base_name + field.name);
             values += sep(bulk) + begin_array(bulk);
             uint32_t n;
             varuint32_from_bin(n, bin);
@@ -784,7 +790,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             if (!it->second.bin_to_sql)
                 throw std::runtime_error("don't know how to process " + field.type->name);
 
-            fields += ", " + t.quote_name(base_name + field.name);
+            fields += ", " + quote_name(base_name + field.name);
 
             bool present = true;
             if (is_optional)
@@ -813,21 +819,6 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                              sql_str(bulk, std::visit([](auto&& arg){return arg.action_mroot;}, block)) + sep(bulk) +                        //
                              sql_str(bulk, std::visit([](auto&& arg){return arg.schedule_version;}, block)) + sep(bulk) +                    //
                              sql_str(bulk, std::visit([](auto&& arg){return arg.new_producers;}, block) ? std::visit([](auto&& arg){return arg.new_producers->version;}, block) : 0); //
-
-        /*
-        if (block.new_producers) {
-            values += sep(bulk) + begin_array(bulk);
-            for (auto& x : block.new_producers->producers) {
-                if (&x != &block.new_producers->producers[0])
-                    values += ",";
-                values += begin_object_in_array(bulk) + quote(bulk, (std::string)x.producer_name) + "," +
-                          quote(bulk, public_key_to_string(x.block_signing_key)) + end_object_in_array(bulk);
-            }
-            values += end_array(bulk, t, config->schema, "producer_key");
-        } else {
-            values += sep(bulk) + null_value(bulk);
-        }
-        */
 
         write(block_num, t, pipeline, bulk, "block_info", fields, values);
     } // receive_block
@@ -1030,7 +1021,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             write_stream(block_num, t, name, values);
         } else {
             std::string query =
-                "insert into " + t.quote_name(config->schema) + "." + t.quote_name(name) + "(" + fields + ") values (" + values + ")";
+                "insert into " + schema_name + "." + quote_name(name) + "(" + fields + ") values (" + values + ")";
             pipeline.insert(query);
         }
     }
@@ -1040,15 +1031,15 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         const T& obj, std::string& fields, std::string& values, const std::string& field_name, bool bulk, work_t& t,
         pipeline_t& pipeline) {
         if constexpr (is_known_type(type_for<T>)) {
-            fields += ", " + t.quote_name(field_name);
+            fields += ", " + quote_name(field_name);
             values += sep(bulk) + type_for<T>.native_to_sql(*sql_connection, bulk, &obj);
         } else if constexpr (is_optional_v<T>) {
-            fields += ", "s + t.quote_name(field_name + "_present");
+            fields += ", "s + quote_name(field_name + "_present");
             bool hv = obj.has_value();
             values += sep(bulk) + type_for<bool>.native_to_sql(*sql_connection, bulk, &hv);
             write_table_field(obj ? *obj : typename T::value_type{}, fields, values, field_name, bulk, t, pipeline);
         } else if constexpr (is_variant_v<T>) {
-            fields += ", "s + t.quote_name(field_name + "_variant_populated");
+            fields += ", "s + quote_name(field_name + "_variant_populated");
             int in_use = obj.index();
             values += sep(bulk) + type_for<int>.native_to_sql(*sql_connection, bulk, &in_use);
             variant_for_each(obj, [&](size_t index, auto&& arg) {
@@ -1090,7 +1081,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         work_t t(*sql_connection);
         ilog("trim  ${b} - ${e}", ("b", first)("e", end_trim));
         t.exec(
-            "select * from " + t.quote_name(config->schema) + ".trim_history(" + std::to_string(first) + ", " + std::to_string(end_trim) +
+            "select * from " + schema_name + ".trim_history(" + std::to_string(first) + ", " + std::to_string(end_trim) +
             ")");
         t.commit();
         ilog("      done");

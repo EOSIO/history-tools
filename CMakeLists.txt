@@ -174,7 +174,7 @@ if (PostgreSQL_INCLUDE_DIR)
     message(STATUS "    fill_pg_plugin")
     add_app(fill-pg "-DDEFAULT_PLUGINS=fill_pg_plugin;-DINCLUDE_FILL_PG_PLUGIN" "${PQXX_LIBRARIES}")
     #target_sources(history-tools PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp)
-    target_sources(fill-pg PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp)
+    target_sources(fill-pg PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp src/abieos_sql_converter.cpp)
     #message(STATUS "    wasm_ql_pg_plugin")
     #add_app(wasm-ql-pg "-DDEFAULT_PLUGINS=wasm_ql_pg_plugin;-DINCLUDE_WASM_QL_PG_PLUGIN" "${PQXX_LIBRARIES}")
     #target_sources(history-tools PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp)
@@ -221,3 +221,6 @@ message(STATUS "----------------------------------------------------")
 #        BUILD_ALWAYS 1
 #    )
 #endif()
+
+add_subdirectory( unittests )
+

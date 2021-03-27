@@ -89,8 +89,8 @@ struct trx_filter {
     std::optional<abieos::name>                             act_name    = {};
 };
 
-inline bool matches(const trx_filter& filter, const eosio::ship_protocol::transaction_trace_v0& ttrace, const eosio::ship_protocol::action_trace& atrace) {
-    if (filter.status && ttrace.status != *filter.status)
+inline bool matches(const trx_filter& filter, const eosio::ship_protocol::transaction_status status, const eosio::ship_protocol::action_trace& atrace) {
+    if (filter.status && status != *filter.status)
         return false;
     if (filter.receiver && std::visit([](auto&& arg){return arg.receiver;}, atrace) != *filter.receiver)
         return false;
@@ -101,9 +101,9 @@ inline bool matches(const trx_filter& filter, const eosio::ship_protocol::transa
     return true;
 }
 
-inline bool filter(const std::vector<trx_filter>& filters, const eosio::ship_protocol::transaction_trace_v0& ttrace, const eosio::ship_protocol::action_trace& atrace) {
+inline bool filter(const std::vector<trx_filter>& filters, const eosio::ship_protocol::transaction_status& status, const eosio::ship_protocol::action_trace& atrace) {
     for (auto& filt : filters) {
-        if (matches(filt, ttrace, atrace)) {
+        if (matches(filt, status, atrace)) {
             if (filt.include)
                 return true;
             else
@@ -113,9 +113,12 @@ inline bool filter(const std::vector<trx_filter>& filters, const eosio::ship_pro
     return false;
 }
 
-inline bool filter(const std::vector<trx_filter>& filters, const eosio::ship_protocol::transaction_trace_v0& ttrace) {
-    for (auto& atrace : ttrace.action_traces)
-        if (filter(filters, ttrace, atrace))
+inline bool filter(const std::vector<trx_filter>& filters, const eosio::ship_protocol::transaction_trace& trace) {
+    auto status = std::visit([](auto&& ttrace) { return ttrace.status; }, trace);
+    auto action_traces = std::visit([](auto&& ttrace) { return ttrace.action_traces; }, trace);
+
+    for (auto& atrace : action_traces)
+        if (filter(filters, status, atrace))
             return true;
     return false;
 }

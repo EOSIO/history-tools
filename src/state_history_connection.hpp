@@ -17,7 +17,7 @@ namespace state_history {
 
 struct connection_callbacks {
     virtual ~connection_callbacks() = default;
-    virtual void received_abi(std::string_view abi) {}
+    virtual void received_abi(eosio::abi&& abi) {}
     virtual bool received(eosio::ship_protocol::get_status_result_v0& /*status*/) { return true; }
     virtual bool received(eosio::ship_protocol::get_blocks_result_v0& /*result*/) { return true; }
     virtual bool received(eosio::ship_protocol::get_blocks_result_v1& /*result*/) { return true; }
@@ -107,10 +107,9 @@ struct connection : std::enable_shared_from_this<connection> {
         }
         eosio::abi a;
         eosio::convert(abi, a);
-        abi_types = std::move(a.abi_types);
         have_abi  = true;
         if (callbacks)
-            callbacks->received_abi(sv);
+            callbacks->received_abi(std::move(a));
     }
 
     bool receive_result(const std::shared_ptr<flat_buffer>& p) {
@@ -143,13 +142,6 @@ struct connection : std::enable_shared_from_this<connection> {
         if (nodeos_start == 0xffff'ffff)
             nodeos_start = 0;
         request_blocks(std::max(start_block_num, nodeos_start), positions);
-    }
-
-    const abi_type& get_type(const std::string& name) {
-        auto it = abi_types.find(name);
-        if (it == abi_types.end())
-            throw std::runtime_error(std::string("unknown type ") + name);
-        return it->second;
     }
 
     void send(const eosio::ship_protocol::request& req) {

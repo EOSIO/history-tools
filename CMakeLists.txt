@@ -4,7 +4,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET 10.14)
 include(ExternalProject)
 
 cmake_minimum_required (VERSION 3.10)
-project(history-tools VERSION 0.4 LANGUAGES CXX)
+project(history-tools VERSION 1.0.0 LANGUAGES CXX)
 
 cmake_policy(SET CMP0077 NEW)
 set(ENABLE_INSTALL OFF cache bool "")

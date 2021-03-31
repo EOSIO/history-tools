@@ -4,31 +4,15 @@ steps:
 
   - label: ":ubuntu: Ubuntu 18.04 - Build"
     command:
+      - "docker pull eosio/history-tools:builder_base || : "
+      - "docker build -t eosio/history-tools:builder_base -f ./builder_base.dockerfile ."
+      - "docker push eosio/history-tools:builder_base"
       - "docker build -t eosio/history-tools:$BUILDKITE_COMMIT -f ./ubuntu-18.04.dockerfile ."
+      - "./.cicd/helpers/execute_test.sh develop"
+      - "./.cicd/helpers/execute_test.sh release_2.1.x"
       - "docker push eosio/history-tools:$BUILDKITE_COMMIT"
     env:
       IMAGE_TAG: "ubuntu-18.04"
     agents:
       queue: "automation-eks-eos-builder-fleet"
-    timeout: ${TIMEOUT:-15}
-    skip: $SKIP_UBUNTU_18
-
-  - wait
-
-  - label: "run integration test - (eos branch: develop)"
-    command:
-      - "./.cicd/helpers/execute_test.sh develop"
-    agents:
-      queue: "automation-eks-eos-builder-fleet"
-    timeout: ${TIMEOUT:-15}
-    skip: $SKIP_UBUNTU_18
-
-  - wait
-
-  - label: "run integration test - (eos branch: release/2.1.x)"
-    command:
-      - "./.cicd/helpers/execute_test.sh release_2.1.x"
-    agents:
-      queue: "automation-eks-eos-builder-fleet"
-    timeout: ${TIMEOUT:-15}
-    skip: $SKIP_UBUNTU_18
+    timeout: ${TIMEOUT:-30}

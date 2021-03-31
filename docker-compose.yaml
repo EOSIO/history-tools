@@ -32,19 +32,22 @@ services:
   postgres:
     image: postgres
     environment:
-      - POSTGRES_USER=root
       - POSTGRES_PASSWORD=password
-  history-tools:
+  fill-pg:
     image: eosio/history-tools:${DOCKER_HISTORY_TOOLS_TAG:-latest}
-    command:
-      - ./fill-pg
-      - --fpg-create
-      - --fill-connect-to=nodeos:8080
+    command: >
+      /bin/sh -c "
+        echo Waiting for nodeos service start...;
+        while ! nc -z nodeos 8080; do
+          sleep 1;
+        done;
+        fill-pg --fpg-create --fill-connect-to=nodeos:8080
+      "
     environment:
-      - PGUSER=root
-      - PGPASSWORD=password
+      - PGUSER=postgres
+      - PGPASSWORD=password 
       - PGHOST=postgres
-    restart: always
+    restart: on-failure
     depends_on:
       - postgres
       - nodeos

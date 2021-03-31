@@ -4,13 +4,14 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET 10.14)
 include(ExternalProject)
 
 cmake_minimum_required (VERSION 3.10)
-project(history-tools VERSION 0.3 LANGUAGES CXX)
+project(history-tools VERSION 0.4 LANGUAGES CXX)
 
 cmake_policy(SET CMP0077 NEW)
 set(ENABLE_INSTALL OFF cache bool "")
 set(ENABLE_TOOLS OFF cache bool "")
 set(ENABLE_TESTS OFF cache bool "")
-add_subdirectory(external/eos-vm EXCLUDE_FROM_ALL)
+
+# add_subdirectory(external/eos-vm EXCLUDE_FROM_ALL)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
@@ -101,7 +102,7 @@ add_subdirectory(external/fc EXCLUDE_FROM_ALL)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/testnet.template ${CMAKE_CURRENT_BINARY_DIR}/etc/eosio/launcher/testnet.template COPYONLY)
 enable_testing()
-add_subdirectory( tests )
+#add_subdirectory( tests )
 #add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
 
 #set(FOUND_ROCKSDB ON)
@@ -119,14 +120,12 @@ function(add_app APP FLAGS LIBS)
             external/abieos/include
             external/abieos/external/rapidjson/include
             external/appbase/include
-            external/eos-vm/include
-            external/eos-vm/external/softfloat/source/include
             external/fc/include
             ${Boost_INCLUDE_DIR}
             ${JS_INCLUDE_DIRS}
             ${ROCKSDB_INCLUDE_DIR}
     )
-    target_link_libraries(${APP} appbase fc abieos eos-vm Boost::date_time Boost::filesystem Boost::chrono Boost::system Boost::iostreams Boost::program_options Boost::unit_test_framework ${LIBS} -lpthread)
+    target_link_libraries(${APP} appbase fc abieos Boost::date_time Boost::filesystem Boost::chrono Boost::system Boost::iostreams Boost::program_options Boost::unit_test_framework ${LIBS} -lpthread)
 
     if(APPLE)
     else()

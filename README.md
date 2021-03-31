@@ -149,7 +149,7 @@ DOCKER_EOSIO_TAG=develop
 DOCKER_HISTORY_TOOLS_TAG=935650a6fb9ca596affe0a3c42e6a1966675061d
 ```
 
-You can also modify the provided docker-compose.yml so that, for example, it takes more p2p peer addresses,
+You can also modify the provided docker-compose.yaml so that, for example, it takes more p2p peer addresses,
 for example:
 
 ```

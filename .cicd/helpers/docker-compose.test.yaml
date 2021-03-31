@@ -1,0 +1,16 @@
+version: "3.9"
+services:
+  postgres-query:
+    build:
+      context: .
+      dockerfile: Dockerfile.db_query
+    command:
+      - db-query.sh
+    environment:
+      - PGUSER=postgres
+      - PGPASSWORD=password 
+      - PGHOST=postgres
+    volumes:
+      - ./db-query.sh:/usr/local/bin/db-query.sh
+    depends_on: 
+      - postgres

@@ -24,31 +24,12 @@ inline abi_type* add_type(abi& a, std::vector<ship_protocol::recurse_transaction
     return &iter->second;
 }
 
-template <>
-inline time_point convert_from_string(std::string_view s) {
-    uint64_t utc_microseconds;
-    if (!string_to_utc_microseconds(utc_microseconds, s.data(), s.data() + s.size())) {
-        check(false, "Expected time point in string conversion");
-    }
-    return time_point(eosio::microseconds(utc_microseconds));
-}
-
 } // namespace eosio
 
 namespace state_history {
 namespace pg {
 
 inline std::string quote_bytea(std::string s) { return "\\\\x" + s; }
-
-inline abieos::bytes sql_to_bytes(const char* ch) {
-    abieos::bytes result;
-    if (!ch || ch[0] != '\\' || ch[1] != 'x')
-        return result;
-    std::string error;
-    if (!abieos::unhex(error, ch + 2, ch + strlen(ch), std::back_inserter(result.data)))
-        result.data.clear();
-    return result;
-}
 
 inline abieos::checksum256 sql_to_checksum256(const char* ch) {
     if (!*ch)
@@ -113,9 +94,9 @@ inline std::string sql_str(const abieos::int128& v)                          { a
 inline std::string sql_str(const abieos::uint128& v)                         { return abieos::binary_to_decimal(v.data); }
 #endif
 inline std::string sql_str(eosio::name v)                                    { return v.value ? std::string(v) : std::string(); }
-inline std::string sql_str(eosio::time_point v)                              { return v.elapsed.count() ? eosio::microseconds_to_str(v.elapsed.count()): "\\N"; }
-inline std::string sql_str(eosio::time_point_sec v)                          { return v.utc_seconds ? eosio::microseconds_to_str(uint64_t(v.utc_seconds) * 1'000'000): "\\N"; }
-inline std::string sql_str(abieos::block_timestamp v)                        { return v.slot ?  sql_str(v.to_time_point()) : "\\N"; }
+inline std::string sql_str(eosio::time_point v)                              { return v.elapsed.count() ? eosio::microseconds_to_str(v.elapsed.count()): ""; }
+inline std::string sql_str(eosio::time_point_sec v)                          { return v.utc_seconds ? eosio::microseconds_to_str(uint64_t(v.utc_seconds) * 1'000'000): ""; }
+inline std::string sql_str(abieos::block_timestamp v)                        { return v.slot ?  sql_str(v.to_time_point()) : ""; }
 inline std::string sql_str(const eosio::public_key& v)                       { return public_key_to_string(v); }
 inline std::string sql_str(const eosio::signature& v)                        { return signature_to_string(v); }
 inline std::string sql_str(const eosio::bytes&)                              { throw std::runtime_error("sql_str(bytes): not implemented"); }
@@ -141,11 +122,6 @@ inline std::string bin_to_sql<abieos::bytes>(eosio::input_stream& bin) {
     bin.pos += size;
     return quote_bytea(result);
 }
-
-struct type {
-    const char* name                                               = "";
-    std::string (*bin_to_sql)(eosio::input_stream&)                = nullptr;
-};
 
 struct type_names {
     const char *abi, *sql;
@@ -183,26 +159,6 @@ template<> inline constexpr type_names names_for<abieos::symbol>                
 template<> inline constexpr type_names names_for<eosio::ship_protocol::transaction_status>        = type_names{"transaction_status","transaction_status_type"};
 template<> inline constexpr type_names names_for<eosio::ship_protocol::recurse_transaction_trace> = type_names{"recurse_transaction_trace","varchar"};
 // clang-format on
-
-template <typename... input_t>
-using tuple_cat_t = decltype(std::tuple_cat(std::declval<input_t>()...));
-
-using basic_ship_types = std::tuple<
-    bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, double, std::string, abieos::uint128, abieos::int128,
-    abieos::float128, abieos::varuint32, abieos::varint32, abieos::name, abieos::checksum256, abieos::time_point, abieos::time_point_sec,
-    abieos::block_timestamp, abieos::public_key, abieos::signature, abieos::bytes, abieos::symbol, eosio::ship_protocol::transaction_status,
-    eosio::ship_protocol::recurse_transaction_trace>;
-
-inline std::map<std::string_view, type> make_basic_converter() {
-    std::map<std::string_view, type> result;
-    std::apply([&result](auto... x) {
-        (result.try_emplace(names_for<decltype(x)>.abi, type{names_for<decltype(x)>.sql, bin_to_sql<decltype(x)>}),
-         ...);
-    }, basic_ship_types{});
-    return result;
-}
-
-const auto abi_type_to_sql_type = make_basic_converter();
 
 } // namespace pg
 } // namespace state_history

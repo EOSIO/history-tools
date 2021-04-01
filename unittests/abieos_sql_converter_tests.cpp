@@ -16,26 +16,30 @@ std::ostream& operator<<(std::ostream& os, const abieos_sql_converter::field_def
     return os << "{ " << f.name << " , " << f.type << "}";
 }
 
-struct test_abi_t {
+struct test_fixture_t {
     eosio::abi abi;
+    abieos_sql_converter converter;
 
-    test_abi_t() {
+    test_fixture_t() {
         eosio::abi_def empty_def;
         eosio::convert(empty_def, abi);
-        // abi.abi_types.try_emplace("transaction_status", "transaction_status", eosio::abi_type::builtin{}, nullptr);
+        converter.schema_name     = R"("test")";
+
+        using basic_types = std::tuple<
+            bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, double, std::string, abieos::uint128,
+            abieos::int128, abieos::float128, abieos::varuint32, abieos::varint32, abieos::name, abieos::checksum256, abieos::time_point,
+            abieos::time_point_sec, abieos::block_timestamp, abieos::public_key, abieos::signature, abieos::bytes, abieos::symbol,
+            eosio::ship_protocol::transaction_status, eosio::ship_protocol::recurse_transaction_trace>;
+
+        converter.register_basic_types<basic_types>();
     }
 
-    template <typename T>
-    const eosio::abi_type& add_type() {
-        return *this->abi.add_type<T>();
+    template <typename T> 
+    abieos_sql_converter::union_fields_t
+    get_union_fields() {
+        std::string type_name = get_type_name((T*)nullptr);
+        return abieos_sql_converter::union_fields_t(converter.schema_name, *abi.get_type(type_name)->as_variant(), converter.basic_converters);
     }
-
-    template <typename T>
-    const eosio::abi_type& abi_for() {
-        return *this->abi.get_type(get_type_name((T*)nullptr));
-    }
-
-    const eosio::abi_type& get_type(std::string type_name) { return *abi.get_type(type_name); }
 };
 
 namespace tt = boost::test_tools;
@@ -45,22 +49,15 @@ BOOST_TEST_SPECIALIZED_COLLECTION_COMPARE(std::vector<std::string>)
 
 BOOST_AUTO_TEST_SUITE(ship_sql_test_suite)
 
-BOOST_AUTO_TEST_CASE(nested_varaint_test) {
-    test_abi_t           test_abi;
-    abieos_sql_converter converter;
-    converter.schema_name = R"("test")";
+BOOST_FIXTURE_TEST_CASE(nested_varaint_test, test_fixture_t) {
+    
     using namespace std::string_literals;
 
-    test_abi.add_type<test_protocol::global_property>();
-    test_abi.add_type<test_protocol::action_trace>();
-
-    auto get_union_fields = [&test_abi](auto ptr) {
-        std::string type_name = get_type_name(ptr);
-        return abieos_sql_converter::union_fields_t(R"("test")", *test_abi.get_type(type_name).as_variant());
-    };
+    abi.add_type<test_protocol::global_property>();
+    abi.add_type<test_protocol::action_trace>();
 
     {
-        auto result   = get_union_fields((test_protocol::chain_config*)nullptr);
+        auto result   = get_union_fields<test_protocol::chain_config>();
         auto expected = std::vector<abieos_sql_converter::field_def>{{"max_block_net_usage", "decimal"},
                                                                      {"target_block_net_usage_pct", "bigint"},
                                                                      {"max_transaction_net_usage", "bigint"},
@@ -82,7 +79,7 @@ BOOST_AUTO_TEST_CASE(nested_varaint_test) {
         BOOST_TEST(result == expected);
     }
     {
-        auto result   = get_union_fields((test_protocol::global_property*)nullptr);
+        auto result   = get_union_fields<test_protocol::global_property>();
         auto expected = std::vector<abieos_sql_converter::field_def>{
             {"proposed_schedule_block_num", "bigint"},
             {"global_property_v0_proposed_schedule", "\"test\".producer_schedule"},
@@ -97,13 +94,13 @@ BOOST_AUTO_TEST_CASE(nested_varaint_test) {
     }
     {
 
-        auto result = get_union_fields((test_protocol::block_signing_authority*)nullptr);
+        auto result = get_union_fields<test_protocol::block_signing_authority>();
 
         auto expected = std::vector<abieos_sql_converter::field_def>{{"threshold", "bigint"}, {"keys", "\"test\".key_weight[]"}};
         BOOST_TEST(result == expected);
     }
     {
-        auto result = get_union_fields((test_protocol::action_trace*)nullptr);
+        auto result = get_union_fields<test_protocol::action_trace>();
         auto expected =
             std::vector<abieos_sql_converter::field_def>{{"action_ordinal", "bigint"},
                                                          {"creator_action_ordinal", "bigint"},
@@ -123,13 +120,10 @@ BOOST_AUTO_TEST_CASE(nested_varaint_test) {
     }
 }
 
-BOOST_AUTO_TEST_CASE(create_table_test) {
-    test_abi_t               test_abi;
+BOOST_FIXTURE_TEST_CASE(create_table_test, test_fixture_t) {
     std::vector<std::string> statements;
-    abieos_sql_converter     converter;
-    converter.schema_name     = R"("test")";
     auto  exec                = [&statements](std::string stmt) { statements.push_back(stmt); };
-    auto& global_property_abi = test_abi.add_type<test_protocol::global_property>();
+    auto& global_property_abi = *abi.add_type<test_protocol::global_property>();
 
     converter.create_table("global_property", global_property_abi, "block_num bigint", {"block_num"}, exec);
     // std::copy(statements.begin(), statements.end(), std::ostream_iterator<std::string>(std::cout, "\n"));
@@ -164,14 +158,12 @@ std::vector<std::string> to_sql_values(abieos_sql_converter& converter, const eo
     return values;
 }
 
-BOOST_AUTO_TEST_CASE(to_sql_values_test) {
-    test_abi_t           test_abi;
-    abieos_sql_converter converter;
-    converter.schema_name = R"("test")";
-    test_abi.add_type<test_protocol::global_property>();
+BOOST_FIXTURE_TEST_CASE(to_sql_values_test, test_fixture_t) {
+    
+    abi.add_type<test_protocol::global_property>();
     using namespace eosio::literals;
 
-    auto& chain_config_abi = test_abi.abi_for<test_protocol::chain_config>();
+    auto& chain_config_abi = *abi.get_type(get_type_name((test_protocol::chain_config*)nullptr));
 
     {
         test_protocol::chain_config config_v0 = test_protocol::chain_config_v0{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
@@ -195,9 +187,9 @@ BOOST_AUTO_TEST_CASE(to_sql_values_test) {
                                       {}};
 
         test_protocol::permission_v0 perm{"eosio"_n, "active"_n, ""_n, eosio::time_point{}, auth};
-        auto&                        abi = test_abi.add_type<test_protocol::permission>();
+        auto&                        permission_abi = *abi.add_type<test_protocol::permission>();
 
-        std::vector<std::string> values = to_sql_values(converter, abi, test_protocol::permission{perm});
+        std::vector<std::string> values = to_sql_values(converter, permission_abi, test_protocol::permission{perm});
 
         auto expected = std::vector<std::string>{
             "eosio", "active", "", "\\N",

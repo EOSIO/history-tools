@@ -1,5 +1,4 @@
 #include "abieos_sql_converter.hpp"
-#include "state_history_pg.hpp"
 #include <pqxx/util.hxx>
 
 bool remove_trailing_question_mark(std::string& abi_type_name) {
@@ -64,7 +63,8 @@ std::string escape_field(std::string elem, abieos_sql_converter::field_kind_t fi
         return escape_composite_field(elem);
 }
 
-abieos_sql_converter::field_def get_field_def(std::string schema_name, const eosio::abi_field& field) {
+abieos_sql_converter::field_def
+get_field_def(std::string schema_name, const eosio::abi_field& field, const abieos_sql_converter::basic_converters_t& basic_converters) {
     auto        type = field.type;
     std::string type_suffix;
     if (type->optional_of())
@@ -78,8 +78,8 @@ abieos_sql_converter::field_def get_field_def(std::string schema_name, const eos
         return {field.name, schema_name + "." + type->name + type_suffix};
     } else {
         auto abi_type_name = type->name;
-        auto it            = state_history::pg::abi_type_to_sql_type.find(abi_type_name);
-        if (it != state_history::pg::abi_type_to_sql_type.end()) {
+        auto it            = basic_converters.find(abi_type_name);
+        if (it != basic_converters.end()) {
             std::string type_name = it->second.name;
             if (type_name == "transaction_status_type")
                 type_name = schema_name + "." + type_name;
@@ -90,15 +90,18 @@ abieos_sql_converter::field_def get_field_def(std::string schema_name, const eos
     }
 }
 
-std::vector<abieos_sql_converter::field_def> get_field_defs(std::string schema_name, const eosio::abi_type::struct_* struct_abi_type) {
+std::vector<abieos_sql_converter::field_def> get_field_defs(
+    std::string schema_name, const eosio::abi_type::struct_* struct_abi_type,
+    const abieos_sql_converter::basic_converters_t& basic_converters) {
     std::vector<abieos_sql_converter::field_def> result;
     for (auto& f : struct_abi_type->fields) {
-        result.push_back(get_field_def(schema_name, f));
+        result.push_back(get_field_def(schema_name, f, basic_converters));
     }
     return result;
 }
 
-abieos_sql_converter::union_fields_t::union_fields_t(std::string schema_name, const eosio::abi_type::variant& elements) {
+abieos_sql_converter::union_fields_t::union_fields_t(std::string schema_name, const eosio::abi_type::variant& elements,
+    const abieos_sql_converter::basic_converters_t& basic_converters) {
     for (unsigned i = 0; i < elements.size(); ++i) {
         const auto& variant_element = elements[i];
         if (variant_element.type->as_struct()) {
@@ -106,7 +109,7 @@ abieos_sql_converter::union_fields_t::union_fields_t(std::string schema_name, co
             std::vector<abieos_sql_converter::field_def> pending_fields;
             for (unsigned j = 0; j < struct_fields.size(); ++j) {
                 auto& f     = struct_fields[j];
-                auto  f_def = get_field_def(schema_name, f);
+                auto  f_def = get_field_def(schema_name, f, basic_converters);
                 auto  itr   = std::find_if(this->begin(), this->end(), [nm = f_def.name](const auto& item) { return item.name == nm; });
                 if (itr != this->end()) {
                     if (pending_fields.size()) {
@@ -127,7 +130,7 @@ abieos_sql_converter::union_fields_t::union_fields_t(std::string schema_name, co
             }
             this->insert(this->end(), pending_fields.begin(), pending_fields.end());
         } else {
-            this->push_back(get_field_def(schema_name, variant_element));
+            this->push_back(get_field_def(schema_name, variant_element, basic_converters));
         }
     }
 }
@@ -151,7 +154,7 @@ std::string abieos_sql_converter::create_sql_type(
         std::string sub_fields;
         for (auto& f : struct_abi_type->fields) {
             create_sql_type(f.type, exec, false);
-            auto f_def = get_field_def(schema_name, f);
+            auto f_def = get_field_def(schema_name, f, basic_converters);
             sub_fields += ", " + quote_name(f_def.name) + " " + f_def.type;
         }
         if (!nested_only && sub_fields.size() > 1) {
@@ -173,7 +176,7 @@ std::string abieos_sql_converter::create_sql_type(
             create_sql_type(elem.type, exec, true);
         }
 
-        auto        union_fields = variant_union_fields.try_emplace(name, schema_name, *variant_abi_type).first->second;
+        auto        union_fields = variant_union_fields.try_emplace(name, schema_name, *variant_abi_type, basic_converters).first->second;
         std::string query        = "create type " + sql_type + " as (";
         for (const auto& field : union_fields) {
             query += quote_name(field.name) + " " + field.type + ",";
@@ -192,7 +195,7 @@ void abieos_sql_converter::create_table(
     if (type.as_struct()) {
         for (auto& field : type.as_struct()->fields) {
             create_sql_type(field.type, exec, false);
-            auto f_def = get_field_def(schema_name, field);
+            auto f_def = get_field_def(schema_name, field, basic_converters);
             fields += ", " + quote_name(f_def.name) + " " + f_def.type;
         }
     } else if (type.as_variant()) {
@@ -200,7 +203,7 @@ void abieos_sql_converter::create_table(
             create_sql_type(elem.type, exec, true);
         }
 
-        auto union_fields = variant_union_fields.try_emplace(type.name, schema_name, *type.as_variant()).first->second;
+        auto union_fields = variant_union_fields.try_emplace(type.name, schema_name, *type.as_variant(), basic_converters).first->second;
 
         for (auto& field : union_fields) {
             fields += ", " + quote_name(field.name) + " " + field.type;
@@ -218,17 +221,6 @@ bool is_numeric_type(std::string type_name) {
     return std::find(std::begin(numeric_types), e, type_name) != e;
 }
 
-std::string null_value(const eosio::abi_type& type_ref, abieos_sql_converter::field_kind_t field_kind) {
-    if (type_ref.optional_of()) return null_value(*type_ref.optional_of(), field_kind);
-    if (type_ref.as_struct() || type_ref.as_variant())
-        return "\\N";
-    if (type_ref.array_of())
-        return "{}";
-    if (is_numeric_type(type_ref.name) && field_kind == abieos_sql_converter::table_field)
-        return "0";
-    return "";
-}
-
 std::string abieos_sql_converter::to_sql_value(eosio::input_stream& bin, const eosio::abi_type& type_ref, field_kind_t field_kind) {
     const eosio::abi_type* type    = &type_ref;
     bool                   present = true;
@@ -236,7 +228,9 @@ std::string abieos_sql_converter::to_sql_value(eosio::input_stream& bin, const e
         bin.read_raw(present);
         type = type->optional_of();
         if (!present) {
-            return null_value(*type, field_kind);
+            if (field_kind == abieos_sql_converter::table_field)
+                return "\\N";
+            return "";
         }
     }
 
@@ -260,14 +254,20 @@ std::string abieos_sql_converter::to_sql_value(eosio::input_stream& bin, const e
         return escape_field("{" + pqxx::separated_list(",", values.begin(), values.end()) + "}", field_kind);
     } else {
         auto abi_type_name = type->name;
-        auto it            = state_history::pg::abi_type_to_sql_type.find(abi_type_name);
-        if (it != state_history::pg::abi_type_to_sql_type.end()) {
+        auto it            = basic_converters.find(abi_type_name);
+        if (it != basic_converters.end()) {
             if (!it->second.bin_to_sql)
                 throw std::runtime_error("don't know how to process " + abi_type_name);
             std::string r = it->second.bin_to_sql(bin);
-            if (is_numeric_type(type->name) || field_kind == table_field)
-                return r;
-            return escape_composite_field(r);
+            auto& sql_type_name = it->second.name;
+            if (field_kind == composite_field) {
+                auto sql_type_name = it->second.name;
+                if ( strncmp(sql_type_name,"varchar", 7) == 0 )
+                    return escape_composite_field(r);
+            } else if (r.empty() && strcmp(sql_type_name, "timestamp") == 0) {
+                return "\\N";
+            }
+            return r;
         }
         __builtin_unreachable();
     }
@@ -292,12 +292,13 @@ void abieos_sql_converter::to_sql_values(
     uint32_t v;
     varuint32_from_bin(v, bin);
     auto&       alternative  = variant_abi_type.at(v);
-    const auto& union_fields = variant_union_fields.try_emplace(type_name, schema_name, variant_abi_type).first->second;
-    auto        field_itr    = alternative.type->as_struct()->fields.begin();
+    const auto& union_fields = variant_union_fields.try_emplace(type_name, schema_name, variant_abi_type, basic_converters).first->second;
+    auto const& alternative_fields = alternative.type->as_struct()->fields;
+    auto        field_itr          = alternative_fields.begin();
     values.reserve(values.size() + union_fields.size());
     for (const auto& field : union_fields) {
         auto fname = field.name;
-        if (fname == field_itr->name || fname == (alternative.name + "_" + field_itr->name)) {
+        if (field_itr != alternative_fields.end() && (fname == field_itr->name || fname == (alternative.name + "_" + field_itr->name))) {
             values.push_back(to_sql_value(bin, *field_itr->type, field_kind));
             ++field_itr;
         } else if (ends_with(field.type, "[]"))

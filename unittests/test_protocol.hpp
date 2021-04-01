@@ -10,10 +10,6 @@
 #include <eosio/time.hpp>
 #include <eosio/varint.hpp>
 
-namespace eosio {
-constexpr const char* get_type_name(const input_stream*) { return "bytes"; }
-} // namespace eosio
-
 namespace test_protocol {
 
 typedef __uint128_t uint128_t;

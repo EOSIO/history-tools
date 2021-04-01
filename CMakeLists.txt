@@ -59,19 +59,9 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/fc/CMakeModules")
 
-if ("${OPENSSL_ROOT_DIR}" STREQUAL "")
-   if (NOT "$ENV{OPENSSL_ROOT_DIR}" STREQUAL "")
-      set(OPENSSL_ROOT_DIR $ENV{OPENSSL_ROOT_DIR})
-      set(OPENSSL_INCLUDE_DIR ${OPENSSL_ROOT_DIR}/include)
-   elseif (APPLE)
-      set(OPENSSL_ROOT_DIR "/usr/local/opt/openssl")
-      set(OPENSSL_INCLUDE_DIR "/usr/local/opt/openssl/include")
-   elseif(UNIX AND NOT APPLE)
-      set(OPENSSL_ROOT_DIR "/usr/include/openssl")
-      set(OPENSSL_INCLUDE_DIR "/usr/include/openssl/include")
-   else()
-      message(FATAL_ERROR "openssl not found and don't know where to look, please specify OPENSSL_ROOT_DIR")
-   endif()
+# add defaults for openssl
+if(APPLE AND UNIX AND "${OPENSSL_ROOT_DIR}" STREQUAL "")
+   set(OPENSSL_ROOT_DIR "/usr/local/opt/openssl@1.1")
 endif()
 
 set(SKIP_FC_TESTS ON)
@@ -102,12 +92,7 @@ add_subdirectory(external/fc EXCLUDE_FROM_ALL)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/testnet.template ${CMAKE_CURRENT_BINARY_DIR}/etc/eosio/launcher/testnet.template COPYONLY)
 enable_testing()
-#add_subdirectory( tests )
-#add_subdirectory(external/rocksdb EXCLUDE_FROM_ALL)
 
-#set(FOUND_ROCKSDB ON)
-#set(ROCKSDB_LIB rocksdb)
-#set(ROCKSDB_INCLUDE_DIR external/rocksdb/include)
 
 set(APPS "")
 function(add_app APP FLAGS LIBS)
@@ -172,29 +157,9 @@ message(STATUS "Enabled plugins:")
 if (PostgreSQL_INCLUDE_DIR)
     message(STATUS "    fill_pg_plugin")
     add_app(fill-pg "-DDEFAULT_PLUGINS=fill_pg_plugin;-DINCLUDE_FILL_PG_PLUGIN" "${PQXX_LIBRARIES}")
-    #target_sources(history-tools PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp)
     target_sources(fill-pg PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp src/abieos_sql_converter.cpp)
-    #message(STATUS "    wasm_ql_pg_plugin")
-    #add_app(wasm-ql-pg "-DDEFAULT_PLUGINS=wasm_ql_pg_plugin;-DINCLUDE_WASM_QL_PG_PLUGIN" "${PQXX_LIBRARIES}")
-    #target_sources(history-tools PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp)
-    #target_sources(wasm-ql-pg PRIVATE src/pg_plugin.cpp src/query_config_plugin.cpp src/wasm_ql_pg_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
-endif ()
+    endif ()
 
-#if (FOUND_ROCKSDB)
-#    message(STATUS "    fill_rocksdb_plugin")
-#    add_app(fill-rocksdb "-DDEFAULT_PLUGINS=fill_rocksdb_plugin;-DINCLUDE_FILL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB}")
-#    target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp)
-#    target_sources(fill-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp)
-#    message(STATUS "    wasm_ql_rocksdb_plugin")
-#    add_app(wasm-ql-rocksdb "-DDEFAULT_PLUGINS=wasm_ql_rocksdb_plugin;-DINCLUDE_WASM_QL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB}")
-#    add_app(combo-rocksdb "-DDEFAULT_PLUGINS=fill_rocksdb_plugin,wasm_ql_rocksdb_plugin;-DINCLUDE_FILL_ROCKSDB_PLUGIN;-DINCLUDE_WASM_QL_ROCKSDB_PLUGIN" "${ROCKSDB_LIB}")
-#    target_sources(history-tools PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp)
-#    target_sources(wasm-ql-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
-#    target_sources(combo-rocksdb PRIVATE src/query_config_plugin.cpp src/rocksdb_plugin.cpp src/wasm_ql_rocksdb_plugin.cpp src/fill_plugin.cpp src/fill_rocksdb_plugin.cpp src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
-#endif()
-
-#message(STATUS "    wasm_ql_plugin")
-#target_sources(history-tools PRIVATE src/wasm_ql_plugin.cpp src/wasm_ql_http.cpp src/wasm_ql.cpp)
 
 message(STATUS "Enabled apps:")
 foreach(APP ${APPS})
@@ -203,23 +168,6 @@ endforeach()
 
 message(STATUS "----------------------------------------------------")
 
-#if (NOT PostgreSQL_INCLUDE_DIR AND NOT FOUND_ROCKSDB)
-#    message(WARNING "No database libraries found. Only building WASM files.")
-#endif()
-
-#if (eosio.cdt_FOUND)
-#    ExternalProject_Add(
-#        wasms_project
-#        SOURCE_DIR ${CMAKE_SOURCE_DIR}/wasms
-#        BINARY_DIR ${CMAKE_BINARY_DIR}/wasms
-#        CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${EOSIO_CDT_ROOT}/lib/cmake/eosio.cdt/EosioWasmToolchain.cmake
-#        UPDATE_COMMAND ""
-#        PATCH_COMMAND ""
-#        TEST_COMMAND ""
-#        INSTALL_COMMAND ""
-#        BUILD_ALWAYS 1
-#    )
-#endif()
 
 add_subdirectory( unittests )
 

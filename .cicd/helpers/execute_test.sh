@@ -2,7 +2,7 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-[ -f snapshot.bin ] || ./get_snapshot.sh
+[ -f snapshot.bin ] || ${DIR}/get_snapshot.sh
 [ -f docker-compose.yaml ] || cp ${DIR}/../../docker-compose.yaml docker-compose.yaml
 cd $DIR
 

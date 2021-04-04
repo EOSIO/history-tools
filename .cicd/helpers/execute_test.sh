@@ -1,10 +1,12 @@
 #!/bin/bash
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+set -x
 
-[ -f snapshot.bin ] || ${DIR}/get_snapshot.sh
-[ -f docker-compose.yaml ] || cp ${DIR}/../../docker-compose.yaml docker-compose.yaml
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd $DIR
+
+[ -f snapshot.bin ] || ./get_snapshot.sh
+[ -f docker-compose.yaml ] || cp ../../docker-compose.yaml .
 
 export DOCKER_EOSIO_TAG=${1:-develop}
 if [[ "$BUILDKITE" == 'true' ]]; then

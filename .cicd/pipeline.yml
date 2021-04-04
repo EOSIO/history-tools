@@ -4,10 +4,15 @@ steps:
   - label: ":ubuntu: Ubuntu 18.04 - Build"
     command:
       - .cicd/helpers/update_builder_base.sh
-      - "docker build -t eosio/history-tools:$BUILDKITE_COMMIT -f ./ubuntu-18.04.dockerfile ."
+      - "docker build -t eosio/history-tools:$BUILDKITE_COMMIT ."
       - "./.cicd/helpers/execute_test.sh develop"
       - "./.cicd/helpers/execute_test.sh release_2.1.x"
       - "docker push eosio/history-tools:$BUILDKITE_COMMIT"
+      - |
+        if [ $BUILDKITE_BRANCH == "master" ]; then
+          docker tag eosio/history-tools:$BUILDKITE_COMMIT eosio/history-tools
+          docker push eosio/history-tools
+        fi
     agents:
       queue: "automation-eks-eos-builder-fleet"
     timeout: ${TIMEOUT:-30}

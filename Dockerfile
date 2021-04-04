@@ -7,9 +7,6 @@ copy CMakeLists.txt /root/history-tools
 copy external /root/history-tools/external
 copy libraries /root/history-tools/libraries
 copy src /root/history-tools/src
-copy wasms /root/history-tools/wasms
-copy testnet.template /root/history-tools
-copy tests /root/history-tools/tests
 copy unittests /root/history-tools/unittests
 
 run mkdir /root/history-tools/build

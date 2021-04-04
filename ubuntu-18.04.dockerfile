@@ -14,7 +14,7 @@ copy unittests /root/history-tools/unittests
 
 run mkdir /root/history-tools/build
 workdir /root/history-tools/build
-run cmake -GNinja -DSKIP_SUBMODULE_CHECK=1 -DCMAKE_CXX_COMPILER=clang++-8 -DCMAKE_C_COMPILER=clang-8 ..
+run cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DSKIP_SUBMODULE_CHECK=1 -DCMAKE_CXX_COMPILER=clang++-8 -DCMAKE_C_COMPILER=clang-8 ..
 run ninja && ctest -R "abieos_sql_converter_tests" --output-on-failure
 
 from ubuntu:18.04 

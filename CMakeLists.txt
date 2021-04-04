@@ -11,38 +11,20 @@ set(ENABLE_INSTALL OFF cache bool "")
 set(ENABLE_TOOLS OFF cache bool "")
 set(ENABLE_TESTS OFF cache bool "")
 
-# add_subdirectory(external/eos-vm EXCLUDE_FROM_ALL)
-
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
-
-set(default_build_type "Release")
-
-if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
-  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
-      STRING "Choose the type of build." FORCE)
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
-    "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
-endif()
 
 set(EOSIO_WASM_OLD_BEHAVIOR "Off")
 set(Boost_USE_STATIC_LIBS ON)
 
 add_definitions(-DBOOST_ASIO_DISABLE_STD_EXPERIMENTAL_STRING_VIEW)
 
-#find_package(eosio.cdt)
-find_package(PostgreSQL COMPONENTS Libraries)
+find_package(PostgreSQL REQUIRED COMPONENTS Libraries)
 find_package(Boost 1.70 REQUIRED COMPONENTS date_time filesystem chrono system iostreams program_options unit_test_framework)
-find_package(PkgConfig REQUIRED)
 
-if (PostgreSQL_INCLUDE_DIR)
-  set(SKIP_PQXX_SHARED ON)
-  set(SKIP_BUILD_TEST ON)
-  add_subdirectory(external/libpqxx EXCLUDE_FROM_ALL)
-  set(PQXX_LIBRARIES pqxx_static)
-else()
-  set(PQXX_LIBRARIES "")
-endif()
+set(SKIP_PQXX_SHARED ON)
+set(SKIP_BUILD_TEST ON)
+add_subdirectory(external/libpqxx EXCLUDE_FROM_ALL)
+set(PQXX_LIBRARIES pqxx_static)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -78,9 +60,30 @@ Please run the command 'git submodule update --init --recursive'.")
     endif()
 endif()
 
-include(SetupTargetMacros)
-include(GNUInstallDirs)
-include(VersionMacros)
+# Build Types
+set(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE}
+    CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel asan ubsan"
+    FORCE)
+
+# AddressSanitize
+set(CMAKE_C_FLAGS_ASAN
+    "-fsanitize=address -fno-optimize-sibling-calls -fsanitize-address-use-after-scope -fno-omit-frame-pointer -g -O1"
+    CACHE STRING "Flags used by the C compiler during AddressSanitizer builds."
+    FORCE)
+set(CMAKE_CXX_FLAGS_ASAN
+    "-fsanitize=address -fno-optimize-sibling-calls -fsanitize-address-use-after-scope -fno-omit-frame-pointer -g -O1"
+    CACHE STRING "Flags used by the C++ compiler during AddressSanitizer builds."
+    FORCE)
+
+# UndefinedBehaviour
+set(CMAKE_C_FLAGS_UBSAN
+    "-fsanitize=undefined"
+    CACHE STRING "Flags used by the C compiler during UndefinedBehaviourSanitizer builds."
+    FORCE)
+set(CMAKE_CXX_FLAGS_UBSAN
+    "-fsanitize=undefined"
+    CACHE STRING "Flags used by the C++ compiler during UndefinedBehaviourSanitizer builds."
+    FORCE)
 
 set(WITH_TESTS OFF)
 
@@ -90,84 +93,38 @@ add_subdirectory(external/abieos EXCLUDE_FROM_ALL)
 add_subdirectory(external/appbase EXCLUDE_FROM_ALL)
 add_subdirectory(external/fc EXCLUDE_FROM_ALL)
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/testnet.template ${CMAKE_CURRENT_BINARY_DIR}/etc/eosio/launcher/testnet.template COPYONLY)
-enable_testing()
 
+add_executable(fill-pg src/main.cpp src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp src/abieos_sql_converter.cpp)
 
-set(APPS "")
-function(add_app APP FLAGS LIBS)
-    set(APPS ${APPS} ${APP} PARENT_SCOPE)
-    add_executable(${APP} src/main.cpp)
+target_include_directories(fill-pg
+    PRIVATE
+        external/abieos/src
+        external/abieos/include
+        external/abieos/external/rapidjson/include
+        external/appbase/include
+        external/fc/include
+        ${Boost_INCLUDE_DIR}
+)
+target_link_libraries(fill-pg appbase fc abieos Boost::date_time Boost::filesystem Boost::chrono 
+                      Boost::system Boost::iostreams Boost::program_options Boost::unit_test_framework 
+                      "${PQXX_LIBRARIES}" -lpthread)
 
-    target_include_directories(${APP}
-        PRIVATE
-            external/abieos/src
-            external/abieos/include
-            external/abieos/external/rapidjson/include
-            external/appbase/include
-            external/fc/include
-            ${Boost_INCLUDE_DIR}
-            ${JS_INCLUDE_DIRS}
-            ${ROCKSDB_INCLUDE_DIR}
-    )
-    target_link_libraries(${APP} appbase fc abieos Boost::date_time Boost::filesystem Boost::chrono Boost::system Boost::iostreams Boost::program_options Boost::unit_test_framework ${LIBS} -lpthread)
+if(APPLE)
+else()
+    target_link_libraries(fill-pg -latomic)
+endif()
+target_compile_options(fill-pg PUBLIC -DAPP_NAME="fill-pg" "-DDEFAULT_PLUGINS=fill_pg_plugin;-DINCLUDE_FILL_PG_PLUGIN")
 
-    if(APPLE)
-    else()
-        target_link_libraries(${APP} -latomic)
-    endif()
-    target_compile_options(${APP} PUBLIC -DAPP_NAME="${APP}" ${FLAGS})
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_options(fill-pg PRIVATE -D DEBUG)
+endif (CMAKE_BUILD_TYPE STREQUAL "Debug")
 
-    string(TOLOWER ${CMAKE_BUILD_TYPE} LOWERCASE_CMAKE_BUILD_TYPE)
-    if (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
-        target_compile_options(${APP} PRIVATE -D DEBUG)
-    endif (LOWERCASE_CMAKE_BUILD_TYPE STREQUAL "debug")
-
-    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        target_compile_options(${APP} PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics -Wno-sign-compare -Wno-unused-variable -Wno-macro-redefined)
-    endif()
-    if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-        target_compile_options(${APP} PRIVATE -fdiagnostics-color=auto)
-    endif()
-endfunction(add_app)
-
-#add_app(history-tools "-DDEFAULT_PLUGINS=" "${PQXX_LIBRARIES};${ROCKSDB_LIB}")
-
-message(STATUS "----------------------------------------------------")
-message(STATUS "Checked libraries:")
-
-function(show_found desc found missing_msg)
-    set(extra_args ${ARGN})
-    list(LENGTH extra_args num_extra_args)
-    if(${num_extra_args} GREATER 0)
-        list(GET extra_args 0 version)
-    endif()
-    if (found)
-        message(STATUS ${desc} " found ${version}")
-    else()
-        message(STATUS ${desc} " ${missing_msg}")
-    endif()
-endfunction(show_found)
-
-show_found("    pq:         " "${PostgreSQL_INCLUDE_DIR}" "not found; will not build pg plugins")
-#show_found("    rocksdb:    " "${FOUND_ROCKSDB}" "not found; will not build rocksdb plugins")
-
-message(STATUS "Enabled plugins:")
-
-if (PostgreSQL_INCLUDE_DIR)
-    message(STATUS "    fill_pg_plugin")
-    add_app(fill-pg "-DDEFAULT_PLUGINS=fill_pg_plugin;-DINCLUDE_FILL_PG_PLUGIN" "${PQXX_LIBRARIES}")
-    target_sources(fill-pg PRIVATE src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp src/abieos_sql_converter.cpp)
-    endif ()
-
-
-message(STATUS "Enabled apps:")
-foreach(APP ${APPS})
-    message(STATUS "    ${APP}")
-endforeach()
-
-message(STATUS "----------------------------------------------------")
-
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(fill-pg PRIVATE -Wall -Wextra -Wno-unused-parameter -fcolor-diagnostics -Wno-sign-compare -Wno-unused-variable -Wno-macro-redefined)
+endif()
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    target_compile_options(fill-pg PRIVATE -fdiagnostics-color=auto)
+endif()
 
 add_subdirectory( unittests )
 

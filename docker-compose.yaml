@@ -34,7 +34,7 @@ services:
     environment:
       - POSTGRES_PASSWORD=password
   fill-pg:
-    image: eosio/history-tools:${DOCKER_HISTORY_TOOLS_TAG:-latest}
+    image: eosio/history-tools:${GIT_SHORT_HASH:-latest}
     command: >
       /bin/sh -c "
         echo Waiting for nodeos service start...;

@@ -31,15 +31,15 @@ steps:
   - wait
 
   - label: "Run integration test against eos(develop)"
-    command: .cicd/helpers/execute_test.sh develop
     timeout: ${TIMEOUT:-10}
+    command: .cicd/helpers/execute_test.sh develop
     agents:
       queue: "automation-eks-eos-builder-fleet"
 
   - wait
 
   - label: "Run integration test against eos(release/2.1.x)"
-    command: .cicd/helpers/execute_test.sh release_2.1.x
     timeout: ${TIMEOUT:-10}
+    command: .cicd/helpers/execute_test.sh release_2.1.x
     agents:
       queue: "automation-eks-eos-builder-fleet"

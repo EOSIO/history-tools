@@ -26,7 +26,7 @@ steps:
       - docker push ${IMAGE_REPO}:${GIT_SHORT_HASH}
       - docker push ${IMAGE_REPO}:${IMAGE_BRANCH_TAG}
     agents:
-      queue: "automation-contracts-builder-fleet"
+      queue: "automation-eks-eos-builder-fleet"
 
   - wait
 

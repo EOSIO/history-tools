@@ -44,7 +44,8 @@ struct connection : std::enable_shared_from_this<connection> {
     tcp::resolver                                resolver;
     boost::beast::websocket::stream<tcp::socket> stream;
     bool                                         have_abi  = false;
-    abi_def                                      abi       = {};
+    bool                                         have_get_blocks_request_v1 = false;
+    abi_def                                      abi                       = {};
     std::map<std::string, abi_type>              abi_types{};
 
     connection(boost::asio::io_context& ioc, const connection_config& config, std::shared_ptr<connection_callbacks> callbacks)
@@ -105,6 +106,7 @@ struct connection : std::enable_shared_from_this<connection> {
         eosio::abi a;
         eosio::convert(abi, a);
         have_abi  = true;
+        have_get_blocks_request_v1 = a.get_type("get_blocks_request_v1") != nullptr;
         if (callbacks)
             callbacks->received_abi(std::move(a));
     }
@@ -118,16 +120,31 @@ struct connection : std::enable_shared_from_this<connection> {
     }
 
     void request_blocks(uint32_t start_block_num, const std::vector<eosio::ship_protocol::block_position>& positions) {
-        eosio::ship_protocol::get_blocks_request_v0 req;
-        req.start_block_num        = start_block_num;
-        req.end_block_num          = 0xffff'ffff;
-        req.max_messages_in_flight = 0xffff'ffff;
-        req.have_positions         = positions;
-        req.irreversible_only      = false;
-        req.fetch_block            = true;
-        req.fetch_traces           = true;
-        req.fetch_deltas           = true;
-        send(req);
+        if (have_get_blocks_request_v1) {
+            eosio::ship_protocol::get_blocks_request_v1 req;
+            req.start_block_num        = start_block_num;
+            req.end_block_num          = 0xffff'ffff;
+            req.max_messages_in_flight = 0xffff'ffff;
+            req.have_positions         = positions;
+            req.irreversible_only      = false;
+            req.fetch_block            = false;
+            req.fetch_traces           = true;
+            req.fetch_deltas           = true;
+            req.fetch_block_header     = true;
+            send(req);
+        }
+        else {
+            eosio::ship_protocol::get_blocks_request_v0 req;
+            req.start_block_num        = start_block_num;
+            req.end_block_num          = 0xffff'ffff;
+            req.max_messages_in_flight = 0xffff'ffff;
+            req.have_positions         = positions;
+            req.irreversible_only      = false;
+            req.fetch_block            = true;
+            req.fetch_traces           = true;
+            req.fetch_deltas           = true;
+            send(req);
+        }
     }
 
     void request_blocks(const eosio::ship_protocol::get_status_result_v0& status, uint32_t start_block_num, const std::vector<eosio::ship_protocol::block_position>& positions) {

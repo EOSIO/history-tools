@@ -89,6 +89,10 @@ struct table_stream {
         , writer(t, name) {}
 };
 
+template <typename T>
+std::size_t num_bytes(const eosio::opaque<T>& obj) { return obj.num_bytes();}
+std::size_t num_bytes(std::optional<eosio::input_stream> strm) { return strm.has_value() ? strm->end - strm->pos : 0; }
+
 struct fpg_session;
 
 struct fill_postgresql_config : connection_config {
@@ -233,7 +237,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         t.exec("insert into " + converter.schema_name + R"(.fill_status values (0, '', 0, '', 0))");
 
         auto exec = [&t](const auto& stmt) { t.exec(stmt); };
-        converter.create_table("block_info", get_type("block_header"), "block_num bigint, block_id varchar(64)", {"block_num"}, exec);
+        converter.create_table("block_info", get_type("signed_block_header"), "block_num bigint, block_id varchar(64)", {"block_num"}, exec);
 
         converter.create_table(
             "transaction_trace", get_type("transaction_trace"), "block_num bigint, transaction_ordinal integer",
@@ -426,12 +430,15 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         first = std::min(first, head);
     } // truncate
 
-    bool received(get_blocks_result_v1& result) override {
+    
+    template <typename GetBlockResult, typename HandleBlocksTracesDelta>
+    bool process_blocks_result(GetBlockResult& result, HandleBlocksTracesDelta&& handler) {
         if (!result.this_block)
             return true;
         bool bulk         = result.this_block->block_num + 4 < result.last_irreversible.block_num;
         bool large_deltas = false;
-        auto deltas_size  = result.deltas.num_bytes();
+        auto deltas_size  = num_bytes(result.deltas);
+
         if (!bulk && deltas_size >= 10 * 1024 * 1024) {
             ilog("large deltas size: ${s}", ("s", uint64_t(deltas_size)));
             bulk         = true;
@@ -463,12 +470,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             truncate(t, pipeline, result.this_block->block_num);
         if (!head_id.empty() && (!result.prev_block || to_string(result.prev_block->block_id) != head_id))
             throw std::runtime_error("prev_block does not match");
-        if (result.block)
-            receive_block(result.this_block->block_num, result.this_block->block_id, result.block.value());
-        if (deltas_size)
-            receive_deltas(result.this_block->block_num, result.deltas, bulk);
-        if (!result.traces.empty())
-            receive_traces(result.this_block->block_num, result.traces);
+
+        handler(bulk);
 
         head            = result.this_block->block_num;
         head_id         = to_string(result.this_block->block_id);
@@ -493,77 +496,47 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         return true;
     }
 
+    bool received(get_blocks_result_v2& result) override {
+        return process_blocks_result(result, [this,&result](bool bulk) {
+            if (!result.block_header.empty())
+                receive_block(result.this_block->block_num, result.this_block->block_id, result.block_header);
+            if (!result.deltas.empty())
+                receive_deltas(result.this_block->block_num, result.deltas, bulk);
+            if (!result.traces.empty())
+                receive_traces(result.this_block->block_num, result.traces);
+        });
+    }
+
+    bool received(get_blocks_result_v1& result) override {
+        return process_blocks_result(result, [this,&result](bool bulk) {
+            if (result.block) {
+                const signed_block_header& header = std::visit([](const auto& v) -> const signed_block_header& { return v; }, result.block.value());
+                std::vector<char>   data   = eosio::convert_to_bin(header);
+                receive_block(result.this_block->block_num, result.this_block->block_id, eosio::as_opaque<signed_block_header>(eosio::input_stream{data}));
+            }
+            if (!result.deltas.empty())
+                receive_deltas(result.this_block->block_num, result.deltas, bulk);
+            if (!result.traces.empty())
+                receive_traces(result.this_block->block_num, result.traces);
+        });
+    }
+
     bool received(get_blocks_result_v0& result) override {
-        if (!result.this_block)
-            return true;
-        bool bulk         = result.this_block->block_num + 4 < result.last_irreversible.block_num;
-        bool large_deltas = false;
-        if (!bulk && result.deltas && result.deltas->end - result.deltas->pos >= 10 * 1024 * 1024) {
-            ilog("large deltas size: ${s}", ("s", uint64_t(result.deltas->end - result.deltas->pos)));
-            bulk         = true;
-            large_deltas = true;
-        }
-
-        if (config->stop_before && result.this_block->block_num >= config->stop_before) {
-            close_streams();
-            ilog("block ${b}: stop requested", ("b", result.this_block->block_num));
-            return false;
-        }
-
-        if (result.this_block->block_num <= head) {
-            close_streams();
-            ilog("switch forks at block ${b}", ("b", result.this_block->block_num));
-            bulk = false;
-        }
-
-        if (!bulk || large_deltas || !(result.this_block->block_num % 200))
-            close_streams();
-        if (table_streams.empty())
-            trim();
-        if (!bulk)
-            ilog("block ${b}", ("b", result.this_block->block_num));
-
-        work_t     t(*sql_connection);
-        pipeline_t pipeline(t);
-        if (result.this_block->block_num <= head)
-            truncate(t, pipeline, result.this_block->block_num);
-        if (!head_id.empty() && (!result.prev_block || to_string(result.prev_block->block_id) != head_id))
-            throw std::runtime_error("prev_block does not match");
-        if (result.block) {
-            auto     block_bin = *result.block;
-            uint32_t variant_index;
-            varuint32_from_bin(variant_index, block_bin);
-            receive_block(result.this_block->block_num, result.this_block->block_id, eosio::as_opaque<block_header>(block_bin));
-        }
-        if (result.deltas)
-            receive_deltas(
-                result.this_block->block_num, eosio::as_opaque<std::vector<eosio::ship_protocol::table_delta>>(*result.deltas), bulk);
-        if (result.traces)
-            receive_traces(
-                result.this_block->block_num, eosio::as_opaque<std::vector<eosio::ship_protocol::transaction_trace>>(*result.traces));
-
-        head            = result.this_block->block_num;
-        head_id         = to_string(result.this_block->block_id);
-        irreversible    = result.last_irreversible.block_num;
-        irreversible_id = to_string(result.last_irreversible.block_id);
-        if (!first)
-            first = head;
-        if (!bulk) {
-            flush_streams();
-            write_fill_status(t, pipeline);
-        }
-        pipeline.insert(
-            "insert into " + converter.schema_name + ".received_block (block_num, block_id) values (" +
-            std::to_string(result.this_block->block_num) + ", " + quote(to_string(result.this_block->block_id)) + ")");
-
-        pipeline.complete();
-        while (!pipeline.empty())
-            pipeline.retrieve();
-        t.commit();
-        if (large_deltas)
-            close_streams();
-        return true;
-    } // receive_result()
+        return process_blocks_result(result, [this,&result](bool bulk) {
+            if (result.block) {
+                auto     block_bin = *result.block;
+                uint32_t variant_index;
+                varuint32_from_bin(variant_index, block_bin);
+                receive_block(result.this_block->block_num, result.this_block->block_id, eosio::as_opaque<signed_block_header>(block_bin));
+            }
+            if (result.deltas)
+                receive_deltas(
+                    result.this_block->block_num, eosio::as_opaque<std::vector<eosio::ship_protocol::table_delta>>(*result.deltas), bulk);
+            if (result.traces)
+                receive_traces(
+                    result.this_block->block_num, eosio::as_opaque<std::vector<eosio::ship_protocol::transaction_trace>>(*result.traces));
+        });
+    } 
 
     void write_stream(uint32_t block_num, const std::string& name, const std::vector<std::string>& values) {
         if (!first_bulk)
@@ -597,14 +570,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         first_bulk = 0;
     }
 
-    void receive_block(uint32_t block_num, const eosio::checksum256& block_id, signed_block_variant& block) {
-        const block_header& header = std::visit([](const auto& v) -> const block_header& { return v; }, block);
-        std::vector<char>   data   = eosio::convert_to_bin(header);
-        receive_block(block_num, block_id, eosio::as_opaque<block_header>(eosio::input_stream{data}));
-    } // receive_block
-
-    void receive_block(uint32_t block_num, const eosio::checksum256& block_id, eosio::opaque<block_header> opq) {
-        auto&                    abi_type = get_type("block_header");
+    void receive_block(uint32_t block_num, const eosio::checksum256& block_id, const eosio::opaque<signed_block_header>& opq) {
+        auto&                    abi_type = get_type("signed_block_header");
         std::vector<std::string> values{std::to_string(block_num), sql_str(block_id)};
         auto                     bin = opq.get();
         converter.to_sql_values(bin, *abi_type.as_struct(), values);

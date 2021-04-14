@@ -243,38 +243,40 @@ typedef __uint128_t uint128_t;
 
    using action_trace = std::variant<action_trace_v0, action_trace_v1>;
 
+   struct prunable_data_none {
+      eosio::checksum256 prunable_digest;
+   };
+
+   using segment_type = std::variant<eosio::checksum256, eosio::input_stream>;
+   constexpr const char* get_typ_name(segment_type*){ return "segment_type"; }
+
+   struct prunable_data_partial {
+      std::vector<eosio::signature> signatures;
+      std::vector<segment_type>     context_free_segments;
+   };
+
+   struct prunable_data_full {
+      std::vector<eosio::signature>    signatures;
+      std::vector<eosio::input_stream> context_free_segments;
+   };
+
+   struct prunable_data_full_legacy {
+      std::vector<eosio::signature> signatures;
+      eosio::input_stream           packed_context_free_data;
+   };
+
+   using prunable_data_t = std::variant<prunable_data_full_legacy, prunable_data_none, prunable_data_partial, prunable_data_full>;
+   constexpr const char* get_typ_name(prunable_data_t*){ return "prunable_data_t"; }
+
    struct prunable_data_type {
-      struct none {
-         eosio::checksum256 prunable_digest;
-      };
-
-      using segment_type = std::variant<eosio::checksum256, eosio::input_stream>;
-
-      struct partial {
-         std::vector<eosio::signature> signatures;
-         std::vector<segment_type>     context_free_segments;
-      };
-
-      struct full {
-         std::vector<eosio::signature>    signatures;
-         std::vector<eosio::input_stream> context_free_segments;
-      };
-
-      struct full_legacy {
-         std::vector<eosio::signature> signatures;
-         eosio::input_stream           packed_context_free_data;
-      };
-
-      using prunable_data_t = std::variant<full_legacy, none, partial, full>;
-
       prunable_data_t prunable_data;
    };
 
    EOSIO_REFLECT(prunable_data_type, prunable_data)
-   EOSIO_REFLECT(prunable_data_type::none, prunable_digest)
-   EOSIO_REFLECT(prunable_data_type::partial, signatures, context_free_segments)
-   EOSIO_REFLECT(prunable_data_type::full, signatures, context_free_segments)
-   EOSIO_REFLECT(prunable_data_type::full_legacy, signatures, packed_context_free_data)
+   EOSIO_REFLECT(prunable_data_none, prunable_digest)
+   EOSIO_REFLECT(prunable_data_partial, signatures, context_free_segments)
+   EOSIO_REFLECT(prunable_data_full, signatures, context_free_segments)
+   EOSIO_REFLECT(prunable_data_full_legacy, signatures, packed_context_free_data)
 
    struct partial_transaction_v0 {
       eosio::time_point_sec            expiration             = {};
@@ -337,6 +339,8 @@ typedef __uint128_t uint128_t;
    struct recurse_transaction_trace {
       transaction_trace recurse = {};
    };
+
+   EOSIO_REFLECT(recurse_transaction_trace, recurse)
 
    struct producer_key {
       eosio::name       producer_name     = {};

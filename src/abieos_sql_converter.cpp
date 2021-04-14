@@ -74,9 +74,17 @@ get_field_def(std::string schema_name, const eosio::abi_field& field, const abie
         type_suffix = "[]";
     }
 
-    if (type->as_variant() || type->as_struct()) {
+    if (type->as_variant()) {
         return {field.name, schema_name + "." + type->name + type_suffix};
-    } else {
+    } else if (type->as_struct()) {
+        if (type->as_struct()->fields.size()>1)
+            return {field.name, schema_name + "." + type->name + type_suffix};
+        else {
+            auto nested_field = get_field_def(schema_name, type->as_struct()->fields[0], basic_converters);
+            return {field.name, nested_field.type + type_suffix};
+        }
+    }
+    else {
         auto abi_type_name = type->name;
         auto it            = basic_converters.find(abi_type_name);
         if (it != basic_converters.end()) {
@@ -135,20 +143,20 @@ abieos_sql_converter::union_fields_t::union_fields_t(std::string schema_name, co
     }
 }
 
-void abieos_sql_converter::create_sql_type(const eosio::abi_type* type, const std::function<void(std::string)>& exec, bool nested_only) {
+void abieos_sql_converter::create_sql_type(const eosio::abi_type* type, const std::function<void(std::string)>& exec, bool is_union_field) {
     if (type->as_struct()) {
-        create_sql_type(type->name, type->as_struct(), exec, nested_only);
+        create_sql_type(type->name, type->as_struct(), exec, is_union_field);
     } else if (type->array_of()) {
         create_sql_type(type->array_of(), exec, false);
     } else if (type->optional_of()) {
-        create_sql_type(type->optional_of(), exec, false);
+        create_sql_type(type->optional_of(), exec, is_union_field);
     } else if (type->as_variant()) {
         create_sql_type(type->name, type->as_variant(), exec);
     }
 }
 
 std::string abieos_sql_converter::create_sql_type(
-    std::string name, const eosio::abi_type::struct_* struct_abi_type, const std::function<void(std::string)>& exec, bool nested_only) {
+    std::string name, const eosio::abi_type::struct_* struct_abi_type, const std::function<void(std::string)>& exec, bool is_union_field) {
     std::string sql_type = schema_name + "." + quote_name(name);
     if (created_composite_types.count(sql_type) == 0) {
         std::string sub_fields;
@@ -157,11 +165,17 @@ std::string abieos_sql_converter::create_sql_type(
             auto f_def = get_field_def(schema_name, f, basic_converters);
             sub_fields += ", " + quote_name(f_def.name) + " " + f_def.type;
         }
-        if (!nested_only && sub_fields.size() > 1) {
-            std::string query = "create type " + sql_type + " as (" + sub_fields.substr(2) + ")";
-            exec(query);
-        }
-
+        if (!is_union_field) {
+            if (struct_abi_type->fields.size() > 1) {
+                std::string query = "create type " + sql_type + " as (" + sub_fields.substr(2) + ")";
+                exec(query);
+            }   
+            else {
+                // if we have only one filed, just flattern it. 
+                auto pos = sub_fields.rfind(" ");
+                sql_type = sub_fields.substr(pos+1);
+            }
+        } 
         created_composite_types.emplace(sql_type);
     }
     return sql_type;
@@ -302,7 +316,7 @@ void abieos_sql_converter::to_sql_values(
             values.push_back(to_sql_value(bin, *field_itr->type, field_kind));
             ++field_itr;
         } else if (ends_with(field.type, "[]"))
-            values.emplace_back("{}");
+            values.emplace_back(escape_field("{}", field_kind));
         else if (field.type.find(schema_name) == 0)
             values.emplace_back("\\N");
         else

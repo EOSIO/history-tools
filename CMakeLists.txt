@@ -33,8 +33,6 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
    endif()
 endif()
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/fc/CMakeModules")
-
 # add defaults for openssl
 if(APPLE AND UNIX AND "${OPENSSL_ROOT_DIR}" STREQUAL "")
    set(OPENSSL_ROOT_DIR "/usr/local/opt/openssl@1.1")
@@ -59,7 +57,7 @@ FetchContent_MakeAvailable(appbase)
 FetchContent_Declare(
   abieos
   GIT_REPOSITORY https://github.com/EOSIO/abieos.git
-  GIT_TAG 47657a1c0ed907991bc76ac684027b374ddba497       
+  GIT_TAG ae899edb5602962ca1641d9ead08f0aa8da8828d       
 )
 FetchContent_MakeAvailable(abieos)
 
@@ -103,7 +101,6 @@ set(WITH_TESTS OFF)
 
 add_compile_options(-Wno-error=shadow)
 
-
 add_executable(fill-pg src/main.cpp src/fill_plugin.cpp src/pg_plugin.cpp src/fill_pg_plugin.cpp src/abieos_sql_converter.cpp)
 
 target_include_directories(fill-pg
@@ -130,6 +127,6 @@ endif()
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     target_compile_options(fill-pg PRIVATE -fdiagnostics-color=auto)
 endif()
-
+enable_testing()
 add_subdirectory( unittests )
 

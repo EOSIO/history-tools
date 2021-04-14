@@ -106,7 +106,12 @@ struct connection : std::enable_shared_from_this<connection> {
         eosio::abi a;
         eosio::convert(abi, a);
         have_abi  = true;
-        have_get_blocks_request_v1 = a.get_type("get_blocks_request_v1") != nullptr;
+        try {
+            have_get_blocks_request_v1 = a.get_type("get_blocks_request_v1");
+        }
+        catch (...) {
+            ilog("get_blocks_request_v1 not available, use get_blocks_request_v0 instead");
+        }
         if (callbacks)
             callbacks->received_abi(std::move(a));
     }

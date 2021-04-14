@@ -21,6 +21,7 @@ struct connection_callbacks {
     virtual bool received(eosio::ship_protocol::get_status_result_v0& /*status*/) { return true; }
     virtual bool received(eosio::ship_protocol::get_blocks_result_v0& /*result*/) { return true; }
     virtual bool received(eosio::ship_protocol::get_blocks_result_v1& /*result*/) { return true; }
+    virtual bool received(eosio::ship_protocol::get_blocks_result_v2& /*result*/) { return true; }
     virtual void closed(bool retry) = 0;
 };
 
@@ -34,12 +35,9 @@ struct connection : std::enable_shared_from_this<connection> {
     using flat_buffer = boost::beast::flat_buffer;
     using tcp         = boost::asio::ip::tcp;
 
-    using abi_def      = abieos::abi_def;
-    using abi_type     = abieos::abi_type;
+    using abi_def      = eosio::abi_def;
+    using abi_type     = eosio::abi_type;
     using input_buffer = eosio::input_stream;
-    using jarray       = abieos::jarray;
-    using jobject      = abieos::jobject;
-    using jvalue       = abieos::jvalue;
 
     connection_config                            config;
     std::shared_ptr<connection_callbacks>        callbacks;
@@ -101,9 +99,8 @@ struct connection : std::enable_shared_from_this<connection> {
         std::string buf((const char *)data.data(), data.size());
         auto is   = eosio::json_token_stream{buf.data()};
         from_json(abi, is);
-        std::string error;
-        if(!abieos::check_abi_version(abi.version, error)) {
-            eosio::check(error.empty(), error);
+        if (abi.version.substr(0, 13) != "eosio::abi/1.") {
+            throw std::runtime_error("unsupported abi version");
         }
         eosio::abi a;
         eosio::convert(abi, a);

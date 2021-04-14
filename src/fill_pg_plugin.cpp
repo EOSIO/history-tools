@@ -11,7 +11,6 @@
 #include "abieos_sql_converter.hpp"
 #include <pqxx/tablewriter>
 
-using namespace abieos;
 using namespace appbase;
 using namespace eosio::ship_protocol;
 using namespace state_history;
@@ -123,7 +122,7 @@ struct fill_postgresql_plugin_impl : std::enable_shared_from_this<fill_postgresq
     void start();
 };
 
-abi_type& get_type(std::map<std::string, abi_type>& abi_types, std::string type_name) {
+eosio::abi_type& get_type(std::map<std::string, eosio::abi_type>& abi_types, std::string type_name) {
     auto itr = abi_types.find(type_name);
     if (itr != abi_types.end()) {
         return itr->second;
@@ -145,7 +144,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     uint32_t                                             first_bulk      = 0;
     std::map<std::string, std::unique_ptr<table_stream>> table_streams;
     abieos_sql_converter                                 converter;
-    std::map<std::string, abi_type>                      abi_types;
+    std::map<std::string, eosio::abi_type>               abi_types;
 
     fpg_session(fill_postgresql_plugin_impl* my)
         : my(my)
@@ -155,9 +154,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         sql_connection.emplace();
 
         using basic_types = std::tuple<
-            bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, double, std::string, abieos::uint128,
-            abieos::int128, abieos::float128, abieos::varuint32, abieos::varint32, abieos::name, abieos::checksum256, abieos::time_point,
-            abieos::time_point_sec, abieos::block_timestamp, abieos::public_key, abieos::signature, abieos::bytes, abieos::symbol,
+            bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, double, std::string, unsigned __int128,
+            __int128, eosio::float128, eosio::varuint32, eosio::varint32, eosio::name, eosio::checksum256, eosio::time_point,
+            eosio::time_point_sec, eosio::block_timestamp, eosio::public_key, eosio::signature, eosio::bytes, eosio::symbol,
             eosio::ship_protocol::transaction_status, eosio::ship_protocol::recurse_transaction_trace>;
 
         converter.register_basic_types<basic_types>();
@@ -178,7 +177,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         connection->connect();
     }
 
-    abi_type& get_type(std::string type_name) { return ::get_type(this->abi_types, type_name); }
+    eosio::abi_type& get_type(std::string type_name) { return ::get_type(this->abi_types, type_name); }
 
     void received_abi(eosio::abi&& abi) override {
         auto& transaction_trace_abi = ::get_type(abi.abi_types, "transaction_trace");
@@ -598,13 +597,13 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         first_bulk = 0;
     }
 
-    void receive_block(uint32_t block_num, const checksum256& block_id, signed_block_variant& block) {
+    void receive_block(uint32_t block_num, const eosio::checksum256& block_id, signed_block_variant& block) {
         const block_header& header = std::visit([](const auto& v) -> const block_header& { return v; }, block);
         std::vector<char>   data   = eosio::convert_to_bin(header);
         receive_block(block_num, block_id, eosio::as_opaque<block_header>(eosio::input_stream{data}));
     } // receive_block
 
-    void receive_block(uint32_t block_num, const checksum256& block_id, eosio::opaque<block_header> opq) {
+    void receive_block(uint32_t block_num, const eosio::checksum256& block_id, eosio::opaque<block_header> opq) {
         auto&                    abi_type = get_type("block_header");
         std::vector<std::string> values{std::to_string(block_num), sql_str(block_id)};
         auto                     bin = opq.get();

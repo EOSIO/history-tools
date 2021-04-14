@@ -26,9 +26,9 @@ struct test_fixture_t {
         converter.schema_name     = R"("test")";
 
         using basic_types = std::tuple<
-            bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, double, std::string, abieos::uint128,
-            abieos::int128, abieos::float128, abieos::varuint32, abieos::varint32, abieos::name, abieos::checksum256, abieos::time_point,
-            abieos::time_point_sec, abieos::block_timestamp, abieos::public_key, abieos::signature, abieos::bytes, abieos::symbol,
+            bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, double, std::string, unsigned __int128,
+            __int128, eosio::float128, eosio::varuint32, eosio::varint32, eosio::name, eosio::checksum256, eosio::time_point,
+            eosio::time_point_sec, eosio::block_timestamp, eosio::public_key, eosio::signature, eosio::bytes, eosio::symbol,
             eosio::ship_protocol::transaction_status, eosio::ship_protocol::recurse_transaction_trace>;
 
         converter.register_basic_types<basic_types>();

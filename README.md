@@ -22,11 +22,15 @@ Note: by default, `history-tools` does nothing; use the `--plugin` option to sel
 
 See the [documentation site](https://eosio.github.io/history-tools/)
 
-# Beta Release
+# Upcoming Release
 
-The beta release contains only `fill-pq`, all the rest of the tools are deprecated. 
+The release contains only `fill-pq`, all the rest of the tools are deprecated. 
 
-## Beta 1.0.0
+### SHiP protocol changes
+
+SHiP protocol has been changed to allow a client to request the block_header only instead of the entire block. `fill-pq` has been update to
+utilize this feature when the `nodeos` it connects to support it. 
+### PostgreSQL table schema changes
 
 This release completely rewrites the SHiP protocol to SQL conversion code so that the database tables
 would directly align with the data structures defined in the SHiP protocol. This also changes for table schema used by previous releases.
@@ -39,30 +43,30 @@ Here are the basic rules for the conversion:
 Consequently, instead having their own tables in previous releases, `action_trace`, `action_trace_ram_delta`, `action_trace_auth_sequence` and `action_trace_authorization` are arrays nested inside `transaction_trace` table or `action_trace` type. The SQL `UNNEST` operator can be used to flatten arrays into tables for query. 
 
 The current list of tables created by  `fill-pg` are:
-  - code                      
-  - received_block  
-  - block_info  
-  - protocol_state
-  - transaction_trace 
-  - key_value
-  - global_property
-  - resource_limits_config
-  - account_metadata
-  - contract_row
-  - resource_usage
-  - contract_index128
-  - generated_transaction
-  - contract_index256
-  - fill_status
-  - contract_index64 
-  - contract_index_double
-  - permission_link
-  - contract_index_long_double
   - account
+  - account_metadata
+  - block_info  
+  - code                      
+  - contract_index_double
+  - contract_index_long_double
+  - contract_index128
+  - contract_index256
+  - contract_index64 
+  - contract_row
   - contract_table
-  - resource_limits_state
-  - resource_limits
+  - fill_status
+  - generated_transaction
+  - global_property
+  - key_value
   - permission
+  - permission_link
+  - protocol_state
+  - received_block  
+  - resource_limits
+  - resource_limits_config
+  - resource_limits_state
+  - resource_usage
+  - transaction_trace 
 # Alpha Release
 
 This is an alpha release of the EOSIO History Tools. It includes database fillers

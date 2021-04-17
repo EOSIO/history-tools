@@ -10,7 +10,6 @@ WORKDIR /root
 RUN mkdir /root/history-tools
 COPY cmake /root/history-tools/cmake
 COPY CMakeLists.txt /root/history-tools
-COPY external /root/history-tools/external
 COPY libraries /root/history-tools/libraries
 COPY src /root/history-tools/src
 COPY unittests /root/history-tools/unittests

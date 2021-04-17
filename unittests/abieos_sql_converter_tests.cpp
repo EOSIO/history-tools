@@ -283,8 +283,24 @@ BOOST_FIXTURE_TEST_CASE(to_sql_values_test, test_fixture_t) {
                                                  "\\N",
                                                  "\\N",
                                                  "\\N",
-                                                 R"xxx((,0,0,0,0,0,"{}","{}","{}","(\\"{}\\",\\\\\\\\x,,\\"{}\\",\\"{}\\")"))xxx"};
-        BOOST_TEST(values == expected);         
+                                                 R"xxx((,0,0,0,0,0,"{}","{}","{}","(\\"{}\\",\\"\\\\\\\\\\\\\\\\x\\",,\\"{}\\",\\"{}\\")"))xxx"};
+        BOOST_TEST(values == expected);   
+
+        transaction.partial.emplace(test_protocol::partial_transaction_v1{});
+        values = to_sql_values(converter, transaction_trace_abi, test_protocol::transaction_trace{transaction});
+        
+
+        expected = std::vector<std::string>{
+            "", "executed", "0", "0", "0", "0", "false", "{}", "\\N", "\\N", "\\N", "\\N", R"xxx((,0,0,0,0,0,"{}","{}","{}",))xxx"};
+        BOOST_TEST(values == expected);
+    }
+    { 
+        test_protocol::account_metadata_v0 metadata; 
+        auto& account_metadata_abi = *abi.add_type<test_protocol::account_metadata>();
+        std::vector<std::string> values = to_sql_values(converter, account_metadata_abi, test_protocol::account_metadata{metadata});
+        // std::copy(values.begin(), values.end(), std::ostream_iterator<std::string>(std::cout, "\n"));
+        auto expected = std::vector<std::string>{"", "false", "\\N", "\\N"};
+        BOOST_TEST(values == expected);
     }
 }
 

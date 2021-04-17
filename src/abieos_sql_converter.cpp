@@ -276,7 +276,7 @@ std::string abieos_sql_converter::to_sql_value(eosio::input_stream& bin, const e
             auto& sql_type_name = it->second.name;
             if (field_kind == composite_field) {
                 auto sql_type_name = it->second.name;
-                if ( strncmp(sql_type_name,"varchar", 7) == 0 )
+                if ( strncmp(sql_type_name,"varchar", 7) == 0 || strcmp(sql_type_name,"bytea") == 0 )
                     return escape_composite_field(r);
             } else if (r.empty() && strcmp(sql_type_name, "timestamp") == 0) {
                 return "\\N";
@@ -317,8 +317,11 @@ void abieos_sql_converter::to_sql_values(
             ++field_itr;
         } else if (ends_with(field.type, "[]"))
             values.emplace_back(escape_field("{}", field_kind));
-        else if (field.type.find(schema_name) == 0)
+        else if (field_kind == table_field && field.type.find(schema_name) == 0) {
+            // For a value of composite value and when it is a field of the top level table, it must use "\\N" to represent the empty value;
+            // however, it must use empty string to represent empty value when it's a field of a type.
             values.emplace_back("\\N");
+        }
         else
             values.emplace_back("");
     }

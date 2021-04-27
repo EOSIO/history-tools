@@ -2,7 +2,7 @@ version: "3.3"
 
 services:
   nodeos:
-    image: docker.io/eosio/eos:${DOCKER_EOSIO_TAG:-develop}
+    image: docker.io/eosio/eosio:${DOCKER_EOSIO_TAG:-develop}
     command:
       - nodeos
       - --plugin

@@ -73,14 +73,16 @@ inline std::string sql_str(const eosio::ship_protocol::recurse_transaction_trace
 }
 
 inline std::string sql_str(const __int128& v) {
-    char  buf[std::numeric_limits<__int128>::digits10 + 1];
+    const int digits10 = 38;
+    char      buf[digits10 + 2];
     char* end = eosio::int_to_decimal(v, buf);
     *end      = '\0';
     return buf;
 }
 
 inline std::string sql_str(const unsigned __int128& v) {
-    char  buf[std::numeric_limits<unsigned __int128>::digits10 + 1];
+    const int digits10 = 38;
+    char  buf[digits10 + 2];
     char* end = eosio::int_to_decimal(v, buf);
     *end      = '\0';
     return buf;

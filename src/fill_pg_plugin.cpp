@@ -525,8 +525,6 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         return process_blocks_result(result, [this,&result](bool bulk) {
             if (result.block) {
                 auto     block_bin = *result.block;
-                uint32_t variant_index;
-                varuint32_from_bin(variant_index, block_bin);
                 receive_block(result.this_block->block_num, result.this_block->block_id, eosio::as_opaque<signed_block_header>(block_bin));
             }
             if (result.deltas)

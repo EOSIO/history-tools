@@ -40,4 +40,5 @@ old_num_blocks=$(block_info_row_number)
 sleep 10
 if [[ $(block_info_row_number) = $old_num_blocks ]]; then
   >&2 echo the number of rows in block_info did not increase after 10 seconds
+  exit 1
 fi 

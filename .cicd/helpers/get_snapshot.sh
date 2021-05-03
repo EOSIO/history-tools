@@ -20,3 +20,5 @@ done < snapshots.xml
 #get actual snapshot file and unzip
 curl -L https://snapshot.testnet.eos.io/$LATEST_SNAPSHOT | tar -xzf -
 
+mv snapshots/`ls snapshots` snapshot.bin
+rm -rf snapshots.xml snapshots

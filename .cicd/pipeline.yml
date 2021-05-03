@@ -1,34 +1,45 @@
+env:
+  IMAGE_REPO:   eosio/history-tools
+  #
+  # The following environment variables are exported by `hooks/pre-command`
+  #   - IMAGE_BRANCH_TAG
+  #   - GIT_SHORT_HASH
+  #   - DOCKER_FILE_COMMIT_SHORT_HASH
+
 steps:
+  - label: "Build docker image"
+    command: 
+      - |
+        docker build --target base \
+                     --cache-from ${IMAGE_REPO}:builder_base-${DOCKER_FILE_COMMIT_SHORT_HASH} \
+                     --tag ${IMAGE_REPO}:builder_base-${DOCKER_FILE_COMMIT_SHORT_HASH} \
+                     --build-arg BUILDKIT_INLINE_CACHE=1 \
+                     "."
+      - |
+        docker build --cache-from ${IMAGE_REPO}:builder_base-${DOCKER_FILE_COMMIT_SHORT_HASH} \
+                     --cache-from ${IMAGE_REPO}:${IMAGE_BRANCH_TAG} \
+                     --tag ${IMAGE_REPO}:${GIT_SHORT_HASH} \
+                     --tag ${IMAGE_REPO}:${IMAGE_BRANCH_TAG} \
+                     --build-arg BUILDKIT_INLINE_CACHE=1 \
+                     "."
+      - docker push ${IMAGE_REPO}:builder_base-${DOCKER_FILE_COMMIT_SHORT_HASH}
+      - docker push ${IMAGE_REPO}:${GIT_SHORT_HASH}
+      - docker push ${IMAGE_REPO}:${IMAGE_BRANCH_TAG}
+    agents:
+      queue: "automation-eks-eos-builder-fleet"
 
   - wait
 
-  - label: ":ubuntu: Ubuntu 18.04 - Build"
-    command:
-      - "docker build -t eosio/history-tools:$BUILDKITE_COMMIT -f ./ubuntu-18.04.dockerfile ."
-      - "docker push eosio/history-tools:$BUILDKITE_COMMIT"
-    env:
-      IMAGE_TAG: "ubuntu-18.04"
+  - label: "Run integration test against eos(develop)"
+    timeout: ${TIMEOUT:-10}
+    command: .cicd/helpers/execute_test.sh develop
     agents:
       queue: "automation-eks-eos-builder-fleet"
-    timeout: ${TIMEOUT:-15}
-    skip: $SKIP_UBUNTU_18
 
   - wait
 
-  - label: "run integration test - (eos branch: develop)"
-    command:
-      - "./.cicd/helpers/execute_test.sh develop"
+  - label: "Run integration test against eos(release/2.1.x)"
+    timeout: ${TIMEOUT:-10}
+    command: .cicd/helpers/execute_test.sh release_2.1.x
     agents:
       queue: "automation-eks-eos-builder-fleet"
-    timeout: ${TIMEOUT:-15}
-    skip: $SKIP_UBUNTU_18
-
-  - wait
-
-  - label: "run integration test - (eos branch: release/2.1.x)"
-    command:
-      - "./.cicd/helpers/execute_test.sh release_2.1.x"
-    agents:
-      queue: "automation-eks-eos-builder-fleet"
-    timeout: ${TIMEOUT:-15}
-    skip: $SKIP_UBUNTU_18

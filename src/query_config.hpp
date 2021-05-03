@@ -45,7 +45,7 @@ constexpr void for_each_field(key<Defs>*, F f) {
 template <typename Defs>
 struct table {
     std::string                                        name           = {};
-    abieos::name                                       short_name     = {};
+    eosio::name                                        short_name     = {};
     std::vector<typename Defs::field>                  fields         = {};
     bool                                               is_delta       = {};
     std::string                                        trim_index     = {};
@@ -68,7 +68,7 @@ constexpr void for_each_field(table<Defs>*, F f) {
 
 template <typename Defs>
 struct index {
-    abieos::name                     short_name    = {};
+    eosio::name                      short_name    = {};
     std::string                      index         = {};
     std::string                      table         = {};
     bool                             include_in_pg = {};
@@ -90,14 +90,14 @@ constexpr void for_each_field(index<Defs>*, F f) {
 
 template <typename Defs>
 struct query {
-    abieos::name                      short_name            = {};
+    eosio::name                       short_name            = {};
     std::string                       index                 = {};
     std::string                       function              = {};
     std::string                       table                 = {};
     bool                              has_block_snapshot    = {};
     uint32_t                          max_results           = {};
     std::string                       join                  = {};
-    abieos::name                      join_query_short_name = {};
+    eosio::name                       join_query_short_name = {};
     std::vector<typename Defs::key>   join_key_values       = {};
     std::vector<typename Defs::key>   fields_from_join      = {};
     std::vector<typename Defs::type>  arg_types             = {};
@@ -148,10 +148,10 @@ struct config {
     std::vector<typename Defs::index>                   indexes        = {};
     std::vector<typename Defs::query>                   queries        = {};
     std::map<std::string, const typename Defs::table*>  table_map      = {};
-    std::map<abieos::name, const typename Defs::table*> table_name_map = {};
+    std::map<eosio::name, const typename Defs::table*>  table_name_map = {};
     std::map<std::string, const typename Defs::index*>  index_map      = {};
-    std::map<abieos::name, const typename Defs::index*> index_name_map = {};
-    std::map<abieos::name, const typename Defs::query*> query_map      = {};
+    std::map<eosio::name, const typename Defs::index*>  index_name_map = {};
+    std::map<eosio::name, const typename Defs::query*>  query_map      = {};
 
     template <typename M>
     void prepare(const M& type_map) {

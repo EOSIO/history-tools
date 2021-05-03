@@ -1,46 +1,16 @@
 #!/bin/bash
 
-set -e
+set -x
 
-function execute-psql-command(){
-  POSTGRES_CONTAINER_ID=`docker-compose ps -q postgres`
-  CMD="docker exec -it $POSTGRES_CONTAINER_ID psql $1 -c '$2'"
-  RET_SQL_CMD=`eval $CMD`
-}
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+cd $DIR
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+[ -f snapshot.bin ] || ./get_snapshot.sh
+[ -f docker-compose.yaml ] || cp ../../docker-compose.yaml .
 
-bash $DIR/get_snapshot.sh
-bash $DIR/create_env_file.sh $1
+export DOCKER_EOSIO_TAG=${1:-develop}
+if [[ "$BUILDKITE" == 'true' ]]; then
+  export DOCKER_HISTORY_TOOLS_TAG=$BUILDKITE_COMMIT
+fi
 
-docker-compose up -d
-
-for (( ; ; ))
-do
-  #check if there is data in database
-  execute-psql-command "" "SELECT block_num FROM chain.block_info limit 5;"
-  BLOCK_INFO_ROWS_COUNT=$RET_SQL_CMD
-
-  if [[ $BLOCK_INFO_ROWS_COUNT =~ "5 rows" ]]; then
-    #get block #s and check they are in ascending order
-
-    execute-psql-command "-t" "SELECT array( SELECT block_num FROM chain.block_info limit 5 );"
-    BLOCK_INFO_ROWS_CONTENT=`echo $RET_SQL_CMD | tr -d '{}'`
-
-    LATEST_BLOCK=0
-    while IFS=',' read -ra ADDR; do
-      for CURRENT_BLOCK in "${ADDR[@]}"; do
-        if [ $LATEST_BLOCK -gt $CURRENT_BLOCK ]; then
-          exit 1
-        fi
-        LATEST_BLOCK=$CURRENT_BLOCK
-      done
-    done <<< "$BLOCK_INFO_ROWS_CONTENT"
-
-    echo "Succesful test"
-    break
-  fi
-  sleep 5
-done
-
-docker-compose down
+docker-compose -f docker-compose.yaml -f docker-compose.test.yaml up -V --exit-code-from postgres-query

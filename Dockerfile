@@ -42,6 +42,7 @@ RUN apt-get update && \
         netcat \
         openssl \
         postgresql-client && \
-    apt-get clean
+    apt-get clean && \
+    rm -rf /var/cache/apt/lists/*
 
 COPY --from=builder /root/history-tools/build/fill-pg /usr/local/bin/fill-pg

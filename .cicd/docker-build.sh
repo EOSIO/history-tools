@@ -21,11 +21,11 @@ echo "$ $PUSH_BRANCH"
 eval $PUSH_BRANCH
 
 #Cleaning images after successfully pushed to ECR
-echo " Clean up Docker Images..."
+echo " Clean up Docker Images... "
 REM_BASE="docker rmi '${IMAGE_REPO}:builder_base-${DOCKER_FILE_COMMIT_SHORT_HASH}' || :"
 REM_GIT="docker rmi '${IMAGE_REPO}:${GIT_SHORT_HASH}' || :"
 REM_BRANCH="docker rmi '${IMAGE_REPO}:${IMAGE_BRANCH_TAG}' || :"
-echo -e "$ Deleting.... "
+echo "$ Deleting.... "
 echo "$ $REM_BASE"
 eval $REM_BASE
 echo "$ $REM_GIT"

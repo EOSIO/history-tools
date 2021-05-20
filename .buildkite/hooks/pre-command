@@ -1,0 +1,18 @@
+#!/bin/bash
+set -eu
+
+# Create the environment variable that needs to be uploaded
+GIT_SHORT_HASH=$(git log -1 --pretty=%h)
+
+# export created environment variables (we do this separately, see: https://github.com/koalaman/shellcheck/wiki/SC2155)
+export GIT_SHORT_HASH
+
+IMAGE_BRANCH_TAG=$( echo ${BUILDKITE_BRANCH} | tr '/' '_' )
+if [ $IMAGE_BRANCH_TAG = 'master' ]; then
+   IMAGE_BRANCH_TAG=latest
+fi
+
+export IMAGE_BRANCH_TAG
+
+DOCKER_FILE_COMMIT_SHORT_HASH=$(git --no-pager log Dockerfile | head -1 | cut -d' ' -f2 | cut -c-7)
+export DOCKER_FILE_COMMIT_SHORT_HASH

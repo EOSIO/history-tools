@@ -17,10 +17,11 @@ namespace state_history {
 
 struct connection_callbacks {
     virtual ~connection_callbacks() = default;
-    virtual void received_abi(std::string_view abi) {}
+    virtual void received_abi(eosio::abi&& abi) {}
     virtual bool received(eosio::ship_protocol::get_status_result_v0& /*status*/) { return true; }
     virtual bool received(eosio::ship_protocol::get_blocks_result_v0& /*result*/) { return true; }
     virtual bool received(eosio::ship_protocol::get_blocks_result_v1& /*result*/) { return true; }
+    virtual bool received(eosio::ship_protocol::get_blocks_result_v2& /*result*/) { return true; }
     virtual void closed(bool retry) = 0;
 };
 
@@ -34,19 +35,17 @@ struct connection : std::enable_shared_from_this<connection> {
     using flat_buffer = boost::beast::flat_buffer;
     using tcp         = boost::asio::ip::tcp;
 
-    using abi_def      = abieos::abi_def;
-    using abi_type     = abieos::abi_type;
+    using abi_def      = eosio::abi_def;
+    using abi_type     = eosio::abi_type;
     using input_buffer = eosio::input_stream;
-    using jarray       = abieos::jarray;
-    using jobject      = abieos::jobject;
-    using jvalue       = abieos::jvalue;
 
     connection_config                            config;
     std::shared_ptr<connection_callbacks>        callbacks;
     tcp::resolver                                resolver;
     boost::beast::websocket::stream<tcp::socket> stream;
     bool                                         have_abi  = false;
-    abi_def                                      abi       = {};
+    bool                                         have_get_blocks_request_v1 = false;
+    abi_def                                      abi                       = {};
     std::map<std::string, abi_type>              abi_types{};
 
     connection(boost::asio::io_context& ioc, const connection_config& config, std::shared_ptr<connection_callbacks> callbacks)
@@ -101,16 +100,20 @@ struct connection : std::enable_shared_from_this<connection> {
         std::string buf((const char *)data.data(), data.size());
         auto is   = eosio::json_token_stream{buf.data()};
         from_json(abi, is);
-        std::string error;
-        if(!abieos::check_abi_version(abi.version, error)) {
-            eosio::check(error.empty(), error);
+        if (abi.version.substr(0, 13) != "eosio::abi/1.") {
+            throw std::runtime_error("unsupported abi version");
         }
         eosio::abi a;
         eosio::convert(abi, a);
-        abi_types = std::move(a.abi_types);
         have_abi  = true;
+        try {
+            have_get_blocks_request_v1 = a.get_type("get_blocks_request_v1");
+        }
+        catch (...) {
+            ilog("get_blocks_request_v1 not available, use get_blocks_request_v0 instead");
+        }
         if (callbacks)
-            callbacks->received_abi(sv);
+            callbacks->received_abi(std::move(a));
     }
 
     bool receive_result(const std::shared_ptr<flat_buffer>& p) {
@@ -122,16 +125,31 @@ struct connection : std::enable_shared_from_this<connection> {
     }
 
     void request_blocks(uint32_t start_block_num, const std::vector<eosio::ship_protocol::block_position>& positions) {
-        eosio::ship_protocol::get_blocks_request_v0 req;
-        req.start_block_num        = start_block_num;
-        req.end_block_num          = 0xffff'ffff;
-        req.max_messages_in_flight = 0xffff'ffff;
-        req.have_positions         = positions;
-        req.irreversible_only      = false;
-        req.fetch_block            = true;
-        req.fetch_traces           = true;
-        req.fetch_deltas           = true;
-        send(req);
+        if (have_get_blocks_request_v1) {
+            eosio::ship_protocol::get_blocks_request_v1 req;
+            req.start_block_num        = start_block_num;
+            req.end_block_num          = 0xffff'ffff;
+            req.max_messages_in_flight = 0xffff'ffff;
+            req.have_positions         = positions;
+            req.irreversible_only      = false;
+            req.fetch_block            = false;
+            req.fetch_traces           = true;
+            req.fetch_deltas           = true;
+            req.fetch_block_header     = true;
+            send(req);
+        }
+        else {
+            eosio::ship_protocol::get_blocks_request_v0 req;
+            req.start_block_num        = start_block_num;
+            req.end_block_num          = 0xffff'ffff;
+            req.max_messages_in_flight = 0xffff'ffff;
+            req.have_positions         = positions;
+            req.irreversible_only      = false;
+            req.fetch_block            = true;
+            req.fetch_traces           = true;
+            req.fetch_deltas           = true;
+            send(req);
+        }
     }
 
     void request_blocks(const eosio::ship_protocol::get_status_result_v0& status, uint32_t start_block_num, const std::vector<eosio::ship_protocol::block_position>& positions) {
@@ -143,13 +161,6 @@ struct connection : std::enable_shared_from_this<connection> {
         if (nodeos_start == 0xffff'ffff)
             nodeos_start = 0;
         request_blocks(std::max(start_block_num, nodeos_start), positions);
-    }
-
-    const abi_type& get_type(const std::string& name) {
-        auto it = abi_types.find(name);
-        if (it == abi_types.end())
-            throw std::runtime_error(std::string("unknown type ") + name);
-        return it->second;
     }
 
     void send(const eosio::ship_protocol::request& req) {

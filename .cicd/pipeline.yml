@@ -7,24 +7,8 @@ env:
   #   - DOCKER_FILE_COMMIT_SHORT_HASH
 
 steps:
-  - label: "Build docker image"
-    command: 
-      - |
-        docker build --target base \
-                     --cache-from ${IMAGE_REPO}:builder_base-${DOCKER_FILE_COMMIT_SHORT_HASH} \
-                     --tag ${IMAGE_REPO}:builder_base-${DOCKER_FILE_COMMIT_SHORT_HASH} \
-                     --build-arg BUILDKIT_INLINE_CACHE=1 \
-                     "."
-      - |
-        docker build --cache-from ${IMAGE_REPO}:builder_base-${DOCKER_FILE_COMMIT_SHORT_HASH} \
-                     --cache-from ${IMAGE_REPO}:${IMAGE_BRANCH_TAG} \
-                     --tag ${IMAGE_REPO}:${GIT_SHORT_HASH} \
-                     --tag ${IMAGE_REPO}:${IMAGE_BRANCH_TAG} \
-                     --build-arg BUILDKIT_INLINE_CACHE=1 \
-                     "."
-      - docker push ${IMAGE_REPO}:builder_base-${DOCKER_FILE_COMMIT_SHORT_HASH}
-      - docker push ${IMAGE_REPO}:${GIT_SHORT_HASH}
-      - docker push ${IMAGE_REPO}:${IMAGE_BRANCH_TAG}
+  - label: ":gear::docker: Build docker image"
+    command: "./.cicd/docker-build.sh"
     agents:
       queue: "automation-eks-eos-builder-fleet"
 

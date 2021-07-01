@@ -48,7 +48,7 @@ happen if you don't have enough RAM for the number of cores you use:
 
 ```
 cd ~
-wget https://dl.bintray.com/boostorg/release/1.70.0/source/boost_1_70_0.tar.gz
+wget https://boostorg.jfrog.io/artifactory/main/release/1.70.0/source/boost_1_70_0.tar.gz
 tar xf boost_1_70_0.tar.gz
 cd boost_1_70_0
 ./bootstrap.sh

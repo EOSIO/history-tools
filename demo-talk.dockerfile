@@ -35,7 +35,7 @@ run update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 100
 run update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-8 100
 
 workdir /root
-run wget https://dl.bintray.com/boostorg/release/1.70.0/source/boost_1_70_0.tar.gz
+run wget https://boostorg.jfrog.io/artifactory/main/release/1.70.0/source/boost_1_70_0.tar.gz
 run tar xf boost_1_70_0.tar.gz
 workdir /root/boost_1_70_0
 run ./bootstrap.sh

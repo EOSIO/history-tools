@@ -437,6 +437,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             return true;
         bool bulk         = result.this_block->block_num + 4 < result.last_irreversible.block_num;
         bool large_deltas = false;
+        bool forks        = false;
         auto deltas_size  = num_bytes(result.deltas);
 
         if (!bulk && deltas_size >= 10 * 1024 * 1024) {
@@ -455,6 +456,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             close_streams();
             ilog("switch forks at block ${b}", ("b", result.this_block->block_num));
             bulk = false;
+            forks = true;
         }
 
         if (!bulk || large_deltas || !(result.this_block->block_num % 200))
@@ -480,7 +482,10 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         if (!first)
             first = head;
         if (!bulk) {
-            flush_streams();
+
+            if (!forks)
+                flush_streams();
+
             write_fill_status(t, pipeline);
         }
         pipeline.insert(

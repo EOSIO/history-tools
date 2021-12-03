@@ -90,7 +90,9 @@ struct table_stream {
 };
 
 template <typename T>
-std::size_t num_bytes(const eosio::opaque<T>& obj) { return obj.num_bytes();}
+std::size_t num_bytes(const eosio::opaque<T>& obj) {
+    return obj.num_bytes();
+}
 std::size_t num_bytes(std::optional<eosio::input_stream> strm) { return strm.has_value() ? strm->end - strm->pos : 0; }
 
 struct fpg_session;
@@ -109,6 +111,7 @@ struct fill_postgresql_plugin_impl : std::enable_shared_from_this<fill_postgresq
     std::shared_ptr<fill_postgresql_config> config = std::make_shared<fill_postgresql_config>();
     std::shared_ptr<fpg_session>            session;
     boost::asio::deadline_timer             timer;
+    std::vector<std::string>                account_filters;
 
     fill_postgresql_plugin_impl()
         : timer(app().get_io_service()) {}
@@ -149,10 +152,12 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     std::map<std::string, std::unique_ptr<table_stream>> table_streams;
     abieos_sql_converter                                 converter;
     std::map<std::string, eosio::abi_type>               abi_types;
+    std::vector<std::string>                             account_filters;
 
     fpg_session(fill_postgresql_plugin_impl* my)
         : my(my)
-        , config(my->config) {
+        , config(my->config)
+        , account_filters(my->account_filters) {
 
         ilog("connect to postgresql");
         sql_connection.emplace();
@@ -237,7 +242,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         t.exec("insert into " + converter.schema_name + R"(.fill_status values (0, '', 0, '', 0))");
 
         auto exec = [&t](const auto& stmt) { t.exec(stmt); };
-        converter.create_table("block_info", get_type("signed_block_header"), "block_num bigint, block_id varchar(64)", {"block_num"}, exec);
+        converter.create_table(
+            "block_info", get_type("signed_block_header"), "block_num bigint, block_id varchar(64)", {"block_num"}, exec);
 
         converter.create_table(
             "transaction_trace", get_type("transaction_trace"), "block_num bigint, transaction_ordinal integer",
@@ -407,8 +413,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
     void truncate(work_t& t, pipeline_t& pipeline, uint32_t block) {
         auto trunc = [&](const std::string& name) {
-            std::string query{"delete from " + converter.schema_name + "." + quote_name(name) +
-                              " where block_num >= " + std::to_string(block)};
+            std::string query{
+                "delete from " + converter.schema_name + "." + quote_name(name) + " where block_num >= " + std::to_string(block)};
             pipeline.insert(query);
         };
         trunc("received_block");
@@ -430,7 +436,6 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         first = std::min(first, head);
     } // truncate
 
-    
     template <typename GetBlockResult, typename HandleBlocksTracesDelta>
     bool process_blocks_result(GetBlockResult& result, HandleBlocksTracesDelta&& handler) {
         if (!result.this_block)
@@ -455,7 +460,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         if (result.this_block->block_num <= head) {
             close_streams();
             ilog("switch forks at block ${b}", ("b", result.this_block->block_num));
-            bulk = false;
+            bulk  = false;
             forks = true;
         }
 
@@ -502,7 +507,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     }
 
     bool received(get_blocks_result_v2& result) override {
-        return process_blocks_result(result, [this,&result](bool bulk) {
+        return process_blocks_result(result, [this, &result](bool bulk) {
             if (!result.block_header.empty())
                 receive_block(result.this_block->block_num, result.this_block->block_id, result.block_header);
             if (!result.deltas.empty())
@@ -513,11 +518,14 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     }
 
     bool received(get_blocks_result_v1& result) override {
-        return process_blocks_result(result, [this,&result](bool bulk) {
+        return process_blocks_result(result, [this, &result](bool bulk) {
             if (result.block) {
-                const signed_block_header& header = std::visit([](const auto& v) -> const signed_block_header& { return v; }, result.block.value());
-                std::vector<char>   data   = eosio::convert_to_bin(header);
-                receive_block(result.this_block->block_num, result.this_block->block_id, eosio::as_opaque<signed_block_header>(eosio::input_stream{data}));
+                const signed_block_header& header =
+                    std::visit([](const auto& v) -> const signed_block_header& { return v; }, result.block.value());
+                std::vector<char> data = eosio::convert_to_bin(header);
+                receive_block(
+                    result.this_block->block_num, result.this_block->block_id,
+                    eosio::as_opaque<signed_block_header>(eosio::input_stream{data}));
             }
             if (!result.deltas.empty())
                 receive_deltas(result.this_block->block_num, result.deltas, bulk);
@@ -527,9 +535,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     }
 
     bool received(get_blocks_result_v0& result) override {
-        return process_blocks_result(result, [this,&result](bool bulk) {
+        return process_blocks_result(result, [this, &result](bool bulk) {
             if (result.block) {
-                auto     block_bin = *result.block;
+                auto block_bin = *result.block;
                 receive_block(result.this_block->block_num, result.this_block->block_id, eosio::as_opaque<signed_block_header>(block_bin));
             }
             if (result.deltas)
@@ -539,7 +547,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 receive_traces(
                     result.this_block->block_num, eosio::as_opaque<std::vector<eosio::ship_protocol::transaction_trace>>(*result.traces));
         });
-    } 
+    }
 
     void write_stream(uint32_t block_num, const std::string& name, const std::vector<std::string>& values) {
         if (!first_bulk)
@@ -582,9 +590,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     }
 
     void receive_deltas(uint32_t block_num, eosio::opaque<std::vector<eosio::ship_protocol::table_delta>> delta, bool bulk) {
-        for_each(delta, [ this, block_num, bulk ](table_delta&& t_delta){
-            write_table_delta(block_num, std::move(t_delta), bulk);
-        });
+        for_each(delta, [this, block_num, bulk](table_delta&& t_delta) { write_table_delta(block_num, std::move(t_delta), bulk); });
     }
 
     void write_table_delta(uint32_t block_num, table_delta&& t_delta, bool bulk) {
@@ -606,6 +612,21 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                         converter.to_sql_values(row.data, t_delta.name, *type.as_variant(), values);
                     else if (type.as_struct())
                         converter.to_sql_values(row.data, *type.as_struct(), values);
+
+                    bool save = false;
+                    for (auto& account : account_filter){
+                        
+                        if (std::find(values.begin(), values.end(), account) != values.end()){
+
+                            save = true;
+                            break;
+                        }
+                    }
+
+                    if (!save){
+
+                        continue;
+                    }
                     write_stream(block_num, t_delta.name, values);
                     ++num_processed;
                 }
@@ -711,6 +732,13 @@ void fill_pg_plugin::plugin_initialize(const variables_map& options) {
         my->config->drop_schema   = options.count("fpg-drop");
         my->config->create_schema = options.count("fpg-create");
         my->config->enable_trim   = options.count("fill-trim");
+
+        // 添加过滤
+        for (auto& filt : my->config->trx_filters) {
+
+            auto account = filt.act_account.value().to_string();
+            my->account_filters.push_back(account);
+        }
     }
     FC_LOG_AND_RETHROW()
 }
